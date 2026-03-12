@@ -1,5 +1,6 @@
 import asyncio
 import sys
+import signal
 from telegram.ext import ApplicationBuilder, MessageHandler, CallbackQueryHandler, filters
 from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_USER_ID, TIMEZONE, MORNING_BRIEFING_TIME, EOD_REFLECTION_TIME
 from db.connection import get_pool, close_pool
@@ -31,7 +32,6 @@ async def main():
             print(f"User profile ensured for ID: {TELEGRAM_USER_ID}")
 
         # 7. Build python-telegram-bot Application
-        # We use run_polling() which is the standard way to run the bot
         application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
         
         # 8. Register handlers (using partial to pass the pool)
@@ -41,22 +41,54 @@ async def main():
         application.add_handler(MessageHandler(filters.ALL, msg_handler_with_pool))
         application.add_handler(CallbackQueryHandler(cb_handler_with_pool))
         
-        print("Lora is running and starting polling... 🤖")
+        # 10. Manual lifecycle management to avoid conflicts
+        await application.initialize()
+        print("Application initialized.")
         
-        # 10. Clear any existing webhooks and start polling
-        async with application:
-            await application.bot.delete_webhook(drop_pending_updates=True)
-            await application.run_polling()
+        # Clear webhook
+        await application.bot.delete_webhook(drop_pending_updates=True)
+        print("Webhook cleared.")
+        
+        await application.start()
+        print("Application started.")
+        
+        await application.updater.start_polling()
+        print("Lora is running and polling for updates... 🤖")
+        
+        # Create a stop event to keep the loop running
+        stop_event = asyncio.Event()
+        
+        # Handle stop signals
+        def stop():
+            stop_event.set()
+            
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            try:
+                loop.add_signal_handler(sig, stop)
+            except NotImplementedError:
+                # signal.add_signal_handler is not implemented on some platforms (e.g. Windows)
+                pass
+
+        # Wait until stop signal
+        await stop_event.wait()
+        
+        # 11. Shutdown gracefully
+        print("Stopping Lora...")
+        await application.updater.stop()
+        await application.stop()
+        await application.shutdown()
 
     except Exception as e:
         print(f"Error running Lora: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         await close_pool()
         print("Database pool closed.")
 
 if __name__ == "__main__":
-    # Standard way to run async main in Python 3.7+
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\nStopping Lora...")
+        pass
