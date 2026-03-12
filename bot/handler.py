@@ -11,24 +11,31 @@ import traceback
 
 async def security_check(update: Update) -> bool:
     """Rejects non-whitelisted user IDs silently."""
-    if not update.effective_user or update.effective_user.id != TELEGRAM_USER_ID:
+    if not update.effective_user:
         return False
-    return True
+    
+    is_authorized = update.effective_user.id == TELEGRAM_USER_ID
+    if not is_authorized:
+        print(f"Unauthorized access attempt by ID: {update.effective_user.id}")
+    return is_authorized
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
+    # Log EVERY message before the security check
+    user_id = update.effective_user.id if update.effective_user else "Unknown"
+    text = update.message.text if update.message else "[Non-text message]"
+    print(f"DEBUG: Received signal from {user_id}: {text}")
+
     if not await security_check(update):
         return
 
     try:
         telegram_id = update.effective_user.id
-        text = update.message.text if update.message else ""
-        print(f"Incoming message from {telegram_id}: {text}")
         
         # Check onboarding status
         onboarding_done = await is_onboarding_complete(pool, telegram_id)
         onboarding_step = context.user_data.get("onboarding_step")
         
-        print(f"Onboarding status: done={onboarding_done}, step={onboarding_step}")
+        print(f"DEBUG: Onboarding status: done={onboarding_done}, step={onboarding_step}")
         
         if not onboarding_done or onboarding_step:
             if text == "/start":
@@ -51,7 +58,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
         profile = await get_user_profile(pool, telegram_id)
         
         # 4. Call Gemini
-        print("Calling Gemini...")
+        print("DEBUG: Calling Gemini...")
         intent_response = await get_gemini_response(
             user_message=text,
             user_name=profile.get("name", "User"),
@@ -60,7 +67,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
             history=history,
             personal_notes=profile.get("personal_notes") or ""
         )
-        print(f"Gemini response: {intent_response}")
+        print(f"DEBUG: Gemini response: {intent_response}")
         
         # 5. Route intent and get final reply + keyboard
         final_reply, reply_markup = await route_intent(pool, intent_response)
@@ -70,33 +77,33 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
             await conn.execute("INSERT INTO conversations (role, content) VALUES ($1, $2)", "assistant", final_reply)
 
         # 7. Send to user
-        # Note: We use plain text if parse_mode=MarkdownV2 fails
         try:
             await update.message.reply_text(final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup)
         except Exception as e:
-            print(f"MarkdownV2 failed, sending as plain text: {e}")
+            print(f"DEBUG: MarkdownV2 failed, sending as plain text: {e}")
             await update.message.reply_text(final_reply, reply_markup=reply_markup)
 
     except Exception as e:
-        print(f"Error in message_handler: {e}")
+        print(f"ERROR in message_handler: {e}")
         traceback.print_exc()
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
+    user_id = update.effective_user.id if update.effective_user else "Unknown"
+    print(f"DEBUG: Callback received from {user_id}: {update.callback_query.data}")
+
     if not await security_check(update):
         return
 
     try:
         query = update.callback_query
         data = query.data
-        print(f"Callback received: {data}")
 
         # Route onboarding callbacks
         if data.startswith("onboard:"):
             await handle_onboarding_callback(update, context, pool)
             return
 
-        # Normal callback flow (Phase 4+)
         await query.answer("Feature coming soon!")
     except Exception as e:
-        print(f"Error in callback_handler: {e}")
+        print(f"ERROR in callback_handler: {e}")
         traceback.print_exc()

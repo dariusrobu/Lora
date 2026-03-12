@@ -43,8 +43,10 @@ async def main():
         
         print("Lora is running and starting polling... 🤖")
         
-        # 10. Start polling (this blocks until the bot is stopped)
-        await application.run_polling()
+        # 10. Clear any existing webhooks and start polling
+        async with application:
+            await application.bot.delete_webhook(drop_pending_updates=True)
+            await application.run_polling()
 
     except Exception as e:
         print(f"Error running Lora: {e}")
