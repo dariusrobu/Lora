@@ -10,25 +10,62 @@ async def security_check(update: Update) -> bool:
         return False
     return True
 
+from bot.formatter import escape_md
+from core.context import build_context
+from core.gemini import get_gemini_response
+from core.router import route_intent
+from db.queries.profile import is_onboarding_complete, get_user_profile
+
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
     if not await security_check(update):
         return
 
     telegram_id = update.effective_user.id
+    text = update.message.text if update.message else ""
     
     # Check onboarding status
     onboarding_done = await is_onboarding_complete(pool, telegram_id)
+    onboarding_step = context.user_data.get("onboarding_step")
     
-    # If mid-onboarding or not started
-    if not onboarding_done or context.user_data.get("onboarding_step"):
-        if update.message.text == "/start" and not onboarding_done:
+    if not onboarding_done or onboarding_step:
+        if text == "/start":
             await start_onboarding(update, context, pool)
         else:
             await handle_onboarding(update, context, pool)
         return
 
-    # Normal message flow (Phase 3+)
-    await update.message.reply_text("I heard you! (Phase 3 implementation coming soon)")
+    # Phase 3: Gemini Brain integration
+    # 1. Save user message to conversations
+    async with pool.acquire() as conn:
+        await conn.execute("INSERT INTO conversations (role, content) VALUES ($1, $2)", "user", text)
+        
+        # 2. Get history (last 10 turns)
+        history_rows = await conn.fetch("SELECT role, content FROM conversations ORDER BY created_at DESC LIMIT 10")
+        history = [{"role": r["role"], "content": r["content"]} for r in reversed(history_rows)]
+
+    # 3. Build context snapshot
+    context_snapshot = await build_context(pool)
+    profile = await get_user_profile(pool, telegram_id)
+    
+    # 4. Call Gemini
+    intent_response = await get_gemini_response(
+        user_message=text,
+        user_name=profile.get("name", "User"),
+        tone=profile.get("tone", "warm"),
+        context_snapshot=context_snapshot,
+        history=history,
+        personal_notes=profile.get("personal_notes") or ""
+    )
+    
+    # 5. Route intent and get final reply + keyboard
+    final_reply, reply_markup = await route_intent(pool, intent_response)
+    
+    # 6. Save assistant reply to conversations
+    async with pool.acquire() as conn:
+        await conn.execute("INSERT INTO conversations (role, content) VALUES ($1, $2)", "assistant", final_reply)
+
+    # 7. Send to user
+    await update.message.reply_text(final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup)
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
     if not await security_check(update):
