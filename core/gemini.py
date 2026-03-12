@@ -4,9 +4,11 @@ from typing import Dict, Any, List
 from core.config import GEMINI_API_KEY, TIMEZONE
 from datetime import datetime, timedelta
 import pytz
+import asyncio
 
 genai.configure(api_key=GEMINI_API_KEY)
 
+# Use the correct model name format
 model = genai.GenerativeModel(
     model_name="gemini-1.5-flash",
     generation_config=genai.GenerationConfig(
@@ -77,26 +79,20 @@ IntentResponse schema:
 }}
 """
 
-    # Format history for Gemini SDK
-    chat = model.start_chat(history=[]) # History is passed manually to system prompt or as turns
-    
-    # We build a final prompt that includes history context
     history_str = "\n".join([f"{m['role']}: {m['content']}" for m in history])
-    
     final_prompt = f"{system_prompt}\n\nCONVERSATION HISTORY:\n{history_str}\n\nUSER: {user_message}"
     
     try:
+        # Note: model.generate_content is synchronous in some SDK versions, wrapping in to_thread
         response = await asyncio.to_thread(model.generate_content, final_prompt)
         return json.loads(response.text)
     except Exception as e:
         print(f"Gemini error: {e}")
-        # Retry logic if needed, or fallback
+        # Fallback with escaped MarkdownV2
         return {
             "intent": "chat",
             "module": None,
             "data": {},
-            "reply": "I'm having a little trouble thinking clearly right now. Could you try again in a moment? 🧠💨",
+            "reply": "I'm having a little trouble thinking clearly right now\\. Could you try again in a moment? 🧠💨",
             "needs_confirmation": False
         }
-
-import asyncio # Needed for to_thread

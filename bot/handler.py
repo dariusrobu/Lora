@@ -31,6 +31,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
     try:
         telegram_id = update.effective_user.id
         
+        # Non-text message handling
+        if not update.message or not update.message.text:
+            if update.message and (update.message.photo or update.message.voice or update.message.video or update.message.sticker):
+                await update.message.reply_text("I can only read text for now — what would you like to do?")
+            return
+
+        text = update.message.text
+        
         # Check onboarding status
         onboarding_done = await is_onboarding_complete(pool, telegram_id)
         onboarding_step = context.user_data.get("onboarding_step")
@@ -48,12 +56,43 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
         # 1. Save user message to conversations
         async with pool.acquire() as conn:
             await conn.execute("INSERT INTO conversations (role, content) VALUES ($1, $2)", "user", text)
-            
+
             # 2. Get history (last 10 turns)
             history_rows = await conn.fetch("SELECT role, content FROM conversations ORDER BY created_at DESC LIMIT 10")
             history = [{"role": r["role"], "content": r["content"]} for r in reversed(history_rows)]
 
+        # Phase 8: State Check (Confirmations / Edits)
+        from core.state import get_state, clear_state
+        state = await get_state(pool)
+
+        if state and state['state_type'] == 'awaiting_confirmation':
+            # Simple yes/no detection for confirmations
+            low_text = text.lower()
+            if any(word in low_text for word in ['yes', 'yeah', 'do it', 'confirm', 'sure', 'da']):
+                # Trigger the confirmed action
+                data = {"id": state['item_id'], "confirmed": True}
+                intent = f"{state['action']}_confirmed" # e.g. delete_confirmed
+                intent_response = {
+                    "intent": intent,
+                    "module": state['module'],
+                    "data": data,
+                    "reply": "Confirmed. Working on it...",
+                    "needs_confirmation": False
+                }
+                await clear_state(pool)
+                final_reply, reply_markup = await route_intent(pool, intent_response)
+                await update.message.reply_text(final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup)
+                return
+            elif any(word in low_text for word in ['no', 'stop', 'cancel', 'don\'t', 'nu']):
+                await clear_state(pool)
+                await update.message.reply_text("Cancelled\\.")
+                return
+            else:
+                # If user sends unrelated message, clear state and proceed to Gemini
+                await clear_state(pool)
+
         # 3. Build context snapshot
+
         context_snapshot = await build_context(pool)
         profile = await get_user_profile(pool, telegram_id)
         
@@ -77,11 +116,17 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
             await conn.execute("INSERT INTO conversations (role, content) VALUES ($1, $2)", "assistant", final_reply)
 
         # 7. Send to user
-        try:
-            await update.message.reply_text(final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup)
-        except Exception as e:
-            print(f"DEBUG: MarkdownV2 failed, sending as plain text: {e}")
-            await update.message.reply_text(final_reply, reply_markup=reply_markup)
+        from bot.formatter import split_message
+        chunks = split_message(final_reply)
+        
+        for i, chunk in enumerate(chunks):
+            # Only attach keyboard to the last chunk
+            current_markup = reply_markup if i == len(chunks) - 1 else None
+            try:
+                await update.message.reply_text(chunk, parse_mode="MarkdownV2", reply_markup=current_markup)
+            except Exception as e:
+                print(f"DEBUG: MarkdownV2 failed, sending as plain text: {e}")
+                await update.message.reply_text(chunk, reply_markup=current_markup)
 
     except Exception as e:
         print(f"ERROR in message_handler: {e}")
@@ -103,7 +148,85 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             await handle_onboarding_callback(update, context, pool)
             return
 
-        await query.answer("Feature coming soon!")
+        # Phase 4: Module callbacks (module:action:item_id)
+        parts = data.split(":")
+        if len(parts) >= 2:
+            module, action = parts[0], parts[1]
+            item_id = int(parts[2]) if len(parts) > 2 else None
+            
+            if module == "tasks":
+                import db.queries.tasks as task_queries
+                if action == "complete":
+                    await task_queries.complete_task(pool, item_id)
+                    await query.answer("Task completed! ✅")
+                    await query.edit_message_text(f"Task marked as complete\\.")
+                elif action == "delete":
+                    task = await task_queries.get_task(pool, item_id)
+                    from bot.keyboards import confirmation_keyboard
+                    from core.state import set_state
+                    await set_state(pool, "awaiting_confirmation", "tasks", "delete", item_id)
+                    await query.edit_message_text(
+                        f"Are you sure you want to delete *{escape_md(task['title'])}*?",
+                        parse_mode="MarkdownV2",
+                        reply_markup=confirmation_keyboard("tasks", "delete", item_id)
+                    )
+                elif action == "delete_confirmed":
+                    await task_queries.delete_task(pool, item_id)
+                    from core.state import clear_state
+                    await clear_state(pool)
+                    await query.answer("Deleted.")
+                    await query.edit_message_text("Task deleted\\.")
+            elif module == "habits":
+                import db.queries.habits as habit_queries
+                from datetime import datetime
+                if action in ["done", "skip"]:
+                    status = "done" if action == "done" else "skipped"
+                    await habit_queries.log_habit(pool, item_id, datetime.now().date(), status)
+                    await query.answer(f"Habit {status}!")
+                    await query.edit_message_text(f"Habit marked as {status}\\.")
+                elif action == "delete":
+                    habit = await habit_queries.get_habit(pool, item_id)
+                    from bot.keyboards import confirmation_keyboard
+                    from core.state import set_state
+                    await set_state(pool, "awaiting_confirmation", "habits", "delete", item_id)
+                    await query.edit_message_text(
+                        f"Are you sure you want to delete the habit *{escape_md(habit['name'])}*?",
+                        parse_mode="MarkdownV2",
+                        reply_markup=confirmation_keyboard("habits", "delete", item_id)
+                    )
+                elif action == "delete_confirmed":
+                    await habit_queries.delete_habit(pool, item_id)
+                    from core.state import clear_state
+                    await clear_state(pool)
+                    await query.answer("Deleted.")
+                    await query.edit_message_text("Habit deleted\\.")
+            elif module == "projects":
+                import db.queries.projects as project_queries
+                if action == "delete":
+                    project = await project_queries.get_project(pool, item_id)
+                    from bot.keyboards import confirmation_keyboard
+                    from core.state import set_state
+                    await set_state(pool, "awaiting_confirmation", "projects", "delete", item_id)
+                    await query.edit_message_text(
+                        f"Are you sure you want to delete project *{escape_md(project['name'])}*?\\nTasks linked to it will NOT be deleted\\.",
+                        parse_mode="MarkdownV2",
+                        reply_markup=confirmation_keyboard("projects", "delete", item_id)
+                    )
+                elif action == "delete_confirmed":
+                    await project_queries.delete_project(pool, item_id)
+                    from core.state import clear_state
+                    await clear_state(pool)
+                    await query.answer("Deleted.")
+                    await query.edit_message_text("Project deleted\\.")
+            
+            # Generic actions
+            if action in ["cancel", "delete_cancelled"]:
+                from core.state import clear_state
+                await clear_state(pool)
+                await query.answer("Cancelled.")
+                await query.edit_message_text("Action cancelled\\.")
+
+        await query.answer()
     except Exception as e:
         print(f"ERROR in callback_handler: {e}")
         traceback.print_exc()

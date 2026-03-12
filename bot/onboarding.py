@@ -30,7 +30,7 @@ async def handle_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        reply = f"Nice to meet you, {escape_md(name)}!\nI've got your timezone set to `{escape_md(timezone)}` — is that right?"
+        reply = f"Nice to meet you, {escape_md(name)}\\!\nI've got your timezone set to `{escape_md(timezone)}` — is that right?"
         await update.message.reply_text(reply, reply_markup=reply_markup, parse_mode="MarkdownV2")
         context.user_data["onboarding_step"] = "awaiting_tz_confirm"
 
@@ -63,15 +63,15 @@ async def finish_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     eod_time = profile.get("eod_time", "21:00")
 
     reply = (
-        f"Perfect. Here's what I can help you with:\n"
+        f"Perfect\\. Here's what I can help you with:\n"
         f"📋 *Tasks & Projects*\n"
         f"✅ *Habits*\n"
         f"📓 *Notes & Journal*\n"
         f"💰 *Finance*\n"
         f"📅 *Events*\n\n"
-        f"Just talk to me naturally — no commands needed.\n"
+        f"Just talk to me naturally — no commands needed\\.\n"
         f"I'll send you a morning briefing every day at *{escape_md(morning_time)}*\n"
-        f"and check in with you each evening at *{escape_md(eod_time)}*.\n\n"
+        f"and check in with you each evening at *{escape_md(eod_time)}*\\.\n\n"
         f"What would you like to start with?"
     )
     

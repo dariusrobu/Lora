@@ -34,6 +34,10 @@ def main():
     # Build the Application
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     
+    # 5. Initialize Scheduler
+    from scheduler.jobs import setup_scheduler
+    scheduler = setup_scheduler(application, pool)
+    
     # Register handlers
     msg_handler_with_pool = partial(message_handler, pool=pool)
     cb_handler_with_pool = partial(callback_handler, pool=pool)

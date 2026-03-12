@@ -30,11 +30,23 @@ async def route_intent(pool, intent_response: Dict[str, Any]):
         return reply, None
 
     # Module routing logic (Phase 4 & 5)
-    # This will be expanded as we add modules/tasks.py, etc.
-    
-    # Placeholder for actual module calls:
-    # if module == "tasks":
-    #     from modules.tasks import handle_task_intent
-    #     return await handle_task_intent(pool, intent, data)
+    if module == "tasks":
+        from modules.tasks import handle_task_intent
+        return await handle_task_intent(pool, intent, data)
+    elif module == "habits":
+        from modules.habits import handle_habit_intent
+        return await handle_habit_intent(pool, intent, data)
+    elif module == "projects":
+        from modules.projects import handle_project_intent
+        return await handle_project_intent(pool, intent, data)
+    elif module == "notes":
+        from modules.notes import handle_note_intent
+        return await handle_note_intent(pool, intent, data)
+    elif module == "finance":
+        from modules.finance import handle_finance_intent
+        return await handle_finance_intent(pool, intent, data)
+    elif module == "events":
+        from modules.events import handle_event_intent
+        return await handle_event_intent(pool, intent, data)
     
     return f"{reply}\n\n_(Note: Module {module} is still being implemented)_", None
