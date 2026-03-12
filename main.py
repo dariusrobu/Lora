@@ -1,12 +1,15 @@
 import asyncio
 import sys
-from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_USER_ID
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters
+from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_USER_ID, TIMEZONE, MORNING_BRIEFING_TIME, EOD_REFLECTION_TIME
 from db.connection import get_pool, close_pool
+from bot.handler import message_handler, callback_handler
+from functools import partial
 
 async def main():
     print("Starting Lora...")
     
-    # 1. Load + validate all env vars (already handled by core/config.py import)
+    # 1. Load + validate all env vars (handled by core/config.py import)
     
     # 2. Initialize asyncpg connection pool
     try:
@@ -21,32 +24,51 @@ async def main():
         async with pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO user_profile (telegram_id)
-                VALUES ($1)
+                INSERT INTO user_profile (telegram_id, timezone, morning_time, eod_time)
+                VALUES ($1, $2, $3, $4)
                 ON CONFLICT (telegram_id) DO NOTHING
                 """,
-                TELEGRAM_USER_ID
+                TELEGRAM_USER_ID, TIMEZONE, MORNING_BRIEFING_TIME, EOD_REFLECTION_TIME
             )
             print(f"User profile ensured for ID: {TELEGRAM_USER_ID}")
 
-        # Placeholder for remaining startup steps
         # 4. Initialize Gemini client (Phase 3)
         # 5. Initialize AsyncIOScheduler and register all jobs (Phase 6)
-        # 6. Start scheduler
-        # 7. Build python-telegram-bot Application (Phase 2)
-        # 8. Register handlers (Phase 2)
+        
+        # 7. Build python-telegram-bot Application
+        application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+        
+        # 8. Register handlers (using partial to pass the pool)
+        msg_handler_with_pool = partial(message_handler, pool=pool)
+        cb_handler_with_pool = partial(callback_handler, pool=pool)
+        
+        # We use MessageHandler with ALL filter to catch everything, including /start
+        application.add_handler(MessageHandler(filters.ALL, msg_handler_with_pool))
+        application.add_handler(CallbackQueryHandler(cb_handler_with_pool))
         
         print("Lora is running 🤖")
         
-        # Keep the application running (this will be replaced by bot.run_polling() in Phase 2)
-        while True:
-            await asyncio.sleep(3600)
+        # 10. Start long polling
+        async with application:
+            await application.initialize()
+            await application.start()
+            await application.updater.start_polling()
+            
+            # Keep the application running
+            while True:
+                await asyncio.sleep(3600)
 
     except KeyboardInterrupt:
         print("\nStopping Lora...")
+    except Exception as e:
+        print(f"Error running Lora: {e}")
     finally:
         await close_pool()
         print("Database pool closed.")
 
 if __name__ == "__main__":
+    # Fix for some event loop issues in certain environments
+    if sys.platform == 'win32':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    
     asyncio.run(main())
