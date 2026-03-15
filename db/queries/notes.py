@@ -12,13 +12,22 @@ async def add_note(pool, content: str, type: str = "note", tags: List[str] = [],
         )
         return row['id']
 
-async def list_notes(pool, type: Optional[str] = None, limit: int = 20) -> List[Dict[str, Any]]:
+async def list_notes(pool, type: Optional[str] = None, project_id: Optional[int] = None, limit: int = 20) -> List[Dict[str, Any]]:
     async with pool.acquire() as conn:
         query = "SELECT * FROM notes"
         params = []
+        where_clauses = []
+        
         if type:
-            query += " WHERE type = $1"
             params.append(type)
+            where_clauses.append(f"type = ${len(params)}")
+        
+        if project_id:
+            params.append(project_id)
+            where_clauses.append(f"project_id = ${len(params)}")
+            
+        if where_clauses:
+            query += " WHERE " + " AND ".join(where_clauses)
         
         query += " ORDER BY is_pinned DESC, created_at DESC LIMIT " + str(limit)
         rows = await conn.fetch(query, *params)

@@ -18,6 +18,15 @@ async def get_task(pool, task_id: int) -> Optional[Dict[str, Any]]:
         row = await conn.fetchrow("SELECT * FROM tasks WHERE id = $1", task_id)
         return dict(row) if row else None
 
+async def get_tasks_by_title(pool, title: str) -> List[Dict[str, Any]]:
+    async with pool.acquire() as conn:
+        # Search for case-insensitive partial match or exact match
+        rows = await conn.fetch(
+            "SELECT * FROM tasks WHERE (title ILIKE $1 OR title ILIKE $2) AND status = 'pending'",
+            f"%{title}%", title
+        )
+        return [dict(r) for r in rows]
+
 async def update_task(pool, task_id: int, **kwargs):
     if not kwargs:
         return
@@ -37,12 +46,18 @@ async def delete_task(pool, task_id: int):
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM tasks WHERE id = $1", task_id)
 
-async def list_tasks(pool, status: str = "pending") -> List[Dict[str, Any]]:
+async def list_tasks(pool, status: str = "pending", project_id: Optional[int] = None) -> List[Dict[str, Any]]:
     async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT * FROM tasks WHERE status = $1 ORDER BY due_date ASC NULLS LAST, priority DESC",
-            status
-        )
+        query = "SELECT * FROM tasks WHERE status = $1"
+        args = [status]
+        
+        if project_id:
+            query += " AND project_id = $2"
+            args.append(project_id)
+            
+        query += " ORDER BY due_date ASC NULLS LAST, priority DESC"
+        
+        rows = await conn.fetch(query, *args)
         return [dict(r) for r in rows]
 
 async def complete_task(pool, task_id: int):
@@ -76,3 +91,10 @@ async def complete_task(pool, task_id: int):
                 """,
                 task['title'], task['notes'], task['priority'], new_due, task['project_id'], True, task['recurrence']
             )
+
+async def get_completed_tasks_today(pool) -> List[str]:
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT title FROM tasks WHERE status = 'done' AND completed_at::date = CURRENT_DATE"
+        )
+        return [r['title'] for r in rows]

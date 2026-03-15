@@ -48,6 +48,19 @@ async def get_budget_limit(pool, category: str) -> Optional[float]:
         val = await conn.fetchval("SELECT monthly_limit FROM budget_limits WHERE category = $1", category)
         return float(val) if val else None
 
+async def get_recent_finances(pool, limit: int = 10) -> List[Dict[str, Any]]:
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, type, amount, category, description, tx_date
+            FROM finances
+            ORDER BY tx_date DESC, id DESC
+            LIMIT $1
+            """,
+            limit
+        )
+        return [dict(r) for r in rows]
+
 async def delete_finance(pool, finance_id: int):
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM finances WHERE id = $1", finance_id)

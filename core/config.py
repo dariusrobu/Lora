@@ -11,8 +11,13 @@ REQUIRED_VARS = [
     "TIMEZONE",
     "MORNING_BRIEFING_TIME",
     "EOD_REFLECTION_TIME",
+    "HABIT_REMINDER_TIME",
     "WEEKLY_REVIEW_DAY",
 ]
+
+# Optional Weather API
+OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
+WEATHER_CITY = os.getenv("WEATHER_CITY", "Bucharest")
 
 for var in REQUIRED_VARS:
     if not os.getenv(var):
@@ -25,4 +30,5 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 TIMEZONE = os.getenv("TIMEZONE", "Europe/Bucharest")
 MORNING_BRIEFING_TIME = os.getenv("MORNING_BRIEFING_TIME", "08:00")
 EOD_REFLECTION_TIME = os.getenv("EOD_REFLECTION_TIME", "21:00")
+HABIT_REMINDER_TIME = os.getenv("HABIT_REMINDER_TIME", "18:00")
 WEEKLY_REVIEW_DAY = os.getenv("WEEKLY_REVIEW_DAY", "sunday")

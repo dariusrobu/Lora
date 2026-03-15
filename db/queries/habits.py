@@ -18,6 +18,14 @@ async def get_habit(pool, habit_id: int) -> Optional[Dict[str, Any]]:
         row = await conn.fetchrow("SELECT * FROM habits WHERE id = $1", habit_id)
         return dict(row) if row else None
 
+async def get_habits_by_name(pool, name: str) -> List[Dict[str, Any]]:
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM habits WHERE name ILIKE $1 AND is_active = True",
+            f"%{name}%"
+        )
+        return [dict(r) for r in rows]
+
 async def list_habits(pool, is_active: bool = True) -> List[Dict[str, Any]]:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -60,15 +68,40 @@ async def recalculate_streak(pool, habit_id: int):
         )
         
         current_streak = 0
-        # Basic logic: count backwards from today/yesterday for consecutive 'done'
-        # In a real implementation, this handles 'skipped' and forgiveness windows
+        expected_date = date.today()
+        
+        # We allow today to be missing (if they haven't logged yet), 
+        # but the streak must be anchored at today or yesterday.
+        anchor_found = False
+        
         for log in logs:
-            if log['status'] == 'done':
-                current_streak += 1
-            elif log['status'] == 'skipped':
-                continue # Skip doesn't break nor increase streak
-            else:
+            l_date = log['log_date']
+            l_status = log['status']
+            
+            # Skip skipped logs (they don't count towards streak nor break it)
+            if l_status == 'skipped':
+                continue
+                
+            # If it's a gap, we break
+            # We allow a 1-day gap (today) if they haven't logged yet
+            if not anchor_found:
+                if l_date == date.today() or l_date == date.today() - timedelta(days=1):
+                    anchor_found = True
+                    expected_date = l_date
+                else:
+                    # No log today or yesterday that is 'done'
+                    break
+            
+            if l_date == expected_date:
+                if l_status == 'done':
+                    current_streak += 1
+                    expected_date -= timedelta(days=1)
+                else:
+                    break
+            elif l_date < expected_date:
+                # Gap found
                 break
+            # if l_date > expected_date (shouldn't happen with DESC order unless multiple logs per day, which DB prevents)
         
         await conn.execute(
             "UPDATE habits SET streak_count = $1, longest_streak = GREATEST(longest_streak, $1) WHERE id = $2",
@@ -82,3 +115,14 @@ async def get_today_logs(pool) -> List[int]:
             "SELECT habit_id FROM habit_logs WHERE log_date = CURRENT_DATE AND status IN ('done', 'skipped')"
         )
         return [r['habit_id'] for r in rows]
+
+async def get_habits_completed_today(pool) -> List[str]:
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT h.name FROM habits h 
+            JOIN habit_logs l ON h.id = l.habit_id 
+            WHERE l.log_date = CURRENT_DATE AND l.status = 'done'
+            """
+        )
+        return [r['name'] for r in rows]

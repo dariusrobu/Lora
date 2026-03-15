@@ -38,6 +38,25 @@ def confirmation_keyboard(module: str, action: str, item_id: int) -> InlineKeybo
     ]
     return InlineKeyboardMarkup(keyboard)
 
+def habit_list_keyboard(habits: list) -> InlineKeyboardMarkup:
+    # Row of Done buttons for today's habits
+    keyboard = []
+    for h in habits:
+        keyboard.append([
+            InlineKeyboardButton(f"✅ {h['name'].capitalize()}", callback_data=f"habits:done:{h['id']}:list")
+        ])
+    return InlineKeyboardMarkup(keyboard)
+
+def task_list_keyboard(tasks: list) -> InlineKeyboardMarkup:
+    # Multiple tasks, each with a 'Done' button
+    keyboard = []
+    for t in tasks:
+        # One row per task: [ Title (Done) ]
+        keyboard.append([
+            InlineKeyboardButton(f"✅ {t['title'][:20]}...", callback_data=f"tasks:complete:{t['id']}:list")
+        ])
+    return InlineKeyboardMarkup(keyboard)
+
 def mood_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [

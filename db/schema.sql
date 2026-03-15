@@ -159,3 +159,13 @@ CREATE TABLE IF NOT EXISTS events (
     updated_at        TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX idx_events_date ON events(event_date);
+-- ── Shopping List ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS shopping_list (
+    id          SERIAL PRIMARY KEY,
+    item        TEXT NOT NULL,
+    category    TEXT,
+    is_bought   BOOLEAN DEFAULT FALSE,
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_shopping_bought ON shopping_list(is_bought);

@@ -8,7 +8,7 @@ async def handle_habit_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[
     """Handles habit-related intents and returns reply text + keyboard."""
     
     if intent == "add_habit":
-        name = data.get("name")
+        name = data.get("name") or data.get("title") or data.get("description")
         if not name:
             return "What habit should I add?", None
             
@@ -29,16 +29,30 @@ async def handle_habit_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[
             
         today_logged = await habit_queries.get_today_logs(pool)
         
-        lines = ["✅ *Your Habits Today:*"]
+        lines = ["✅ *Status Habit-uri Azi:*"]
         for h in habits:
             status = "✅" if h['id'] in today_logged else "⬜"
-            streak = f" (streak: *{h['streak_count']}* 🔥)" if h['streak_count'] > 0 else ""
-            lines.append(f"{status} {escape_md(h['name'])}{streak}")
+            streak = f" — Streak: *{h['streak_count']}* 🔥" if h['streak_count'] > 0 else ""
+            lines.append(f"{status} *{escape_md(h['name'])}*{streak}")
             
-        return "\n".join(lines), None
+        from bot.keyboards import habit_list_keyboard
+        return "\n".join(lines), habit_list_keyboard(habits)
 
     elif intent == "log_habit":
         habit_id = data.get("id")
+        search_name = str(data.get("name") or data.get("title") or data.get("query") or "")
+        
+        if not habit_id and search_name:
+            if search_name.isdigit():
+                habit_id = int(search_name)
+            else:
+                matches = await habit_queries.get_habits_by_name(pool, search_name)
+                if len(matches) == 1:
+                    habit_id = matches[0]['id']
+                elif len(matches) > 1:
+                    from bot.keyboards import habit_list_keyboard
+                    return f"I found multiple habits named *{escape_md(search_name)}*. Which one are we logging?", habit_list_keyboard(matches)
+
         if not habit_id:
             # Maybe the user sent the name, but Gemini should resolve to ID
             return "Which habit are we logging?", None
@@ -51,6 +65,19 @@ async def handle_habit_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[
 
     elif intent == "delete_habit":
         habit_id = data.get("id")
+        search_name = str(data.get("name") or data.get("title") or data.get("query") or "")
+        
+        if not habit_id and search_name:
+            if search_name.isdigit():
+                habit_id = int(search_name)
+            else:
+                matches = await habit_queries.get_habits_by_name(pool, search_name)
+                if len(matches) == 1:
+                    habit_id = matches[0]['id']
+                elif len(matches) > 1:
+                    from bot.keyboards import habit_list_keyboard
+                    return f"I found multiple habits named *{escape_md(search_name)}*. Which one do you want to delete?", habit_list_keyboard(matches)
+
         if not habit_id:
             return "Which habit should I delete?", None
             

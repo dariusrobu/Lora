@@ -1,5 +1,5 @@
 python-telegram-bot==22.6
-google-generativeai
+google-genai
 asyncpg
 apscheduler==3.10.4
 httpx
@@ -7,3 +7,4 @@ python-dotenv
 pytz
 ruff
 python-dateutil
+feedparser

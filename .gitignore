@@ -1,2 +1,12 @@
 .env
 .neon
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+.vscode/
+.idea/
+*.mp3
+*.ogg
