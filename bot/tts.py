@@ -41,10 +41,23 @@ def preprocess_text_for_tts(text: str) -> str:
         r'\banyway\b': 'eniuei',
         r'\bcool\b': 'cul',
         r'\bby the way\b': 'bai dă uei',
+        r'\briefing\b': 'brifing',
+        r'\bnews\b': 'niuz',
+        r'\bsummarize\b': 'samăraiz',
+        r'\bupdate\b': 'apdeit',
+        r'\bnotes\b': 'noturi',
+        r'\bjournal\b': 'jurnal',
+        r'\bfinance\b': 'fainans',
+        r'\bscheduling\b': 'scediuling',
     }
     
     for pattern, replacement in replacements.items():
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+
+    # 6. Add some natural pauses between sentences for better pacing
+    text = text.replace(". ", ". ... ")
+    text = text.replace("! ", "! ... ")
+    text = text.replace("? ", "? ... ")
 
     return text
 
@@ -58,12 +71,17 @@ async def text_to_speech(text: str, filename: str = None) -> str:
     
     processed_text = preprocess_text_for_tts(text)
     
+    # Prosody markers for edge-tts (some versions support simple markers or we just slow down the stream)
+    # We use a slight rate reduction to make it more professional
+    rate = "-10%"
+    pitch = "+2Hz"
+    
     if not filename:
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         filename = temp_file.name
         temp_file.close()
 
-    communicate = edge_tts.Communicate(processed_text, VOICE)
+    communicate = edge_tts.Communicate(processed_text, VOICE, rate=rate, pitch=pitch)
     await communicate.save(filename)
     
     return filename

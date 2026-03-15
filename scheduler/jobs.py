@@ -135,7 +135,9 @@ Always use Telegram MarkdownV2 (bold *text*, code `text`).
             import os
             
             # Clean markdown for TTS
-            tts_text = (raw_brief or ai_brief).replace("*", "").replace("`", "")
+            tts_text = (raw_brief or ai_brief)
+            # Remove MarkdownV2 escapes and formatting markers
+            tts_text = tts_text.replace("*", "").replace("`", "").replace("\\.", ".").replace("\\!", "!").replace("\\-", "-").replace("\\+", "+").replace("\\_", "_")
             
             voice_file = await text_to_speech(tts_text)
             
