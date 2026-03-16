@@ -81,7 +81,13 @@ async def text_to_speech(text: str, filename: str = None) -> str:
         filename = temp_file.name
         temp_file.close()
 
-    communicate = edge_tts.Communicate(processed_text, VOICE, rate=rate, pitch=pitch)
-    await communicate.save(filename)
+    print(f"DEBUG: edge_tts.Communicate starting for path: {filename}", flush=True)
+    try:
+        communicate = edge_tts.Communicate(processed_text, VOICE, rate=rate, pitch=pitch)
+        await communicate.save(filename)
+        print(f"DEBUG: edge_tts.Communicate saved successfully. File exists: {os.path.exists(filename)}", flush=True)
+    except Exception as e:
+        print(f"DEBUG: edge_tts.Communicate FAILED: {str(e)}", flush=True)
+        raise
     
     return filename

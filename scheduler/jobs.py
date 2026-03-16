@@ -110,6 +110,9 @@ Always use Telegram MarkdownV2 (bold *text*, code `text`).
             lines = [f"Bună dimineața, {escape_md(profile.get('name', 'User'))}! ☀️\n"]
             lines.append(f"Astăzi este {today.strftime('%A')}\\. Ai {len(due_today)} task\\-uri și {len(events)} evenimente astăzi\\.")
             ai_brief = "\n".join(lines)
+        
+        # VERSION MARKER - ALWAYS APPENDED
+        ai_brief += "\n\n`[v2.3 DEBUG active]`"
 
         # 5. Send text message IMMEDIATELY
         chunks = split_message(ai_brief)
@@ -128,30 +131,63 @@ Always use Telegram MarkdownV2 (bold *text*, code `text`).
                 )
 
         # 6. Generate and send "podcast" (voice) in background-like manner
-        # Actually, since it's an async function, we can just continue.
-        # But we send the text first so the user is not waiting for TTS.
         try:
+            print("🎙️ PHASE 2 DEBUG: Explicitly checking imports...", flush=True)
+            try:
+                import edge_tts
+                print(f"🎙️ edge-tts version: {getattr(edge_tts, '__version__', 'unknown')}", flush=True)
+            except ImportError:
+                print("❌ FAILED TO IMPORT edge-tts inside jobs.py context!", flush=True)
+                raise ImportError("edge-tts not found in this process environment")
+
             from bot.tts import text_to_speech
             import os
             
+            print("🎙️ Starting TTS generation for Morning Briefing...", flush=True)
             # Clean markdown for TTS
             tts_text = (raw_brief or ai_brief)
+            # Remove version marker from TTS
+            tts_text = tts_text.replace("[v2.3 DEBUG active]", "")
             # Remove MarkdownV2 escapes and formatting markers
             tts_text = tts_text.replace("*", "").replace("`", "").replace("\\.", ".").replace("\\!", "!").replace("\\-", "-").replace("\\+", "+").replace("\\_", "_")
             
+            print(f"🎙️ TTS Text length: {len(tts_text)} characters", flush=True)
             voice_file = await text_to_speech(tts_text)
+            print(f"🎙️ TTS file generated: {voice_file} (size: {os.path.getsize(voice_file)} bytes)", flush=True)
             
             with open(voice_file, 'rb') as f:
+                print(f"🎙️ Sending voice to Telegram (chat_id: {TELEGRAM_USER_ID})...", flush=True)
+                # Caption check: limit to 1024 chars for voice caption
+                voice_caption = "🎙️ *Lora Podcast: Morning Briefing*"
                 await application.bot.send_voice(
                     chat_id=TELEGRAM_USER_ID,
                     voice=f,
-                    caption="🎙️ *Lora Podcast: Morning Briefing*" if ai_brief else None,
+                    caption=voice_caption,
                     parse_mode=ParseMode.MARKDOWN_V2
                 )
+                print("🎙️ Voice message sent successfully!", flush=True)
             
-            os.remove(voice_file)
+            if os.path.exists(voice_file):
+                os.remove(voice_file)
+                print(f"🎙️ Temporary voice file removed: {voice_file}", flush=True)
         except Exception as e:
-            print(f"Morning TTS error: {e}", flush=True)
+            # Report the error loudly to the user
+            error_msg = f"❌ *Phase 2 Debug Error:* `{escape_md(str(e))}`"
+            print(f"❌ {error_msg}", flush=True)
+            import traceback
+            traceback.print_exc()
+            try:
+                await application.bot.send_message(
+                    chat_id=TELEGRAM_USER_ID,
+                    text=error_msg,
+                    parse_mode=ParseMode.MARKDOWN_V2
+                )
+            except Exception as e2:
+                print(f"❌ Failed to send error message to Telegram: {e2}", flush=True)
+                await application.bot.send_message(
+                    chat_id=TELEGRAM_USER_ID,
+                    text=f"❌ Phase 2 Debug Error: {str(e)}"
+                )
 
         # 7. Update last_briefing_date
         await profile_queries.update_user_profile(pool, TELEGRAM_USER_ID, last_briefing_date=today)
@@ -227,22 +263,42 @@ Always use Telegram MarkdownV2 (bold *text*, code `text`).
         from bot.tts import text_to_speech
         import os
         
+        print("🎙️ Starting TTS generation for EOD Reflection...", flush=True)
         # Clean markdown for TTS
         tts_text = ai_reflection.replace("*", "").replace("`", "").replace("\\.", ".").replace("\\!", "!").replace("\\-", "-")
         
+        print(f"🎙️ TTS Text length: {len(tts_text)} characters", flush=True)
         voice_file = await text_to_speech(tts_text)
+        print(f"🎙️ TTS file generated: {voice_file} (size: {os.path.getsize(voice_file) if os.path.exists(voice_file) else 'NOT FOUND'} bytes)", flush=True)
         
         with open(voice_file, 'rb') as f:
+            print(f"🎙️ Sending voice to Telegram (chat_id: {TELEGRAM_USER_ID})...", flush=True)
             await application.bot.send_voice(
                 chat_id=TELEGRAM_USER_ID,
                 voice=f,
                 caption="🎙️ *Lora Podcast: EOD Reflection*",
                 parse_mode=ParseMode.MARKDOWN_V2
             )
+            print("🎙️ Voice message sent successfully!", flush=True)
         
         os.remove(voice_file)
+        print(f"🎙️ Temporary voice file removed: {voice_file}", flush=True)
     except Exception as e:
-        print(f"EOD TTS error: {e}", flush=True)
+        error_msg = f"❌ *EOD TTS error:* `{escape_md(str(e))}`"
+        print(f"❌ {error_msg}", flush=True)
+        import traceback
+        traceback.print_exc()
+        try:
+            await application.bot.send_message(
+                chat_id=TELEGRAM_USER_ID,
+                text=error_msg,
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
+        except:
+            await application.bot.send_message(
+                chat_id=TELEGRAM_USER_ID,
+                text=f"❌ EOD TTS error: {str(e)}"
+            )
     
     await profile_queries.update_user_profile(pool, TELEGRAM_USER_ID, last_eod_date=today)
 
