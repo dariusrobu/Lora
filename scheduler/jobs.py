@@ -112,7 +112,7 @@ Always use Telegram MarkdownV2 (bold *text*, code `text`).
             ai_brief = "\n".join(lines)
         
         # VERSION MARKER - ALWAYS APPENDED
-        ai_brief += "\n\n`[v2.3 DEBUG active]`"
+        ai_brief += "\n\n`[v2.4 DEBUG active]`"
 
         # 5. Send text message IMMEDIATELY
         chunks = split_message(ai_brief)
@@ -147,7 +147,7 @@ Always use Telegram MarkdownV2 (bold *text*, code `text`).
             # Clean markdown for TTS
             tts_text = (raw_brief or ai_brief)
             # Remove version marker from TTS
-            tts_text = tts_text.replace("[v2.3 DEBUG active]", "")
+            tts_text = tts_text.replace("[v2.4 DEBUG active]", "")
             # Remove MarkdownV2 escapes and formatting markers
             tts_text = tts_text.replace("*", "").replace("`", "").replace("\\.", ".").replace("\\!", "!").replace("\\-", "-").replace("\\+", "+").replace("\\_", "_")
             

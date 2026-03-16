@@ -73,7 +73,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
         
         # Handle /reload command
         if text == "/reload":
-            await update.message.reply_text("🔄 Reloading Lora [v2.3]... I'll be back in a second!")
+            await update.message.reply_text("🔄 Reloading Lora [v2.4]... I'll be back in a second!")
             import os
             import sys
             from db.connection import close_pool
@@ -83,7 +83,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
 
         # Handle /check command
         if text == "/check":
-            v = "v2.3"
+            v = "v2.4"
             status = "✅ edge-tts found"
             try:
                 import edge_tts
