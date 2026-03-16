@@ -87,11 +87,11 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
             status = "✅ edge-tts found"
             try:
                 import edge_tts
-                status += f" (v{getattr(edge_tts, '__version__', 'unknown')})"
+                status += f" (v{escape_md(getattr(edge_tts, '__version__', 'unknown'))})"
             except ImportError:
                 status = "❌ edge-tts NOT FOUND"
             
-            await update.message.reply_text(f"🤖 *Lora Debug Check*\nVersion: `{v}`\nStatus: {status}", parse_mode="MarkdownV2")
+            await update.message.reply_text(f"🤖 *Lora Debug Check*\nVersion: `{escape_md(v)}`\nStatus: {status}", parse_mode="MarkdownV2")
             return
 
         # Handle /podcast command
