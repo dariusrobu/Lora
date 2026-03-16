@@ -111,8 +111,6 @@ Always use Telegram MarkdownV2 (bold *text*, code `text`).
             lines.append(f"Astăzi este {today.strftime('%A')}\\. Ai {len(due_today)} task\\-uri și {len(events)} evenimente astăzi\\.")
             ai_brief = "\n".join(lines)
         
-        # VERSION MARKER - ALWAYS APPENDED
-        ai_brief += "\n\n`[v2.4 DEBUG active]`"
 
         # 5. Send text message IMMEDIATELY
         chunks = split_message(ai_brief)
@@ -132,22 +130,12 @@ Always use Telegram MarkdownV2 (bold *text*, code `text`).
 
         # 6. Generate and send "podcast" (voice) in background-like manner
         try:
-            print("🎙️ PHASE 2 DEBUG: Explicitly checking imports...", flush=True)
-            try:
-                import edge_tts
-                print(f"🎙️ edge-tts version: {getattr(edge_tts, '__version__', 'unknown')}", flush=True)
-            except ImportError:
-                print("❌ FAILED TO IMPORT edge-tts inside jobs.py context!", flush=True)
-                raise ImportError("edge-tts not found in this process environment")
-
             from bot.tts import text_to_speech
             import os
             
             print("🎙️ Starting TTS generation for Morning Briefing...", flush=True)
             # Clean markdown for TTS
             tts_text = (raw_brief or ai_brief)
-            # Remove version marker from TTS
-            tts_text = tts_text.replace("[v2.4 DEBUG active]", "")
             # Remove MarkdownV2 escapes and formatting markers
             tts_text = tts_text.replace("*", "").replace("`", "").replace("\\.", ".").replace("\\!", "!").replace("\\-", "-").replace("\\+", "+").replace("\\_", "_")
             
@@ -171,8 +159,7 @@ Always use Telegram MarkdownV2 (bold *text*, code `text`).
                 os.remove(voice_file)
                 print(f"🎙️ Temporary voice file removed: {voice_file}", flush=True)
         except Exception as e:
-            # Report the error loudly to the user
-            error_msg = f"❌ *Phase 2 Debug Error:* `{escape_md(str(e))}`"
+            error_msg = f"❌ *Podcast generation error:* `{escape_md(str(e))}`"
             print(f"❌ {error_msg}", flush=True)
             import traceback
             traceback.print_exc()
@@ -186,7 +173,7 @@ Always use Telegram MarkdownV2 (bold *text*, code `text`).
                 print(f"❌ Failed to send error message to Telegram: {e2}", flush=True)
                 await application.bot.send_message(
                     chat_id=TELEGRAM_USER_ID,
-                    text=f"❌ Phase 2 Debug Error: {str(e)}"
+                    text=f"❌ Podcast error: {str(e)}"
                 )
 
         # 7. Update last_briefing_date

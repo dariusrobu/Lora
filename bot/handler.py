@@ -73,25 +73,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
         
         # Handle /reload command
         if text == "/reload":
-            await update.message.reply_text("🔄 Reloading Lora [v2.4]... I'll be back in a second!")
+            await update.message.reply_text("🔄 Reloading Lora... I'll be back in a second!")
             import os
             import sys
             from db.connection import close_pool
             await close_pool()
             os.execl(sys.executable, sys.executable, *sys.argv)
-            return
-
-        # Handle /check command
-        if text == "/check":
-            v = "v2.4"
-            status = "✅ edge-tts found"
-            try:
-                import edge_tts
-                status += f" (v{escape_md(getattr(edge_tts, '__version__', 'unknown'))})"
-            except ImportError:
-                status = "❌ edge-tts NOT FOUND"
-            
-            await update.message.reply_text(f"🤖 *Lora Debug Check*\nVersion: `{escape_md(v)}`\nStatus: {status}", parse_mode="MarkdownV2")
             return
 
         # Handle /podcast command
