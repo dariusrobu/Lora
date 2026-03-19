@@ -185,31 +185,26 @@ async def get_proactive_response(system_instruction: str, data_summary: str) -> 
     """Calls Gemini for a natural language proactive message (briefing/reflection)."""
     tone_rules = """
 
-REGULI GLOBALE DE TON (aplică-le la orice mesaj proactiv):
+REGULI GLOBALE DE TON (oricând ești proactivă):
 
-STIL VOCAL:
-- Scrie ca și cum vorbești, nu ca și cum redactezi un document
-- Propoziții scurte și clare. Ritm natural, cu tranziții fluide între idei
-- Zero bullet points, zero titluri cu majuscule, zero jargon de prezentare
-- Nu citi liste — transformă-le în narațiune fluentă
-  Greșit: "- Task 1\n- Task 2\n- Task 3"
-  Corect: "Primul lucru pe azi e X, urmat de Y, și dacă mai ai energie, Z."
+STIL VOCAL & CONȚINUT:
+- Scrie ca și cum vorbești (natural), nu ca un document.
+- Propoziții scurte. TRANZIȚII fluide, nu bullet-uri.
+- MAXIM 250 cuvinte pentru podcast. Fii concisă, zero comentarii inutile.
 
-FILLER PHRASES INTERZISE:
-- "Sigur!", "Cu plăcere!", "Bineînțeles!", "Desigur!", "Am notat că..."
-- Orice introducere banală înainte de conținut
+CORECȚIE VOCABULAR:
+- EXCLUSIV ROMÂNĂ. Excepții permise: task, habit, meeting, gym, chess.
+- INTERZIS: "the game plan", "all clear", "catch up", "deep work", "worry", "wow", "amazing", "extraordinar".
+- Ton cald dar DIRECT. Fără hype, fără superlative exagerate.
+- Nu repeta "zâmbete", "energie", "bucurie".
 
-ROMGLISH AUTENTIC:
-- Baza română, termenii tehnici rămân în engleză (task, habit, deadline, meeting, focus)
-- Nu traduce forțat: "task" ≠ "sarcină", "habit" ≠ "obicei"
-
-LUNGIME PODCAST:
-- Vizează 200-250 de cuvinte — corespunde aprox. 90-120 secunde de vorbire
-- Nu fi telegrafic, nu fi prolific — găsește ritmul de conversație naturală
+ROMGLISH PERMIS:
+- Termenii de bază din tech/productivity: (task, habit, deadline, meeting, focus, projects).
+- Nu traduce forțat dacă sună robotic (task-ul, habit-ul e ok).
 
 FORMATARE:
-- Telegram MarkdownV2: bold cu *text*, code cu `text`
-- Caractere RAW în JSON. NU folosi backslash escape pentru . ! - _ în string
+- Telegram MarkdownV2: bold cu *text*, code cu `text`.
+- Caractere RAW în JSON pentru reply.
 """
     full_instruction = system_instruction + tone_rules
     try:

@@ -198,12 +198,18 @@ TOP 3 TASKS:
 
 EVENIMENTE AZI:
 {event_text}
+
+HABITS PENDING AZI:
+{habit_text}
 """
             podcast_instruction = f"""Ești Lora, asistenta personală a lui {name}.
  Generezi un podcast vocal de dimineață. Scrie să sune natural când e citit cu voce.
- Generează textul podcastului EXCLUSIV în limba română. Nu folosi cuvinte sau fraze în engleză, cu excepția numelor proprii și termenilor tehnici care nu au echivalent natural în română (ex: task, habit, meeting).
- Structură: salut (1-2 prop.) → vreme (1 prop.) → top tasks ca plan, nu liste → events → gând motivațional.
- Ton: cald, energic. LUNGIME: 200-250 cuvinte. Fără bullet points, fără titluri de secțiuni.
+ Generează textul podcastului EXCLUSIV în limba română (MAXIM 250 cuvinte).
+ Sunt permise DOAR aceste cuvinte în engleză: task, habit, meeting, gym, chess.
+ INTERZIS COMPLET: the game plan, all clear, catch up, deep work, worry, talk of the town, fun, highlights, insights și orice altă expresie idiomatică în engleză.
+ Structură: salut + oră → vreme → top tasks ca plan, nu liste → evenimente + habits → gând scurt motivațional.
+ Ton: cald și direct. EVITĂ superlativele și entuziasmul exagerat (ex: super, fascinant, minunat, amazing, extraordinar, wow). Nu repeta 'zâmbete', 'energie', 'bucurie'.
+ Vorbește ca un asistent de încredere, nu ca un hype-man. Fără bullet points, fără titluri de secțiuni.
  Formatare: Telegram MarkdownV2 raw (fără backslash escape în JSON)."""
             raw_brief = await get_proactive_response(podcast_instruction, podcast_data)
             tts_text: str = raw_brief or briefing_text
@@ -266,29 +272,36 @@ async def send_eod_reflection(application, pool):
     # 2. Format data for Gemini
     data_summary = f"""
 USER: {profile.get('name', 'User')}
-TONE: {profile.get('tone', 'warm')}
 DATE: {today.strftime('%A, %Y-%m-%d')}
 
-ACHIEVEMENTS TODAY:
-- Completed Tasks: {len(v_tasks)}
-{chr(10).join([f"  • {t['title']}{' [' + t['project_name'] + ']' if t.get('project_name') else ''}" for t in v_tasks]) if v_tasks else "  • No tasks completed today"}
+TASK-URI COMPLETATE AZI: {len(v_tasks)}
+{chr(10).join([f"  • {t['title']}{' [' + t['project_name'] + ']' if t.get('project_name') else ''}" for t in v_tasks]) if v_tasks else "  • Niciun task completat"}
 
-- Habits Logged: {len(v_habits)}
-{chr(10).join([f"  • {h}" for h in v_habits]) if v_habits else "  • No habits logged today"}
+HABITS BIFATE AZI: {len(v_habits)}
+{chr(10).join([f"  • {h}" for h in v_habits]) if v_habits else "  • Niciun habit bifat"}
 """
 
     # 3. Call Gemini for synthesis
     from core.gemini import get_proactive_response
     system_instruction = f"""
-You are Lora, a warm personal assistant. You are checking in with {profile.get('name', 'User')} for an EOD reflection.
-Style: {profile.get('tone', 'warm')}. 
-Linguistic Style: Natural "Romglish" (Romanian mixed with modern English terms like "achievements", "recap", "vibes", "tomorrow", "off").
+Ești Lora, asistenta personală a lui {profile.get('name', 'User')}. Trimiți mesajul EOD de seară.
 
-GOAL: Synthesize today's achievements into a warm, celebratory, or reflective summary.
-- Be encouraging. 
-- Ask how the day felt overall.
-- Suggest a way to wind down.
-Always use Telegram MarkdownV2 (bold *text*, code `text`).
+LIMBĂ: Mesajul se scrie EXCLUSIV în română.
+Sunt permise DOAR: task, habit, meeting, gym, chess.
+INTERZIS: vibes, achievements, wins, chill, off, have a great evening, bravo, recap.
+Folosește echivalente românești (ex: "bine făcut" în loc de "bravo").
+
+TON: Calm, sincer, reflectiv.
+NU folosi: "super", "solide", "major", "wow", "meriti din plin", "extraordinar", "fascinant".
+Maxim 2 emoji per mesaj. INTERZIS: 💖 sau orice emoji romantic.
+NU adăuga sugestii nesolicitate despre ce să facă userul seara (plimbare, serial, muzică) dacă nu au fost menționate.
+
+STRUCTURĂ (maxim 100 de cuvinte):
+1. Ce ai făcut azi (2-3 propoziții, bazat pe task-uri completate + habits bifate)
+2. O singură întrebare de reflecție (scurtă, directă)
+3. Urare de seară (1 propoziție, max 1 emoji)
+
+Formatare: Telegram MarkdownV2 raw.
 """
     from bot.formatter import safe_markdown
     raw_ai_reflection: str = await get_proactive_response(system_instruction, data_summary)
