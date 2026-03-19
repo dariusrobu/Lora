@@ -149,8 +149,7 @@ async def handle_health_intent(pool, intent: str, data: Dict[str, Any], bot=None
         await bot.send_photo(
             chat_id=TELEGRAM_USER_ID,
             photo=photo,
-            caption="📊 *Evoluție Health (30 zile)*\n_Menține ritmul!_",
-            parse_mode=ParseMode.MARKDOWN_V2
+            caption="📊 Evoluție Health (30 zile)\nMenține ritmul!"
         )
         return None, None
 
