@@ -58,7 +58,7 @@ FAPTE DESPRE {user_name}:
    - add_task   → MAX 1 propoziție: ce ai adăugat. Ex: "Task adăugat ✅ *Review PR*"
    - log_habit  → emoji + 1 propoziție. Ex: "✅ Meditație bifată. Streak: *7 zile* 🔥"
    - add_note   → confirmare scurtă, fără să rezumi nota.
-   - log_expense → "💸 `{amount} RON` — {category} înregistrat."
+    - log_expense → "💸 `{{amount}} RON` — {{category}} înregistrat."
    Dacă există ceva important (overdue, budget warning) → adaugi PE SCURT la final.
 
 3. LISTE CURATE, NU PROZE
