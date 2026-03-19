@@ -29,14 +29,14 @@ async def handle_finance_intent(pool, intent: str, data: Dict[str, Any]) -> Tupl
                 alerted_80 = budget['alerted_80']
                 alerted_100 = budget['alerted_100']
                 
-                pct = (cat_total / limit) * 100
+                pct = (float(cat_total) / float(limit)) * 100
                 logger.info(f"💰 BUDGET CHECK [{category}]: {cat_total}/{limit} ({pct:.1f}%) | Alerts: 80={alerted_80}, 100={alerted_100}")
 
-                if cat_total >= limit and not alerted_100:
-                    warning = f"\n🔴 *Ai depășit bugetul* de {escape_md(category)}! ({int(cat_total)} / {int(limit)} RON)"
+                if float(cat_total) >= float(limit) and not alerted_100:
+                    warning = f"\n🔴 *Ai depășit bugetul* de {escape_md(category)}! ({int(float(cat_total))} / {int(float(limit))} RON)"
                     await finance_queries.update_budget_alert_flags(pool, category, alerted_80, True)
-                elif cat_total >= limit * 0.8 and not alerted_80:
-                    warning = f"\n⚠️ *Ai cheltuit 80%* din bugetul de {escape_md(category)} luna asta ({int(cat_total)} / {int(limit)} RON)"
+                elif float(cat_total) >= float(limit) * 0.8 and not alerted_80:
+                    warning = f"\n⚠️ *Ai cheltuit 80%* din bugetul de {escape_md(category)} luna asta ({int(float(cat_total))} / {int(float(limit))} RON)"
                     await finance_queries.update_budget_alert_flags(pool, category, True, alerted_100)
  
         emoji = "💸" if type_ == "expense" else "💰"
@@ -63,7 +63,7 @@ async def handle_finance_intent(pool, intent: str, data: Dict[str, Any]) -> Tupl
         lines = [f"📊 *Finance Summary ({now.strftime('%B')}):*"]
         lines.append(f"• Income: `{s['income']} RON`")
         lines.append(f"• Expenses: `{s['expense']} RON`")
-        lines.append(f"• Net: `{s['income'] - s['expense']} RON`")
+        lines.append(f"• Net: `{float(s['income']) - float(s['expense'])} RON`")
         
         if s['breakdown']:
             lines.append("\n*Top Expenses:*")
