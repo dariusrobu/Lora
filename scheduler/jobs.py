@@ -707,7 +707,7 @@ async def send_weekly_finance_summary(application, pool) -> None:
         async with pool.acquire() as conn:
             total_limit = await conn.fetchval("SELECT SUM(monthly_limit) FROM budget_limits")
         
-        budget_remaining = (float(total_limit) - monthly_stats['expense']) if total_limit else 0
+        budget_remaining = (float(total_limit) - float(monthly_stats['expense'])) if total_limit else 0
         
         finance_lines = []
         for b in weekly_breakdown[:5]:
