@@ -9,7 +9,7 @@ async def handle_health_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple
         
         # Extract metrics
         metrics = {}
-        for key in ["sleep_hours", "sleep_quality", "water_ml", "calories", "weight_kg", "notes"]:
+        for key in ["sleep_hours", "sleep_quality", "water_ml", "nutrition", "weight_kg", "notes"]:
             if key in data:
                 metrics[key] = data[key]
         
@@ -35,7 +35,7 @@ async def handle_health_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple
         quality = h['sleep_quality'] if h['sleep_quality'] else "N/A"
         water_l = float(h['water_ml']) / 1000 if h['water_ml'] else 0
         water_str = f"{water_l:.1f}L" if h['water_ml'] else "N/A"
-        calories = h['calories'] if h['calories'] else "N/A"
+        nutrition = h['nutrition'] if h['nutrition'] else "N/A"
         weight = f"{float(h['weight_kg']):.1f}kg" if h['weight_kg'] else "N/A"
         
         warnings = []
@@ -47,7 +47,7 @@ async def handle_health_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple
         line1 = f"😴 Somn: {sleep_str} ({quality}) · 💧 Apă: {water_str}"
         if warnings:
             line1 += f" {' '.join(warnings)}"
-        line2 = f"🔥 Calorii: {calories} · ⚖️ {weight}"
+        line2 = f"🍽 Nutriție: {nutrition} · ⚖️ {weight}"
         
         return f"{line1}\n{line2}", None
 

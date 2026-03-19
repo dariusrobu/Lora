@@ -108,7 +108,7 @@ async def build_context(pool) -> str:
         h = health_today
         s_h = f"{float(h['sleep_hours']):.1f}h" if h['sleep_hours'] else "N/A"
         w_l = float(h['water_ml'])/1000 if h['water_ml'] else 0
-        snapshot.append(f"Sleep: {s_h} ({h['sleep_quality'] or 'N/A'}) | Water: {w_l:.1f}L | Calories: {h['calories'] or 'N/A'} | Weight: {h['weight_kg'] or 'N/A'}kg")
+        snapshot.append(f"Sleep: {s_h} ({h['sleep_quality'] or 'N/A'}) | Water: {w_l:.1f}L | Nutrition: {h['nutrition'] or 'N/A'} | Weight: {h['weight_kg'] or 'N/A'}kg")
     else:
         snapshot.append("No health metrics logged today.")
         

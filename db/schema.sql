@@ -226,7 +226,7 @@ CREATE TABLE IF NOT EXISTS health_logs (
     sleep_hours    NUMERIC(4, 2),
     sleep_quality  TEXT CHECK (sleep_quality IN ('great', 'good', 'neutral', 'bad', 'terrible')),
     water_ml       INT,
-    calories       INT,
+    nutrition      TEXT CHECK (nutrition IN ('great', 'good', 'neutral', 'bad', 'terrible')),
     weight_kg      NUMERIC(5, 2),
     notes          TEXT,
     created_at     TIMESTAMPTZ DEFAULT NOW(),
