@@ -1,4 +1,5 @@
 from typing import List, Optional, Dict, Any
+from datetime import date
 
 async def add_note(pool, content: str, type: str = "note", tags: List[str] = [], mood: Optional[str] = None, project_id: Optional[int] = None) -> int:
     async with pool.acquire() as conn:
