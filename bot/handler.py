@@ -97,19 +97,19 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
                 await update.message.reply_text(f"❌ Scuze, a apărut o eroare la generarea podcast-ului: {e}")
             return
 
-        # Handle /journal command
-        if text == "/journal":
-            from scheduler.jobs import send_journal_night
-            from db.queries.profile import update_user_profile
-            from core.config import TELEGRAM_USER_ID as TG_UID
+        # Handle /weeklyreview command
+        if text == "/weeklyreview":
+            from scheduler.jobs import send_weekly_review
+            await update.message.reply_text("📊 Generăm review-ul tău săptămânal... un moment!")
 
             try:
-                await update_user_profile(pool, TG_UID, last_journal_date=None)
-                await send_journal_night(context.application, pool)
+                await send_weekly_review(context.application, pool)
             except Exception as e:
-                print(f"Journal manual trigger error: {e}", flush=True)
-                await update.message.reply_text(f"❌ Eroare la declanșarea jurnalului: {e}")
+                print(f"Weekly review manual trigger error: {e}", flush=True)
+                await update.message.reply_text(f"❌ Eroare la generarea review-ului: {e}")
             return
+
+        # Handle /journal command
             
         # Handle /plan command
         if text == "/plan":
