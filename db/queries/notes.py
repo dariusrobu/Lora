@@ -51,11 +51,17 @@ async def delete_note(pool, note_id: int):
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM notes WHERE id = $1", note_id)
 
-async def get_weekly_journals(pool, start_date: date, end_date: date) -> List[str]:
-    """Returns a list of moods from journal entries for the week."""
-    async with pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT mood FROM notes WHERE type = 'journal' AND created_at::date BETWEEN $1 AND $2",
             start_date, end_date
         )
         return [r['mood'] for r in rows if r['mood']]
+
+async def get_weekly_mood_data(pool, start_date: date, end_date: date) -> List[Dict[str, Any]]:
+    """Returns a list of moods and dates from journal entries for the week."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT created_at::date as date, mood FROM notes WHERE type = 'journal' AND created_at::date BETWEEN $1 AND $2",
+            start_date, end_date
+        )
+        return [dict(r) for r in rows if r['mood']]

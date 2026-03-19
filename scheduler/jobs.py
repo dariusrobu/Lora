@@ -582,24 +582,39 @@ async def send_weekly_review(application, pool) -> None:
 
         journals = await note_queries.get_weekly_journals(pool, start_date, end_date)
 
-        # Format habits for context
-        habit_ctx = []
-        for h in habit_stats[:5]:
-            habit_ctx.append(f"{h['name']}: {h['completion_days']}/7 zile, streak {h['streak_count']}")
+        # 3.7 Health & Mood Correlations Data
+        health_week = await health_queries.get_health_history(pool, 7)
+        mood_week = await note_queries.get_weekly_mood_data(pool, start_date, end_date)
+        tasks_per_day = await task_queries.get_completed_tasks_per_day(pool, start_date, end_date)
         
-        event_ctx = [e['title'] for e in events]
-        
+        health_ctx = ""
+        if health_week:
+            health_lines = []
+            for h in health_week:
+                health_lines.append(f"{h['log_date']}: Sleep {h['sleep_hours']}h, Water {h['water_ml']}ml, Nutrition {h['nutrition']}")
+            health_ctx = "\n".join(health_lines)
+            
+        mood_map = {"great": 5, "good": 4, "neutral": 3, "bad": 2, "terrible": 1}
+        mood_ctx = "\n".join([f"{m['date']}: {mood_map.get(m['mood'].lower(), 3)}" for m in mood_week])
+        tasks_ctx = "\n".join([f"{t['date']}: {t['count']} tasks" for t in tasks_per_day])
+
         data_summary = f"""
 SĂPTĂMÂNA: {start_date} — {end_date}
 TASKS: {task_stats['completed']} completate din {task_stats['added']} adăugate săptămâna asta.
 HABITS: {", ".join(habit_ctx)}
 FINANCE BREAKDOWN:
 {finance_ctx}
-{finance_footer}
 MOOD SUMMARY: {mood_summary}
 PATTERNS: {patterns_section}
 EVENTS: {", ".join(event_ctx)}
-JOURNALS (MOODS): {", ".join(journals)}
+
+--- HEALTH CORRELATION DATA ---
+Date health săptămână:
+{health_ctx}
+Date mood săptămână:
+{mood_ctx}
+Tasks completate pe zi:
+{tasks_ctx}
 """
 
         # 4. Gemini Review Generation
@@ -623,7 +638,18 @@ Structură FIXĂ (MarkdownV2):
 {patterns_section}
 
 📈 *Highlight*: [cel mai important lucru realizat — ales de tine din date]
-🔍 *Pattern observat*: [o observație sinceră despre săptămâna sa]
+
+🔍 *Pattern observat*: [Dacă există corelații health semnificative conform instrucțiunilor de mai jos]
+
+INSTRUCȚIUNI PATTERN:
+Verifică corelații și adaugă secțiunea "🔍 *Pattern observat*" DOAR dacă:
+- somn mediu < 6.5h → menționează impactul pe tasks completate
+- zile cu apă < 1.5L → corelează cu mood dacă pattern clar
+- nutriție "bad"/"terrible" în 3+ zile → menționează
+- corelație somn-productivitate semnificativă (diferență > 30% tasks în zile bune vs proaste)
+
+Dacă nu există pattern semnificativ sau date health: OMITĂ complet secțiunea.
+MAX 2 propoziții, ton factual, fără laudă.
 
 Maxim 200 cuvinte.
 DOAR textul review-ului, fără introducere/concluzie extra.
