@@ -114,9 +114,9 @@ FAPTE DESPRE {user_name}:
     - intent="list_finance" pentru istoric sau sumar
     - intent="set_budget" pentru a seta un buget lunar pe o categorie
 16. Mood: module="mood":
-    - intent="get_mood_chart" pentru afișarea evoluției lunare sub formă de grafic.
+    - intent="get_mood_chart" sau "mood_chart" pentru afișarea evoluției lunare sub formă de grafic.
 17. Insights: module="insights":
-    - intent="get_insights" pentru a analiza corelații între mood și productivitate.
+    - intent="get_insights" sau "ask_insights" pentru a analiza corelații între mood și productivitate.
 15. Goals: module="goals":
     - intent="add_goal" pentru obiective noi
     - intent="list_goals" pentru listarea obiectivelor active

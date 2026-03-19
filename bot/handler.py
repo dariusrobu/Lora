@@ -326,8 +326,11 @@ Reguli:
         
         # 5. Route intent and get final reply + keyboard
         final_reply, reply_markup = await route_intent(pool, intent_response, bot=context.bot)
-        print(f"📡 ROUTER: Reply length={len(final_reply)}")
+        print(f"📡 ROUTER: Reply length={len(final_reply) if final_reply else 0}")
         
+        if final_reply is None:
+            return
+
         # 6. Save assistant reply to conversations
         async with pool.acquire() as conn:
             await conn.execute("INSERT INTO conversations (role, content) VALUES ($1, $2)", "assistant", final_reply)
@@ -346,6 +349,13 @@ Reguli:
     except Exception as e:
         print(f"ERROR in message_handler: {e}")
         traceback.print_exc()
+        try:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="Ceva n-a mers. Încearcă din nou."
+            )
+        except Exception:
+            pass
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
     if not await security_check(update):

@@ -1,8 +1,4 @@
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from io import BytesIO
-import db.queries.mood as mood_queries
-from bot.formatter import escape_md
+from typing import Dict, Any, Tuple
 from datetime import datetime
 import calendar
 
@@ -64,6 +60,11 @@ async def generate_mood_chart(pool, year: int, month: int) -> bytes:
     plt.close(fig)
     return buf.getvalue()
 
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from io import BytesIO
+import db.queries.mood as mood_queries
+
 async def handle_mood_intent(pool, intent: str, data: Dict[str, Any], bot):
     """Handles mood tracking intents and sends the generated chart."""
     from datetime import datetime
@@ -71,7 +72,7 @@ async def handle_mood_intent(pool, intent: str, data: Dict[str, Any], bot):
     year = now.year
     month = now.month
 
-    if intent == "get_mood_chart":
+    if intent in ["get_mood_chart", "mood_chart"]:
         png_bytes = await generate_mood_chart(pool, year, month)
         
         if png_bytes is None:

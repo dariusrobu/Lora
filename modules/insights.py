@@ -58,7 +58,7 @@ Maxim 100 de cuvinte. Style: direct, calm, observator.
     return insight
 
 async def handle_insight_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[str, Any]:
-    if intent == "get_insights":
+    if intent in ["get_insights", "ask_insights"]:
         reply = await generate_insights(pool)
         return reply, None
     return "Insights module active!", None
