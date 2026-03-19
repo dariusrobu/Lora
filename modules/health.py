@@ -18,11 +18,7 @@ async def handle_health_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple
             
         await health_queries.upsert_health_log(pool, log_date, **metrics)
         
-        # The reply itself comes from Gemini, but we can append something if needed.
-        # However, the user request says Gemini should return the reply.
-        # The handler.py uses final_reply from Gemini unless we override.
-        # Wait, if we return a string here, it becomes final_reply.
-        return data.get("reply", "Datele au fost salvate."), None
+        return data.get("_original_reply", "Datele au fost salvate."), None
 
     elif intent == "health_summary":
         log_date = date.today()
@@ -66,9 +62,9 @@ async def handle_health_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple
         
         # Since I am in handle_health_intent, I need to provide the insight.
         # I'll let Gemini generate the insight by returning its reply.
-        if "reply" in data and data["reply"]:
-            return data["reply"], None
+        if data.get("_original_reply"):
+            return data["_original_reply"], None
             
         return "Încă procesez datele tale de sănătate. Revino după ce mai loghezi câteva zile.", None
 
-    return "Health module active!", None
+    return data.get("_original_reply", "Health module active!"), None
