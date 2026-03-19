@@ -16,51 +16,52 @@ async def generate_health_chart(pool, days: int = 30) -> bytes:
     if not history or len(history) < 3:
         return None
 
-    dates = [h['log_date'] for h in history]
-    # Use 0 if data is missing for a day to keep alignment
-    sleep = [float(h['sleep_hours']) if h['sleep_hours'] else 0 for h in history]
-    water = [h['water_ml'] if h['water_ml'] else 0 for h in history]
-    weight = [float(h['weight_kg']) if h['weight_kg'] else 0 for h in history]
-
-    plt.style.use('dark_background')
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
-    fig.patch.set_facecolor('#1a1a2e')
-
-    # ax1: Sleep
-    ax1.plot(dates, sleep, color='#00a8ff', linewidth=2, marker='o', label='Somn (ore)')
-    ax1.axhline(y=7, color='white', linestyle='--', alpha=0.3, label='Target 7h')
-    ax1.set_ylabel('ore', color='white')
-    ax1.set_facecolor('#1a1a2e')
-    ax1.legend(loc='upper left', prop={'size': 8})
-    ax1.grid(True, alpha=0.1)
-
-    # ax2: Water
-    ax2.bar(dates, water, color='#48dbfb', alpha=0.7, label='Apă (ml)')
-    ax2.axhline(y=2000, color='white', linestyle='--', alpha=0.3, label='Target 2L')
-    ax2.set_ylabel('ml', color='white')
-    ax2.set_facecolor('#1a1a2e')
-    ax2.legend(loc='upper left', prop={'size': 8})
-    ax2.grid(True, alpha=0.1)
-
-    # ax3: Weight
-    # Remove zeros for weight to avoid spikes to ground
-    weight_dates = [d for d, w in zip(dates, weight) if w > 0]
-    weight_vals = [w for w in weight if w > 0]
-    if weight_vals:
-        ax3.plot(weight_dates, weight_vals, color='#1dd1a1', linewidth=2, marker='s', label='Greutate (kg)')
-    ax3.set_ylabel('kg', color='white')
-    ax3.set_facecolor('#1a1a2e')
-    ax3.legend(loc='upper left', prop={'size': 8})
-    ax3.grid(True, alpha=0.1)
-
-    # X axis formatting
-    plt.xticks(dates, [d.strftime('%d/%m') for d in dates], rotation=45, color='white')
-    plt.suptitle("Health — ultimele 30 zile", color='white', fontsize=14)
-    
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    
-    buf = BytesIO()
+    fig = None
     try:
+        dates = [h['log_date'] for h in history]
+        # Use 0 if data is missing for a day to keep alignment
+        sleep = [float(h['sleep_hours']) if h['sleep_hours'] else 0 for h in history]
+        water = [h['water_ml'] if h['water_ml'] else 0 for h in history]
+        weight = [float(h['weight_kg']) if h['weight_kg'] else 0 for h in history]
+
+        plt.style.use('dark_background')
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
+        fig.patch.set_facecolor('#1a1a2e')
+
+        # ax1: Sleep
+        ax1.plot(dates, sleep, color='#00a8ff', linewidth=2, marker='o', label='Somn (ore)')
+        ax1.axhline(y=7, color='white', linestyle='--', alpha=0.3, label='Target 7h')
+        ax1.set_ylabel('ore', color='white')
+        ax1.set_facecolor('#1a1a2e')
+        ax1.legend(loc='upper left', prop={'size': 8})
+        ax1.grid(True, alpha=0.1)
+
+        # ax2: Water
+        ax2.bar(dates, water, color='#48dbfb', alpha=0.7, label='Apă (ml)')
+        ax2.axhline(y=2000, color='white', linestyle='--', alpha=0.3, label='Target 2L')
+        ax2.set_ylabel('ml', color='white')
+        ax2.set_facecolor('#1a1a2e')
+        ax2.legend(loc='upper left', prop={'size': 8})
+        ax2.grid(True, alpha=0.1)
+
+        # ax3: Weight
+        # Remove zeros for weight to avoid spikes to ground
+        weight_dates = [d for d, w in zip(dates, weight) if w > 0]
+        weight_vals = [w for w in weight if w > 0]
+        if weight_vals:
+            ax3.plot(weight_dates, weight_vals, color='#1dd1a1', linewidth=2, marker='s', label='Greutate (kg)')
+        ax3.set_ylabel('kg', color='white')
+        ax3.set_facecolor('#1a1a2e')
+        ax3.legend(loc='upper left', prop={'size': 8})
+        ax3.grid(True, alpha=0.1)
+
+        # X axis formatting
+        plt.xticks(dates, [d.strftime('%d/%m') for d in dates], rotation=45, color='white')
+        plt.suptitle("Health — ultimele 30 zile", color='white', fontsize=14)
+        
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        
+        buf = BytesIO()
         plt.savefig(buf, format='png', transparent=False, dpi=120)
         buf.seek(0)
         return buf.getvalue()
@@ -68,7 +69,8 @@ async def generate_health_chart(pool, days: int = 30) -> bytes:
         logger.error(f"Error in generate_health_chart: {e}", exc_info=True)
         return None
     finally:
-        plt.close(fig)
+        if fig:
+            plt.close(fig)
 
 async def handle_health_intent(pool, intent: str, data: Dict[str, Any], bot=None) -> Tuple[str, Any]:
     if intent == "health_log":

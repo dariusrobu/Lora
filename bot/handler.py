@@ -126,6 +126,24 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
                 await update.message.reply_text(f"❌ Eroare la inițierea planului: {e}")
             return
 
+        # 3.8 Health Chart Direct Bypass (to avoid Gemini misinterpretation)
+        health_chart_triggers = ["grafic health", "grafic somn", "grafic apă", "grafic apa", "grafic greutate", "cum am dormit"]
+        low_text = text.lower()
+        if any(trigger in low_text for trigger in health_chart_triggers):
+            intent_response = {
+                "intent": "health_chart",
+                "module": "health",
+                "data": {"_original_reply": "Generăm graficul tău... 📊"},
+                "reply": "Generăm graficul tău... 📊"
+            }
+            final_reply, reply_markup = await route_intent(pool, intent_response, bot=context.bot)
+            if final_reply:
+                # Save assistant reply to conversations
+                async with pool.acquire() as conn:
+                    await conn.execute("INSERT INTO conversations (role, content) VALUES ($1, $2)", "assistant", final_reply)
+                await update.message.reply_text(final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup)
+            return
+
         # Check onboarding status
         onboarding_done = await is_onboarding_complete(pool, telegram_id)
         onboarding_step = context.user_data.get("onboarding_step")
@@ -313,24 +331,6 @@ Reguli:
         context_snapshot = await build_context(pool)
         profile = await get_user_profile(pool, telegram_id)
         
-        # 3.8 Health Chart Direct Bypass (to avoid Gemini misinterpretation)
-        health_chart_triggers = ["grafic health", "grafic somn", "cum am dormit", "grafic apa", "grafic greutate"]
-        low_text = text.lower()
-        if any(trigger in low_text for trigger in health_chart_triggers):
-            intent_response = {
-                "intent": "health_chart",
-                "module": "health",
-                "data": {"_original_reply": "Generăm graficul tău... 📊"},
-                "reply": "Generăm graficul tău... 📊"
-            }
-            final_reply, reply_markup = await route_intent(pool, intent_response, bot=context.bot)
-            if final_reply:
-                # Save assistant reply to conversations
-                async with pool.acquire() as conn:
-                    await conn.execute("INSERT INTO conversations (role, content) VALUES ($1, $2)", "assistant", final_reply)
-                await update.message.reply_text(final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup)
-            return
-
         # 4. Call Gemini
         intent_response = await get_gemini_response(
             user_message=text,
