@@ -1,5 +1,5 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from datetime import datetime, time
+from datetime import datetime
 import pytz
 from core.config import TELEGRAM_USER_ID, TIMEZONE
 from bot.formatter import escape_md
@@ -524,7 +524,7 @@ async def send_weekly_review(application, pool) -> None:
     from datetime import timedelta, datetime
     import pytz
     from core.config import TIMEZONE, TELEGRAM_USER_ID
-    from bot.formatter import escape_md, safe_markdown
+    from bot.formatter import safe_markdown
     from telegram.constants import ParseMode
     
     try:
@@ -587,6 +587,13 @@ async def send_weekly_review(application, pool) -> None:
         mood_week = await note_queries.get_weekly_mood_data(pool, start_date, end_date)
         tasks_per_day = await task_queries.get_completed_tasks_per_day(pool, start_date, end_date)
         
+        # Restore Formatting for Context
+        habit_ctx = []
+        for h in habit_stats[:5]:
+            habit_ctx.append(f"{h['name']}: {h['completion_days']}/7 zile, streak {h['streak_count']}")
+        
+        event_ctx = [e['title'] for e in events]
+        
         health_ctx = ""
         if health_week:
             health_lines = []
@@ -598,6 +605,9 @@ async def send_weekly_review(application, pool) -> None:
         mood_ctx = "\n".join([f"{m['date']}: {mood_map.get(m['mood'].lower(), 3)}" for m in mood_week])
         tasks_ctx = "\n".join([f"{t['date']}: {t['count']} tasks" for t in tasks_per_day])
 
+        # Format journals for context
+        journal_moods = [j['mood'] for j in journals if j.get('mood')]
+        
         data_summary = f"""
 SĂPTĂMÂNA: {start_date} — {end_date}
 TASKS: {task_stats['completed']} completate din {task_stats['added']} adăugate săptămâna asta.
@@ -607,6 +617,7 @@ FINANCE BREAKDOWN:
 MOOD SUMMARY: {mood_summary}
 PATTERNS: {patterns_section}
 EVENTS: {", ".join(event_ctx)}
+JOURNALS (MOODS): {", ".join(journal_moods)}
 
 --- HEALTH CORRELATION DATA ---
 Date health săptămână:
