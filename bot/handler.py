@@ -347,8 +347,10 @@ Reguli:
                 await update.message.reply_text(chunk, reply_markup=current_markup)
 
     except Exception as e:
-        print(f"ERROR in message_handler: {e}")
-        traceback.print_exc()
+        import traceback
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"ERROR in message_handler: {e}\n{traceback.format_exc()}")
         try:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,

@@ -179,10 +179,14 @@ IntentResponse schema:
             raw_text = raw_text.split("```")[1].split("```")[0].strip()
             
         try:
-            return json.loads(raw_text)
+            parsed = json.loads(raw_text)
         except json.JSONDecodeError:
             cleaned = re.sub(r'\\([.!#\-])', r'\1', raw_text)
-            return json.loads(cleaned)
+            parsed = json.loads(cleaned)
+            
+        if isinstance(parsed, list) and len(parsed) > 0:
+            parsed = parsed[0]
+        return parsed
     except Exception as e:
         print(f"Gemini error: {e}", flush=True)
         return {

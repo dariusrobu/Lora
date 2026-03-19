@@ -140,12 +140,13 @@ CREATE INDEX idx_finances_type ON finances(type);
 -- ── Budget limits ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS budget_limits (
     id            SERIAL PRIMARY KEY,
-    category      TEXT NOT NULL UNIQUE,
+    category      TEXT NOT NULL,
     monthly_limit NUMERIC(12, 2) NOT NULL,
     alerted_80    BOOLEAN DEFAULT FALSE,
     alerted_100   BOOLEAN DEFAULT FALSE,
     created_at    TIMESTAMPTZ DEFAULT NOW()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_limits_category_lower ON budget_limits (LOWER(category));
 
 -- ── Events ────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS events (
