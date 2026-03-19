@@ -117,7 +117,7 @@ async def set_budget(pool, category: str, limit: float):
             """
             INSERT INTO budget_limits (category, monthly_limit, alerted_80, alerted_100)
             VALUES (LOWER($1), $2, FALSE, FALSE)
-            ON CONFLICT (LOWER(category)) DO UPDATE 
+            ON CONFLICT ON CONSTRAINT budget_limits_category_unique DO UPDATE 
             SET monthly_limit = $2, alerted_80 = FALSE, alerted_100 = FALSE
             """,
             category, limit
