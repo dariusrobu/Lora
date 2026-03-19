@@ -203,6 +203,7 @@ async def text_to_speech(
     text: str,
     filename: Optional[str] = None,
     podcast_mode: bool = False,
+    voice: str = "ro-RO-AlinaNeural",
 ) -> str:
     """Convert text to speech using edge-tts.
 
@@ -211,12 +212,11 @@ async def text_to_speech(
         filename: Optional output path. Defaults to a temp .mp3 file.
         podcast_mode: If True, uses prepare_podcast_text() for deeper cleaning
                       and slightly slower rate suited for narration.
+        voice: The edge-tts voice ID to use. Defaults to "ro-RO-AlinaNeural".
 
     Returns:
         Absolute path to the generated audio file.
     """
-    VOICE = "ro-RO-AlinaNeural"
-
     if podcast_mode:
         processed_text = prepare_podcast_text(text)
         rate = "-15%"   # slightly slower for narration
@@ -235,9 +235,9 @@ async def text_to_speech(
         filename = temp_file.name
         temp_file.close()
 
-    print(f"DEBUG: edge_tts.Communicate starting | mode={'podcast' if podcast_mode else 'normal'} | chars={len(processed_text)}", flush=True)
+    print(f"DEBUG: edge_tts.Communicate starting | mode={'podcast' if podcast_mode else 'normal'} | voice={voice} | chars={len(processed_text)}", flush=True)
     try:
-        communicate = edge_tts.Communicate(processed_text, VOICE, rate=rate, pitch=pitch)
+        communicate = edge_tts.Communicate(processed_text, voice, rate=rate, pitch=pitch)
         await communicate.save(filename)
         print(f"DEBUG: edge_tts saved → {filename} (exists={os.path.exists(filename)})", flush=True)
     except Exception as e:

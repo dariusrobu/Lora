@@ -27,7 +27,6 @@ async def send_morning_briefing(application, pool):
         # 2. Gather data in PARALLEL
         from modules.weather import get_weather_summary
         from db.queries.shopping import list_shopping_items
-        from modules.news import fetch_tech_news
         import asyncio
         import os
         from core.gemini import get_proactive_response
@@ -40,7 +39,6 @@ async def send_morning_briefing(application, pool):
             today_logged_ids,
             weather_info,
             shopping_items,
-            tech_news_raw,
         ) = await asyncio.gather(
             task_queries.list_tasks(pool),
             event_queries.list_events(pool, today, today),
@@ -48,7 +46,6 @@ async def send_morning_briefing(application, pool):
             habit_queries.get_today_logs(pool),
             get_weather_summary(),
             list_shopping_items(pool),
-            fetch_tech_news(limit=1),
         )
 
         weather_info = weather_info or "Vremea nu este disponibilă acum."
@@ -56,7 +53,7 @@ async def send_morning_briefing(application, pool):
         due_today: list = [t for t in all_tasks if t['due_date'] == today]
         priority_tasks: list = (overdue + due_today)[:5]
         pending_habits: list = [h for h in habits if h['id'] not in today_logged_ids]
-        first_news: str = (tech_news_raw.splitlines()[0] if tech_news_raw else "").strip()
+
         
         # 3. Build shared context strings for Gemini calls
         name: str = profile.get('name', 'User')
@@ -201,15 +198,13 @@ TOP 3 TASKS:
 
 EVENIMENTE AZI:
 {event_text}
-
-NEWS:
-{first_news or 'No tech news available.'}
 """
             podcast_instruction = f"""Ești Lora, asistenta personală a lui {name}.
-Generezi un podcast vocal de dimineață. Scrie să sune natural când e citit cu voce.
-Structură: salut (1-2 prop.) → vreme (1 prop.) → top tasks ca plan, nu liste → events → 1 știre → 1 gând motivațional.
-Ton: cald, energic. Limbă: Romglish. LUNGIME: 200-250 cuvinte. Fără bullet points, fără titluri de secțiuni.
-Formatare: Telegram MarkdownV2 raw (fără backslash escape în JSON)."""
+ Generezi un podcast vocal de dimineață. Scrie să sune natural când e citit cu voce.
+ Generează textul podcastului EXCLUSIV în limba română. Nu folosi cuvinte sau fraze în engleză, cu excepția numelor proprii și termenilor tehnici care nu au echivalent natural în română (ex: task, habit, meeting).
+ Structură: salut (1-2 prop.) → vreme (1 prop.) → top tasks ca plan, nu liste → events → gând motivațional.
+ Ton: cald, energic. LUNGIME: 200-250 cuvinte. Fără bullet points, fără titluri de secțiuni.
+ Formatare: Telegram MarkdownV2 raw (fără backslash escape în JSON)."""
             raw_brief = await get_proactive_response(podcast_instruction, podcast_data)
             tts_text: str = raw_brief or briefing_text
             print(f"🎙️ TTS input length: {len(tts_text)} characters", flush=True)
