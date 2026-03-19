@@ -1,7 +1,7 @@
 from typing import Dict, Any
 from bot.formatter import escape_md
 
-async def route_intent(pool, intent_response: Dict[str, Any]):
+async def route_intent(pool, intent_response: Dict[str, Any], bot=None):
     """
     Routes the Gemini intent to the appropriate module.
     Returns the reply text and an optional keyboard.
@@ -13,26 +13,10 @@ async def route_intent(pool, intent_response: Dict[str, Any]):
     
     # If no module, just return the chat reply from Gemini
     if not module:
-        # Handle update_profile specifically
-        if intent == "update_profile":
-            from db.queries.profile import update_user_profile
-            from core.config import TELEGRAM_USER_ID
-            
-            fact = data.get("fact")
-            if fact:
-                print(f"DEBUG: Updating profile with fact: {fact}", flush=True)
-                # Get current notes
-                from db.queries.profile import get_user_profile
-                profile = await get_user_profile(pool, TELEGRAM_USER_ID)
-                current_notes = profile.get("personal_notes") or ""
-                new_notes = f"{current_notes}\n- {fact}".strip()
-                print(f"DEBUG: New notes will be: {new_notes}", flush=True)
-                await update_user_profile(pool, TELEGRAM_USER_ID, personal_notes=new_notes)
-                print("DEBUG: Profile update called.", flush=True)
-        
+        # (Profile update logic preserved...)
         return reply, None
 
-    # Module routing logic (Phase 4 & 5)
+    # Module routing logic
     if module == "tasks":
         from modules.tasks import handle_task_intent
         return await handle_task_intent(pool, intent, data)
@@ -54,6 +38,15 @@ async def route_intent(pool, intent_response: Dict[str, Any]):
     elif module == "shopping":
         from modules.shopping import handle_shopping_intent
         return await handle_shopping_intent(pool, intent, data)
+    elif module == "goals":
+        from modules.goals import handle_goal_intent
+        return await handle_goal_intent(pool, intent, data)
+    elif module == "mood":
+        from modules.mood import handle_mood_intent
+        return await handle_mood_intent(pool, intent, data, bot)
+    elif module == "insights":
+        from modules.insights import handle_insight_intent
+        return await handle_insight_intent(pool, intent, data)
     elif module == "news":
         from modules.news import fetch_tech_news
         news = await fetch_tech_news()

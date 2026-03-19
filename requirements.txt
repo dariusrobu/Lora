@@ -9,3 +9,4 @@ ruff
 python-dateutil
 feedparser
 edge-tts
+matplotlib

@@ -110,3 +110,16 @@ async def get_completed_tasks_today(pool) -> List[Dict[str, Any]]:
             """
         )
         return [dict(r) for r in rows]
+
+async def get_weekly_task_stats(pool, start_date: date, end_date: date) -> Dict[str, Any]:
+    """Counts tasks added and completed in the given weekly range."""
+    async with pool.acquire() as conn:
+        added = await conn.fetchval(
+            "SELECT COUNT(*) FROM tasks WHERE created_at::date BETWEEN $1 AND $2",
+            start_date, end_date
+        )
+        completed = await conn.fetchval(
+            "SELECT COUNT(*) FROM tasks WHERE status = 'done' AND completed_at::date BETWEEN $1 AND $2",
+            start_date, end_date
+        )
+        return {"added": added or 0, "completed": completed or 0}

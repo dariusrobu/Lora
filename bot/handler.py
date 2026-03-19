@@ -164,7 +164,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
                         "needs_confirmation": False
                     }
                     await clear_state(pool)
-                    final_reply, reply_markup = await route_intent(pool, intent_response)
+                    final_reply, reply_markup = await route_intent(pool, intent_response, bot=context.bot)
                     await update.message.reply_text(final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup)
                     return
                 elif any(word in low_text for word in ['no', 'stop', 'cancel', 'don\'t', 'nu']):
@@ -189,7 +189,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
                 )
 
                 await clear_state(pool)
-                final_reply, reply_markup = await route_intent(pool, intent_response)
+                final_reply, reply_markup = await route_intent(pool, intent_response, bot=context.bot)
                 await update.message.reply_text(final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup)
                 return
 
@@ -325,7 +325,7 @@ Reguli:
         print(f"🧠 GEMINI: Intent={intent_response.get('intent')}, Module={intent_response.get('module')}, Data={intent_response.get('data')}")
         
         # 5. Route intent and get final reply + keyboard
-        final_reply, reply_markup = await route_intent(pool, intent_response)
+        final_reply, reply_markup = await route_intent(pool, intent_response, bot=context.bot)
         print(f"📡 ROUTER: Reply length={len(final_reply)}")
         
         # 6. Save assistant reply to conversations

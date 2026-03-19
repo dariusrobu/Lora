@@ -17,8 +17,10 @@ CREATE TABLE IF NOT EXISTS user_profile (
     last_briefing_date    DATE,                  -- prevents duplicate daily briefing
     last_eod_date         DATE,                  -- prevents duplicate EOD message
     last_weekly_date      DATE,                  -- prevents duplicate weekly review
-    last_journal_date     DATE,                  -- prevents duplicate journal night prompt
-    last_plan_date        DATE,                  -- prevents duplicate daily plan prompt
+    last_journal_date DATE,                  -- prevents duplicate journal night prompt
+    last_plan_date DATE,                  -- prevents duplicate daily plan prompt
+    last_weekly_review_date DATE,                -- prevents duplicate weekly review
+    last_finance_summary_date DATE,              -- prevents duplicate weekly finance summary
     created_at            TIMESTAMPTZ DEFAULT NOW(),
     updated_at            TIMESTAMPTZ DEFAULT NOW()
 );
@@ -140,6 +142,8 @@ CREATE TABLE IF NOT EXISTS budget_limits (
     id            SERIAL PRIMARY KEY,
     category      TEXT NOT NULL UNIQUE,
     monthly_limit NUMERIC(12, 2) NOT NULL,
+    alerted_80    BOOLEAN DEFAULT FALSE,
+    alerted_100   BOOLEAN DEFAULT FALSE,
     created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -193,4 +197,25 @@ CREATE TABLE IF NOT EXISTS day_plans (
     created_at       TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX idx_day_plans_date ON day_plans(plan_date DESC);
+
+-- ── Goals & Goal Tasks ──────────────────────────────────────
+CREATE TABLE IF NOT EXISTS goals (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    deadline DATE,
+    progress INT DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+    status VARCHAR(20) DEFAULT 'active',  -- active, completed, paused, abandoned
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS goal_tasks (
+    id SERIAL PRIMARY KEY,
+    goal_id INT REFERENCES goals(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    is_completed BOOLEAN DEFAULT FALSE,
+    completed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
 

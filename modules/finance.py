@@ -16,15 +16,22 @@ async def handle_finance_intent(pool, intent: str, data: Dict[str, Any]) -> Tupl
         # Budget check for expenses
         warning = ""
         if type_ == "expense":
-            limit = await finance_queries.get_budget_limit(pool, category)
-            if limit:
+            budget = await finance_queries.get_budget_status(pool, category)
+            if budget and budget['monthly_limit']:
+                limit = float(budget['monthly_limit'])
                 now = datetime.now()
                 summary = await finance_queries.get_monthly_summary(pool, now.month, now.year)
                 cat_total = next((c['total'] for c in summary['breakdown'] if c['category'] == category), 0)
-                if cat_total > limit:
-                    warning = f"\n⚠️ *Budget exceeded* for {escape_md(category)}\\!"
-                elif cat_total > limit * 0.8:
-                    warning = f"\n💡 You've used {int(cat_total/limit*100)}% of your {escape_md(category)} budget\\."
+                
+                alerted_80 = budget['alerted_80']
+                alerted_100 = budget['alerted_100']
+                
+                if cat_total >= limit and not alerted_100:
+                    warning = f"\n🔴 *Ai depășit bugetul* de {escape_md(category)}! ({int(cat_total)} / {int(limit)} RON)"
+                    await finance_queries.update_budget_alert_flags(pool, category, alerted_80, True)
+                elif cat_total >= limit * 0.8 and not alerted_80:
+                    warning = f"\n⚠️ *Ai cheltuit 80%* din bugetul de {escape_md(category)} luna asta ({int(cat_total)} / {int(limit)} RON)"
+                    await finance_queries.update_budget_alert_flags(pool, category, True, alerted_100)
  
         emoji = "💸" if type_ == "expense" else "💰"
         return f"Logged {emoji} `{amount} RON` — {escape_md(category)}{warning}", None

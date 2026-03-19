@@ -126,3 +126,21 @@ async def get_habits_completed_today(pool) -> List[str]:
             """
         )
         return [r['name'] for r in rows]
+
+async def get_weekly_habit_stats(pool, start_date: date, end_date: date) -> List[Dict[str, Any]]:
+    """Returns completion count and streak for all active habits in the week."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT h.name, h.streak_count, COUNT(l.id) as completion_days 
+            FROM habits h 
+            LEFT JOIN habit_logs l ON h.id = l.habit_id 
+                AND l.log_date BETWEEN $1 AND $2 
+                AND l.status = 'done'
+            WHERE h.is_active = True 
+            GROUP BY h.id, h.name, h.streak_count
+            ORDER BY completion_days DESC
+            """,
+            start_date, end_date
+        )
+        return [dict(r) for r in rows]

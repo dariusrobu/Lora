@@ -49,3 +49,12 @@ async def search_notes(pool, search_query: str) -> List[Dict[str, Any]]:
 async def delete_note(pool, note_id: int):
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM notes WHERE id = $1", note_id)
+
+async def get_weekly_journals(pool, start_date: date, end_date: date) -> List[str]:
+    """Returns a list of moods from journal entries for the week."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT mood FROM notes WHERE type = 'journal' AND created_at::date BETWEEN $1 AND $2",
+            start_date, end_date
+        )
+        return [r['mood'] for r in rows if r['mood']]

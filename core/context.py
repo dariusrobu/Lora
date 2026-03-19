@@ -89,4 +89,15 @@ async def build_context(pool) -> str:
     else:
         snapshot.append("No recent notes.")
 
+    # 8. Goals
+    import db.queries.goals as goal_queries
+    goals = await goal_queries.list_goals(pool)
+    snapshot.append("\n--- TOP GOALS ---")
+    if goals:
+        for g in goals[:3]:
+            deadline = f" (Deadline: {g['deadline']})" if g['deadline'] else ""
+            snapshot.append(f"🎯 {g['title']}: {g['progress']}%{deadline}")
+    else:
+        snapshot.append("No active goals.")
+
     return "\n".join(snapshot)

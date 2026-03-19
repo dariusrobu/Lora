@@ -9,6 +9,7 @@ import db.queries.tasks as task_queries
 import db.queries.habits as habit_queries
 import db.queries.events as event_queries
 import db.queries.finance as finance_queries
+import db.queries.notes as note_queries
 
 async def send_morning_briefing(application, pool):
     """Sends a daily summary of tasks, events, and habits."""
@@ -512,6 +513,241 @@ async def send_journal_night(application, pool) -> None:
         traceback.print_exc()
 
 
+async def send_weekly_review(application, pool) -> None:
+    """Aggregates weekly data and sends a reflective review on Sunday evening."""
+    from datetime import timedelta, datetime
+    import pytz
+    from core.config import TIMEZONE, TELEGRAM_USER_ID
+    from bot.formatter import escape_md, safe_markdown
+    from telegram.constants import ParseMode
+    
+    try:
+        user_tz = pytz.timezone(TIMEZONE)
+        today = datetime.now(user_tz).date()
+        
+        # 1. Idempotency Check
+        profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
+        if profile.get('last_weekly_review_date') == today:
+            print(f"Weekly review already sent for {today} — skipping.", flush=True)
+            return
+
+        print(f"Starting weekly review for {today}...", flush=True)
+
+        # 2. Date Range (Monday to Sunday)
+        start_date = today - timedelta(days=6)
+        end_date = today
+
+        # 3. Aggregated Data Collection
+        task_stats = await task_queries.get_weekly_task_stats(pool, start_date, end_date)
+        habit_stats = await habit_queries.get_weekly_habit_stats(pool, start_date, end_date)
+        events = await event_queries.list_events(pool, start_date, end_date)
+        
+        # Concise Finance Section for Sunday Review
+        finance_summary = await finance_queries.get_weekly_finance_summary(pool, start_date, end_date)
+        finance_ctx = f"Cheltuieli totale săptămâna asta: {int(finance_summary['total'])} RON"
+        finance_footer = "" # Not needed here
+
+        # Enhanced Mood Section
+        import db.queries.mood as mood_queries
+        weekly_moods = await mood_queries.get_weekly_mood_summary(pool, start_date, end_date)
+        mood_total = sum(weekly_moods.values())
+        mood_summary = ""
+        if mood_total > 0:
+            mood_labels = {
+                "great": "super", "good": "bine", "neutral": "ok", 
+                "okay": "ok", "bad": "slab", "terrible": "rău", "awful": "rău"
+            }
+            # Combine duplicates (neutral/okay, terrible/awful)
+            combined_moods = {}
+            for m, count in weekly_moods.items():
+                label = mood_labels.get(m.lower(), "ok")
+                combined_moods[label] = combined_moods.get(label, 0) + count
+            
+            mood_parts = [f"{count} zile {label}" for label, count in combined_moods.items()]
+            mood_summary = f"😊 Mood săptămâna asta: {', '.join(mood_parts)}"
+
+        # 3.5 Automated Insights Patterns
+        from modules.insights import generate_insights
+        patterns = await generate_insights(pool)
+        # Omit if not enough data
+        patterns_section = ""
+        if "nu am suficiente date" not in patterns.lower():
+            patterns_section = f"\n🧠 *Patterns observate*\n{patterns}\n"
+
+        journals = await note_queries.get_weekly_journals(pool, start_date, end_date)
+
+        # Format habits for context
+        habit_ctx = []
+        for h in habit_stats[:5]:
+            habit_ctx.append(f"{h['name']}: {h['completion_days']}/7 zile, streak {h['streak_count']}")
+        
+        event_ctx = [e['title'] for e in events]
+        
+        data_summary = f"""
+SĂPTĂMÂNA: {start_date} — {end_date}
+TASKS: {task_stats['completed']} completate din {task_stats['added']} adăugate săptămâna asta.
+HABITS: {", ".join(habit_ctx)}
+FINANCE BREAKDOWN:
+{finance_ctx}
+{finance_footer}
+MOOD SUMMARY: {mood_summary}
+PATTERNS: {patterns_section}
+EVENTS: {", ".join(event_ctx)}
+JOURNALS (MOODS): {", ".join(journals)}
+"""
+
+        # 4. Gemini Review Generation
+        from core.gemini import get_proactive_response
+        system_instruction = f"""
+Ești Lora, asistenta personală a lui {profile.get('name', 'User')}. 
+Generează un weekly review structurat în română.
+Tone: reflectiv, direct, calm, fără hype. 
+Interzis: bravos, vibes, wins, achievements.
+
+Structură FIXĂ (MarkdownV2):
+📊 *Săptămâna {start_date.strftime('%d.%m')} — {end_date.strftime('%d.%m')}*
+
+✅ *Tasks*: {task_stats['completed']} completate din {task_stats['added']}
+🔁 *Habits*: [top 3 habits relevanți cu streak]
+
+💰 *Finanțe*
+{finance_ctx}
+
+{mood_summary}
+{patterns_section}
+
+📈 *Highlight*: [cel mai important lucru realizat — ales de tine din date]
+🔍 *Pattern observat*: [o observație sinceră despre săptămâna sa]
+
+Maxim 200 cuvinte.
+DOAR textul review-ului, fără introducere/concluzie extra.
+"""
+        review_text = await get_proactive_response(system_instruction, data_summary)
+        
+        if not review_text:
+            review_text = f"📊 *Săptămâna {start_date} — {end_date}*\n\nReview-ul tău nu a putut fi generat, dar ai completat {task_stats['completed']} task-uri! 🚀"
+
+        # 5. Send Text Message
+        await application.bot.send_message(
+            chat_id=TELEGRAM_USER_ID,
+            text=safe_markdown(review_text),
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
+
+        # 6. Send Voice Version (TTS)
+        try:
+            from bot.tts import text_to_speech
+            import os
+            # Clean text for TTS
+            tts_clean = review_text.replace('*', '').replace('📊', '').replace('✅', '').replace('🔁', '').replace('💰', '').replace('📈', '').replace('🔍', '').strip()
+            voice_file = await text_to_speech(tts_clean, podcast_mode=True)
+            with open(voice_file, 'rb') as f:
+                await application.bot.send_voice(
+                    chat_id=TELEGRAM_USER_ID,
+                    voice=f,
+                    caption="🎙️ *Lora: Weekly Review*",
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                )
+            if os.path.exists(voice_file):
+                os.remove(voice_file)
+        except Exception as ve:
+            print(f"Weekly review voice error: {ve}", flush=True)
+
+        # 7. Update Idempotency
+        await profile_queries.update_user_profile(pool, TELEGRAM_USER_ID, last_weekly_review_date=today)
+        print(f"Weekly review sent and logged for {today}.", flush=True)
+
+    except Exception as e:
+        import traceback
+        print(f"CRITICAL error in send_weekly_review: {e}", flush=True)
+        traceback.print_exc()
+
+async def send_weekly_finance_summary(application, pool) -> None:
+    """Sends a detailed finance breakdown on Monday morning."""
+    from datetime import timedelta, datetime
+    import pytz
+    from core.config import TIMEZONE, TELEGRAM_USER_ID
+    from bot.formatter import escape_md
+    from telegram.constants import ParseMode
+    
+    try:
+        user_tz = pytz.timezone(TIMEZONE)
+        today = datetime.now(user_tz).date()
+        
+        # 1. Idempotency Check
+        profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
+        if profile.get('last_finance_summary_date') == today:
+            print(f"Finance summary already sent for {today} — skipping.", flush=True)
+            return
+
+        print(f"Starting weekly finance summary for {today}...", flush=True)
+
+        # 2. Date Range (Previous Monday to Sunday)
+        start_date = today - timedelta(days=7)
+        end_date = today - timedelta(days=1)
+
+        # 3. Aggregated Data Collection
+        finance_summary = await finance_queries.get_weekly_finance_summary(pool, start_date, end_date)
+        
+        async with pool.acquire() as conn:
+            weekly_breakdown = await conn.fetch(
+                """
+                SELECT category, SUM(amount) as total 
+                FROM finances 
+                WHERE type = 'expense' AND tx_date BETWEEN $1 AND $2 
+                GROUP BY category 
+                ORDER BY total DESC
+                """,
+                start_date, end_date
+            )
+        
+        # Calculate monthly budget remaining
+        now = datetime.now(user_tz)
+        monthly_stats = await finance_queries.get_monthly_summary(pool, now.month, now.year)
+        async with pool.acquire() as conn:
+            total_limit = await conn.fetchval("SELECT SUM(monthly_limit) FROM budget_limits")
+        
+        budget_remaining = (float(total_limit) - monthly_stats['expense']) if total_limit else 0
+        
+        finance_lines = []
+        for b in weekly_breakdown[:5]:
+            finance_lines.append(f"• {escape_md(b['category'])}: `{int(b['total'])} RON`")
+        
+        finance_ctx = "\n".join(finance_lines)
+        
+        # 4. Format Message
+        message = (
+            f"💰 *Rezumat Financiar Săptămânal*\n"
+            f"_{start_date.strftime('%d.%m')} — {end_date.strftime('%d.%m')}_\n\n"
+            f"*Top Cheltuieli:*\n"
+            f"{finance_ctx}\n"
+            f"────────────\n"
+            f"💵 Total săptămână: `{int(finance_summary['total'])} RON`\n"
+            f"📉 Buget lunar rămas: `{int(budget_remaining)} RON`"
+        )
+
+        # 5. Send Telegram message
+        await application.bot.send_message(
+            chat_id=TELEGRAM_USER_ID,
+            text=message,
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
+
+        # 6. Update Idempotency
+        await profile_queries.update_user_profile(pool, TELEGRAM_USER_ID, last_finance_summary_date=today)
+        print(f"Weekly finance summary sent and logged for {today}.", flush=True)
+
+    except Exception as e:
+        import traceback
+        print(f"CRITICAL error in send_weekly_finance_summary: {e}", flush=True)
+        traceback.print_exc()
+
+async def reset_budget_alerts(application, pool) -> None:
+    """Resets budget alert flags on the 1st of every month."""
+    print("Resetting budget alert flags for the new month...", flush=True)
+    await finance_queries.reset_all_budget_alerts(pool)
+    print("Budget alert flags reset successfully.", flush=True)
+
 async def check_event_reminders(application, pool):
     """Checks for upcoming events and sends reminders."""
     # Simplified logic for now: query all events and check time diffs
@@ -538,6 +774,19 @@ def setup_scheduler(application, pool):
                       misfire_grace_time=3600, args=[application, pool])
 
     scheduler.add_job(send_journal_night, 'cron', hour=j_h, minute=j_m,
+                      misfire_grace_time=3600, args=[application, pool])
+
+    scheduler.add_job(send_weekly_review, 'cron', day_of_week='sun', hour=e_h, minute=e_m,
+                      misfire_grace_time=3600, args=[application, pool])
+
+    # Weekly Finance Summary: Monday, 5 mins before Morning Briefing
+    f_h, f_m = m_h, (m_m - 5) % 60
+    if m_m < 5: f_h = (m_h - 1) % 24
+    
+    scheduler.add_job(send_weekly_finance_summary, 'cron', day_of_week='mon', hour=f_h, minute=f_m,
+                      misfire_grace_time=3600, args=[application, pool])
+
+    scheduler.add_job(reset_budget_alerts, 'cron', day=1, hour=0, minute=0,
                       misfire_grace_time=3600, args=[application, pool])
 
     scheduler.add_job(missed_habit_nudge, 'cron', hour=(m_h + 1) % 24, minute=m_m,

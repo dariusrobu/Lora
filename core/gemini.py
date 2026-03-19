@@ -35,7 +35,7 @@ TONE: {tone}
 - brief  = răspunsuri cât mai scurte posibil
 
 CAPABILITIES:
-Tasks, Habits, Projects, Notes & Journal, Finance, Events, Shopping List.
+Tasks, Habits, Projects, Goals, Notes & Journal, Finance, Events, Shopping List.
 Fiecare suportă: add, edit, rename, delete, complete, list, search, archive (projects).
 
 ASTĂZI: {now.strftime('%Y-%m-%d')}, {now.strftime('%A')}
@@ -112,11 +112,21 @@ FAPTE DESPRE {user_name}:
     - intent="log_expense" pentru cheltuieli
     - intent="log_income" pentru venituri
     - intent="list_finance" pentru istoric sau sumar
+16. Mood: module="mood":
+    - intent="get_mood_chart" pentru afișarea evoluției lunare sub formă de grafic.
+17. Insights: module="insights":
+    - intent="get_insights" pentru a analiza corelații între mood și productivitate.
+15. Goals: module="goals":
+    - intent="add_goal" pentru obiective noi
+    - intent="list_goals" pentru listarea obiectivelor active
+    - intent="update_goal" pentru modificarea progresului sau detaliilor
+    - intent="add_goal_task" pentru adăugarea unui sub-task
+    - intent="complete_goal_task" pentru finalizarea unui sub-task
 
 IntentResponse schema:
 {{
   "intent": string,              // e.g. "add_task", "list_habits", "log_expense", "chat", "clarify", "update_profile", "get_weather"
-  "module": string | null,       // "tasks"|"habits"|"projects"|"notes"|"finance"|"events"|"weather"|"shopping"|"news"|null
+  "module": string | null,       // "tasks"|"habits"|"projects"|"notes"|"finance"|"events"|"weather"|"shopping"|"news"|"goals"|null
   "data": {{                      // Module-specific data:
      "tasks": {{ "title": string, "priority": "low"|"medium"|"high", "due_date": "YYYY-MM-DD", "project": string }},
      "habits": {{ "name": string, "frequency": "daily" }},
@@ -126,7 +136,8 @@ IntentResponse schema:
       "weather": {{ "city": string }},
       "shopping": {{ "item": string, "category": string }},
        "news": {{ "topic": string }},
-       "projects": {{ "name": string, "description": string, "status": "active"|"archived"|"on-hold" }}
+       "projects": {{ "name": string, "description": string, "status": "active"|"archived"|"on-hold" }},
+       "goals": {{ "title": string, "description": string, "deadline": "YYYY-MM-DD", "task_title": string, "progress": number }}
     }},
   "reply": string,               // Lora's reply in Telegram MarkdownV2 (RAW, NO JSON ESCAPING)
   "needs_confirmation": boolean  // true only for destructive actions

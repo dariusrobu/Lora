@@ -64,3 +64,48 @@ async def get_recent_finances(pool, limit: int = 10) -> List[Dict[str, Any]]:
 async def delete_finance(pool, finance_id: int):
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM finances WHERE id = $1", finance_id)
+
+async def get_weekly_finance_summary(pool, start_date: date, end_date: date) -> Dict[str, Any]:
+    """Returns total expense and top category for the week."""
+    async with pool.acquire() as conn:
+        total = await conn.fetchval(
+            "SELECT SUM(amount) FROM finances WHERE type = 'expense' AND tx_date BETWEEN $1 AND $2",
+            start_date, end_date
+        )
+        top = await conn.fetchrow(
+            """
+            SELECT category, SUM(amount) as amount 
+            FROM finances 
+            WHERE type = 'expense' AND tx_date BETWEEN $1 AND $2 
+            GROUP BY category 
+            ORDER BY amount DESC 
+            LIMIT 1
+            """,
+            start_date, end_date
+        )
+        return {
+            "total": float(total) if total else 0,
+            "top_category": top['category'] if top else None
+        }
+
+async def get_budget_status(pool, category: str) -> Optional[Dict[str, Any]]:
+    """Returns limit and alert flags for a category."""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT monthly_limit, alerted_80, alerted_100 FROM budget_limits WHERE category = $1",
+            category
+        )
+        return dict(row) if row else None
+
+async def update_budget_alert_flags(pool, category: str, alerted_80: bool, alerted_100: bool):
+    """Persists alert state for a category."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE budget_limits SET alerted_80 = $1, alerted_100 = $2 WHERE category = $3",
+            alerted_80, alerted_100, category
+        )
+
+async def reset_all_budget_alerts(pool):
+    """Resets all alert flags for the new month."""
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE budget_limits SET alerted_80 = FALSE, alerted_100 = FALSE")
