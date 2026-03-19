@@ -123,6 +123,7 @@ FAPTE DESPRE {user_name}:
 18. Health: module="health":
     - intent="health_log" pentru înregistrare (somn, apă, nutriție, greutate).
     - intent="health_summary" pentru rezumatul zilei.
+    - intent="health_chart" pentru grafice (somn, apă, greutate) pe ultimele 30 zile.
     - intent="health_insights" pentru analize pe termen lung (somn vs productivitate, nutriție vs energie).
 15. Goals: module="goals":
     - intent="add_goal" pentru obiective noi

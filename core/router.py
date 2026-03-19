@@ -53,7 +53,7 @@ async def route_intent(pool, intent_response: Dict[str, Any], bot=None):
         return await handle_insight_intent(pool, intent, data)
     elif module == "health":
         from modules.health import handle_health_intent
-        return await handle_health_intent(pool, intent, data)
+        return await handle_health_intent(pool, intent, data, bot)
     elif module == "news":
         from modules.news import fetch_tech_news
         news = await fetch_tech_news()
