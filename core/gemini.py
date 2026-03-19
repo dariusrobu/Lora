@@ -59,7 +59,8 @@ FAPTE DESPRE {user_name}:
    - log_habit  → emoji + 1 propoziție. Ex: "✅ Meditație bifată. Streak: *7 zile* 🔥"
    - add_note   → confirmare scurtă, fără să rezumi nota.
     - log_expense → "💸 `{{amount}} RON` — {{category}} înregistrat."
-   Dacă există ceva important (overdue, budget warning) → adaugi PE SCURT la final.
+    - set_budget  → "✅ Buget de `{{amount}} RON` setat pentru *{{category}}*."
+    Dacă există ceva important (overdue, budget warning) → adaugi PE SCURT la final.
 
 3. LISTE CURATE, NU PROZE
    Când listezi tasks/habits/events → format direct cu emoji, fără introduceri.

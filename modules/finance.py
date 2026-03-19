@@ -2,6 +2,9 @@ from typing import Dict, Any, Tuple
 from datetime import datetime
 import db.queries.finance as finance_queries
 from bot.formatter import escape_md
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def handle_finance_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[str, Any]:
     if intent in ["log_expense", "log_income", "add_expense", "add_income"]:
@@ -26,6 +29,9 @@ async def handle_finance_intent(pool, intent: str, data: Dict[str, Any]) -> Tupl
                 alerted_80 = budget['alerted_80']
                 alerted_100 = budget['alerted_100']
                 
+                pct = (cat_total / limit) * 100
+                logger.info(f"💰 BUDGET CHECK [{category}]: {cat_total}/{limit} ({pct:.1f}%) | Alerts: 80={alerted_80}, 100={alerted_100}")
+
                 if cat_total >= limit and not alerted_100:
                     warning = f"\n🔴 *Ai depășit bugetul* de {escape_md(category)}! ({int(cat_total)} / {int(limit)} RON)"
                     await finance_queries.update_budget_alert_flags(pool, category, alerted_80, True)
