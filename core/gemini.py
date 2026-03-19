@@ -60,7 +60,8 @@ FAPTE DESPRE {user_name}:
    - add_note   → confirmare scurtă, fără să rezumi nota.
     - log_expense → "💸 `{{amount}} RON` — {{category}} înregistrat."
     - set_budget  → "✅ Buget de `{{amount}} RON` setat pentru *{{category}}*."
-    Dacă există ceva important (overdue, budget warning) → adaugi PE SCURT la final.
+    - health_log   → o propoziție care menționează valorile salvate. Ex: "7.5h somn bun + 1500ml apă salvate. 💧"
+    Dacă există ceva important (overdue, budget warning, somn < 6h) → adaugi PE SCURT la final.
 
 3. LISTE CURATE, NU PROZE
    Când listezi tasks/habits/events → format direct cu emoji, fără introduceri.
@@ -118,6 +119,10 @@ FAPTE DESPRE {user_name}:
     - intent="get_mood_chart" sau "mood_chart" pentru afișarea evoluției lunare sub formă de grafic.
 17. Insights: module="insights":
     - intent="get_insights" sau "ask_insights" pentru a analiza corelații între mood și productivitate.
+18. Health: module="health":
+    - intent="health_log" pentru înregistrare (somn, apă, calorii, greutate).
+    - intent="health_summary" pentru rezumatul zilei.
+    - intent="health_insights" pentru analize pe termen lung (somn vs productivitate, trend greutate).
 15. Goals: module="goals":
     - intent="add_goal" pentru obiective noi
     - intent="list_goals" pentru listarea obiectivelor active
@@ -139,7 +144,8 @@ IntentResponse schema:
       "shopping": {{ "item": string, "category": string }},
        "news": {{ "topic": string }},
        "projects": {{ "name": string, "description": string, "status": "active"|"archived"|"on-hold" }},
-       "goals": {{ "title": string, "description": string, "deadline": "YYYY-MM-DD", "task_title": string, "progress": number }}
+       "goals": {{ "title": string, "description": string, "deadline": "YYYY-MM-DD", "task_title": string, "progress": number }},
+        "health": {{ "sleep_hours": float, "sleep_quality": "great"|"good"|"neutral"|"bad"|"terrible", "water_ml": number, "calories": number, "weight_kg": float, "notes": string }}
     }},
   "reply": string,               // Lora's reply in Telegram MarkdownV2 (RAW, NO JSON ESCAPING)
   "needs_confirmation": boolean  // true only for destructive actions

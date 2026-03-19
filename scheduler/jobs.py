@@ -10,6 +10,7 @@ import db.queries.habits as habit_queries
 import db.queries.events as event_queries
 import db.queries.finance as finance_queries
 import db.queries.notes as note_queries
+import db.queries.health as health_queries
 
 async def send_morning_briefing(application, pool):
     """Sends a daily summary of tasks, events, and habits."""
@@ -460,6 +461,11 @@ async def send_journal_night(application, pool) -> None:
             "*3\\.* Care e un lucru important pentru mâine?\n\n"
             "_Răspunde liber, cu câte cuvinte vrei \u2014 eu mă ocup de rest\\_"
         )
+
+        # Health reminder check
+        health_today = await health_queries.get_health_log(pool, today)
+        if not health_today:
+            prompt_text += "\n\nLoghează și somnul când te culci\\."
 
         # 3. Send text message
         try:

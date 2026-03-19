@@ -8,6 +8,7 @@ import db.queries.finance as finance_queries
 import db.queries.projects as project_queries
 import db.queries.notes as note_queries
 import db.queries.profile as profile_queries
+import db.queries.health as health_queries
 from core.config import TELEGRAM_USER_ID
 
 async def build_context(pool) -> str:
@@ -99,5 +100,23 @@ async def build_context(pool) -> str:
             snapshot.append(f"🎯 {g['title']}: {g['progress']}%{deadline}")
     else:
         snapshot.append("No active goals.")
+        
+    # 9. Health
+    health_today = await health_queries.get_health_log(pool, today)
+    snapshot.append("\n--- HEALTH TODAY ---")
+    if health_today:
+        h = health_today
+        s_h = f"{float(h['sleep_hours']):.1f}h" if h['sleep_hours'] else "N/A"
+        w_l = float(h['water_ml'])/1000 if h['water_ml'] else 0
+        snapshot.append(f"Sleep: {s_h} ({h['sleep_quality'] or 'N/A'}) | Water: {w_l:.1f}L | Calories: {h['calories'] or 'N/A'} | Weight: {h['weight_kg'] or 'N/A'}kg")
+    else:
+        snapshot.append("No health metrics logged today.")
+        
+    # Historical Health for Insights
+    history = await health_queries.get_health_history(pool, 30)
+    if history:
+        snapshot.append("\n--- HEALTH HISTORY (30 DAYS) ---")
+        for h in history[-7:]: # Show last 7 days in context for efficiency, but logic can use more
+            snapshot.append(f"{h['log_date']}: Sleep {h['sleep_hours']}h, Water {h['water_ml']}ml, Mood: {h['sleep_quality']}")
 
     return "\n".join(snapshot)

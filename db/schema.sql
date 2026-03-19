@@ -219,4 +219,17 @@ CREATE TABLE IF NOT EXISTS goal_tasks (
     completed_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW()
 );
-
+-- ── Health Monitoring ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS health_logs (
+    id             SERIAL PRIMARY KEY,
+    log_date       DATE NOT NULL UNIQUE DEFAULT CURRENT_DATE,
+    sleep_hours    NUMERIC(4, 2),
+    sleep_quality  TEXT CHECK (sleep_quality IN ('great', 'good', 'neutral', 'bad', 'terrible')),
+    water_ml       INT,
+    calories       INT,
+    weight_kg      NUMERIC(5, 2),
+    notes          TEXT,
+    created_at     TIMESTAMPTZ DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_health_date ON health_logs(log_date DESC);
