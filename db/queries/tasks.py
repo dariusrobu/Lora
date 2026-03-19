@@ -60,7 +60,9 @@ async def list_tasks(pool, status: str = "pending", project_id: Optional[int] = 
             query += " AND t.project_id = $2"
             args.append(project_id)
             
-        query += " ORDER BY t.due_date ASC NULLS LAST, t.priority DESC"
+        query += """ ORDER BY p.name ASC NULLS LAST,
+            CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END,
+            t.due_date ASC NULLS LAST"""
         
         rows = await conn.fetch(query, *args)
         return [dict(r) for r in rows]

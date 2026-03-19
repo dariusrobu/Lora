@@ -110,6 +110,21 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
                 print(f"Journal manual trigger error: {e}", flush=True)
                 await update.message.reply_text(f"❌ Eroare la declanșarea jurnalului: {e}")
             return
+            
+        # Handle /plan command
+        if text == "/plan":
+            from db.queries.profile import update_user_profile
+            from core.config import TELEGRAM_USER_ID as TG_UID
+            from core.state import set_state
+            
+            try:
+                await update_user_profile(pool, TG_UID, last_plan_date=None)
+                await update.message.reply_text("Cum vrei să-ți arate ziua azi? Spune-mi vocal sau în scris 🗓")
+                await set_state(pool, "awaiting_day_plan_input", "day_plans", "generate", None)
+            except Exception as e:
+                print(f"Plan manual trigger error: {e}", flush=True)
+                await update.message.reply_text(f"❌ Eroare la inițierea planului: {e}")
+            return
 
         # Check onboarding status
         onboarding_done = await is_onboarding_complete(pool, telegram_id)
@@ -177,6 +192,64 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
                 final_reply, reply_markup = await route_intent(pool, intent_response)
                 await update.message.reply_text(final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup)
                 return
+
+            elif state['state_type'] == 'awaiting_day_plan_input':
+                # If command, clear state and proceed
+                if text.startswith('/'):
+                    await clear_state(pool)
+                else:
+                    try:
+                        from db.queries.day_plans import save_day_plan
+                        from core.gemini import get_proactive_response
+                        from bot.formatter import escape_md
+                        from datetime import date as _date
+                        
+                        today = _date.today()
+                        profile = await get_user_profile(pool, telegram_id)
+                        context_snapshot = await build_context(pool)
+                        
+                        itinerary_instruction = f"""
+Userul a descris cum vrea să-i arate ziua. Pe baza preferințelor lui și a tasks/events/habits din context, generează un itinerar structurat pe ore. 
+Format:
+🗺 *Planul tău de azi*
+
+08:00 — [activitate]
+10:00 — [activitate]
+...
+
+Reguli:
+- Respectă preferințele userului ca prioritate maximă.
+- Integrează events fixe la orele lor exacte din calendar.
+- Distribuie tasks și habits în sloturile rămase.
+- Fii realist cu timpii (nu supraaglomera).
+- Dacă userul nu menționează o activitate din context, integreaz-o natural unde are sens.
+- Maxim 8 slots orare.
+- Limbă: română, același ton ca restul Lorei.
+- Returnează DOAR itinerarul, fără text introductiv.
+"""
+                        itinerary = await get_proactive_response(itinerary_instruction, f"INPUT USER: {text}\n\nCONTEXT:\n{context_snapshot}")
+                        
+                        if itinerary:
+                            await save_day_plan(pool, today, text, itinerary)
+                            # Safe markdown for Telegram
+                            from bot.formatter import safe_markdown
+                            await update.message.reply_text(safe_markdown(itinerary), parse_mode="MarkdownV2")
+                            await clear_state(pool)
+                            # Mark plan as done for today
+                            from db.queries.profile import update_user_profile
+                            await update_user_profile(pool, telegram_id, last_plan_date=today)
+                            return
+                        else:
+                            await update.message.reply_text("Nu am putut genera planul. Încearcă să-mi dai mai multe detalii.")
+                            await clear_state(pool)
+                            return
+                            
+                    except Exception as e:
+                        print(f"Error handling day plan input: {e}")
+                        traceback.print_exc()
+                        await update.message.reply_text(f"❌ Eroare la generarea planului: {e}")
+                        await clear_state(pool)
+                        return
 
             elif state['state_type'] == 'awaiting_journal_response':
                 import json as _json

@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS user_profile (
     last_eod_date         DATE,                  -- prevents duplicate EOD message
     last_weekly_date      DATE,                  -- prevents duplicate weekly review
     last_journal_date     DATE,                  -- prevents duplicate journal night prompt
+    last_plan_date        DATE,                  -- prevents duplicate daily plan prompt
     created_at            TIMESTAMPTZ DEFAULT NOW(),
     updated_at            TIMESTAMPTZ DEFAULT NOW()
 );
@@ -182,4 +183,14 @@ CREATE TABLE IF NOT EXISTS journal_entries (
     created_at       TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX idx_journal_date ON journal_entries(entry_date DESC);
+
+-- ── Day Plans ────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS day_plans (
+    id               SERIAL PRIMARY KEY,
+    plan_date        DATE NOT NULL UNIQUE,
+    user_input       TEXT,          -- what the user said
+    itinerary        TEXT NOT NULL,  -- generated itinerary
+    created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_day_plans_date ON day_plans(plan_date DESC);
 

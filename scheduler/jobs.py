@@ -249,6 +249,15 @@ HABITS PENDING AZI:
         await profile_queries.update_user_profile(pool, TELEGRAM_USER_ID, last_briefing_date=today)
         print(f"Morning briefing sent and logged for {today}.", flush=True)
 
+        # ── 8. Interactive Day Plan Flow ──────────────────────────────────
+        from core.state import set_state
+        await application.bot.send_message(
+            chat_id=TELEGRAM_USER_ID,
+            text="Cum vrei să-ți arate ziua azi? Spune-mi vocal sau în scris 🗓"
+        )
+        await set_state(pool, "awaiting_day_plan_input", "day_plans", "generate", None)
+        print("Awaiting day plan input state set.", flush=True)
+
     except Exception as e:
         import traceback
         print(f"CRITICAL error in send_morning_briefing: {e}", flush=True)

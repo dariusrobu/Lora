@@ -54,8 +54,8 @@ async def handle_task_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[s
         return f"Done ✅ Added *{escape_md(title)}*", task_keyboard(task_id)
 
     elif intent == "list_tasks":
-        project_id = data.get("project_id")
-        project_name = data.get("project") or data.get("project_name")
+        project_id: int | None = data.get("project_id")
+        project_name: str | None = data.get("project") or data.get("project_name")
         
         if not project_id and project_name:
             import db.queries.projects as project_queries
@@ -63,21 +63,45 @@ async def handle_task_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[s
             if project:
                 project_id = project['id']
 
-        tasks = await task_queries.list_tasks(pool, project_id=project_id)
+        tasks: list[dict[str, Any]] = await task_queries.list_tasks(pool, project_id=project_id)
         if not tasks:
-            msg = f"Momentan nu ai niciun task activ pentru proiectul *{escape_md(project_name)}*! 🎉" if project_name else "Felicitați! 🎉 Nu ai niciun task restant."
+            msg = (
+                f"Momentan nu ai niciun task activ pentru proiectul *{escape_md(project_name)}*\\! 🎉"
+                if project_name
+                else "Niciun task restant\\! 🎉"
+            )
             return msg, None
-            
-        header = f"📋 *Task-uri {escape_md(project_name)}:*" if project_name else "📋 *Task-urile tale:* "
-        lines = [header]
-        from bot.formatter import format_date_short
+
+        # Group tasks by project_name (query already sorted by project_name NULLS LAST)
+        from collections import OrderedDict
+        from datetime import date as _date
+
+        today: _date = _date.today()
+        groups: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
+        no_project_key: str = "Fără proiect"
+
         for t in tasks:
-            due = f" 📅 `{format_date_short(t['due_date'])}`" if t['due_date'] else ""
-            priority = " 🔥" if t['priority'] == "high" else ""
-            project = f" *[{escape_md(t['project_name'])}]*" if t.get('project_name') else ""
-            # Prefix with ID for easier manual reference
-            lines.append(f"• {escape_md(t['title'])}{due}{priority}{project} (ID: `{t['id']}`)")
-            
+            key: str = t.get("project_name") or no_project_key
+            groups.setdefault(key, []).append(t)
+
+        # Move "Fără proiect" to the end if it exists
+        if no_project_key in groups and list(groups.keys())[-1] != no_project_key:
+            no_proj_tasks = groups.pop(no_project_key)
+            groups[no_project_key] = no_proj_tasks
+
+        lines: list[str] = ["📋 *Tasks*"]
+
+        for group_name, group_tasks in groups.items():
+            lines.append("")
+            lines.append(f"*{escape_md(group_name)}*")
+            for t in group_tasks:
+                prefix: str = ""
+                if t.get("due_date") and t["due_date"] < today:
+                    prefix = "🔴 "
+                elif t.get("priority") == "high":
+                    prefix = "⚠️ "
+                lines.append(f"{prefix}• {escape_md(t['title'])}")
+
         from bot.keyboards import task_list_keyboard
         return "\n".join(lines), task_list_keyboard(tasks)
 
