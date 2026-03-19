@@ -48,14 +48,19 @@ async def delete_task(pool, task_id: int):
 
 async def list_tasks(pool, status: str = "pending", project_id: Optional[int] = None) -> List[Dict[str, Any]]:
     async with pool.acquire() as conn:
-        query = "SELECT * FROM tasks WHERE status = $1"
+        query = """
+            SELECT t.*, p.name AS project_name 
+            FROM tasks t 
+            LEFT JOIN projects p ON t.project_id = p.id 
+            WHERE t.status = $1
+        """
         args = [status]
         
         if project_id:
-            query += " AND project_id = $2"
+            query += " AND t.project_id = $2"
             args.append(project_id)
             
-        query += " ORDER BY due_date ASC NULLS LAST, priority DESC"
+        query += " ORDER BY t.due_date ASC NULLS LAST, t.priority DESC"
         
         rows = await conn.fetch(query, *args)
         return [dict(r) for r in rows]
@@ -92,9 +97,14 @@ async def complete_task(pool, task_id: int):
                 task['title'], task['notes'], task['priority'], new_due, task['project_id'], True, task['recurrence']
             )
 
-async def get_completed_tasks_today(pool) -> List[str]:
+async def get_completed_tasks_today(pool) -> List[Dict[str, Any]]:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT title FROM tasks WHERE status = 'done' AND completed_at::date = CURRENT_DATE"
+            """
+            SELECT t.title, p.name AS project_name 
+            FROM tasks t 
+            LEFT JOIN projects p ON t.project_id = p.id 
+            WHERE t.status = 'done' AND t.completed_at::date = CURRENT_DATE
+            """
         )
-        return [r['title'] for r in rows]
+        return [dict(r) for r in rows]

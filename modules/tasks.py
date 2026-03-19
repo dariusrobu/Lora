@@ -74,8 +74,9 @@ async def handle_task_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[s
         for t in tasks:
             due = f" 📅 `{format_date_short(t['due_date'])}`" if t['due_date'] else ""
             priority = " 🔥" if t['priority'] == "high" else ""
+            project = f" *[{escape_md(t['project_name'])}]*" if t.get('project_name') else ""
             # Prefix with ID for easier manual reference
-            lines.append(f"• {escape_md(t['title'])}{due}{priority} (ID: `{t['id']}`)")
+            lines.append(f"• {escape_md(t['title'])}{due}{priority}{project} (ID: `{t['id']}`)")
             
         from bot.keyboards import task_list_keyboard
         return "\n".join(lines), task_list_keyboard(tasks)

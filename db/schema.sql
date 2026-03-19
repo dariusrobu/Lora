@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS user_profile (
     last_briefing_date    DATE,                  -- prevents duplicate daily briefing
     last_eod_date         DATE,                  -- prevents duplicate EOD message
     last_weekly_date      DATE,                  -- prevents duplicate weekly review
+    last_journal_date     DATE,                  -- prevents duplicate journal night prompt
     created_at            TIMESTAMPTZ DEFAULT NOW(),
     updated_at            TIMESTAMPTZ DEFAULT NOW()
 );
@@ -169,3 +170,16 @@ CREATE TABLE IF NOT EXISTS shopping_list (
     updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX idx_shopping_bought ON shopping_list(is_bought);
+
+-- ── Journal Entries ───────────────────────────────────────────
+-- One entry per day; upserted via ON CONFLICT (entry_date)
+CREATE TABLE IF NOT EXISTS journal_entries (
+    id               SERIAL PRIMARY KEY,
+    entry_date       DATE NOT NULL UNIQUE,
+    reflection_text  TEXT,
+    mood             VARCHAR(20) CHECK (mood IN ('great','good','neutral','bad','terrible', NULL)),
+    tomorrow_focus   TEXT,
+    created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_journal_date ON journal_entries(entry_date DESC);
+

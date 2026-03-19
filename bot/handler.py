@@ -85,16 +85,30 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
         if text == "/podcast":
             from scheduler.jobs import send_morning_briefing
             await update.message.reply_text("🎙️ Generăm podcast-ul tău personal... un moment!")
-            
+
             from db.queries.profile import update_user_profile
             from core.config import TELEGRAM_USER_ID
-            
+
             try:
                 await update_user_profile(pool, TELEGRAM_USER_ID, last_briefing_date=None)
                 await send_morning_briefing(context.application, pool)
             except Exception as e:
                 print(f"Podcast manual trigger error: {e}", flush=True)
                 await update.message.reply_text(f"❌ Scuze, a apărut o eroare la generarea podcast-ului: {e}")
+            return
+
+        # Handle /journal command
+        if text == "/journal":
+            from scheduler.jobs import send_journal_night
+            from db.queries.profile import update_user_profile
+            from core.config import TELEGRAM_USER_ID as TG_UID
+
+            try:
+                await update_user_profile(pool, TG_UID, last_journal_date=None)
+                await send_journal_night(context.application, pool)
+            except Exception as e:
+                print(f"Journal manual trigger error: {e}", flush=True)
+                await update.message.reply_text(f"❌ Eroare la declanșarea jurnalului: {e}")
             return
 
         # Check onboarding status
@@ -149,7 +163,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
                 context_snapshot = await build_context(pool)
                 profile = await get_user_profile(pool, telegram_id)
                 edit_prompt = f"The user wants to edit an item. Module: {state['module']}, Item ID: {state['item_id']}. User input: {text}"
-                
+
                 intent_response = await get_gemini_response(
                     user_message=edit_prompt,
                     user_name=profile.get("name", "User"),
@@ -158,10 +172,68 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
                     history=[],
                     personal_notes=f"ACTION: Extract the fields to change for item {state['item_id']} in module {state['module']}. Return intent='edit_{state['module'][:-1]}', data={{'id': {state['item_id']}, ...fields...}}"
                 )
-                
+
                 await clear_state(pool)
                 final_reply, reply_markup = await route_intent(pool, intent_response)
                 await update.message.reply_text(final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup)
+                return
+
+            elif state['state_type'] == 'awaiting_journal_response':
+                import json as _json
+                import textwrap
+                from datetime import date as _date
+                from core.gemini import get_proactive_response
+                from db.queries import journal as journal_queries
+                from db.queries.profile import update_user_profile
+                from core.config import TELEGRAM_USER_ID as TG_UID
+
+                profile = await get_user_profile(pool, telegram_id)
+                today = _date.today()
+
+                extraction_instruction = textwrap.dedent("""
+                    Ești Lora, asistenta personală.
+                    Userul tocmai a răspuns la întrebările din jurnalul de seară.
+                    Extrage din răspunsul lor liber:
+                    - reflection_text: un rezumat scurt al reflecției (max 3 propoziții)
+                    - mood: una din: great / good / neutral / bad / terrible (pe baza tonului general)
+                    - tomorrow_focus: lucrul cel mai important menționat pentru mâine (1 propoziție)
+                    Returnează EXCLUSIV JSON valid, fără markdown:
+                    {"reflection_text": "...", "mood": "...", "tomorrow_focus": "..."}
+                """).strip()
+
+                raw_extraction = await get_proactive_response(extraction_instruction, text)
+                await clear_state(pool)
+
+                try:
+                    # Strip possible markdown fences
+                    clean = raw_extraction.strip()
+                    if clean.startswith("```"):
+                        clean = clean.split("```")[1].lstrip("json").strip()
+                    extracted = _json.loads(clean)
+                    reflection_text: str = extracted.get("reflection_text", text[:500])
+                    mood: str = extracted.get("mood", "neutral")
+                    tomorrow_focus: str = extracted.get("tomorrow_focus", "")
+                except Exception:
+                    reflection_text = text[:500]
+                    mood = "neutral"
+                    tomorrow_focus = ""
+
+                await journal_queries.save_journal_entry(pool, today, reflection_text, mood, tomorrow_focus)
+                await update_user_profile(pool, TG_UID, last_journal_date=today)
+
+                mood_emoji = {
+                    "great": "🌟", "good": "😊", "neutral": "😐",
+                    "bad": "😔", "terrible": "😞",
+                }.get(mood, "📝")
+
+                name_esc = escape_md(profile.get('name', 'User'))
+                focus_esc = escape_md(tomorrow_focus) if tomorrow_focus else "să fii prezent\\."  
+                reply = (
+                    f"{mood_emoji} Mulțumesc, {name_esc}\\. Am salvat reflecția de azi\\.\n\n"
+                    f"*Mâine te concentrezi pe:* {focus_esc}\n\n"
+                    f"Noapte bună\\! 🌙"
+                )
+                await update.message.reply_text(reply, parse_mode="MarkdownV2")
                 return
 
         # 3. Build context snapshot
