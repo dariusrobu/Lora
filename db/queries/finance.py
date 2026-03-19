@@ -88,14 +88,20 @@ async def get_weekly_finance_summary(pool, start_date: date, end_date: date) -> 
             "top_category": top['category'] if top else None
         }
 
-async def get_budget_status(pool, category: str) -> Optional[Dict[str, Any]]:
-    """Returns limit and alert flags for a category."""
+async def get_monthly_total_by_category(pool, category: str) -> float:
+    """Returns the total expense for a category in the current month."""
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT monthly_limit, alerted_80, alerted_100 FROM budget_limits WHERE category = $1",
+        val = await conn.fetchval(
+            """
+            SELECT SUM(amount) 
+            FROM finances 
+            WHERE type = 'expense' AND LOWER(category) = LOWER($1)
+            AND EXTRACT(MONTH FROM tx_date) = EXTRACT(MONTH FROM CURRENT_DATE)
+            AND EXTRACT(YEAR FROM tx_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+            """,
             category
         )
-        return dict(row) if row else None
+        return float(val) if val else 0.0
 
 async def update_budget_alert_flags(pool, category: str, alerted_80: bool, alerted_100: bool):
     """Persists alert state for a category."""

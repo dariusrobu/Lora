@@ -22,9 +22,7 @@ async def handle_finance_intent(pool, intent: str, data: Dict[str, Any]) -> Tupl
             budget = await finance_queries.get_budget_status(pool, category)
             if budget and budget['monthly_limit']:
                 limit = float(budget['monthly_limit'])
-                now = datetime.now()
-                summary = await finance_queries.get_monthly_summary(pool, now.month, now.year)
-                cat_total = next((c['total'] for c in summary['breakdown'] if c['category'] == category), 0)
+                cat_total = await finance_queries.get_monthly_total_by_category(pool, category)
                 
                 alerted_80 = budget['alerted_80']
                 alerted_100 = budget['alerted_100']
