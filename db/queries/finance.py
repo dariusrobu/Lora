@@ -32,10 +32,10 @@ async def get_monthly_summary(pool, month: int, year: int) -> Dict[str, Any]:
         # Breakdown
         breakdown = await conn.fetch(
             """
-            SELECT category, SUM(amount) as total 
+            SELECT LOWER(category) as category, SUM(amount) as total 
             FROM finances 
             WHERE type = 'expense' AND EXTRACT(MONTH FROM tx_date) = $1 AND EXTRACT(YEAR FROM tx_date) = $2
-            GROUP BY category 
+            GROUP BY LOWER(category) 
             ORDER BY total DESC
             """,
             month, year
@@ -109,3 +109,25 @@ async def reset_all_budget_alerts(pool):
     """Resets all alert flags for the new month."""
     async with pool.acquire() as conn:
         await conn.execute("UPDATE budget_limits SET alerted_80 = FALSE, alerted_100 = FALSE")
+
+async def set_budget(pool, category: str, limit: float):
+    """Upserts a budget limit and resets alerts. Category is forced lower."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO budget_limits (category, monthly_limit, alerted_80, alerted_100)
+            VALUES (LOWER($1), $2, FALSE, FALSE)
+            ON CONFLICT (LOWER(category)) DO UPDATE 
+            SET monthly_limit = $2, alerted_80 = FALSE, alerted_100 = FALSE
+            """,
+            category, limit
+        )
+
+async def get_budget_status(pool, category: str) -> Optional[Dict[str, Any]]:
+    """Returns limit and alert flags for a category (case-insensitive)."""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT monthly_limit, alerted_80, alerted_100 FROM budget_limits WHERE LOWER(category) = LOWER($1)",
+            category
+        )
+        return dict(row) if row else None

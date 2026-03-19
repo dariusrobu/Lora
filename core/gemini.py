@@ -112,6 +112,7 @@ FAPTE DESPRE {user_name}:
     - intent="log_expense" pentru cheltuieli
     - intent="log_income" pentru venituri
     - intent="list_finance" pentru istoric sau sumar
+    - intent="set_budget" pentru a seta un buget lunar pe o categorie
 16. Mood: module="mood":
     - intent="get_mood_chart" pentru afișarea evoluției lunare sub formă de grafic.
 17. Insights: module="insights":
@@ -130,7 +131,7 @@ IntentResponse schema:
   "data": {{                      // Module-specific data:
      "tasks": {{ "title": string, "priority": "low"|"medium"|"high", "due_date": "YYYY-MM-DD", "project": string }},
      "habits": {{ "name": string, "frequency": "daily" }},
-     "finance": {{ "amount": number, "category": string, "description": string }},
+     "finance": {{ "amount": number, "category": string, "description": string, "limit": number }},
       "events": {{ "title": string, "date": "YYYY-MM-DD", "time": "HH:MM" }},
       "notes": {{ "content": string, "project": string, "type": "note"|"journal" }},
       "weather": {{ "city": string }},

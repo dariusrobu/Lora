@@ -7,7 +7,7 @@ async def handle_finance_intent(pool, intent: str, data: Dict[str, Any]) -> Tupl
     if intent in ["log_expense", "log_income", "add_expense", "add_income"]:
         type_ = "expense" if "expense" in intent else "income"
         amount = data.get("amount")
-        category = data.get("category", "other")
+        category = data.get("category", "other").lower()
         
         if not amount: return "How much was it?", None
         
@@ -65,5 +65,13 @@ async def handle_finance_intent(pool, intent: str, data: Dict[str, Any]) -> Tupl
                 lines.append(f"• {escape_md(c['category'])}: `{c['total']} RON`")
                 
         return "\n".join(lines), None
+
+    elif intent == "set_budget":
+        amount = data.get("amount") or data.get("limit")
+        category = data.get("category", "other").lower()
+        if not amount: return "What is the budget limit?", None
+        
+        await finance_queries.set_budget(pool, category, float(amount))
+        return f"✅ Budget set for *{escape_md(category)}*: `{int(amount)} RON`/month.", None
 
     return "Finance module is active\\!", None
