@@ -3,6 +3,8 @@ from datetime import date, datetime
 import db.queries.health as health_queries
 from bot.formatter import escape_md
 import logging
+import matplotlib
+matplotlib.use('Agg') # Headless backend for server usage
 import matplotlib.pyplot as plt
 from io import BytesIO
 
@@ -58,10 +60,15 @@ async def generate_health_chart(pool, days: int = 30) -> bytes:
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     
     buf = BytesIO()
-    plt.savefig(buf, format='png', transparent=False, dpi=120)
-    buf.seek(0)
-    plt.close(fig)
-    return buf.getvalue()
+    try:
+        plt.savefig(buf, format='png', transparent=False, dpi=120)
+        buf.seek(0)
+        return buf.getvalue()
+    except Exception as e:
+        logger.error(f"Error in generate_health_chart: {e}", exc_info=True)
+        return None
+    finally:
+        plt.close(fig)
 
 async def handle_health_intent(pool, intent: str, data: Dict[str, Any], bot=None) -> Tuple[str, Any]:
     if intent == "health_log":
