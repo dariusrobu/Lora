@@ -111,7 +111,41 @@ async def get_completed_tasks_today(pool) -> List[Dict[str, Any]]:
         )
         return [dict(r) for r in rows]
 
-        return {"added": added or 0, "completed": completed or 0}
+async def get_weekly_task_stats(pool, start_date: date, end_date: date) -> Dict[str, Any]:
+    """Returnează tasks completate per zi între start_date și end_date, plus sumele totale."""
+    async with pool.acquire() as conn:
+        # Get total added (needed for existing weekly review logic)
+        added = await conn.fetchval(
+            "SELECT COUNT(*) FROM tasks WHERE created_at::date BETWEEN $1 AND $2",
+            start_date, end_date
+        )
+        
+        # User's requested per-day logic
+        rows = await conn.fetch(
+            """
+            SELECT 
+                DATE(completed_at) as date,
+                COUNT(*) as completed_count
+            FROM tasks
+            WHERE completed_at::date >= $1 
+              AND completed_at::date <= $2
+              AND status = 'done'
+            GROUP BY DATE(completed_at)
+            ORDER BY date
+            """,
+            start_date, end_date
+        )
+        
+        daily_stats = {row['date']: row['completed_count'] for row in rows}
+        
+        # Return composite dict to satisfy both the user's per-day request 
+        # and the existing weekly review's need for 'added'/'completed' keys.
+        return {
+            "added": added or 0,
+            "completed": sum(daily_stats.values()),
+            "daily": daily_stats, # User's requested dict
+            **daily_stats         # Also merge daily for direct key access if needed
+        }
 
 async def get_completed_tasks_per_day(pool, start_date: date, end_date: date) -> List[Dict[str, Any]]:
     """Returns counts of completed tasks grouped by date."""
