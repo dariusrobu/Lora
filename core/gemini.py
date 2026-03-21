@@ -136,9 +136,9 @@ FAPTE DESPRE {user_name}:
 20. Workout: module="workout":
     - intent="workout_log" pentru înregistrarea unui antrenament (gym, fotbal, cardio, alergare etc.).
     - intent="workout_list" pentru afișarea antrenamentelor recente.
-        * data={"period": "week"} (default: ultimele 7 zile)
-        * data={"period": "month"} (ultimele 30 zile)
-        * data={"period": "long"} (ultimele 6 luni + statistici complete)
+        * data={{"period": "week"}} (default: ultimele 7 zile)
+        * data={{"period": "month"}} (ultimele 30 zile)
+        * data={{"period": "long"}} (ultimele 6 luni + statistici complete)
     - intent="workout_stats" pentru statistici rapide pe ultimele 30 zile.
     - Cuvinte cheie list: "ce antrenamente am făcut", "istoric sport", "lista gym".
     - Cuvinte cheie long: "pe termen lung", "ultimele 6 luni", "istoricul antrenamentelor", "tot istoricul", "progres pe termen lung", "evoluție gym".
