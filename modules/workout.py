@@ -4,6 +4,7 @@ from typing import Dict, Any, Tuple
 import db.queries.workout as workout_queries
 from bot.formatter import escape_md
 from datetime import date
+import json as _json
 
 async def handle_workout_intent(pool, intent: str, data: Dict[str, Any], bot=None) -> Tuple[str, None]:
     
@@ -100,6 +101,11 @@ async def handle_workout_intent(pool, intent: str, data: Dict[str, Any], bot=Non
                 lines.append(f"*{date_str}* — {type_str}{escape_md(dur)}")
                 if w['exercises']:
                     for ex in w['exercises'][:3]:
+                        if isinstance(ex, str):
+                            try:
+                                ex = _json.loads(ex)
+                            except Exception:
+                                continue
                         if not ex.get('name'):
                             continue
                         ex_line = f"  · {escape_md(ex['name'])}"
@@ -128,6 +134,11 @@ async def handle_workout_intent(pool, intent: str, data: Dict[str, Any], bot=Non
                 lines.append(f"*{date_str}* — {type_str}{escape_md(dur)}")
                 if w['exercises']:
                     for ex in w['exercises']:
+                        if isinstance(ex, str):
+                            try:
+                                ex = _json.loads(ex)
+                            except Exception:
+                                continue
                         if not ex.get('name'):
                             continue
                         ex_line = f"  · {escape_md(ex['name'])}"
