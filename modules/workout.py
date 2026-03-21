@@ -38,29 +38,106 @@ async def handle_workout_intent(pool, intent: str, data: Dict[str, Any], bot=Non
         return data.get("_original_reply", "Antrenament salvat. 💪"), None
 
     elif intent == "workout_list":
-        workouts = await workout_queries.get_recent_workouts(pool, days=7)
-        if not workouts:
-            return "Niciun antrenament în ultimele 7 zile.", None
+        # Determine period from data
+        period = data.get("period", "week")  # "week" | "month" | "long"
         
-        lines = ["💪 *Antrenamente — ultimele 7 zile*\n"]
-        for w in workouts:
-            date_str = escape_md(str(w['workout_date']))
-            type_str = escape_md(w['type'] or "gym")
-            dur = f" · {w['duration_min']}min" if w['duration_min'] else ""
-            lines.append(f"*{date_str}* — {type_str}{escape_md(dur)}")
+        if period == "long":
+            # Long term view — 6 luni
+            stats = await workout_queries.get_long_term_stats(pool, days=180)
+            workouts = await workout_queries.get_recent_workouts(pool, days=180)
             
-            if w['exercises']:
-                for ex in w['exercises']:
-                    if not ex.get('name'):
-                        continue
-                    ex_line = f"  · {escape_md(ex['name'])}"
-                    if ex.get('sets') and ex.get('reps'):
-                        ex_line += f" {ex['sets']}×{ex['reps']}"
-                    if ex.get('weight_kg'):
-                        ex_line += f" @ {ex['weight_kg']}kg"
-                    lines.append(ex_line)
+            if not workouts:
+                return "Niciun antrenament înregistrat în ultimele 6 luni.", None
+            
+            lines = ["💪 *Antrenamente — ultimele 6 luni*\n"]
+            
+            # Overview stats
+            total_h = int((stats.get('total_min') or 0) // 60)
+            total_m = int((stats.get('total_min') or 0) % 60)
+            lines += [
+                f"📊 *Overview*",
+                f"• Sesiuni totale: *{stats.get('total_sessions', 0)}*",
+                f"• Zile active: *{stats.get('active_days', 0)}*",
+                f"• Timp total: *{total_h}h {total_m}min*",
+                f"• Durată medie: *{stats.get('avg_duration') or 'N/A'} min*",
+                f"• Tip dominant: *{escape_md(stats.get('most_common_type') or 'N/A')}*",
+                "",
+            ]
+            
+            # Breakdown pe tip
+            if stats.get('by_type'):
+                lines.append("🏋️ *Pe tip de antrenament*")
+                for t in stats['by_type']:
+                    t_min = t.get('total_min') or 0
+                    t_h = int(t_min // 60)
+                    t_m = int(t_min % 60)
+                    dur_str = f"{t_h}h {t_m}min" if t_h > 0 else f"{t_m}min"
+                    lines.append(f"• {escape_md(t['type'] or 'alt')}: *{t['count']} sesiuni* · {escape_md(dur_str)}")
+                lines.append("")
+            
+            # Top exerciții
+            if stats.get('top_exercises'):
+                lines.append("🔝 *Top exerciții \\(volum total\\)*")
+                for ex in stats['top_exercises']:
+                    max_w = f" · max *{ex['max_weight']}kg*" if ex.get('max_weight') else ""
+                    lines.append(f"• {escape_md(ex['name'])}: *{ex['times_done']}x*{escape_md(max_w)}")
+                lines.append("")
+            
+            # Trend lunar
+            if stats.get('monthly_trend'):
+                lines.append("📈 *Trend lunar*")
+                for m in stats['monthly_trend']:
+                    bar = "█" * min(m['sessions'], 10)
+                    lines.append(f"• {escape_md(m['month'])}: {escape_md(bar)} *{m['sessions']}*")
+                lines.append("")
+            
+            # Ultimele 5 antrenamente
+            lines.append("🕐 *Ultimele antrenamente*")
+            for w in workouts[:5]:
+                date_str = escape_md(str(w['workout_date']))
+                type_str = escape_md(w['type'] or "gym")
+                dur = f" · {w['duration_min']}min" if w['duration_min'] else ""
+                lines.append(f"*{date_str}* — {type_str}{escape_md(dur)}")
+                if w['exercises']:
+                    for ex in w['exercises'][:3]:
+                        if not ex.get('name'):
+                            continue
+                        ex_line = f"  · {escape_md(ex['name'])}"
+                        if ex.get('sets') and ex.get('reps'):
+                            ex_line += f" {ex['sets']}×{ex['reps']}"
+                        if ex.get('weight_kg'):
+                            ex_line += f" @ {ex['weight_kg']}kg"
+                        lines.append(ex_line)
+            
+            return "\n".join(lines), None
         
-        return "\n".join(lines), None
+        else:
+            # Default — ultimele 7 zile
+            days = 30 if period == "month" else 7
+            workouts = await workout_queries.get_recent_workouts(pool, days=days)
+            label = "30 zile" if period == "month" else "7 zile"
+            
+            if not workouts:
+                return f"Niciun antrenament în ultimele {label}.", None
+            
+            lines = [f"💪 *Antrenamente — ultimele {label}*\n"]
+            for w in workouts:
+                date_str = escape_md(str(w['workout_date']))
+                type_str = escape_md(w['type'] or "gym")
+                dur = f" · {w['duration_min']}min" if w['duration_min'] else ""
+                lines.append(f"*{date_str}* — {type_str}{escape_md(dur)}")
+                if w['exercises']:
+                    for ex in w['exercises']:
+                        if not ex.get('name'):
+                            continue
+                        ex_line = f"  · {escape_md(ex['name'])}"
+                        if ex.get('sets') and ex.get('reps'):
+                            ex_line += f" {ex['sets']}×{ex['reps']}"
+                        if ex.get('weight_kg'):
+                            ex_line += f" @ {ex['weight_kg']}kg"
+                        lines.append(ex_line)
+            
+            return "\n".join(lines), None
 
     elif intent == "workout_stats":
         stats = await workout_queries.get_workout_stats(pool, days=30)
