@@ -139,6 +139,12 @@ FAPTE DESPRE {user_name}:
     - intent="workout_stats" pentru statistici despre antrenamente pe ultimele 30 zile.
     - Cuvinte cheie: "am făcut gym", "antrenament", "sesiune sport", "istoric gym", "statistici workout".
 
+Exemple de output JSON pentru workout_log:
+- Input: "am făcut gym 1h: bench 4×8 80kg, squat 3×10 100kg"
+  Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "type": "gym", "duration_min": 60, "notes": null, "exercises": [{{ "name": "bench", "sets": 4, "reps": 8, "weight_kg": 80.0 }}, {{ "name": "squat", "sets": 3, "reps": 10, "weight_kg": 100.0 }}] }}, "reply": "Gym 1h salvat — bench 80kg, squat 100kg. 💪" }}
+- Input: "fotbal 90 min"
+  Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "type": "fotbal", "duration_min": 90, "notes": null, "exercises": [] }}, "reply": "Fotbal 90min notat." }}
+
 IntentResponse schema:
 {{
   "intent": string,              // e.g. "add_task", "list_habits", "log_expense", "chat", "clarify", "update_profile", "get_weather"
