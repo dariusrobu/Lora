@@ -131,9 +131,13 @@ FAPTE DESPRE {user_name}:
     - intent="update_goal" pentru modificarea progresului sau detaliilor
     - intent="add_goal_task" pentru adăugarea unui sub-task
     - intent="complete_goal_task" pentru finalizarea unui sub-task
-19. Habits Vizual: module="habits":
     - intent="habit_heatmap" pentru vizualizarea grafică a habit streaks (heatmaps).
     - Cuvinte cheie: "heat map habits", "streak vizual", "grafic habits", "vizualizare habits", "heatmap".
+20. Workout: module="workout":
+    - intent="workout_log" pentru înregistrarea unui antrenament (gym, fotbal, cardio, alergare etc.).
+    - intent="workout_list" pentru afișarea antrenamentelor recente.
+    - intent="workout_stats" pentru statistici despre antrenamente pe ultimele 30 zile.
+    - Cuvinte cheie: "am făcut gym", "antrenament", "sesiune sport", "istoric gym", "statistici workout".
 
 IntentResponse schema:
 {{
@@ -150,7 +154,20 @@ IntentResponse schema:
        "news": {{ "topic": string }},
        "projects": {{ "name": string, "description": string, "status": "active"|"archived"|"on-hold" }},
        "goals": {{ "title": string, "description": string, "deadline": "YYYY-MM-DD", "task_title": string, "progress": number }},
-        "health": {{ "sleep_hours": float, "sleep_quality": "great"|"good"|"neutral"|"bad"|"terrible", "water_ml": number, "nutrition": "great"|"good"|"neutral"|"bad"|"terrible", "weight_kg": float, "notes": string }}
+        "health": {{ "sleep_hours": float, "sleep_quality": "great"|"good"|"neutral"|"bad"|"terrible", "water_ml": number, "nutrition": "great"|"good"|"neutral"|"bad"|"terrible", "weight_kg": float, "notes": string }},
+        "workout": {{ 
+            "type": "gym"|"fotbal"|"cardio"|"alergare"|"alt",
+            "duration_min": int,
+            "notes": string,
+            "exercises": [
+              {{
+                "name": string,
+                "sets": int,
+                "reps": int,
+                "weight_kg": float
+              }}
+            ]
+         }}
     }},
   "reply": string,               // Lora's reply in Telegram MarkdownV2 (RAW, NO JSON ESCAPING)
   "needs_confirmation": boolean  // true only for destructive actions

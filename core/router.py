@@ -58,6 +58,9 @@ async def route_intent(pool, intent_response: Dict[str, Any], bot=None):
         from modules.news import fetch_tech_news
         news = await fetch_tech_news()
         return f"{reply}\n\n{news}", None
+    elif module == "workout":
+        from modules.workout import handle_workout_intent
+        return await handle_workout_intent(pool, intent, data, bot)
     elif module == "weather":
         from modules.weather import get_weather_summary
         city = data.get("city")
