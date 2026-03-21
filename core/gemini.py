@@ -160,13 +160,12 @@ IntentResponse schema:
        "news": {{ "topic": string }},
        "projects": {{ "name": string, "description": string, "status": "active"|"archived"|"on-hold" }},
        "goals": {{ "title": string, "description": string, "deadline": "YYYY-MM-DD", "task_title": string, "progress": number }},
-        "health": {{ "sleep_hours": float, "sleep_quality": "great"|"good"|"neutral"|"bad"|"terrible", "water_ml": number, "nutrition": "great"|"good"|"neutral"|"bad"|"terrible", "weight_kg": float, "notes": string }},
-        "workout": {{ 
-            "type": "gym"|"fotbal"|"cardio"|"alergare"|"alt",
-            "date": "YYYY-MM-DD",
-            "duration_min": int,
-            "notes": string,
-            "exercises": [
+         "health": {{ "sleep_hours": float, "sleep_quality": "great"|"good"|"neutral"|"bad"|"terrible", "water_ml": number, "nutrition": "great"|"good"|"neutral"|"bad"|"terrible", "weight_kg": float, "notes": string }},
+         "type": "gym"|"fotbal"|"cardio"|"alergare"|"alt",
+         "date": "YYYY-MM-DD",
+         "duration_min": int,
+         "notes": string,
+         "exercises": [
               {{
                 "name": string,
                 "sets": int,
@@ -174,7 +173,6 @@ IntentResponse schema:
                 "weight_kg": float
               }}
             ]
-         }}
     }},
   "reply": string,               // Lora's reply in Telegram MarkdownV2 (RAW, NO JSON ESCAPING)
   "needs_confirmation": boolean  // true only for destructive actions
