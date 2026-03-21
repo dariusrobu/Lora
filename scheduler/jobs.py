@@ -2,7 +2,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime, timedelta
 import pytz
 from core.config import TELEGRAM_USER_ID, TIMEZONE, MORNING_BRIEFING_TIME, EOD_REFLECTION_TIME, HABIT_REMINDER_TIME, JOURNAL_NIGHT_TIME
-from bot.formatter import escape_md
+from bot.formatter import escape_md, safe_markdown
 from telegram.constants import ParseMode
 import db.queries.profile as profile_queries
 import db.queries.tasks as task_queries
@@ -801,6 +801,8 @@ async def check_event_reminders(application, pool):
 
 async def send_monthly_review(bot, pool) -> None:
     """Aggregates monthly data and sends a reflective review on the 1st of each month."""
+    from bot.formatter import safe_markdown, escape_md
+    from datetime import timedelta
     import asyncio
     
     try:
