@@ -8,7 +8,15 @@ from datetime import date
 async def handle_workout_intent(pool, intent: str, data: Dict[str, Any], bot=None) -> Tuple[str, None]:
     
     if intent == "workout_log":
-        workout_date = date.today()
+        date_str = data.get("date")
+        if date_str:
+            try:
+                workout_date = date.fromisoformat(date_str)
+            except ValueError:
+                workout_date = date.today()
+        else:
+            workout_date = date.today()
+            
         workout_type = data.get("type", "gym")
         duration = data.get("duration_min")
         notes = data.get("notes")

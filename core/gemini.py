@@ -157,6 +157,7 @@ IntentResponse schema:
         "health": {{ "sleep_hours": float, "sleep_quality": "great"|"good"|"neutral"|"bad"|"terrible", "water_ml": number, "nutrition": "great"|"good"|"neutral"|"bad"|"terrible", "weight_kg": float, "notes": string }},
         "workout": {{ 
             "type": "gym"|"fotbal"|"cardio"|"alergare"|"alt",
+            "date": "YYYY-MM-DD",
             "duration_min": int,
             "notes": string,
             "exercises": [
