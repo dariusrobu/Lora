@@ -49,6 +49,31 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
         print(f"ERROR in voice_handler: {e}")
         traceback.print_exc()
 
+async def habitstreaks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Generates and sends the visual habit streaks heatmap."""
+    from modules.habits import generate_habit_heatmap
+    pool = context.bot_data.get("pool")
+    print(f"DEBUG habitstreaks: pool={pool}", flush=True)
+    if not pool:
+        await update.message.reply_text("Database pool error.")
+        return
+
+    await update.message.reply_text("📊 Generăm habit streaks... un moment!")
+    try:
+        result, _ = await generate_habit_heatmap(pool)
+        print(f"DEBUG habitstreaks: result type={type(result)}", flush=True)
+        if isinstance(result, bytes):
+            await context.bot.send_photo(
+                chat_id=update.effective_chat.id,
+                photo=result,
+                caption="Habit Streaks 🔥",
+            )
+        else:
+            await update.message.reply_text(result)
+    except Exception as e:
+        print(f"Habit streaks command error: {e}", flush=True)
+        await update.message.reply_text(f"❌ Eroare: {e}")
+
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool, text=None):
     # Log EVERY message before the security check
     user_id = update.effective_user.id if update.effective_user else "Unknown"
@@ -109,6 +134,27 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
                 await update.message.reply_text(f"❌ Eroare la generarea review-ului: {e}")
             return
 
+        # Handle /monthlyreview command
+        if text == "/monthlyreview":
+            from scheduler.jobs import send_monthly_review
+            from db.queries.profile import update_user_profile
+            await update.message.reply_text("📊 Generăm review-ul tău lunar... un moment!")
+
+            try:
+                # Reset last_monthly_review_date to None to allow manual trigger
+                await update_user_profile(pool, TELEGRAM_USER_ID, last_monthly_review_date=None)
+                await send_monthly_review(context.bot, pool)
+            except Exception as e:
+                print(f"Monthly review manual trigger error: {e}", flush=True)
+                await update.message.reply_text(f"❌ Eroare la generarea review-ului lunar: {e}")
+            return
+
+        # Handle /habitstreaks command
+        cmd = text.split()[0].split('@')[0].lower() if text else ""
+        if cmd == "/habitstreaks":
+            await habitstreaks_command(update, context)
+            return
+
         # Handle /journal command
             
         # Handle /plan command
@@ -135,6 +181,23 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
                 "module": "health",
                 "data": {"_original_reply": "Generăm graficul tău... 📊"},
                 "reply": "Generăm graficul tău... 📊"
+            }
+            final_reply, reply_markup = await route_intent(pool, intent_response, bot=context.bot)
+            if final_reply:
+                # Save assistant reply to conversations
+                async with pool.acquire() as conn:
+                    await conn.execute("INSERT INTO conversations (role, content) VALUES ($1, $2)", "assistant", final_reply)
+                await update.message.reply_text(final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup)
+            return
+
+        # 3.9 Habit Heatmap Direct Bypass (to avoid Gemini misinterpretation)
+        habit_heatmap_triggers = ["habit heatmap", "habit streaks vizual", "heatmap habit", "streak vizual", "grafic habit", "heat map habit", "heat map habits"]
+        if any(trigger in low_text for trigger in habit_heatmap_triggers):
+            intent_response = {
+                "intent": "habit_heatmap",
+                "module": "habits",
+                "data": {"_original_reply": "Generăm heatmap-ul tău... 🔥"},
+                "reply": "Generăm heatmap-ul tău... 🔥"
             }
             final_reply, reply_markup = await route_intent(pool, intent_response, bot=context.bot)
             if final_reply:

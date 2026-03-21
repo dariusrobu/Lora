@@ -58,3 +58,16 @@ async def get_health_history(pool, days: int = 30) -> List[Dict[str, Any]]:
             days
         )
         return [dict(r) for r in rows]
+
+async def get_monthly_health_avg(pool, start_date, end_date) -> dict:
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT 
+                ROUND(AVG(sleep_hours)::numeric, 1) as avg_sleep,
+                ROUND(AVG(water_ml)::numeric, 0) as avg_water,
+                MIN(weight_kg) as min_weight,
+                MAX(weight_kg) as max_weight
+            FROM health_logs
+            WHERE log_date >= $1 AND log_date < $2
+        """, start_date, end_date)
+        return dict(row) if row else {}

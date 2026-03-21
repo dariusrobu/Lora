@@ -78,3 +78,14 @@ async def get_weekly_mood_data(pool, start_date: date, end_date: date) -> List[D
             start_date, end_date
         )
         return [dict(r) for r in rows if r['mood']]
+
+async def get_monthly_mood_distribution(pool, start_date, end_date) -> dict:
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT mood, COUNT(*) as count
+            FROM journal_entries
+            WHERE entry_date >= $1 AND entry_date < $2
+              AND mood IS NOT NULL
+            GROUP BY mood
+        """, start_date, end_date)
+        return {r["mood"]: r["count"] for r in rows}

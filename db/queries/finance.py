@@ -137,3 +137,18 @@ async def get_budget_status(pool, category: str) -> Optional[Dict[str, Any]]:
             category
         )
         return dict(row) if row else None
+
+async def get_monthly_comparison(pool) -> dict:
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT 
+                category,
+                SUM(amount) FILTER (WHERE tx_date >= date_trunc('month', CURRENT_DATE)) as current_month,
+                SUM(amount) FILTER (WHERE tx_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
+                    AND tx_date < date_trunc('month', CURRENT_DATE)) as last_month
+            FROM finances
+            WHERE type = 'expense'
+            GROUP BY category
+        """)
+        return {r["category"]: {"current": float(r["current_month"] or 0), 
+                                "last": float(r["last_month"] or 0)} for r in rows}

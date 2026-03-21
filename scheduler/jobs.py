@@ -11,6 +11,7 @@ import db.queries.events as event_queries
 import db.queries.finance as finance_queries
 import db.queries.notes as note_queries
 import db.queries.health as health_queries
+import db.queries.goals as goal_queries
 
 async def send_morning_briefing(application, pool):
     """Sends a daily summary of tasks, events, and habits."""
@@ -797,6 +798,145 @@ async def check_event_reminders(application, pool):
     # This will be refined in Phase 8
     pass
 
+
+async def send_monthly_review(bot, pool) -> None:
+    """Aggregates monthly data and sends a reflective review on the 1st of each month."""
+    from datetime import timedelta, datetime
+    import pytz
+    from core.config import TIMEZONE, TELEGRAM_USER_ID
+    from bot.formatter import safe_markdown
+    from telegram.constants import ParseMode
+    import asyncio
+    
+    try:
+        user_tz = pytz.timezone(TIMEZONE)
+        today = datetime.now(user_tz).date()
+        
+        # 1. Idempotency Check
+        from db.queries.profile import get_user_profile, update_user_profile
+        profile = await get_user_profile(pool, TELEGRAM_USER_ID)
+        
+        if profile.get('last_monthly_review_date') and profile.get('last_monthly_review_date').month == today.month and profile.get('last_monthly_review_date').year == today.year:
+            print(f"Monthly review already sent for {today.month}/{today.year} — skipping.", flush=True)
+            return
+
+        print(f"Starting monthly review for {today}...", flush=True)
+
+        # 2. Date Range (Last 30 days)
+        start_date = today - timedelta(days=30)
+        end_date = today
+
+        # 3. Aggregated Data Collection (LUNARE - NU morning briefing)
+        # Using task_queries.get_monthly_task_stats instead of morning list_tasks
+        from db.queries.tasks import get_monthly_task_stats
+        from db.queries.habits import get_monthly_habit_stats
+        from db.queries.goals import get_goals_progress_delta
+        from db.queries.finance import get_monthly_comparison
+        from db.queries.health import get_monthly_health_avg
+        from db.queries.notes import get_monthly_mood_distribution
+
+        (
+            task_stats,
+            habit_stats,
+            goals_data,
+            finance_comparison,
+            health_avg,
+            mood_distribution
+        ) = await asyncio.gather(
+            get_monthly_task_stats(pool, start_date, end_date),
+            get_monthly_habit_stats(pool, start_date, end_date),
+            get_goals_progress_delta(pool),
+            get_monthly_comparison(pool),
+            get_monthly_health_avg(pool, start_date, end_date),
+            get_monthly_mood_distribution(pool, start_date, end_date)
+        )
+
+        # Set last_monthly_review_date AT START of sending logic
+        await update_user_profile(pool, TELEGRAM_USER_ID, last_monthly_review_date=today)
+
+        # 4. Gemini Review Generation
+        from core.gemini import get_proactive_response
+        
+        month_names = ["", "Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie", "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"]
+        month_name = month_names[today.month]
+        user_name = profile.get('name', 'Robu')
+
+        data_ctx = f"""
+        Months Review Context (Last 30 days):
+        Tasks: {task_stats}
+        Habits: {habit_stats}
+        Goals: {goals_data}
+        Finance (vs last month): {finance_comparison}
+        Health (monthly averages): {health_avg}
+        Mood (monthly distribution): {mood_distribution}
+        """
+
+        system_instruction = f"""
+        Generează un raport MONTHLY REVIEW pentru {user_name}. Datele sunt din ultimele 30 zile.
+        
+        {data_ctx}
+        
+        Format EXACT:
+        📊 Review lunar — {month_name} {today.year}
+        ━━━━━━━━━━━━━━━━━
+        
+        ✅ Tasks: [X] completate din [Y] create ([Z]%)
+        🔁 Habits: [top 2 consistente] / [cel mai ratat]
+        🎯 Goals: [care a avansat] / [care e blocat sau omite dacă toate active]
+        💰 Finance: [total] RON — [comparație față de luna trecută]
+        😴 Health: somn mediu [X]h · apă [X]L · greutate [stabil/+X/-X kg]
+        😊 Mood: [dominant] — [distribuție scurtă ex: 8 bune, 3 neutre, 1 proastă]
+        
+        🔍 Pattern: [1-2 observații concrete bazate pe corelații reale, omite dacă nu există]
+        💡 Luna viitoare: [1 singur lucru specific bazat pe date]
+        
+        Reguli STRICTE:
+        - MAX 200 cuvinte
+        - Fără laudă, fără fluff, fără "Felicitări"
+        - Dacă date insuficiente pentru o secțiune: omite complet
+        - "Luna viitoare" bazat exclusiv pe date, nu pe presupuneri
+        - Limba: română
+        - Telegram MarkdownV2 raw
+        """
+
+        review_text = await get_proactive_response(system_instruction, data_ctx)
+        
+        if not review_text:
+            review_text = f"📊 Review lunar — {month_name} {today.year}\n\nNu am putut genera review-ul complet, dar continuă să evoluezi! 🚀"
+
+        # 5. Send Text Message
+        await bot.send_message(
+            chat_id=TELEGRAM_USER_ID,
+            text=safe_markdown(review_text),
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
+
+        # 6. Send Voice Version (TTS)
+        try:
+            from bot.tts import text_to_speech
+            import os
+            # Clean text for TTS
+            tts_clean = review_text.replace('*', '').replace('📊', '').replace('✅', '').replace('🔁', '').replace('🎯', '').replace('💰', '').replace('😴', '').replace('😊', '').replace('🔍', '').replace('💡', '').replace('━━━━━━━━━━━━━━━━━', '').strip()
+            voice_file = await text_to_speech(tts_clean, podcast_mode=True)
+            with open(voice_file, 'rb') as f:
+                await bot.send_voice(
+                    chat_id=TELEGRAM_USER_ID,
+                    voice=f,
+                    caption=f"🎙️ *Lora: Monthly Review - {month_name}*",
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                )
+            if os.path.exists(voice_file):
+                os.remove(voice_file)
+        except Exception as ve:
+            print(f"Monthly review voice error: {ve}", flush=True)
+
+        print(f"Monthly review sent successfully for {today}.", flush=True)
+
+    except Exception as e:
+        import traceback
+        print(f"CRITICAL error in send_monthly_review: {e}", flush=True)
+        traceback.print_exc()
+
 def setup_scheduler(application, pool):
     scheduler = AsyncIOScheduler(timezone=TIMEZONE)
 
@@ -821,6 +961,9 @@ def setup_scheduler(application, pool):
 
     scheduler.add_job(send_weekly_review, 'cron', day_of_week='sun', hour=e_h, minute=e_m,
                       misfire_grace_time=3600, args=[application, pool])
+
+    scheduler.add_job(send_monthly_review, 'cron', day=1, hour=20, minute=0,
+                      misfire_grace_time=3600, args=[application.bot, pool])
 
     # Weekly Finance Summary: Monday, 5 mins before Morning Briefing
     f_h, f_m = m_h, (m_m - 5) % 60

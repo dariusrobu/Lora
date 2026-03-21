@@ -26,7 +26,7 @@ async def route_intent(pool, intent_response: Dict[str, Any], bot=None):
         return await handle_task_intent(pool, intent, data)
     elif module == "habits":
         from modules.habits import handle_habit_intent
-        return await handle_habit_intent(pool, intent, data)
+        return await handle_habit_intent(pool, intent, data, bot)
     elif module == "projects":
         from modules.projects import handle_project_intent
         return await handle_project_intent(pool, intent, data)

@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS user_profile (
     last_plan_date DATE,                  -- prevents duplicate daily plan prompt
     last_weekly_review_date DATE,                -- prevents duplicate weekly review
     last_finance_summary_date DATE,              -- prevents duplicate weekly finance summary
+    last_monthly_review_date DATE,               -- prevents duplicate monthly review
     created_at            TIMESTAMPTZ DEFAULT NOW(),
     updated_at            TIMESTAMPTZ DEFAULT NOW()
 );
@@ -233,3 +234,10 @@ CREATE TABLE IF NOT EXISTS health_logs (
     updated_at     TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX idx_health_date ON health_logs(log_date DESC);
+
+-- ── Insights Log ──────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS insight_log (
+    id SERIAL PRIMARY KEY,
+    insight_type TEXT NOT NULL,
+    sent_at TIMESTAMP DEFAULT NOW()
+);

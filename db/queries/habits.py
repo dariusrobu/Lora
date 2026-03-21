@@ -144,3 +144,36 @@ async def get_weekly_habit_stats(pool, start_date: date, end_date: date) -> List
             start_date, end_date
         )
         return [dict(r) for r in rows]
+
+async def get_monthly_habit_stats(pool, start_date, end_date) -> list:
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT h.name,
+                COUNT(hl.id) FILTER (WHERE hl.log_date >= $1 AND hl.log_date < $2 AND hl.status = 'done') as days_done,
+                ($2 - $1) as days_possible
+            FROM habits h
+            LEFT JOIN habit_logs hl ON hl.habit_id = h.id
+            WHERE h.is_active = TRUE
+            GROUP BY h.name
+            ORDER BY days_done DESC
+        """, start_date, end_date)
+        return [dict(r) for r in rows]
+
+async def get_habit_history_365(pool) -> dict:
+    # We use log_date because logged_at does not exist in schema
+    rows = await pool.fetch("""
+        SELECT h.name, hl.log_date
+        FROM habits h
+        JOIN habit_logs hl ON hl.habit_id = h.id
+        WHERE h.is_active = TRUE
+          AND hl.log_date >= CURRENT_DATE - INTERVAL '365 days'
+          AND hl.status = 'done'
+        ORDER BY h.name, hl.log_date
+    """)
+    result = {}
+    for row in rows:
+        name = row["name"]
+        if name not in result:
+            result[name] = []
+        result[name].append(row["log_date"])
+    return result

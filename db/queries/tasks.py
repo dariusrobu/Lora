@@ -161,3 +161,14 @@ async def get_completed_tasks_per_day(pool, start_date: date, end_date: date) ->
             start_date, end_date
         )
         return [dict(r) for r in rows]
+
+async def get_monthly_task_stats(pool, start_date, end_date) -> dict:
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT 
+                COUNT(*) FILTER (WHERE status = 'done' AND completed_at >= $1 AND completed_at < $2) as completed,
+                COUNT(*) FILTER (WHERE created_at >= $1 AND created_at < $2) as created
+            FROM tasks
+            WHERE created_at >= $1 AND created_at < $2
+        """, start_date, end_date)
+        return {"completed": row["completed"], "created": row["created"]}

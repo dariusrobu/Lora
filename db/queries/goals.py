@@ -93,3 +93,13 @@ async def get_goal_task_by_title(pool, goal_id: int, title: str) -> Optional[Dic
             goal_id, f"%{title}%"
         )
         return dict(row) if row else None
+
+async def get_goals_progress_delta(pool) -> list:
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT title, progress, status, deadline
+            FROM goals
+            WHERE status = 'active'
+            ORDER BY progress DESC
+        """)
+        return [dict(r) for r in rows]

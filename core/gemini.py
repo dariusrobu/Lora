@@ -131,6 +131,9 @@ FAPTE DESPRE {user_name}:
     - intent="update_goal" pentru modificarea progresului sau detaliilor
     - intent="add_goal_task" pentru adăugarea unui sub-task
     - intent="complete_goal_task" pentru finalizarea unui sub-task
+19. Habits Vizual: module="habits":
+    - intent="habit_heatmap" pentru vizualizarea grafică a habit streaks (heatmaps).
+    - Cuvinte cheie: "heat map habits", "streak vizual", "grafic habits", "vizualizare habits", "heatmap".
 
 IntentResponse schema:
 {{
