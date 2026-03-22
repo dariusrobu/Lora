@@ -74,6 +74,29 @@ async def habitstreaks_command(update: Update, context: ContextTypes.DEFAULT_TYP
         print(f"Habit streaks command error: {e}", flush=True)
         await update.message.reply_text(f"❌ Eroare: {e}")
 
+async def focus_command(update, context):
+    pool = context.bot_data.get("pool")
+    text = update.message.text
+    
+    parts = text.split()
+    duration = 25
+    if len(parts) > 1 and parts[1].isdigit():
+        duration = int(parts[1])
+    
+    from modules.focus import handle_focus_intent
+    reply, markup = await handle_focus_intent(
+        pool, "focus_start", 
+        {"duration_min": duration}, 
+        bot=context.bot
+    )
+    await update.message.reply_text(reply, parse_mode="MarkdownV2")
+
+async def stopfocus_command(update, context):
+    pool = context.bot_data.get("pool")
+    from modules.focus import handle_focus_intent
+    reply, markup = await handle_focus_intent(pool, "focus_stop", {}, bot=context.bot)
+    await update.message.reply_text(reply, parse_mode="MarkdownV2")
+
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool, text=None):
     # Log EVERY message before the security check
     user_id = update.effective_user.id if update.effective_user else "Unknown"
@@ -255,6 +278,15 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
                 else:
                     await clear_state(pool)
             
+            elif state['state_type'] == 'awaiting_focus_result':
+                session_id = state.get('item_id')
+                import db.queries.focus as focus_queries
+                if session_id:
+                    await focus_queries.complete_session(pool, session_id, text)
+                await clear_state(pool)
+                await update.message.reply_text("Notat\\. Sesiune salvată\\. 💪", parse_mode="MarkdownV2")
+                return
+
             elif state['state_type'] == 'awaiting_edit_field':
                 context_snapshot = await build_context(pool)
                 profile = await get_user_profile(pool, telegram_id)

@@ -65,6 +65,9 @@ async def route_intent(pool, intent_response: Dict[str, Any], bot=None):
     elif module == "reading":
         from modules.reading import handle_reading_intent
         return await handle_reading_intent(pool, intent, data, bot)
+    elif module == "focus":
+        from modules.focus import handle_focus_intent
+        return await handle_focus_intent(pool, intent, data, bot)
     elif module == "weather":
         from modules.weather import get_weather_summary
         city = data.get("city")

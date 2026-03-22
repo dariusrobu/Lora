@@ -13,6 +13,8 @@ import db.queries.notes as note_queries
 import db.queries.health as health_queries
 import db.queries.goals as goal_queries
 
+_global_scheduler = None
+
 async def send_morning_briefing(application, pool):
     """Sends a daily summary of tasks, events, and habits."""
     try:
@@ -980,6 +982,9 @@ async def check_proactive_insights(application, pool) -> None:
 
 def setup_scheduler(application, pool):
     scheduler = AsyncIOScheduler(timezone=TIMEZONE)
+    
+    global _global_scheduler
+    _global_scheduler = scheduler
 
     m_h, m_m = map(int, MORNING_BRIEFING_TIME.split(':'))
     e_h, e_m = map(int, EOD_REFLECTION_TIME.split(':'))

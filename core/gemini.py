@@ -148,6 +148,10 @@ FAPTE DESPRE {user_name}:
     - intent="reading_note" pentru a salva idei sau citate ("notează din X pagina Y: [conținut]").
     - intent="reading_list" pentru bibliotecă ("ce citesc", "biblioteca mea").
     - intent="reading_stats" pentru statistici ("câte cărți am citit", "reading stats").
+22. Focus: module="focus":
+    - intent="focus_start" pentru a porni ("intru în focus 30 minute", "pornește pomodoro").
+    - intent="focus_stop" pentru a opri manual ("oprește focus", "/stopfocus").
+    - intent="focus_list" pentru afișarea sesiunilor ("sesiunile mele de focus", "câte pomodoro").
         * data={{"period": "long"}} (ultimele 6 luni + statistici complete)
     - intent="workout_stats" pentru statistici rapide pe ultimele 30 zile.
     - Cuvinte cheie list: "ce antrenamente am făcut", "istoric sport", "lista gym".
@@ -198,6 +202,10 @@ IntentResponse schema:
              "title": string,
              "content": string,
              "page_number": int | null
+         }},
+         "focus_start": {{
+             "duration_min": int,
+             "task_description": string | null
          }}
     }},
   "reply": string,               // Lora's reply in Telegram MarkdownV2 (RAW, NO JSON ESCAPING)
