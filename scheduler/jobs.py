@@ -407,6 +407,32 @@ Formatare: Telegram MarkdownV2 raw.
                 text=f"❌ EOD TTS error: {str(e)}"
             )
     
+    
+    # 3.5 Nutrition Integration for EOD
+    try:
+        from modules.nutrition import get_daily_totals
+        totals = await get_daily_totals(pool, today)
+        async with pool.acquire() as conn:
+            targets = await conn.fetchrow("SELECT * FROM nutrition_targets LIMIT 1")
+        
+        nutrition_note = ""
+        if totals['meal_count'] == 0:
+            nutrition_note = "\n\n⚠️ Nu ai logat nicio masă azi\\."
+        elif targets:
+            prot_pct = (float(totals['protein']) / float(targets['protein_g'])) * 100
+            if prot_pct < 80:
+                prot_rem = float(targets['protein_g']) - float(totals['protein'])
+                nutrition_note = f"\n\n🍗 Mai ai nevoie de *{prot_rem:.0f}g proteină* azi\\."
+        
+        if nutrition_note:
+            await application.bot.send_message(
+                chat_id=TELEGRAM_USER_ID,
+                text=f"🥗 *Nutriție:* {nutrition_note.strip()}",
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
+    except Exception as ne:
+        print(f"EOD Nutrition inclusion failed: {ne}", flush=True)
+
     await profile_queries.update_user_profile(pool, TELEGRAM_USER_ID, last_eod_date=today)
 
 async def send_habit_reminder(application, pool):
@@ -629,6 +655,27 @@ async def send_weekly_review(application, pool) -> None:
             patterns_section = f"\n🧠 *Patterns observate*\n{patterns}\n"
 
         journals = await note_queries.get_weekly_journals(pool, start_date, end_date)
+        
+        # 3.8 Nutrition Weekly Stats
+        async with pool.acquire() as conn:
+            nutrition_stats = await conn.fetchrow("""
+                SELECT 
+                    AVG(total_calories) as avg_cal,
+                    AVG(total_protein) as avg_prot,
+                    COUNT(id) FILTER (WHERE total_protein < (SELECT protein_g * 0.8 FROM nutrition_targets LIMIT 1)) as low_prot_days
+                FROM (
+                    SELECT meal_date, SUM(total_calories) as total_calories, SUM(total_protein) as total_protein
+                    FROM meals WHERE meal_date BETWEEN $1 AND $2
+                    GROUP BY meal_date
+                ) daily
+            """, start_date, end_date)
+            targets = await conn.fetchrow("SELECT * FROM nutrition_targets LIMIT 1")
+        
+        nutrition_ctx = ""
+        if nutrition_stats and nutrition_stats['avg_cal']:
+            nutrition_ctx = f"Media calorii: {int(nutrition_stats['avg_cal'])} kcal, Media proteină: {int(nutrition_stats['avg_prot'])}g."
+            if nutrition_stats['low_prot_days'] >= 3:
+                nutrition_ctx += f" Atenție: {nutrition_stats['low_prot_days']} zile sub targetul de proteină."
 
         # 3.7 Health & Mood Correlations Data
         health_week = await health_queries.get_health_history(pool, 7)
@@ -666,6 +713,7 @@ MOOD SUMMARY: {mood_summary}
 PATTERNS: {patterns_section}
 EVENTS: {", ".join(event_ctx)}
 JOURNALS (MOODS): {", ".join(journal_moods)}
+NUTRITION STATS: {nutrition_ctx}
 
 --- HEALTH CORRELATION DATA ---
 Date health săptămână:

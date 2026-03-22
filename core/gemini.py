@@ -162,6 +162,10 @@ FAPTE DESPRE {user_name}:
     - intent="uni_add_exam" pentru examene ("examen la X pe data Y", "am colocviu la X").
     - intent="uni_exams" pentru sesiunea de examene ("ce examene am", "sesiunea mea").
     - intent="uni_attendance_warning" pentru verificarea prezenței ("cum stau cu prezențele", "am probleme cu prezența").
+25. Nutrition: module="nutrition":
+    - intent="meal_log" pentru logarea unei mese ("am mâncat la prânz 150g pui", "mic dejun: 3 ouă").
+    - intent="nutrition_summary" pentru sumarul zilei ("ce am mâncat azi", "nutriție azi", "macros azi").
+    - intent="nutrition_target" pentru targeturi ("ce target am", "câte proteine trebuie").
         * data={{"period": "long"}} (ultimele 6 luni + statistici complete)
     - intent="workout_stats" pentru statistici rapide pe ultimele 30 zile.
     - Cuvinte cheie list: "ce antrenamente am făcut", "istoric sport", "lista gym".
@@ -232,6 +236,16 @@ IntentResponse schema:
              "exam_date": "YYYY-MM-DD",
              "exam_type": "examen" | "colocviu" | "restanta",
              "location": string | null
+         }},
+         "meal_log": {{
+             "meal_type": "mic_dejun" | "pranz" | "cina" | "gustare" | "masa",
+             "description": string | null,
+             "items": [
+                 {{
+                     "name": string,
+                     "quantity_g": float
+                 }}
+             ]
          }}
     }},
   "reply": string,               // Lora's reply in Telegram MarkdownV2 (RAW, NO JSON ESCAPING)

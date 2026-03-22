@@ -74,6 +74,9 @@ async def route_intent(pool, intent_response: Dict[str, Any], bot=None):
     elif module == "university":
         from modules.university import handle_university_intent
         return await handle_university_intent(pool, intent, data, bot)
+    elif module == "nutrition":
+        from modules.nutrition import handle_nutrition_intent
+        return await handle_nutrition_intent(pool, intent, data, bot)
     elif module == "weather":
         from modules.weather import get_weather_summary
         city = data.get("city")
