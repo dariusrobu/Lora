@@ -152,3 +152,63 @@ async def get_monthly_comparison(pool) -> dict:
         """)
         return {r["category"]: {"current": float(r["current_month"] or 0), 
                                 "last": float(r["last_month"] or 0)} for r in rows}
+
+async def get_daily_avg_by_category(pool, days=30) -> list:
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT category,
+                   ROUND((SUM(amount) / $1)::numeric, 2) as daily_avg,
+                   SUM(amount) as total
+            FROM finances
+            WHERE type = 'expense' AND tx_date >= CURRENT_DATE - $1 * INTERVAL '1 day'
+            GROUP BY category
+            ORDER BY total DESC
+        """, days)
+        return [dict(r) for r in rows]
+
+async def get_days_left_in_month(pool) -> int:
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT 
+                DATE_PART('day', 
+                    DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month' - CURRENT_DATE
+                )::int as days_left
+        """)
+        return row['days_left'] if row else 0
+
+async def get_budget_forecast(pool) -> list:
+    """Returnează forecast per categorie până la sfârșitul lunii."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            WITH daily_avg AS (
+                SELECT category,
+                       SUM(amount) / GREATEST(DATE_PART('day', CURRENT_DATE - DATE_TRUNC('month', CURRENT_DATE)), 1) as daily_avg
+                FROM finances
+                WHERE type = 'expense' AND tx_date >= DATE_TRUNC('month', CURRENT_DATE)
+                GROUP BY category
+            ),
+            days_left AS (
+                SELECT DATE_PART('day', 
+                    DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month' - CURRENT_DATE
+                )::int as days_left
+            ),
+            spent_this_month AS (
+                SELECT category, SUM(amount) as spent
+                FROM finances
+                WHERE type = 'expense' AND tx_date >= DATE_TRUNC('month', CURRENT_DATE)
+                GROUP BY category
+            )
+            SELECT 
+                s.category,
+                s.spent,
+                d.daily_avg,
+                dl.days_left,
+                ROUND((s.spent + d.daily_avg * dl.days_left)::numeric, 2) as projected_total,
+                bl.monthly_limit
+            FROM spent_this_month s
+            JOIN daily_avg d ON d.category = s.category
+            CROSS JOIN days_left dl
+            LEFT JOIN budget_limits bl ON LOWER(bl.category) = LOWER(s.category)
+            ORDER BY s.spent DESC
+        """)
+        return [dict(r) for r in rows]

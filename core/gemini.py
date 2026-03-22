@@ -116,6 +116,8 @@ FAPTE DESPRE {user_name}:
     - intent="log_income" pentru venituri
     - intent="list_finance" pentru istoric sau sumar
     - intent="set_budget" pentru a seta un buget lunar pe o categorie
+    - intent="budget_forecast" pentru a vedea prognoza cheltuielilor până la sfârșitul lunii
+    - Cuvinte cheie finance: "forecast buget", "cât mai pot cheltui", "cum stau cu banii", "voi depăși bugetul", "prognoză cheltuieli", "cât am rămas".
 16. Mood: module="mood":
     - intent="get_mood_chart" sau "mood_chart" pentru afișarea evoluției lunare sub formă de grafic.
 17. Insights: module="insights":

@@ -934,6 +934,41 @@ async def send_monthly_review(bot, pool) -> None:
         print(f"CRITICAL error in send_monthly_review: {e}", flush=True)
         traceback.print_exc()
 
+async def check_budget_forecast(application, pool):
+    """Weekly proactive budget check (Thursdays at 09:00)."""
+    try:
+        from db.queries.finance import get_budget_forecast
+        from bot.formatter import escape_md
+        
+        forecasts = await get_budget_forecast(pool)
+        if not forecasts:
+            return
+            
+        alerts = []
+        for f in forecasts:
+            limit = float(f['monthly_limit']) if f.get('monthly_limit') else None
+            if not limit:
+                continue
+                
+            projected = float(f['projected_total'] or 0)
+            pct = (projected / limit) * 100
+            
+            if pct >= 85:
+                icon = "🔴" if pct >= 100 else "🟡"
+                alerts.append(f"• {escape_md(f['category'])}: proiectat {int(projected)}/{int(limit)} RON ({int(pct)}%) {icon}")
+        
+        if alerts:
+            message = "📈 *La ritmul actual:*\n" + "\n".join(alerts)
+            await application.bot.send_message(
+                chat_id=TELEGRAM_USER_ID,
+                text=message,
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
+            print(f"Budget forecast alert sent with {len(alerts)} items.", flush=True)
+            
+    except Exception as e:
+        print(f"Error in check_budget_forecast: {e}", flush=True)
+
 def setup_scheduler(application, pool):
     scheduler = AsyncIOScheduler(timezone=TIMEZONE)
 
@@ -975,6 +1010,9 @@ def setup_scheduler(application, pool):
                       misfire_grace_time=3600, args=[application, pool])
 
     scheduler.add_job(check_event_reminders, 'interval', minutes=15, args=[application, pool])
+
+    scheduler.add_job(check_budget_forecast, 'cron', day_of_week='thu', hour=9, minute=0,
+                      misfire_grace_time=3600, args=[application, pool])
 
     scheduler.start()
     print("Scheduler started with misfire grace periods.")

@@ -78,4 +78,57 @@ async def handle_finance_intent(pool, intent: str, data: Dict[str, Any]) -> Tupl
         await finance_queries.set_budget(pool, category, float(amount))
         return f"✅ Budget set for *{escape_md(category)}*: `{int(amount)} RON`/month.", None
 
+    elif intent == "budget_forecast":
+        return await generate_forecast(pool)
+
     return "Finance module is active\\!", None
+
+async def generate_forecast(pool) -> tuple[str, None]:
+    from db.queries.finance import get_budget_forecast, get_days_left_in_month
+    from bot.formatter import escape_md
+    
+    forecasts = await get_budget_forecast(pool)
+    days_left = await get_days_left_in_month(pool)
+    
+    if not forecasts:
+        return "Nu sunt suficiente date pentru forecast \\(minim câteva zile de cheltuieli\\).", None
+    
+    lines = [
+        f"📈 *Budget Forecast — {days_left} zile rămase în lună*\n"
+    ]
+    
+    has_warnings = False
+    for f in forecasts:
+        category = escape_md(f['category'] or 'Altele')
+        spent = float(f['spent'] or 0)
+        projected = float(f['projected_total'] or 0)
+        limit = float(f['monthly_limit']) if f.get('monthly_limit') else None
+        
+        if limit:
+            pct = (projected / limit) * 100
+            if pct >= 100:
+                icon = "🔴"
+                has_warnings = True
+            elif pct >= 85:
+                icon = "🟡"
+                has_warnings = True
+            else:
+                icon = "🟢"
+            
+            bar_filled = min(int(pct / 10), 10)
+            bar = "█" * bar_filled + "░" * (10 - bar_filled)
+            
+            lines.append(
+                f"{icon} *{category}*\n"
+                f"   Cheltuit: `{int(spent)} RON` · Proiectat: `{int(projected)} RON` / `{int(limit)} RON`\n"
+                f"   `{bar}` {int(pct)}%"
+            )
+        else:
+            lines.append(
+                f"• *{category}*: `{int(spent)} RON` cheltuit · proiectat `{int(projected)} RON`"
+            )
+    
+    if not has_warnings:
+        lines.append("\n✅ Toate categoriile sunt în buget\\.")
+    
+    return "\n".join(lines), None
