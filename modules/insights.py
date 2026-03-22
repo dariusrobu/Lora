@@ -1,64 +1,175 @@
-from typing import Dict, Any, Tuple
-import db.queries.insights as insight_queries
-from datetime import datetime
-from core.gemini import get_proactive_response
+# modules/insights.py
+
+import asyncio
+from typing import Optional
+from datetime import date, timedelta
+import db.queries.health as health_queries
+import db.queries.habits as habit_queries
+import db.queries.goals as goal_queries
+import db.queries.tasks as task_queries
+
+async def get_recent_insight_types(pool, days=5) -> set:
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT insight_type FROM insight_log
+            WHERE sent_at >= NOW() - $1 * INTERVAL '1 day'
+        """, days)
+        return {r['insight_type'] for r in rows}
+
+async def log_insight(pool, insight_type: str) -> None:
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO insight_log (insight_type) VALUES ($1)
+        """, insight_type)
+
+async def check_sleep_alert(pool, recent_types: set) -> Optional[tuple]:
+    if 'sleep_low' in recent_types:
+        return None
+    
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT sleep_hours FROM health_logs
+            WHERE log_date >= CURRENT_DATE - INTERVAL '3 days'
+            ORDER BY log_date DESC
+            LIMIT 3
+        """)
+        
+        if len(rows) < 3:
+            return None
+        
+        if all(r['sleep_hours'] and r['sleep_hours'] < 6.5 for r in rows):
+            return 'sleep_low', "3 nopți consecutive sub 6\\.5h somn\\."
+    return None
+
+async def check_goal_stale(pool, recent_types: set) -> Optional[tuple]:
+    if 'goal_stale' in recent_types:
+        return None
+    
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT title, updated_at FROM goals
+            WHERE status = 'active'
+              AND updated_at < NOW() - INTERVAL '14 days'
+            LIMIT 1
+        """)
+        
+        if not rows:
+            return None
+        
+        from bot.formatter import escape_md
+        title = escape_md(rows[0]['title'])
+        return 'goal_stale', f"Goalul *{title}* e blocat de 2 săptămâni\\."
+
+async def check_habit_streak_broken(pool, recent_types: set) -> Optional[tuple]:
+    if 'habit_streak_broken' in recent_types:
+        return None
+    
+    yesterday = date.today() - timedelta(days=1)
+    habits = await habit_queries.list_habits(pool)
+    
+    async with pool.acquire() as conn:
+        for h in habits:
+            if h.get('streak_count', 0) == 0:
+                # Check if had streak of 7+ before yesterday
+                row = await conn.fetchrow("""
+                    SELECT COUNT(*) as streak
+                    FROM habit_logs
+                    WHERE habit_id = $1
+                      AND log_date BETWEEN CURRENT_DATE - INTERVAL '8 days' 
+                          AND CURRENT_DATE - INTERVAL '2 days'
+                      AND status = 'done'
+                """, h['id'])
+                
+                if row and row['streak'] >= 7:
+                    from bot.formatter import escape_md
+                    name = escape_md(h['name'])
+                    return 'habit_streak_broken', f"Ai rupt streak\\-ul de 7\\+ zile la *{name}*\\."
+    
+    return None
+
+async def check_water_low(pool, recent_types: set) -> Optional[tuple]:
+    if 'water_low' in recent_types:
+        return None
+    
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT water_ml FROM health_logs
+            WHERE log_date >= CURRENT_DATE - INTERVAL '3 days'
+            ORDER BY log_date DESC
+            LIMIT 3
+        """)
+        
+        if len(rows) < 3:
+            return None
+        
+        if all(r['water_ml'] and r['water_ml'] < 1000 for r in rows):
+            return 'water_low', "Sub 1L apă 3 zile la rând\\."
+    return None
+
+async def check_overdue_tasks(pool, recent_types: set) -> Optional[tuple]:
+    if 'tasks_overdue' in recent_types:
+        return None
+    
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT COUNT(*) as count FROM tasks
+            WHERE due_date < CURRENT_DATE
+              AND status != 'done'
+        """)
+        
+        if row and row['count'] >= 5:
+            return 'tasks_overdue', f"{row['count']} tasks overdue de peste 5 zile\\."
+    
+    return None
 
 async def generate_insights(pool) -> str:
-    """
-    Analyzes patterns between mood and productivity and generates a Gemini insight.
-    """
-    data = await insight_queries.get_insight_data(pool, days=30)
+    """Generează insights pentru weekly review (text simplu)."""
+    recent_types = await get_recent_insight_types(pool, days=7)
     
-    # Check if we have enough mood data (at least 7 days with mood)
-    mood_days = [d for d in data if d['mood'] is not None]
-    if len(mood_days) < 7:
-        return "Nu am suficiente date încă — mai am nevoie de câteva săptămâni de jurnal pentru a observa patterns."
-
-    # Calculate basic stats for prompt
-    high_mood_prod = [d['tasks'] + d['habits'] for d in data if d['mood'] and d['mood'] >= 4]
-    low_mood_prod = [d['tasks'] + d['habits'] for d in data if d['mood'] and d['mood'] <= 2]
+    checks = await asyncio.gather(
+        check_sleep_alert(pool, recent_types),
+        check_water_low(pool, recent_types),
+        check_overdue_tasks(pool, recent_types),
+    )
     
-    avg_high = sum(high_mood_prod) / len(high_mood_prod) if high_mood_prod else 0
-    avg_low = sum(low_mood_prod) / len(low_mood_prod) if low_mood_prod else 0
+    insights = [c[1] for c in checks if c]
     
-    # Day of week stats
-    dow_stats = {}
-    for d in data:
-        dow = d['day_of_week']
-        if dow not in dow_stats: dow_stats[dow] = []
-        dow_stats[dow].append(d['tasks'] + d['habits'])
+    if not insights:
+        return "Nu am suficiente date pentru patterns semnificative."
     
-    dow_avgs = {k: sum(v)/len(v) for k, v in dow_stats.items()}
-    best_dow = max(dow_avgs, key=dow_avgs.get)
-    worst_dow = min(dow_avgs, key=dow_avgs.get)
+    return "\n".join(f"• {i}" for i in insights[:2])
 
-    # Prepare data for Gemini
-    data_summary = f"""
-ULTIMELE 30 ZILE:
-- Avg productivity (tasks+habits) on Good Mood (>=4): {avg_high:.1f}
-- Avg productivity (tasks+habits) on Bad Mood (<=2): {avg_low:.1f}
-- Best Day of Week: {best_dow} (avg {dow_avgs[best_dow]:.1f})
-- Worst Day of Week: {worst_dow} (avg {dow_avgs[worst_dow]:.1f})
-
-TIMELINE DATA (Last 10 days for context):
-{data[-10:]}
-"""
-
-    system_instruction = """
-Ești Lora, un AI 'second brain'. Analizează pattern-urile de productivitate și mood ale utilizatorului.
-Pe baza datelor, generează 2-3 insights specifice și utile în română.
-Fii concret, nu generic. 
-Exemplu bun: 'Marțea ești cel mai productiv — 40% mai multe tasks completate.'
-Exemplu rău: 'Încearcă să ai un mood mai bun pentru productivitate.'
-
-Maxim 100 de cuvinte. Style: direct, calm, observator.
-"""
-
-    insight = await get_proactive_response(system_instruction, data_summary)
-    return insight
-
-async def handle_insight_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[str, Any]:
-    if intent in ["get_insights", "ask_insights"]:
-        reply = await generate_insights(pool)
-        return reply, None
-    return "Insights module active!", None
+async def run_proactive_insights(pool, bot) -> None:
+    """Rulează toate check-urile și trimite max 2 insights per zi."""
+    from core.config import TELEGRAM_USER_ID
+    
+    recent_types = await get_recent_insight_types(pool, days=5)
+    
+    checks = await asyncio.gather(
+        check_sleep_alert(pool, recent_types),
+        check_goal_stale(pool, recent_types),
+        check_habit_streak_broken(pool, recent_types),
+        check_water_low(pool, recent_types),
+        check_overdue_tasks(pool, recent_types),
+    )
+    
+    insights = [c for c in checks if c]
+    
+    if not insights:
+        return
+    
+    # Max 2 insights per zi
+    to_send = insights[:2]
+    
+    lines = []
+    for insight_type, message in to_send:
+        lines.append(f"• {message}")
+        await log_insight(pool, insight_type)
+    
+    text = "💡 *Câteva observații:*\n\n" + "\n".join(lines)
+    
+    await bot.send_message(
+        chat_id=TELEGRAM_USER_ID,
+        text=text,
+        parse_mode="MarkdownV2"
+    )

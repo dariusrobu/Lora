@@ -969,6 +969,15 @@ async def check_budget_forecast(application, pool):
     except Exception as e:
         print(f"Error in check_budget_forecast: {e}", flush=True)
 
+async def check_proactive_insights(application, pool) -> None:
+    try:
+        from modules.insights import run_proactive_insights
+        await run_proactive_insights(pool, application.bot)
+    except Exception as e:
+        import traceback
+        print(f"CRITICAL error in check_proactive_insights: {e}", flush=True)
+        traceback.print_exc()
+
 def setup_scheduler(application, pool):
     scheduler = AsyncIOScheduler(timezone=TIMEZONE)
 
@@ -1012,6 +1021,9 @@ def setup_scheduler(application, pool):
     scheduler.add_job(check_event_reminders, 'interval', minutes=15, args=[application, pool])
 
     scheduler.add_job(check_budget_forecast, 'cron', day_of_week='thu', hour=9, minute=0,
+                      misfire_grace_time=3600, args=[application, pool])
+                      
+    scheduler.add_job(check_proactive_insights, 'cron', hour=9, minute=30,
                       misfire_grace_time=3600, args=[application, pool])
 
     scheduler.start()

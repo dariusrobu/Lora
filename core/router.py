@@ -49,8 +49,9 @@ async def route_intent(pool, intent_response: Dict[str, Any], bot=None):
         from modules.mood import handle_mood_intent
         return await handle_mood_intent(pool, intent, data, bot)
     elif module == "insights":
-        from modules.insights import handle_insight_intent
-        return await handle_insight_intent(pool, intent, data)
+        from modules.insights import generate_insights
+        text = await generate_insights(pool)
+        return text, None
     elif module == "health":
         from modules.health import handle_health_intent
         return await handle_health_intent(pool, intent, data, bot)

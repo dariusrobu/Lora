@@ -122,6 +122,7 @@ FAPTE DESPRE {user_name}:
     - intent="get_mood_chart" sau "mood_chart" pentru afișarea evoluției lunare sub formă de grafic.
 17. Insights: module="insights":
     - intent="get_insights" sau "ask_insights" pentru a analiza corelații între mood și productivitate.
+    - Cuvinte cheie: "ce patterns ai observat", "analizează productivitatea", "insights", "ce observi", "cum mă descurc".
 18. Health: module="health":
     - intent="health_log" pentru înregistrare (somn, apă, nutriție, greutate).
     - intent="health_summary" pentru rezumatul zilei.
