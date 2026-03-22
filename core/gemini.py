@@ -141,6 +141,13 @@ FAPTE DESPRE {user_name}:
     - intent="workout_list" pentru afișarea antrenamentelor recente.
         * data={{"period": "week"}} (default: ultimele 7 zile)
         * data={{"period": "month"}} (ultimele 30 zile)
+21. Reading: module="reading":
+    - intent="reading_add" pentru a adăuga o carte nouă ("am început să citesc X", "adaugă cartea X").
+    - intent="reading_update" pentru a seta progresul ("am citit până la pagina X din Y", "sunt la pagina X").
+    - intent="reading_complete" pentru finalizare ("am terminat X", "am finalizat cartea X").
+    - intent="reading_note" pentru a salva idei sau citate ("notează din X pagina Y: [conținut]").
+    - intent="reading_list" pentru bibliotecă ("ce citesc", "biblioteca mea").
+    - intent="reading_stats" pentru statistici ("câte cărți am citit", "reading stats").
         * data={{"period": "long"}} (ultimele 6 luni + statistici complete)
     - intent="workout_stats" pentru statistici rapide pe ultimele 30 zile.
     - Cuvinte cheie list: "ce antrenamente am făcut", "istoric sport", "lista gym".
@@ -168,18 +175,30 @@ IntentResponse schema:
        "projects": {{ "name": string, "description": string, "status": "active"|"archived"|"on-hold" }},
        "goals": {{ "title": string, "description": string, "deadline": "YYYY-MM-DD", "task_title": string, "progress": number }},
          "health": {{ "sleep_hours": float, "sleep_quality": "great"|"good"|"neutral"|"bad"|"terrible", "water_ml": number, "nutrition": "great"|"good"|"neutral"|"bad"|"terrible", "weight_kg": float, "notes": string }},
-         "type": "gym"|"fotbal"|"cardio"|"alergare"|"alt",
-         "date": "YYYY-MM-DD",
-         "duration_min": int,
-         "notes": string,
-         "exercises": [
-              {{
-                "name": string,
-                "sets": int,
-                "reps": int,
-                "weight_kg": float
-              }}
-            ]
+         "workout_log": {{
+             "type": "gym"|"fotbal"|"cardio"|"alergare"|"alt",
+             "duration_min": int,
+             "notes": string,
+             "exercises": [{{"name": string, "sets": int, "reps": int, "weight_kg": float}}]
+         }},
+         "reading_add": {{
+             "title": string,
+             "author": string | null,
+             "total_pages": int | null
+         }},
+         "reading_update": {{
+             "title": string,
+             "pages_read": int
+         }},
+         "reading_complete": {{
+             "title": string,
+             "rating": int | null
+         }},
+         "reading_note": {{
+             "title": string,
+             "content": string,
+             "page_number": int | null
+         }}
     }},
   "reply": string,               // Lora's reply in Telegram MarkdownV2 (RAW, NO JSON ESCAPING)
   "needs_confirmation": boolean  // true only for destructive actions
