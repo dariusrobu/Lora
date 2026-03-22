@@ -84,6 +84,10 @@ Reguli:
 - Dacă e după-amiază târziu, nu planifica task-uri grele
 - Maxim 8 blocuri orare
 - Integrează habits pending în sloturile libere
+- Fără comentarii sau explicații între paranteze după activități
+- Fără sugestii nesolicitate (cafea, muzică, plimbări)
+- Fiecare bloc = doar ora + activitatea, nimic altceva
+- Activitățile vin EXCLUSIV din tasks, events și habits din context
 
 Format EXACT (MarkdownV2 raw):
 🗓 *Time Block — [ziua, data]*
