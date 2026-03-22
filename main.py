@@ -50,7 +50,10 @@ async def start_bot():
     async with application:
         await application.initialize()
         await application.start()
-        await application.updater.start_polling(drop_pending_updates=True)
+        await application.updater.start_polling(
+            drop_pending_updates=True,
+            allowed_updates=["message", "callback_query"]
+        )
         
         # Keep the bot running
         print("Polling active.")
