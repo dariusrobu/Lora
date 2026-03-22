@@ -152,6 +152,8 @@ FAPTE DESPRE {user_name}:
     - intent="focus_start" pentru a porni ("intru în focus 30 minute", "pornește pomodoro").
     - intent="focus_stop" pentru a opri manual ("oprește focus", "/stopfocus").
     - intent="focus_list" pentru afișarea sesiunilor ("sesiunile mele de focus", "câte pomodoro").
+23. Planner: module="planner":
+    - intent="time_block" pentru generarea automată a programului zilei ("time block", "program azi", "organizează-mi ziua").
         * data={{"period": "long"}} (ultimele 6 luni + statistici complete)
     - intent="workout_stats" pentru statistici rapide pe ultimele 30 zile.
     - Cuvinte cheie list: "ce antrenamente am făcut", "istoric sport", "lista gym".

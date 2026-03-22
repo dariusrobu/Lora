@@ -3,7 +3,7 @@ import sys
 from telegram.ext import ApplicationBuilder, MessageHandler, CallbackQueryHandler, CommandHandler, filters
 from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_USER_ID, TIMEZONE, MORNING_BRIEFING_TIME, EOD_REFLECTION_TIME
 from db.connection import get_pool, close_pool
-from bot.handler import message_handler, callback_handler, voice_handler, habitstreaks_command, focus_command, stopfocus_command
+from bot.handler import message_handler, callback_handler, voice_handler, habitstreaks_command, focus_command, stopfocus_command, timeblock_command
 from functools import partial
 
 async def start_bot():
@@ -40,6 +40,7 @@ async def start_bot():
     application.add_handler(CommandHandler("habitstreaks", habitstreaks_command))
     application.add_handler(CommandHandler("focus", focus_command))
     application.add_handler(CommandHandler("stopfocus", stopfocus_command))
+    application.add_handler(CommandHandler("timeblock", timeblock_command))
     application.add_handler(MessageHandler(filters.VOICE, voice_handler_with_pool))
     application.add_handler(MessageHandler(filters.ALL, msg_handler_with_pool))
     application.add_handler(CallbackQueryHandler(cb_handler_with_pool))

@@ -93,7 +93,7 @@ HABITS PENDING:
 {habit_text}
 """
 
-        # 4. Two parallel Gemini calls — itinerary + focus
+        # 4. Gemini calls — itinerary + focus + automated time block
         itinerary_instruction = f"""Ești Lora, asistenta lui {name}.
 Generezi secțiunea 'Planul zilei' pentru morning briefing-ul de Telegram.
 Creează un itinerar realist pe ore combinând tasks + events + habits.
@@ -110,10 +110,24 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
 - Ton: {'direct, fără ornamente' if tone == 'direct' else 'motivant și cald'}, Romglish
 - FĂRĂ introduceri, FĂRĂ ghilimele, scrie direct propoziția"""
 
-        itinerary_raw, focus_raw = await asyncio.gather(
+        from modules.planner import generate_time_block
+        
+        results = await asyncio.gather(
             get_proactive_response(itinerary_instruction, gemini_context),
             get_proactive_response(focus_instruction, gemini_context),
+            generate_time_block(pool),
         )
+        
+        itinerary_raw = results[0]
+        focus_raw = results[1]
+        time_block_text, _ = results[2]
+        
+        # Fallback to legacy itinerary if time_block fails
+        if "Nu am putut genera" in time_block_text:
+            final_itinerary = itinerary_raw
+        else:
+            # generate_time_block returns valid MarkdownV2 with title, we use it directly
+            final_itinerary = time_block_text
 
         # 5. Build deterministic 6-section Telegram message
         day_ro: dict[str, str] = {
@@ -158,11 +172,16 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
         else:
             lines.append("Toate habit\\-urile bifate ✅")
 
-        lines += ["", "🗺 *Planul zilei*"]
-        if itinerary_raw and itinerary_raw.strip():
-            lines.append(safe_markdown(itinerary_raw.strip()))
+        # We don't add the section title if we use generate_time_block directly 
+        # because it already includes "🗓 *Time Block*"
+        if "Nu am putut genera" in time_block_text:
+            lines += ["", "🗺 *Planul zilei*"]
+            if final_itinerary and final_itinerary.strip():
+                lines.append(safe_markdown(final_itinerary.strip()))
+            else:
+                lines.append("Organizează\\-ți ziua după energie și prioritate\\.")
         else:
-            lines.append("Organizează\\-ți ziua după energie și prioritate\\.")
+            lines += ["", final_itinerary]
 
         lines += ["", "💡 *Focus*"]
         if focus_raw and focus_raw.strip():

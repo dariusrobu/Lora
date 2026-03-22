@@ -97,6 +97,13 @@ async def stopfocus_command(update, context):
     reply, markup = await handle_focus_intent(pool, "focus_stop", {}, bot=context.bot)
     await update.message.reply_text(reply, parse_mode="MarkdownV2")
 
+async def timeblock_command(update, context):
+    pool = context.bot_data.get("pool")
+    await update.message.reply_text("🗓 Generez time block-ul tău... un moment!")
+    from modules.planner import generate_time_block
+    reply, markup = await generate_time_block(pool)
+    await update.message.reply_text(reply, parse_mode="MarkdownV2")
+
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool, text=None):
     # Log EVERY message before the security check
     user_id = update.effective_user.id if update.effective_user else "Unknown"
