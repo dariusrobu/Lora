@@ -122,6 +122,20 @@ async def check_overdue_tasks(pool, recent_types: set) -> Optional[tuple]:
     
     return None
 
+async def check_attendance_warning(pool, recent_types: set) -> Optional[tuple]:
+    if 'attendance_warning' in recent_types:
+        return None
+    
+    from db.queries.university import get_attendance_warnings
+    warnings = await get_attendance_warnings(pool)
+    
+    if not warnings:
+        return None
+    
+    names = ", ".join(w['name'] for w in warnings[:2])
+    from bot.formatter import escape_md
+    return 'attendance_warning', f"Prezențe sub minim la: *{escape_md(names)}*\\."
+
 async def generate_insights(pool) -> str:
     """Generează insights pentru weekly review (text simplu)."""
     recent_types = await get_recent_insight_types(pool, days=7)
@@ -151,6 +165,7 @@ async def run_proactive_insights(pool, bot) -> None:
         check_habit_streak_broken(pool, recent_types),
         check_water_low(pool, recent_types),
         check_overdue_tasks(pool, recent_types),
+        check_attendance_warning(pool, recent_types),
     )
     
     insights = [c for c in checks if c]

@@ -164,6 +164,16 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
         else:
             lines.append("Nimic în calendar azi\\.")
 
+        from db.queries.university import get_upcoming_exams
+        exams_soon = await get_upcoming_exams(pool, days=7)
+        if exams_soon:
+            lines += ["", "🎓 *Examene în 7 zile*"]
+            for e in exams_soon:
+                date_str = escape_md(e['exam_date'].strftime('%d %b'))
+                subject = escape_md(e['subject_name'])
+                type_str = escape_md(e['exam_type'])
+                lines.append(f"• *{date_str}* — {subject} \\({type_str}\\)")
+
         lines += ["", "🔁 *Habits pending*"]
         if pending_habits:
             for h in pending_habits:

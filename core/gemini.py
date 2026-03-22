@@ -154,6 +154,14 @@ FAPTE DESPRE {user_name}:
     - intent="focus_list" pentru afișarea sesiunilor ("sesiunile mele de focus", "câte pomodoro").
 23. Planner: module="planner":
     - intent="time_block" pentru generarea automată a programului zilei ("time block", "program azi", "organizează-mi ziua").
+24. University: module="university":
+    - intent="uni_add_subject" pentru a adăuga materii ("adaugă materia X", "am materia X").
+    - intent="uni_list" pentru situația academică ("situația mea la facultate", "materiile mele", "media mea").
+    - intent="uni_log_attendance" pentru prezențe ("am fost la X", "am lipsit de la X", "prezență la X").
+    - intent="uni_add_grade" pentru note ("am luat X la Y", "notă X la materia Y").
+    - intent="uni_add_exam" pentru examene ("examen la X pe data Y", "am colocviu la X").
+    - intent="uni_exams" pentru sesiunea de examene ("ce examene am", "sesiunea mea").
+    - intent="uni_attendance_warning" pentru verificarea prezenței ("cum stau cu prezențele", "am probleme cu prezența").
         * data={{"period": "long"}} (ultimele 6 luni + statistici complete)
     - intent="workout_stats" pentru statistici rapide pe ultimele 30 zile.
     - Cuvinte cheie list: "ce antrenamente am făcut", "istoric sport", "lista gym".
@@ -208,6 +216,22 @@ IntentResponse schema:
          "focus_start": {{
              "duration_min": int,
              "task_description": string | null
+         }},
+         "uni_log_attendance": {{
+             "subject": string,
+             "attended": bool,
+             "date": "YYYY-MM-DD"
+         }},
+         "uni_add_grade": {{
+             "subject": string,
+             "grade": float,
+             "grade_type": "partial" | "exam" | "laborator" | "proiect" | "colocviu"
+         }},
+         "uni_add_exam": {{
+             "subject": string,
+             "exam_date": "YYYY-MM-DD",
+             "exam_type": "examen" | "colocviu" | "restanta",
+             "location": string | null
          }}
     }},
   "reply": string,               // Lora's reply in Telegram MarkdownV2 (RAW, NO JSON ESCAPING)
