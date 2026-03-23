@@ -1,3 +1,4 @@
+import traceback
 from telegram import Update
 from telegram.ext import ContextTypes
 from core.config import TELEGRAM_USER_ID
@@ -7,7 +8,6 @@ from bot.formatter import escape_md, split_message
 from core.context import build_context
 from core.gemini import get_gemini_response
 from core.router import route_intent
-import traceback
 
 async def security_check(update: Update) -> bool:
     """Rejects non-whitelisted user IDs silently."""
@@ -111,6 +111,16 @@ async def uni_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Database pool error.")
         return
     await show_uni_dashboard(update.message, pool, send_new=True)
+
+async def workout_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles /workout command — opens workout dashboard."""
+    pool = context.bot_data.get("pool")
+    if not pool:
+        await update.message.reply_text("Database pool error.")
+        return
+    from modules.workout import get_workout_dashboard
+    text, markup = await get_workout_dashboard(pool)
+    await update.message.reply_text(text, parse_mode="MarkdownV2", reply_markup=markup)
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool, text=None):
     # Log EVERY message before the security check
@@ -438,11 +448,11 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
 
                 elif action == 'import_schedule_photo':
                     if update.message.photo:
-                        from telegram import File
                         photo = update.message.photo[-1]
                         file = await context.bot.get_file(photo.file_id)
                         
-                        import tempfile, os
+                        import tempfile
+                        import os
                         with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
                             await file.download_to_drive(tmp.name)
                             tmp_path = tmp.name
@@ -517,7 +527,7 @@ week_type: "odd" dacă e marcat SI, "even" dacă SP, "both" dacă apare în ambe
                                 f"✅ *{imported} ore importate* din orar\\.\nVerifică cu `/uni` → Orar și ajustează unde este nevoie\\.",
                                 parse_mode="MarkdownV2"
                             )
-                        except Exception as e:
+                        except Exception:
                             await clear_state(pool)
                             await update.message.reply_text(
                                 "❌ Nu am putut extrage orarul din imagine\\. Încearcă o poză mai clară sau adaugă manual\\.",
@@ -531,7 +541,9 @@ week_type: "odd" dacă e marcat SI, "even" dacă SP, "both" dacă apare în ambe
                     if update.message.document and update.message.document.mime_type == 'application/pdf':
                         file = await context.bot.get_file(update.message.document.file_id)
                         
-                        import tempfile, os, base64
+                        import tempfile
+                        import os
+                        import base64
                         with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
                             await file.download_to_drive(tmp.name)
                             tmp_path = tmp.name
@@ -618,7 +630,7 @@ Returnează EXCLUSIV JSON valid:
                             
                             await clear_state(pool)
                             await update.message.reply_text(f"✅ *{imported} perioade importate* din structura academică\\.", parse_mode="MarkdownV2")
-                        except Exception as e:
+                        except Exception:
                             await clear_state(pool)
                             await update.message.reply_text("❌ Nu am putut extrage structura din PDF\\. Încearcă din nou\\.", parse_mode="MarkdownV2")
                     else:
@@ -652,14 +664,13 @@ Returnează EXCLUSIV JSON valid:
                     try:
                         from db.queries.day_plans import save_day_plan
                         from core.gemini import get_proactive_response
-                        from bot.formatter import escape_md
                         from datetime import date as _date
                         
                         today = _date.today()
                         profile = await get_user_profile(pool, telegram_id)
                         context_snapshot = await build_context(pool)
                         
-                        itinerary_instruction = f"""
+                        itinerary_instruction = """
 Userul a descris cum vrea să-i arate ziua. Pe baza preferințelor lui și a tasks/events/habits din context, generează un itinerar structurat pe ore. 
 Format:
 🗺 *Planul tău de azi*
@@ -760,6 +771,11 @@ Reguli:
                 await update.message.reply_text(reply, parse_mode="MarkdownV2")
                 return
 
+            elif state['state_type'] == 'awaiting_workout_input':
+                from modules.workout import handle_workout_message
+                await handle_workout_message(update, pool, state, text)
+                return
+
         # 3. Build context snapshot
         context_snapshot = await build_context(pool)
         profile = await get_user_profile(pool, telegram_id)
@@ -798,7 +814,6 @@ Reguli:
                 await update.message.reply_text(chunk, reply_markup=current_markup)
 
     except Exception as e:
-        import traceback
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"ERROR in message_handler: {e}\n{traceback.format_exc()}")
@@ -861,6 +876,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             await handle_uni_callback(query, pool, data)
             return
 
+        if data.startswith("workout_"):
+            from modules.workout import handle_workout_callback
+            await handle_workout_callback(query, pool, data)
+            return
+
         # Phase 4: Module callbacks (module:action:item_id)
         parts = data.split(":")
         if len(parts) >= 2:
@@ -879,10 +899,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                         if not tasks:
                             await query.edit_message_text("All tasks done! 🎉")
                         else:
-                            from modules.tasks import handle_task_intent
                             # We can just call the module's list logic or recreate it here
                             # To be safe and reuse formatting:
-                            from bot.formatter import escape_md
                             from bot.keyboards import task_list_keyboard
                             lines = ["📋 *Your Pending Tasks:*"]
                             for t in tasks:
@@ -891,7 +909,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                                 lines.append(f"`{t['id']}` • {escape_md(t['title'])}{due}{priority}")
                             await query.edit_message_text("\n".join(lines), parse_mode="MarkdownV2", reply_markup=task_list_keyboard(tasks))
                     else:
-                        await query.edit_message_text(f"Task marked as complete\\.")
+                        await query.edit_message_text("Task marked as complete\\.")
                 elif action == "delete":
                     task = await task_queries.get_task(pool, item_id)
                     from bot.keyboards import confirmation_keyboard
@@ -933,7 +951,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                         import db.queries.habits as habit_queries
                         habits = await habit_queries.list_habits(pool)
                         today_logged = await habit_queries.get_today_logs(pool)
-                        from bot.formatter import escape_md
                         from bot.keyboards import habit_list_keyboard
                         
                         lines = ["✅ *Your Habits Today:*"]
@@ -1064,7 +1081,7 @@ async def handle_uni_callback(query, pool, data: str):
         subjects = await list_subjects(pool)
         exams = await get_upcoming_exams(pool, days=14)
 
-        lines = [f"📊 *Overview Academic*\n"]
+        lines = ["📊 *Overview Academic*\n"]
         lines.append(f"📅 Săptămâna *{week_num}* \\({escape_md(week_label)}\\)")
         lines.append(f"📚 Materii active: *{len(subjects)}*\n")
 
@@ -1079,7 +1096,7 @@ async def handle_uni_callback(query, pool, data: str):
             lines.append("✅ Nu ai cursuri azi\\.")
 
         if exams:
-            lines.append(f"\n*Examene în 14 zile:*")
+            lines.append("\n*Examene în 14 zile:*")
             for e in exams[:3]:
                 lines.append(f"• {escape_md(e['exam_date'].strftime('%d %b'))} — {escape_md(e['subject_name'])}")
 

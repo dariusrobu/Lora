@@ -241,3 +241,71 @@ CREATE TABLE IF NOT EXISTS insight_log (
     insight_type TEXT NOT NULL,
     sent_at TIMESTAMP DEFAULT NOW()
 );
+
+-- ── Workouts & Sports ─────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS sport_types (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    category VARCHAR(50) NOT NULL, -- Forță / Cardio / Sport / Mobilitate
+    has_distance BOOLEAN DEFAULT FALSE,
+    has_weight BOOLEAN DEFAULT FALSE,
+    has_reps BOOLEAN DEFAULT FALSE,
+    icon TEXT DEFAULT '🏋️',
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS exercises (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    category VARCHAR(50), -- Forță / Cardio / Mobilitate
+    muscle_group TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- In case workouts and workout_exercises don't exist yet, ensure they do:
+CREATE TABLE IF NOT EXISTS workouts (
+    id SERIAL PRIMARY KEY,
+    workout_date DATE NOT NULL,
+    duration_min INT,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS workout_exercises (
+    id SERIAL PRIMARY KEY,
+    workout_id INT REFERENCES workouts(id) ON DELETE CASCADE,
+    name TEXT,
+    sets INT,
+    reps INT,
+    weight_kg NUMERIC(6, 2),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Migration for existing workouts table:
+ALTER TABLE workouts DROP COLUMN IF EXISTS type;
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='workouts' AND column_name='sport_id') THEN 
+        ALTER TABLE workouts ADD COLUMN sport_id INTEGER REFERENCES sport_types(id);
+    END IF;
+END $$;
+
+-- Seed sporturi default
+INSERT INTO sport_types (name, category, has_distance, has_weight, has_reps, icon) VALUES
+('Gym', 'Forță', FALSE, TRUE, TRUE, '🏋️'),
+('Calisthenics', 'Forță', FALSE, FALSE, TRUE, '💪'),
+('Powerlifting', 'Forță', FALSE, TRUE, TRUE, '🔱'),
+('Alergare', 'Cardio', TRUE, FALSE, FALSE, '🏃'),
+('Ciclism', 'Cardio', TRUE, FALSE, FALSE, '🚴'),
+('HIIT', 'Cardio', FALSE, FALSE, FALSE, '⚡'),
+('Sărituri coarda', 'Cardio', FALSE, FALSE, FALSE, '🪢'),
+('Fotbal', 'Sport', FALSE, FALSE, FALSE, '⚽'),
+('Baschet', 'Sport', FALSE, FALSE, FALSE, '🏀'),
+('Tenis', 'Sport', FALSE, FALSE, FALSE, '🎾'),
+('Padel', 'Sport', FALSE, FALSE, FALSE, '🏓'),
+('Stretching', 'Mobilitate', FALSE, FALSE, FALSE, '🧘'),
+('Yoga', 'Mobilitate', FALSE, FALSE, FALSE, '🌿'),
+('Recuperare activă', 'Mobilitate', FALSE, FALSE, FALSE, '♻️')
+ON CONFLICT (name) DO NOTHING;
+

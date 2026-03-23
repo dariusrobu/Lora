@@ -138,9 +138,12 @@ FAPTE DESPRE {user_name}:
     - Cuvinte cheie: "heat map habits", "streak vizual", "grafic habits", "vizualizare habits", "heatmap".
 20. Workout: module="workout":
     - intent="workout_log" pentru înregistrarea unui antrenament (gym, fotbal, cardio, alergare etc.).
-    - intent="workout_list" pentru afișarea antrenamentelor recente.
-        * data={{"period": "week"}} (default: ultimele 7 zile)
-        * data={{"period": "month"}} (ultimele 30 zile)
+    - intent="workout_list" pentru a vedea dashboard-ul principal sau lista de antrenamente.
+    - intent="workout_stats" pentru a vedea statisticile (data={"period_days": 7/30/180}).
+    - intent="workout_prs" pentru a vedea recordurile personale la exerciții.
+    - intent="workout_week" pentru a vedea rezumatul săptămânii.
+    - intent="workout_add_sport" pentru a adăuga un sport nou.
+    - intent="workout_add_exercise" pentru a adăuga un exercițiu nou.
 21. Reading: module="reading":
     - intent="reading_add" pentru a adăuga o carte nouă ("am început să citesc X", "adaugă cartea X").
     - intent="reading_update" pentru a seta progresul ("am citit până la pagina X din Y", "sunt la pagina X").
@@ -182,9 +185,9 @@ Exemple de output JSON pentru workout_log:
 - Input: "adaugă materia Contabilitate"
   Output: {{ "intent": "uni_add_subject", "module": "university", "data": {{ "name": "Contabilitate" }}, "reply": "Contabilitate adăugată. 📚" }}
 - Input: "am făcut gym 1h: bench 4×8 80kg, squat 3×10 100kg"
-  Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "type": "gym", "duration_min": 60, "notes": null, "exercises": [{{ "name": "bench", "sets": 4, "reps": 8, "weight_kg": 80.0 }}, {{ "name": "squat", "sets": 3, "reps": 10, "weight_kg": 100.0 }}] }}, "reply": "Gym 1h salvat — bench 80kg, squat 100kg. 💪" }}
+  Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "sport_name": "Gym", "duration_min": 60, "notes": null, "exercises": [{{ "name": "Bench Press", "sets": 4, "reps": 8, "weight_kg": 80.0 }}, {{ "name": "Squat", "sets": 3, "reps": 10, "weight_kg": 100.0 }}] }}, "reply": "Gym 1h salvat — bench 80kg, squat 100kg. 💪" }}
 - Input: "fotbal 90 min"
-  Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "type": "fotbal", "duration_min": 90, "notes": null, "exercises": [] }}, "reply": "Fotbal 90min notat." }}
+  Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "sport_name": "Fotbal", "duration_min": 90, "notes": null, "exercises": [] }}, "reply": "Fotbal 90min notat." }}
 
 IntentResponse schema:
 {{
@@ -203,11 +206,14 @@ IntentResponse schema:
        "goals": {{ "title": string, "description": string, "deadline": "YYYY-MM-DD", "task_title": string, "progress": number }},
          "health": {{ "sleep_hours": float, "sleep_quality": "great"|"good"|"neutral"|"bad"|"terrible", "water_ml": number, "nutrition": "great"|"good"|"neutral"|"bad"|"terrible", "weight_kg": float, "notes": string }},
          "workout_log": {{
-             "type": "gym"|"fotbal"|"cardio"|"alergare"|"alt",
+             "sport_name": "Gym"|"Fotbal"|"Cardio"|"Alergare"|"alt",
              "duration_min": int,
              "notes": string,
              "exercises": [{{"name": string, "sets": int, "reps": int, "weight_kg": float}}]
          }},
+         "workout_stats": {{"period_days": int}},
+         "workout_add_sport": {{"name": string, "category": "Forță"|"Cardio"|"Sport"|"Mobilitate"}},
+         "workout_add_exercise": {{"name": string, "category": string, "muscle_group": string}},
          "reading_add": {{
              "title": string,
              "author": string | null,
