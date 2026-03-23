@@ -436,6 +436,195 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
                         await update.message.reply_text("❌ Format greșit\\.", parse_mode="MarkdownV2")
                     return
 
+                elif action == 'import_schedule_photo':
+                    if update.message.photo:
+                        from telegram import File
+                        photo = update.message.photo[-1]
+                        file = await context.bot.get_file(photo.file_id)
+                        
+                        import tempfile, os
+                        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+                            await file.download_to_drive(tmp.name)
+                            tmp_path = tmp.name
+                        
+                        import base64
+                        with open(tmp_path, 'rb') as f:
+                            image_data = base64.b64encode(f.read()).decode()
+                        os.unlink(tmp_path)
+                        
+                        from google import genai
+                        from google.genai import types
+                        from core.config import GEMINI_API_KEY
+                        
+                        client = genai.Client(api_key=GEMINI_API_KEY)
+                        prompt = """
+Analizează această imagine cu un orar universitar.
+Extrage TOATE cursurile și seminarele vizibile.
+Returnează EXCLUSIV JSON valid, fără markdown:
+{
+  "classes": [
+    {
+      "day": "Luni|Marți|Miercuri|Joi|Vineri",
+      "start_time": "HH:MM",
+      "end_time": "HH:MM",
+      "subject": "numele materiei",
+      "type": "curs|seminar",
+      "room": "sala sau null",
+      "week_type": "both|odd|even"
+    }
+  ]
+}
+week_type: "odd" dacă e marcat SI, "even" dacă SP, "both" dacă apare în ambele sau nu e marcat.
+"""
+                        response = client.models.generate_content(
+                            model="gemini-2.5-flash",
+                            contents=[
+                                types.Content(parts=[
+                                    types.Part(inline_data=types.Blob(mime_type="image/jpeg", data=image_data)),
+                                    types.Part(text=prompt)
+                                ])
+                            ]
+                        )
+                        
+                        import json
+                        raw = response.text.strip()
+                        if "```" in raw:
+                            raw = raw.split("```")[1].lstrip("json").strip().rstrip("```")
+                        
+                        try:
+                            data_parsed = json.loads(raw)
+                            classes = data_parsed.get("classes", [])
+                            
+                            days_map = {'luni': 0, 'marți': 1, 'miercuri': 2, 'joi': 3, 'vineri': 4}
+                            imported = 0
+                            
+                            for c in classes:
+                                day = days_map.get(c['day'].lower(), -1)
+                                if day == -1:
+                                    continue
+                                await pool.execute("""
+                                    INSERT INTO schedule (day_of_week, start_time, end_time, 
+                                        subject_name, class_type, room, week_type)
+                                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                                    ON CONFLICT DO NOTHING
+                                """, day, c['start_time'], c['end_time'],
+                                    c['subject'], c.get('type', 'curs'),
+                                    c.get('room'), c.get('week_type', 'both'))
+                                imported += 1
+                            
+                            await clear_state(pool)
+                            await update.message.reply_text(
+                                f"✅ *{imported} ore importate* din orar\\.\nVerifică cu `/uni` → Orar și ajustează unde este nevoie\\.",
+                                parse_mode="MarkdownV2"
+                            )
+                        except Exception as e:
+                            await clear_state(pool)
+                            await update.message.reply_text(
+                                "❌ Nu am putut extrage orarul din imagine\\. Încearcă o poză mai clară sau adaugă manual\\.",
+                                parse_mode="MarkdownV2"
+                            )
+                    else:
+                        await update.message.reply_text("Trimite o poză \\(nu text\\) cu orarul tău\\.", parse_mode="MarkdownV2")
+                    return
+
+                elif action == 'import_structure_pdf':
+                    if update.message.document and update.message.document.mime_type == 'application/pdf':
+                        file = await context.bot.get_file(update.message.document.file_id)
+                        
+                        import tempfile, os, base64
+                        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+                            await file.download_to_drive(tmp.name)
+                            tmp_path = tmp.name
+                        
+                        with open(tmp_path, 'rb') as f:
+                            pdf_data = base64.b64encode(f.read()).decode()
+                        os.unlink(tmp_path)
+                        
+                        from google import genai
+                        from google.genai import types
+                        from core.config import GEMINI_API_KEY
+                        
+                        client = genai.Client(api_key=GEMINI_API_KEY)
+                        prompt = """
+Analizează acest document cu structura anului universitar.
+Extrage TOATE perioadele importante.
+Returnează EXCLUSIV JSON valid:
+{
+  "academic_year": "YYYY-YYYY",
+  "semesters": [
+    {
+      "number": 1,
+      "periods": [
+        {
+          "type": "activitate_didactica|vacanta|sesiune_examene|sesiune_restante",
+          "start_date": "YYYY-MM-DD",
+          "end_date": "YYYY-MM-DD",
+          "description": "descriere scurtă opțională"
+        }
+      ]
+    }
+  ]
+}
+"""
+                        response = client.models.generate_content(
+                            model="gemini-2.5-flash",
+                            contents=[
+                                types.Content(parts=[
+                                    types.Part(inline_data=types.Blob(mime_type="application/pdf", data=pdf_data)),
+                                    types.Part(text=prompt)
+                                ])
+                            ]
+                        )
+                        
+                        import json
+                        raw = response.text.strip()
+                        if "```" in raw:
+                            raw = raw.split("```")[1].lstrip("json").strip().rstrip("```")
+                        
+                        try:
+                            data_parsed = json.loads(raw)
+                            
+                            await pool.execute("""
+                                CREATE TABLE IF NOT EXISTS academic_periods (
+                                    id SERIAL PRIMARY KEY,
+                                    academic_year VARCHAR(10),
+                                    semester INTEGER,
+                                    period_type VARCHAR(50),
+                                    start_date DATE,
+                                    end_date DATE,
+                                    description TEXT,
+                                    created_at TIMESTAMP DEFAULT NOW(),
+                                    UNIQUE (academic_year, semester, period_type, start_date)
+                                )
+                            """)
+                            
+                            imported = 0
+                            for sem in data_parsed.get('semesters', []):
+                                for period in sem.get('periods', []):
+                                    from datetime import datetime
+                                    await pool.execute("""
+                                        INSERT INTO academic_periods 
+                                            (academic_year, semester, period_type, start_date, end_date, description)
+                                        VALUES ($1, $2, $3, $4, $5, $6)
+                                        ON CONFLICT DO NOTHING
+                                    """, 
+                                    data_parsed.get('academic_year', '2025-2026'),
+                                    sem['number'],
+                                    period['type'],
+                                    datetime.strptime(period['start_date'], "%Y-%m-%d").date(),
+                                    datetime.strptime(period['end_date'], "%Y-%m-%d").date(),
+                                    period.get('description'))
+                                    imported += 1
+                            
+                            await clear_state(pool)
+                            await update.message.reply_text(f"✅ *{imported} perioade importate* din structura academică\\.", parse_mode="MarkdownV2")
+                        except Exception as e:
+                            await clear_state(pool)
+                            await update.message.reply_text("❌ Nu am putut extrage structura din PDF\\. Încearcă din nou\\.", parse_mode="MarkdownV2")
+                    else:
+                        await update.message.reply_text("Trimite un fișier PDF \\(nu text\\)\\.", parse_mode="MarkdownV2")
+                    return
+
             elif state['state_type'] == 'awaiting_edit_field':
                 context_snapshot = await build_context(pool)
                 profile = await get_user_profile(pool, telegram_id)
@@ -1078,12 +1267,87 @@ async def handle_uni_callback(query, pool, data: str):
                 parse_mode="MarkdownV2", reply_markup=keyboard
             )
 
-    # ━━━ ANALIZĂ / IMPORT (placeholder) ━━━
-    elif section in ("analysis", "import"):
-        label = "🔍 Analiză" if section == "analysis" else "📥 Import"
-        keyboard = InlineKeyboardMarkup([[back_btn]])
+    # ━━━ ANALIZĂ GEMINI ━━━
+    elif section == "analysis":
+        from db.queries.university import list_subjects, get_upcoming_exams
+        from db.queries.schedule import get_current_week_type
+        from datetime import date
+        
+        subjects = await list_subjects(pool)
+        exams = await get_upcoming_exams(pool, days=60)
+        config = await pool.fetchrow("SELECT semester_start FROM semester_config ORDER BY id DESC LIMIT 1")
+        week_num = 1
+        if config:
+            delta = (date.today() - config['semester_start']).days
+            week_num = delta // 7 + 1
+        
+        data_ctx = f"""
+Săptămâna curentă: {week_num}/14
+Materii și situație:
+{chr(10).join([f"- {s['name']}: medie {s['avg_grade'] or 'N/A'}, prezențe {s.get('attended_count',0)}/{s.get('total_seminars',0)}" for s in subjects])}
+
+Examene upcoming:
+{chr(10).join([f"- {e['subject_name']}: {e['exam_date']}" for e in exams]) or "Niciun examen înregistrat"}
+"""
+        
+        from core.gemini import get_proactive_response
+        instruction = """
+Ești Lora. Analizează situația academică a lui Robu și oferă o analiză concisă.
+
+Structură:
+📊 *Analiză Academică*
+
+*Situație generală:* [1-2 propoziții]
+*Riscuri:* [materii cu prezențe scăzute sau fără note]
+*Prioritate:* [ce trebuie să facă în săptămânile rămase]
+
+MAX 150 cuvinte. Ton direct, fără laudă.
+Dacă nu sunt suficiente date: spune direct.
+"""
+        
+        result = await get_proactive_response(instruction, data_ctx)
+        from bot.formatter import safe_markdown
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔄 Regenerează", callback_data="uni:analysis")],
+            [back_btn]
+        ])
         await query.edit_message_text(
-            f"{label}\n\n_În curând\\._",
+            safe_markdown(result) if result else "Nu sunt suficiente date pentru analiză\\.",
             parse_mode="MarkdownV2",
             reply_markup=keyboard
         )
+
+    # ━━━ IMPORT ━━━
+    elif section == "import":
+        if not action:
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📸 Import orar din poză", callback_data="uni:import:schedule_photo")],
+                [InlineKeyboardButton("📄 Structură din PDF", callback_data="uni:import:structure_pdf")],
+                [back_btn]
+            ])
+            await query.edit_message_text(
+                "📥 *Import*\n\nAlege ce vrei să importezi:",
+                parse_mode="MarkdownV2",
+                reply_markup=keyboard
+            )
+
+        elif action == "schedule_photo":
+            from core.state import set_state
+            await set_state(pool, "awaiting_uni_input", "university", "import_schedule_photo", None)
+            keyboard = InlineKeyboardMarkup([[back_btn]])
+            await query.edit_message_text(
+                "📸 *Import orar din poză*\n\nTrimite o poză cu orarul tău\\.\nLora va extrage automat cursurile și orele\\.",
+                parse_mode="MarkdownV2",
+                reply_markup=keyboard
+            )
+
+        elif action == "structure_pdf":
+            from core.state import set_state
+            await set_state(pool, "awaiting_uni_input", "university", "import_structure_pdf", None)
+            keyboard = InlineKeyboardMarkup([[back_btn]])
+            await query.edit_message_text(
+                "📄 *Import structură academică*\n\nTrimite PDF\\-ul cu structura anului universitar\\.\nLora va extrage perioadele \\(activitate didactică, vacanță, sesiune\\)\\.",
+                parse_mode="MarkdownV2",
+                reply_markup=keyboard
+            )
