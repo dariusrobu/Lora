@@ -41,15 +41,19 @@ async def handle_university_intent(pool, intent: str, data: Dict[str, Any], bot=
             name = escape_md(s['name'])
             
             # Prezențe
-            attended = s.get('attended_count') or 0
-            total_logged = s.get('total_logged') or 0
-            if total_logged > 0:
-                pct = int(attended / total_logged * 100)
-                pct_str = f"{pct}%"
-                warn = " ⚠️" if pct < s['min_attendance_pct'] else ""
-                attendance_str = f"Prezențe: {attended}/{total_logged} \\({pct_str}\\){warn}"
+            attended = s.get('attended_count')
+            total_logged = s.get('total_logged')
+            
+            if total_logged is not None:
+                if total_logged > 0:
+                    pct = int(attended / total_logged * 100)
+                    pct_str = f"{pct}%"
+                    warn = " ⚠️" if pct < s['min_attendance_pct'] else ""
+                    attendance_str = f"Prezențe: {attended}/{total_logged} \\({pct_str}\\){warn}"
+                else:
+                    attendance_str = "Prezențe: nicio înregistrare"
             else:
-                attendance_str = "Prezențe: nicio înregistrare"
+                attendance_str = "Prezențe: _numai curs_ \\(nu se trackează\\)"
             
             # Medie materie
             grade_str = f"Medie: *{s['avg_grade']}*" if s.get('avg_grade') else "Nicio notă"

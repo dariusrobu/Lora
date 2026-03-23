@@ -11,8 +11,18 @@ async def list_subjects(pool) -> list:
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT s.*,
-                COUNT(a.id) FILTER (WHERE a.attended = TRUE) as attended_count,
-                COUNT(a.id) as total_logged,
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM schedule sch 
+                    WHERE LOWER(sch.subject_name) = LOWER(s.name) 
+                      AND sch.class_type = 'seminar'
+                ) THEN COUNT(a.id) FILTER (WHERE a.attended = TRUE) 
+                ELSE NULL END as attended_count,
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM schedule sch 
+                    WHERE LOWER(sch.subject_name) = LOWER(s.name) 
+                      AND sch.class_type = 'seminar'
+                ) THEN COUNT(a.id) 
+                ELSE NULL END as total_logged,
                 ROUND(AVG(g.grade), 2) as avg_grade
             FROM subjects s
             LEFT JOIN attendances a ON a.subject_id = s.id
@@ -126,9 +136,13 @@ async def get_attendance_warnings(pool) -> list:
                     ELSE 0 
                 END as pct
             FROM subjects s
-            JOIN schedule sch ON LOWER(sch.subject_name) = LOWER(s.name) AND sch.class_type = 'seminar'
             LEFT JOIN attendances a ON a.subject_id = s.id
             WHERE s.is_active = TRUE
+              AND EXISTS (
+                  SELECT 1 FROM schedule sch 
+                  WHERE LOWER(sch.subject_name) = LOWER(s.name) 
+                    AND sch.class_type = 'seminar'
+              )
             GROUP BY s.id, s.name, s.min_attendance_pct
             HAVING COUNT(a.id) > 0
               AND ROUND(COUNT(a.id) FILTER (WHERE a.attended = TRUE) * 100.0 / COUNT(a.id), 0) < s.min_attendance_pct
