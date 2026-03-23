@@ -163,6 +163,22 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
                 lines.append(f"• `{time_str}` — {escape_md(e['title'])}")
         else:
             lines.append("Nimic în calendar azi\\.")
+        
+        # 🎓 Facultate Integration
+        from db.queries.schedule import get_today_schedule, get_current_week_type
+        today_classes = await get_today_schedule(pool)
+        week_type = await get_current_week_type(pool)
+        week_label = "impară" if week_type == 'odd' else "pară"
+        
+        lines += ["", f"🎓 *Facultate azi* — săptămână {week_label}"]
+        if today_classes:
+            for c in today_classes:
+                start = c['start_time'].strftime('%H:%M')
+                room = f" · sala {escape_md(c['room'])}" if c.get('room') else ""
+                type_str = "curs" if c['class_type'] == 'curs' else "seminar"
+                lines.append(f"• `{start}` — {escape_md(c['subject_name'])} \\({type_str}\\){room}")
+        else:
+            lines.append("Nu ai cursuri azi\\.")
 
         from db.queries.university import get_upcoming_exams
         exams_soon = await get_upcoming_exams(pool, days=7)
@@ -592,6 +608,36 @@ async def send_journal_night(application, pool) -> None:
         print(f"CRITICAL error in send_journal_night: {e}", flush=True)
         traceback.print_exc()
 
+
+async def check_class_reminders(application, pool) -> None:
+    """Verifică cursurile care încep în 15 minute și trimite reminder."""
+    try:
+        from db.queries.schedule import get_upcoming_classes
+        from bot.formatter import escape_md
+        from telegram.constants import ParseMode
+        
+        # We check slightly ahead (16m) to ensure we don't miss it between 5m intervals
+        classes = await get_upcoming_classes(pool, minutes_ahead=16)
+        
+        for c in classes:
+            start = c['start_time'].strftime('%H:%M')
+            end = c['end_time'].strftime('%H:%M')
+            room = f"Sala *{escape_md(c['room'])}*" if c.get('room') else "Sala necunoscută"
+            type_str = "Curs" if c['class_type'] == 'curs' else "Seminar"
+            
+            msg = (
+                f"🔔 *{escape_md(c['subject_name'])}* începe în 15 minute\\!\n"
+                f"📖 {type_str} · `{start}–{end}`\n"
+                f"📍 {room}"
+            )
+            
+            await application.bot.send_message(
+                chat_id=TELEGRAM_USER_ID,
+                text=msg,
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
+    except Exception as e:
+        print(f"Error in check_class_reminders: {e}", flush=True)
 
 async def send_weekly_review(application, pool) -> None:
     """Aggregates weekly data and sends a reflective review on Sunday evening."""
@@ -1115,6 +1161,14 @@ def setup_scheduler(application, pool):
 
     scheduler.add_job(missed_habit_nudge, 'cron', hour=(m_h + 1) % 24, minute=m_m,
                       misfire_grace_time=3600, args=[application, pool])
+
+    # University Attendace Warning (Insight) - Daily at 09:00
+    scheduler.add_job(check_proactive_insights, 'cron', hour=9, minute=0,
+                      misfire_grace_time=3600, args=[application, pool]) # Re-using check_proactive_insights for this purpose
+
+    # Class Reminders - Every 5 minutes
+    scheduler.add_job(check_class_reminders, 'interval', minutes=5, 
+                      misfire_grace_time=60, args=[application, pool])
 
     scheduler.add_job(check_event_reminders, 'interval', minutes=15, args=[application, pool])
 
