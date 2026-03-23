@@ -155,9 +155,9 @@ FAPTE DESPRE {user_name}:
 23. Planner: module="planner":
     - intent="time_block" pentru generarea automată a programului zilei ("time block", "program azi", "organizează-mi ziua").
 24. University: module="university":
-    - intent="uni_add_subject" pentru a adăuga materii ("adaugă materia X", "am materia X").
+    - intent="uni_add_subject" pentru a ADAUGA o MATERIE NOUĂ care nu există. (Ex: "adaugă materia Contabilitate", "am o materie nouă", "înregistrează materia X").
     - intent="uni_list" pentru situația academică ("situația mea la facultate", "materiile mele", "media mea").
-    - intent="uni_log_attendance" pentru prezențe ("am fost la X", "am lipsit de la X", "prezență la X").
+    - intent="uni_log_attendance" pentru a RAPORTA că AI FOST sau AI LIPSIT. (Ex: "am fost la MRU seminar", "am lipsit de la Statistică", "nu am mers la X").
     - intent="uni_add_grade" pentru note ("am luat X la Y", "notă X la materia Y").
     - intent="uni_add_exam" pentru examene ("examen la X pe data Y", "am colocviu la X").
     - intent="uni_exams" pentru sesiunea de examene ("ce examene am", "sesiunea mea").
@@ -176,9 +176,11 @@ FAPTE DESPRE {user_name}:
 
 Exemple de output JSON pentru workout_log:
 - Input: "am fost la MRU seminar azi"
-  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "MRU", "attended": true, "date": "2026-03-23" }}, "reply": "MRU — prezent ✅ înregistrat." }}
+  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "MRU", "attended": true, "date": "{now.strftime('%Y-%m-%d')}" }}, "reply": "MRU — prezent ✅ înregistrat." }}
 - Input: "am lipsit de la Statistică seminar"
-  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "Statistică", "attended": false, "date": "2026-03-23" }}, "reply": "Statistică Inferențială — absent ❌ înregistrat." }}
+  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "Statistică", "attended": false, "date": "{now.strftime('%Y-%m-%d')}" }}, "reply": "Statistică Inferențială — absent ❌ înregistrat." }}
+- Input: "adaugă materia Contabilitate"
+  Output: {{ "intent": "uni_add_subject", "module": "university", "data": {{ "name": "Contabilitate" }}, "reply": "Contabilitate adăugată. 📚" }}
 - Input: "am făcut gym 1h: bench 4×8 80kg, squat 3×10 100kg"
   Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "type": "gym", "duration_min": 60, "notes": null, "exercises": [{{ "name": "bench", "sets": 4, "reps": 8, "weight_kg": 80.0 }}, {{ "name": "squat", "sets": 3, "reps": 10, "weight_kg": 100.0 }}] }}, "reply": "Gym 1h salvat — bench 80kg, squat 100kg. 💪" }}
 - Input: "fotbal 90 min"
