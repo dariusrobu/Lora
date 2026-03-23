@@ -23,6 +23,18 @@ async def list_subjects(pool) -> list:
         """)
         return [dict(r) for r in rows]
 
+async def check_subject_has_seminar(pool, subject_name: str) -> bool:
+    """Verifică dacă o materie are seminare în orar."""
+    async with pool.acquire() as conn:
+        exists = await conn.fetchval("""
+            SELECT EXISTS (
+                SELECT 1 FROM schedule 
+                WHERE LOWER(subject_name) = LOWER($1) 
+                  AND class_type = 'seminar'
+            )
+        """, subject_name)
+        return exists
+
 async def get_subject_by_name(pool, name) -> dict | None:
     async with pool.acquire() as conn:
         row = await conn.fetchrow("""
@@ -103,7 +115,7 @@ async def get_upcoming_exams(pool, days=30) -> list:
         return [dict(r) for r in rows]
 
 async def get_attendance_warnings(pool) -> list:
-    """Returnează materiile cu prezență sub pragul minim."""
+    """Returnează materiile cu prezență la SEMINAR sub pragul minim."""
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT s.name, s.min_attendance_pct,
@@ -114,6 +126,7 @@ async def get_attendance_warnings(pool) -> list:
                     ELSE 0 
                 END as pct
             FROM subjects s
+            JOIN schedule sch ON LOWER(sch.subject_name) = LOWER(s.name) AND sch.class_type = 'seminar'
             LEFT JOIN attendances a ON a.subject_id = s.id
             WHERE s.is_active = TRUE
             GROUP BY s.id, s.name, s.min_attendance_pct
