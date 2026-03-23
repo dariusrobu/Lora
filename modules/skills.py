@@ -19,10 +19,8 @@ async def get_skills_dashboard(pool) -> Tuple[str, InlineKeyboardMarkup]:
     lines = ["🧠 *Skills Tracking*\n"]
     for s in skills:
         val = s.get('last_value')
-        unit = s.get('unit', '')
+        unit = s.get('last_metric') or s.get('unit', '')
         if val is not None:
-            # Format value: 1200 or 1:20 if it looks like seconds? 
-            # For now, keep it simple.
             val_str = f"{float(val):.0f}" if float(val) == int(val) else f"{float(val):.2f}"
             lines.append(f"• *{escape_md(s['name'])}*: {escape_md(val_str)} {escape_md(unit)}")
         else:
@@ -51,8 +49,9 @@ async def get_skill_detail_view(pool, skill_id: int) -> Tuple[str, InlineKeyboar
     
     for h in history:
         date_str = h['log_date'].strftime('%d %b')
+        h_unit = h.get('metric') or skill['unit']
         val_str = f"{float(h['value']):.0f}" if float(h['value']) == int(h['value']) else f"{float(h['value']):.2f}"
-        lines.append(f"• {escape_md(date_str)}: {escape_md(val_str)} {unit}")
+        lines.append(f"• {escape_md(date_str)}: {escape_md(val_str)} {escape_md(h_unit)}")
         
     if not history:
         lines.append("_Nicio înregistrare încă_")
@@ -70,8 +69,9 @@ async def handle_skill_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[
             # Auto-create? No, better ask to create first or handle in state
             return f"❌ Nu am găsit skill-ul '{escape_md(name)}\\'\\. Vrei să îl creez?", None # TODO: Suggest creation
             
-        await skill_queries.log_skill_value(pool, skill['id'], float(value))
-        return f"✅ Am înregistrat {escape_md(str(value))} {escape_md(skill['unit'])} pentru *{escape_md(skill['name'])}*\\!", None
+        unit = data.get("unit") or skill['unit']
+        await skill_queries.log_skill_value(pool, skill['id'], float(value), metric=unit)
+        return f"✅ Am înregistrat {escape_md(str(value))} {escape_md(unit)} pentru *{escape_md(skill['name'])}*\\!", None
         
     elif intent == "view_skills":
         return await get_skills_dashboard(pool)
@@ -156,7 +156,7 @@ async def handle_skills_message(update, context, pool, state: dict) -> bool:
                 val_raw = msg_text.split()[0].replace(",", ".")
                 val = float(val_raw)
             except ValueError:
-                await update.message.reply_text("❌ Te rog introdu un număr valid\\.")
+                await update.message.reply_text("❌ Te rog introdu un număr valid\\.", parse_mode="MarkdownV2")
                 return True
                 
             await skill_queries.log_skill_value(pool, skill_id, val)
@@ -169,7 +169,7 @@ async def handle_skills_message(update, context, pool, state: dict) -> bool:
     except Exception as e:
         import logging
         logging.error(f"Error in skills message: {e}")
-        await update.message.reply_text("❌ A apărut o eroare la salvarea datelor\\.")
+        await update.message.reply_text("❌ A apărut o eroare la salvarea datelor\\.", parse_mode="MarkdownV2")
         await clear_state(pool)
         return True
         
@@ -184,4 +184,4 @@ async def skills_command(update, context) -> None:
     except Exception as e:
         import logging
         logging.error(f"Error in skills command: {e}")
-        await update.message.reply_text("Eroare la deschiderea dashboard-ului de skills\\.")
+        await update.message.reply_text("Eroare la deschiderea dashboard-ului de skills\\.", parse_mode="MarkdownV2")

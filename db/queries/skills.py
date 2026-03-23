@@ -7,10 +7,11 @@ async def get_all_skills(pool) -> List[Dict[str, Any]]:
         rows = await conn.fetch("""
             SELECT s.*, 
                    sl.value as last_value, 
+                   sl.metric as last_metric,
                    sl.log_date as last_log_date
             FROM skills s
             LEFT JOIN LATERAL (
-                SELECT value, log_date 
+                SELECT value, metric, log_date 
                 FROM skill_logs 
                 WHERE skill_id = s.id 
                 ORDER BY log_date DESC, id DESC 

@@ -14,7 +14,13 @@ async def get_state(pool) -> Optional[Dict[str, Any]]:
         if row['state_type'] is None:
             return None
             
-        return dict(row)
+        data = dict(row)
+        if data.get('extra') and isinstance(data['extra'], str):
+            try:
+                data['extra'] = json.loads(data['extra'])
+            except json.JSONDecodeError:
+                pass
+        return data
 
 async def set_state(pool, state_type: str, module: Optional[str], action: Optional[str], item_id: Optional[int], extra: Optional[Dict[str, Any]] = None):
     """Sets the current multi-turn state."""

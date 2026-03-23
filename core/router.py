@@ -1,11 +1,26 @@
 from typing import Dict, Any
 from bot.formatter import escape_md
 
-async def route_intent(pool, intent_response: Dict[str, Any], bot=None):
+async def route_intent(pool, intent_response: Any, bot=None):
     """
-    Routes the Gemini intent to the appropriate module.
+    Routes the Gemini intent(s) to the appropriate module(s).
+    Supports single dict or list of dicts.
     Returns the reply text and an optional keyboard.
     """
+    if isinstance(intent_response, list):
+        replies = []
+        last_markup = None
+        for item in intent_response:
+            r, m = await _route_single_intent(pool, item, bot)
+            if r:
+                replies.append(r)
+            if m:
+                last_markup = m
+        return "\n\n".join(replies), last_markup
+    
+    return await _route_single_intent(pool, intent_response, bot)
+
+async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
     module = intent_response.get("module")
     intent = intent_response.get("intent")
     data = intent_response.get("data")
@@ -19,7 +34,6 @@ async def route_intent(pool, intent_response: Dict[str, Any], bot=None):
     
     # If no module, just return the chat reply from Gemini
     if not module:
-        # (Profile update logic preserved...)
         return reply, None
 
     # Module routing logic
@@ -47,6 +61,9 @@ async def route_intent(pool, intent_response: Dict[str, Any], bot=None):
     elif module == "goals":
         from modules.goals import handle_goal_intent
         return await handle_goal_intent(pool, intent, data)
+    elif module == "skills":
+        from modules.skills import handle_skill_intent
+        return await handle_skill_intent(pool, intent, data)
     elif module == "mood":
         from modules.mood import handle_mood_intent
         return await handle_mood_intent(pool, intent, data, bot)
