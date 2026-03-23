@@ -33,7 +33,7 @@ async def get_skills_dashboard(pool) -> Tuple[str, InlineKeyboardMarkup]:
 async def get_skill_detail_view(pool, skill_id: int) -> Tuple[str, InlineKeyboardMarkup]:
     skill = await skill_queries.get_skill_by_id(pool, skill_id)
     if not skill:
-        return "❌ Skill-ul nu mai există\.", skills_main_keyboard()
+        return "❌ Skill-ul nu mai există\\.", skills_main_keyboard()
         
     stats = await skill_queries.get_skill_stats(pool, skill_id)
     history = await skill_queries.get_skill_history(pool, skill_id, limit=5)
@@ -68,7 +68,7 @@ async def handle_skill_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[
         skill = await skill_queries.get_skill_by_name(pool, name)
         if not skill:
             # Auto-create? No, better ask to create first or handle in state
-            return f"❌ Nu am găsit skill-ul '{escape_md(name)}'\. Vrei să îl creez?", None # TODO: Suggest creation
+            return f"❌ Nu am găsit skill-ul '{escape_md(name)}\\'\\. Vrei să îl creez?", None # TODO: Suggest creation
             
         await skill_queries.log_skill_value(pool, skill['id'], float(value))
         return f"✅ Am înregistrat {value} {escape_md(skill['unit'])} pentru *{escape_md(skill['name'])}*!", None
@@ -76,7 +76,7 @@ async def handle_skill_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[
     elif intent == "view_skills":
         return await get_skills_dashboard(pool)
         
-    return "Intent necunoscut pentru Skills\.", None
+    return "Intent necunoscut pentru Skills\\.", None
 
 async def handle_skills_callback(update, context, pool) -> None:
     """Router for skills_ callbacks."""
@@ -124,7 +124,7 @@ async def handle_skills_callback(update, context, pool) -> None:
     except Exception as e:
         import logging
         logging.error(f"Error in skills callback: {e}")
-        await query.answer("Eroare la procesarea cererii\.")
+        await query.answer("Eroare la procesarea cererii\\.")
 
 async def handle_skills_message(update, context, pool, state: str) -> bool:
     """Handles text input for skills state machine."""
@@ -156,7 +156,7 @@ async def handle_skills_message(update, context, pool, state: str) -> bool:
                 val_raw = msg_text.split()[0].replace(",", ".")
                 val = float(val_raw)
             except ValueError:
-                await update.message.reply_text("❌ Te rog introdu un număr valid\.")
+                await update.message.reply_text("❌ Te rog introdu un număr valid\\.")
                 return True
                 
             await skill_queries.log_skill_value(pool, skill_id, val)
@@ -169,7 +169,7 @@ async def handle_skills_message(update, context, pool, state: str) -> bool:
     except Exception as e:
         import logging
         logging.error(f"Error in skills message: {e}")
-        await update.message.reply_text("❌ A apărut o eroare la salvarea datelor\.")
+        await update.message.reply_text("❌ A apărut o eroare la salvarea datelor\\.")
         await clear_state(pool)
         return True
         
@@ -183,4 +183,4 @@ async def skills_command(update, context, pool) -> None:
     except Exception as e:
         import logging
         logging.error(f"Error in skills command: {e}")
-        await update.message.reply_text("Eroare la deschiderea dashboard-ului de skills\.")
+        await update.message.reply_text("Eroare la deschiderea dashboard-ului de skills\\.")

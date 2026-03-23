@@ -92,7 +92,7 @@ async def build_context(pool) -> str:
 
     # 8. Goals
     import db.queries.goals as goal_queries
-    goals = await goal_queries.list_goals(pool)
+    goals = await goal_queries.get_all_goals(pool)
     snapshot.append("\n--- TOP GOALS ---")
     if goals:
         for g in goals[:3]:
