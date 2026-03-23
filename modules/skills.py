@@ -175,8 +175,9 @@ async def handle_skills_message(update, context, pool, state: str) -> bool:
         
     return False
 
-async def skills_command(update, context, pool) -> None:
+async def skills_command(update, context) -> None:
     """/skills command handler."""
+    pool = context.bot_data["pool"]
     try:
         text, markup = await get_skills_dashboard(pool)
         await update.message.reply_text(text, reply_markup=markup, parse_mode="MarkdownV2")

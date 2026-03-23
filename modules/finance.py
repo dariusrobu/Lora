@@ -50,7 +50,7 @@ async def handle_finance_intent(pool, intent: str, data: Dict[str, Any]) -> Tupl
             for tx in recent:
                 date_str = tx['tx_date'].strftime("%d %b")
                 emoji = "💸" if tx['type'] == 'expense' else "💰"
-                desc = f" ({escape_md(tx['description'])})" if tx['description'] else ""
+                desc = f" \\({escape_md(tx['description'])}\\)" if tx['description'] else ""
                 lines.append(f"• `{date_str}` {emoji} `{tx['amount']} RON` — {escape_md(tx['category'])}{desc}")
             
             return "\n".join(lines), None
