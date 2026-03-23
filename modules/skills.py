@@ -14,7 +14,7 @@ async def get_skills_dashboard(pool) -> Tuple[str, InlineKeyboardMarkup]:
     skills = await skill_queries.get_all_skills(pool)
     
     if not skills:
-        return "🧠 *Skills Tracking*\n\nNu ai skill-uri adăugate încă. Folosește butonul de mai jos pentru a începe!", skills_list_keyboard([])
+        return "🧠 *Skills Tracking*\n\nNu ai skill\\-uri adăugate încă\\. Folosește butonul de mai jos pentru a începe\\!", skills_list_keyboard([])
         
     lines = ["🧠 *Skills Tracking*\n"]
     for s in skills:
@@ -24,7 +24,7 @@ async def get_skills_dashboard(pool) -> Tuple[str, InlineKeyboardMarkup]:
             # Format value: 1200 or 1:20 if it looks like seconds? 
             # For now, keep it simple.
             val_str = f"{float(val):.0f}" if float(val) == int(val) else f"{float(val):.2f}"
-            lines.append(f"• *{escape_md(s['name'])}*: {val_str} {escape_md(unit)}")
+            lines.append(f"• *{escape_md(s['name'])}*: {escape_md(val_str)} {escape_md(unit)}")
         else:
             lines.append(f"• *{escape_md(s['name'])}*: _fără date_")
             
@@ -42,17 +42,17 @@ async def get_skill_detail_view(pool, skill_id: int) -> Tuple[str, InlineKeyboar
     unit = escape_md(skill['unit'])
     
     lines = [
-        f"📊 *{title}* ({escape_md(skill['category'])})\n",
-        f"• *Medie*: {stats['avg']:.2f} {unit}",
-        f"• *Best/Max*: {stats['max']:.2f} {unit}",
-        f"• *Trend*: {'📈' if stats['trend'] > 0 else '📉' if stats['trend'] < 0 else '➡️'} {abs(stats['trend']):.2f} {unit}\n",
+        f"📊 *{title}* \\({escape_md(skill['category'])}\\)\n",
+        f"• *Medie*: {escape_md(f'{stats['avg']:.2f}')} {unit}",
+        f"• *Best/Max*: {escape_md(f'{stats['max']:.2f}')} {unit}",
+        f"• *Trend*: {'📈' if stats['trend'] > 0 else '📉' if stats['trend'] < 0 else '➡️'} {escape_md(f'{abs(stats['trend']):.2f}')} {unit}\n",
         "*Istoric Recent:*"
     ]
     
     for h in history:
         date_str = h['log_date'].strftime('%d %b')
         val_str = f"{float(h['value']):.0f}" if float(h['value']) == int(h['value']) else f"{float(h['value']):.2f}"
-        lines.append(f"• {date_str}: {val_str} {unit}")
+        lines.append(f"• {escape_md(date_str)}: {escape_md(val_str)} {unit}")
         
     if not history:
         lines.append("_Nicio înregistrare încă_")
@@ -71,7 +71,7 @@ async def handle_skill_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[
             return f"❌ Nu am găsit skill-ul '{escape_md(name)}\\'\\. Vrei să îl creez?", None # TODO: Suggest creation
             
         await skill_queries.log_skill_value(pool, skill['id'], float(value))
-        return f"✅ Am înregistrat {value} {escape_md(skill['unit'])} pentru *{escape_md(skill['name'])}*!", None
+        return f"✅ Am înregistrat {escape_md(str(value))} {escape_md(skill['unit'])} pentru *{escape_md(skill['name'])}*\\!", None
         
     elif intent == "view_skills":
         return await get_skills_dashboard(pool)
@@ -96,13 +96,13 @@ async def handle_skills_callback(update, context, pool) -> None:
             
         elif data == "skills_add_new":
             await set_state(pool, "skills_add_name")
-            await query.edit_message_text("➕ *Skill Nou*\n\nIntrodu numele skill-ului (ex: Sah, Duolingo, Rubik):", parse_mode="MarkdownV2")
+            await query.edit_message_text("➕ *Skill Nou*\n\nIntrodu numele skill\\-ului \\(ex: Sah, Duolingo, Rubik\\):", parse_mode="MarkdownV2")
             
         elif data.startswith("skills_log_entry_"):
             skill_id = int(data.split("_")[-1])
             skill = await skill_queries.get_skill_by_id(pool, skill_id)
             await set_state(pool, f"skills_log_value_{skill_id}")
-            await query.edit_message_text(f"📝 *Log {escape_md(skill['name'])}*\n\nIntrodu valoarea ({escape_md(skill['unit'])}):", parse_mode="MarkdownV2")
+            await query.edit_message_text(f"📝 *Log {escape_md(skill['name'])}*\n\nIntrodu valoarea \\({escape_md(skill['unit'])}\\):", parse_mode="MarkdownV2")
             
         elif data.startswith("skills_delete_"):
             skill_id = int(data.split("_")[-1])
@@ -134,7 +134,7 @@ async def handle_skills_message(update, context, pool, state: str) -> bool:
     try:
         if state == "skills_add_name":
             await set_state(pool, "skills_add_unit", metadata={"name": msg_text})
-            await update.message.reply_text(f"✅ Nume: *{escape_md(msg_text)}*\n\nAcum introdu unitatea de măsură (ex: elo, min, kg, puncte):", parse_mode="MarkdownV2")
+            await update.message.reply_text(f"✅ Nume: *{escape_md(msg_text)}*\n\nAcum introdu unitatea de măsură \\(ex: elo, min, kg, puncte\\):", parse_mode="MarkdownV2")
             return True
             
         elif state == "skills_add_unit":
@@ -145,7 +145,7 @@ async def handle_skills_message(update, context, pool, state: str) -> bool:
             await skill_queries.add_skill(pool, name, unit=unit)
             await clear_state(pool)
             text, markup = await get_skills_dashboard(pool)
-            await update.message.reply_text(f"🎉 Skill-ul *{escape_md(name)}* a fost adăugat!", parse_mode="MarkdownV2")
+            await update.message.reply_text(f"🎉 Skill\\-ul *{escape_md(name)}* a fost adăugat\\!", parse_mode="MarkdownV2")
             await update.message.reply_text(text, reply_markup=markup, parse_mode="MarkdownV2")
             return True
             
@@ -162,7 +162,7 @@ async def handle_skills_message(update, context, pool, state: str) -> bool:
             await skill_queries.log_skill_value(pool, skill_id, val)
             await clear_state(pool)
             text, markup = await get_skill_detail_view(pool, skill_id)
-            await update.message.reply_text("✅ Valoare înregistrată!", parse_mode="MarkdownV2")
+            await update.message.reply_text("✅ Valoare înregistrată\\!", parse_mode="MarkdownV2")
             await update.message.reply_text(text, reply_markup=markup, parse_mode="MarkdownV2")
             return True
             
