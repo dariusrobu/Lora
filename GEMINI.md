@@ -56,7 +56,8 @@ lora/
 │   ├── mood.py              # Mood tracking & Analysis
 │   ├── insights.py          # AI-driven pattern recognition
 │   ├── weather.py           # OpenWeather integration
-│   └── news.py              # RSS Tech & Local news
+│   ├── news.py              # RSS Tech & Local news
+│   └── skills.py            # ★ Skill tracking with custom metrics
 ├── scheduler/               # Cron jobs
 │   └── jobs.py              # Briefings, Reflections, Nudges, Reminders
 └── db/                      # Database layer
@@ -85,6 +86,11 @@ lora/
 ### 4. Scheduler (`scheduler/jobs.py`)
 - **Logic**: Proactive "Morning Briefing" (08:00) and "EOD Reflection" (21:00). Synthetic podcast generation (Voice).
 - **Idempotency**: Checked via `last_briefing_date` in `user_profile`.
+
+### 5. Skills Tracking (`modules/skills.py`)
+- **Logic**: Track custom skills (chess, language, gym) with custom units (elo, min, reps).
+- **DB**: `skills`, `skill_logs`.
+- **Intents**: `log_skill` (NLP enabled), `view_skills`.
 
 ## Building and Running
 

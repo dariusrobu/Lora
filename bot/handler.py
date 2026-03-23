@@ -278,6 +278,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
         # Phase 8: State Check (Confirmations / Edits)
         from core.state import get_state, clear_state
         state = await get_state(pool)
+        
+        # Skills State Handling
+        if state and state['state_type'].startswith("skills_"):
+            from modules.skills import handle_skills_message
+            if await handle_skills_message(update, context, pool, state['state_type']):
+                return
+        
         if state:
             print(f"🔄 STATE ACTIVE: {state['state_type']} for {state['module']}:{state['action']}", flush=True)
             if state['state_type'] == 'awaiting_confirmation':
@@ -836,6 +843,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         if data.startswith("goals_"):
             from modules.goals import handle_goals_callback
             await handle_goals_callback(query, pool, data)
+            return
+
+        if data.startswith("skills_"):
+            from modules.skills import handle_skills_callback
+            await handle_skills_callback(update, context, pool)
             return
 
         # Route onboarding callbacks

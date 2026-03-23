@@ -204,3 +204,35 @@ def confirm_delete_goal_keyboard(goal_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("✅ Confirmă", callback_data=f"goals_confirm_delete_{goal_id}"), InlineKeyboardButton("❌ Anulează", callback_data=f"goals_detail_{goal_id}")]
     ])
+
+# ── Skill Tracking ─────────────────────────────────────────────
+
+def skills_main_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📊 Stats", callback_data="skills_list"), InlineKeyboardButton("➕ Log", callback_data="skills_log_list")],
+        [InlineKeyboardButton("📈 Progress", callback_data="skills_progress"), InlineKeyboardButton("⚙️ Manage", callback_data="skills_manage")],
+        [InlineKeyboardButton("◀️ Înapoi", callback_data="skills_cancel")]
+    ])
+
+def skills_list_keyboard(skills: list, action_prefix: str = "skills_detail_") -> InlineKeyboardMarkup:
+    keyboard = []
+    for s in skills:
+        keyboard.append([InlineKeyboardButton(f"{s['name']}", callback_data=f"{action_prefix}{s['id']}")])
+    
+    keyboard.append([InlineKeyboardButton("➕ Adaugă Skill Nou", callback_data="skills_add_new")])
+    keyboard.append([InlineKeyboardButton("◀️ Înapoi", callback_data="skills_cancel")])
+    return InlineKeyboardMarkup(keyboard)
+
+def skill_detail_keyboard(skill_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📝 Log Value", callback_data=f"skills_log_entry_{skill_id}")],
+        [InlineKeyboardButton("📊 Istoric", callback_data=f"skills_history_{skill_id}")],
+        [InlineKeyboardButton("🗑️ Șterge", callback_data=f"skills_delete_{skill_id}")],
+        [InlineKeyboardButton("◀️ Înapoi", callback_data="skills_list")]
+    ])
+
+def confirm_delete_skill_keyboard(skill_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Confirmă", callback_data=f"skills_confirm_delete_{skill_id}"), 
+         InlineKeyboardButton("❌ Anulează", callback_data=f"skills_detail_{skill_id}")]
+    ])

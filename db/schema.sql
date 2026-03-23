@@ -310,3 +310,24 @@ INSERT INTO sport_types (name, category, has_distance, has_weight, has_reps, ico
 ('Recuperare activă', 'Mobilitate', FALSE, FALSE, FALSE, '♻️')
 ON CONFLICT (name) DO NOTHING;
 
+-- ── Skill Tracking ─────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS skills (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    category VARCHAR(50),
+    unit VARCHAR(20) DEFAULT 'unit',  -- e.g. elo, min, reps, avg
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS skill_logs (
+    id SERIAL PRIMARY KEY,
+    skill_id INTEGER REFERENCES skills(id) ON DELETE CASCADE,
+    value NUMERIC NOT NULL,
+    metric TEXT,  -- optional override or detail (e.g. "blitz" for elo)
+    log_date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_skill_logs_date ON skill_logs(log_date DESC);
+

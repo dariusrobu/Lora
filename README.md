@@ -86,7 +86,8 @@ lora/
 │   ├── events.py             # handle_event_intent()
 │   ├── shopping.py           # handle_shopping_intent()
 │   ├── weather.py            # get_weather_summary() — OpenWeather API
-│   └── news.py               # fetch_tech_news() — RSS via feedparser
+│   ├── news.py               # fetch_tech_news() — RSS via feedparser
+│   └── skills.py             # handle_skills_intent() — Custom metric tracking
 │
 ├── scheduler/
 │   └── jobs.py               # All cron jobs (morning briefing, EOD, habit reminder, missed-habit log)
@@ -102,6 +103,8 @@ lora/
         ├── finance.py
         ├── events.py
         ├── shopping.py
+        ├── goals.py
+        ├── skills.py
         └── profile.py
 ```
 
@@ -275,9 +278,11 @@ Lora speaks **Romglish** — Romanian as the base language with natural English 
 | `exams` | dates and types of university exams |
 | `sport_types` | available sports with metric flags (distance, weight, reps), icon, category |
 | `exercises` | muscle groups and exercise library |
-| `workouts` | workout logs referencing sport_id, duration, calories, notes |
-| `goals` | main objectives with categories and progress |
-| `goal_tasks` | sub-tasks belonging to goals |
+| `workouts` | Individual exercise logs linked to a workout session |
+| `goals` | High-level goals (Personal, Sport, etc.) |
+| `goal_tasks` | Sub-tasks for each goal |
+| `skills` | Custom skills (Chess, Duolingo, etc.) |
+| `skill_logs` | Logs for skill metrics (Elo, minutes, points) |
 | `health_metrics` | sleep, water, weight tracking logs |
 | `nutrition_logs` | calorie intake and nutrition quality tracking |
 | `focus_sessions` | log of deep work sessions |
