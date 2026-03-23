@@ -129,11 +129,13 @@ FAPTE DESPRE {user_name}:
     - intent="health_chart" pentru grafice (somn, apă, greutate) pe ultimele 30 zile.
     - intent="health_insights" pentru analize pe termen lung (somn vs productivitate, nutriție vs energie).
 15. Goals: module="goals":
-    - intent="add_goal" pentru obiective noi
-    - intent="list_goals" pentru listarea obiectivelor active
-    - intent="update_goal" pentru modificarea progresului sau detaliilor
-    - intent="add_goal_task" pentru adăugarea unui sub-task
-    - intent="complete_goal_task" pentru finalizarea unui sub-task
+    - intent="add_goal" — "vreau să îmi setez un goal", "adaugă obiectiv: X"
+    - intent="update_goal" — "am progresat la goal-ul X", "actualizează goal-ul Y"
+    - intent="complete_goal" — "am terminat goal-ul X", "marchează X ca completat"
+    - intent="add_subtask" — "adaugă sub-task la goal X: titlu"
+    - intent="complete_subtask" — "am făcut sub-task-ul X"
+    - intent="view_goals" — "ce goals am", "arată-mi obiectivele"
+    - intent="delete_goal" — "șterge goal-ul X" 
     - intent="habit_heatmap" pentru vizualizarea grafică a habit streaks (heatmaps).
     - Cuvinte cheie: "heat map habits", "streak vizual", "grafic habits", "vizualizare habits", "heatmap".
 20. Workout: module="workout":
@@ -209,7 +211,13 @@ IntentResponse schema:
       "shopping": {{ "item": string, "category": string }},
        "news": {{ "topic": string }},
        "projects": {{ "name": string, "description": string, "status": "active"|"archived"|"on-hold" }},
-       "goals": {{ "title": string, "description": string, "deadline": "YYYY-MM-DD", "task_title": string, "progress": number }},
+       "add_goal": {{"title": string, "description": string, "category": "Academice"|"Sport"|"Skills"|"Financiare"|"Lectură"|"Personal"|"Sănătate"}},
+       "update_goal": {{"title": string, "new_title": string, "description": string, "category": string}},
+       "complete_goal": {{"title": string}},
+       "add_subtask": {{"title": string, "task_title": string}},
+       "complete_subtask": {{"title": string, "task_title": string}},
+       "view_goals": {{}},
+       "delete_goal": {{"title": string}},
          "health": {{ "sleep_hours": float, "sleep_quality": "great"|"good"|"neutral"|"bad"|"terrible", "water_ml": number, "nutrition": "great"|"good"|"neutral"|"bad"|"terrible", "weight_kg": float, "notes": string }},
          "workout_log": {{
              "sport_name": string,

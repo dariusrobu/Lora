@@ -152,3 +152,55 @@ def confirm_delete_keyboard(item_type: str, item_id: int) -> InlineKeyboardMarku
         ]
     ]
     return InlineKeyboardMarkup(keyboard)
+
+
+# ── Goals module keyboards ──────────────────────────────────────────
+
+def goals_main_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🎯 Goals active", callback_data="goals_active"), InlineKeyboardButton("✅ Completate", callback_data="goals_completed")],
+        [InlineKeyboardButton("➕ Goal nou", callback_data="goals_new"), InlineKeyboardButton("📊 Overview", callback_data="goals_overview")]
+    ])
+
+def goals_category_keyboard(context: str = "new") -> InlineKeyboardMarkup:
+    categories = ["Academice", "Sport", "Skills", "Financiare", "Lectură", "Personal", "Sănătate"]
+    keyboard = []
+    for i in range(0, len(categories), 2):
+        row = [InlineKeyboardButton(categories[i], callback_data=f"goals_category_{categories[i]}_{context}")]
+        if i + 1 < len(categories):
+            row.append(InlineKeyboardButton(categories[i+1], callback_data=f"goals_category_{categories[i+1]}_{context}"))
+        keyboard.append(row)
+    keyboard.append([InlineKeyboardButton("❌ Anulează", callback_data="goals_cancel")])
+    return InlineKeyboardMarkup(keyboard)
+
+def goals_list_keyboard(goals: list) -> InlineKeyboardMarkup:
+    keyboard = []
+    for g in goals:
+        label = f"🎯 {g['title']} ({g.get('progress', 0)}%)"
+        keyboard.append([InlineKeyboardButton(label, callback_data=f"goals_detail_{g['id']}")])
+    keyboard.append([InlineKeyboardButton("◀️ Înapoi", callback_data="goals_cancel")])
+    return InlineKeyboardMarkup(keyboard)
+
+def goal_detail_keyboard(goal_id: int, is_completed: bool) -> InlineKeyboardMarkup:
+    keyboard = [
+        [InlineKeyboardButton("✏️ Editează", callback_data=f"goals_edit_{goal_id}"), InlineKeyboardButton("➕ Sub-task", callback_data=f"goals_add_subtask_{goal_id}")]
+    ]
+    if not is_completed:
+        keyboard.append([InlineKeyboardButton("✅ Completat", callback_data=f"goals_complete_goal_{goal_id}"), InlineKeyboardButton("🗑️ Șterge", callback_data=f"goals_delete_{goal_id}")])
+    else:
+        keyboard.append([InlineKeyboardButton("🗑️ Șterge", callback_data=f"goals_delete_{goal_id}")])
+    keyboard.append([InlineKeyboardButton("◀️ Înapoi", callback_data="goals_active")])
+    return InlineKeyboardMarkup(keyboard)
+
+def subtasks_keyboard(subtasks: list, goal_id: int) -> InlineKeyboardMarkup:
+    keyboard = []
+    for st in subtasks:
+        icon = "✅" if st['is_completed'] else "⬜"
+        keyboard.append([InlineKeyboardButton(f"{icon} {st['title']}", callback_data=f"goals_complete_subtask_{st['id']}")])
+    keyboard.append([InlineKeyboardButton("◀️ Înapoi", callback_data=f"goals_detail_{goal_id}")])
+    return InlineKeyboardMarkup(keyboard)
+
+def confirm_delete_goal_keyboard(goal_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Confirmă", callback_data=f"goals_confirm_delete_{goal_id}"), InlineKeyboardButton("❌ Anulează", callback_data=f"goals_detail_{goal_id}")]
+    ])

@@ -867,7 +867,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             msg_text = query.message.text
             await query.edit_message_reply_markup(reply_markup=None)
             await query.edit_message_text(
-                f"{msg_text}\n\n_{status} înregistrat\\._",
+                f"{msg_text}\        if data.startswith("goals_"):
+            from modules.goals import handle_goals_callback
+            await handle_goals_callback(query, pool, data)
+            return
+n\n_{status} înregistrat\\._",
                 parse_mode="MarkdownV2"
             )
             return
@@ -1368,3 +1372,15 @@ Dacă nu sunt suficiente date: spune direct.
                 parse_mode="MarkdownV2",
                 reply_markup=keyboard
             )
+
+async def goals_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != TELEGRAM_USER_ID:
+        return
+    pool = context.bot_data["pool"]
+    try:
+        from modules.goals import get_goals_dashboard
+        msg, markup = await get_goals_dashboard(pool)
+        await update.message.reply_text(msg, parse_mode="MarkdownV2", reply_markup=markup)
+    except Exception as e:
+        print(f"Error in goals_command: {e}")
+        await update.message.reply_text("❌ Eroare la încărcarea dashboard-ului Goals.")
