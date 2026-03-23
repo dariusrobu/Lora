@@ -11,6 +11,8 @@ async def route_intent(pool, intent_response: Dict[str, Any], bot=None):
     data = intent_response.get("data")
     reply = intent_response.get("reply", "Hmm, I'm not sure how to respond to that.")
     
+    print(f"DEBUG ROUTER: module={module}, intent={intent}, data_type={type(data)}")
+    
     # Inject original reply into data so modules can use it
     if data is not None:
         data["_original_reply"] = reply
