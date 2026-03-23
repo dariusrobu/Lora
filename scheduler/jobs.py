@@ -622,9 +622,14 @@ async def check_class_reminders(application, pool) -> None:
         today = date.today()
         
         for c in classes:
-            # Idempotency check: don't send the same reminder twice today
-            if await is_reminder_sent(pool, c['id'], today):
-                continue
+            # 1. Verificare SELECT (ÎNAINTE de trimitere)
+            existing = await pool.fetchval("""
+                SELECT 1 FROM schedule_reminders_sent
+                WHERE schedule_id = $1 AND reminder_date = CURRENT_DATE
+            """, c['id'])
+            
+            if existing:
+                continue  # skip — deja trimis azi
                 
             start = c['start_time'].strftime('%H:%M')
             end = c['end_time'].strftime('%H:%M')
@@ -637,14 +642,19 @@ async def check_class_reminders(application, pool) -> None:
                 f"📍 {room}"
             )
             
+            # 2. Trimite mesaj
             await application.bot.send_message(
                 chat_id=TELEGRAM_USER_ID,
                 text=msg,
                 parse_mode=ParseMode.MARKDOWN_V2
             )
             
-            # Log that we sent the reminder
-            await log_reminder_sent(pool, c['id'], today)
+            # 3. Loghează DUPĂ trimitere (cu ON CONFLICT DO NOTHING)
+            await pool.execute("""
+                INSERT INTO schedule_reminders_sent (schedule_id, reminder_date)
+                VALUES ($1, CURRENT_DATE)
+                ON CONFLICT (schedule_id, reminder_date) DO NOTHING
+            """, c['id'])
             
     except Exception as e:
         print(f"Error in check_class_reminders: {e}", flush=True)
