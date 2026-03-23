@@ -72,7 +72,7 @@ async def handle_goal_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[s
         await goal_queries.update_goal(pool, goal['id'], new_title, desc, cat)
         return f"✅ Obiectiv actualizat: *{escape_md(new_title)}*", None
 
-    return "Această acțiune pentru goals nu este încă suportată.", None
+    return "Această acțiune pentru goals nu este încă suportată\\.", None
 
 # ── Dashboard Rendering ────────────────────────────────────────────────
 
@@ -94,7 +94,7 @@ async def get_active_goals(pool) -> Tuple[str, Any]:
     goals = await goal_queries.get_all_goals(pool)
     from bot.keyboards import goals_list_keyboard
     if not goals:
-        return "🎯 Nu ai obiective active momentan.", goals_list_keyboard([])
+        return "🎯 Nu ai obiective active momentan\\.", goals_list_keyboard([])
         
     lines = ["🎯 *Goals Active*\n"]
     current_cat = None
@@ -114,11 +114,11 @@ async def get_completed_goals(pool) -> Tuple[str, Any]:
     goals = await goal_queries.get_completed_goals(pool)
     from telegram import InlineKeyboardMarkup
     if not goals:
-        return "✅ Nu ai obiective finalizate încă.", InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Înapoi", callback_data="goals_cancel")]])
+        return "✅ Nu ai obiective finalizate încă\\.", InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Înapoi", callback_data="goals_cancel")]])
         
     lines = ["✅ *Obiective Completate*\n"]
     for g in goals:
-        date_str = g['updated_at'].strftime('%d %b %Y') if g['updated_at'] else "N/A"
+        date_str = g['updated_at'].strftime('%d %b %Y') if g['updated_at'] else "N\\/A"
         lines.append(f"• {escape_md(g['title'])} — {escape_md(date_str)}")
         
     return "\n".join(lines), InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Înapoi", callback_data="goals_cancel")]])
@@ -127,7 +127,7 @@ async def get_goal_detail(pool, goal_id: int) -> Tuple[str, Any]:
     goal_data = await goal_queries.get_goal_by_id(pool, goal_id)
     if not goal_data:
         from bot.keyboards import goals_main_keyboard
-        return "❌ Goal-ul nu mai există.", goals_main_keyboard()
+        return "❌ Goal-ul nu mai există\\.", goals_main_keyboard()
         
     title = escape_md(goal_data['title'])
     category = escape_md(goal_data['category'])
@@ -155,11 +155,11 @@ async def get_goal_detail(pool, goal_id: int) -> Tuple[str, Any]:
     if goal_data.get('description'):
         lines.append(f"\n📝 Descriere: {escape_md(goal_data['description'])}")
         
-    days_ago = "N/A"
+    days_ago = "N\\/A"
     if goal_data.get('updated_at'):
         from datetime import datetime
         delta = (datetime.now() - goal_data['updated_at'].replace(tzinfo=None)).days
-        days_ago = f"{delta} zile în urmă" if delta > 0 else "Azi"
+        days_ago = f"{delta} zile în urmă\\" if delta > 0 else "Azi"
         
     lines.append(f"\n_Ultimul update: {days_ago}_")
     
@@ -175,7 +175,7 @@ async def get_goals_overview(pool) -> Tuple[str, Any]:
     
     cats = overview.get('categories', [])
     if not cats:
-        lines.append("Niciun goal existent.")
+        lines.append("Niciun goal existent\\.")
     else:
         for c in cats:
             cat_name = escape_md(c['category'])
@@ -238,7 +238,7 @@ async def handle_goals_callback(query, pool, data: str):
 
         elif data.startswith("goals_edit_"):
             goal_id = int(parts[-1])
-            await query.answer("Folosește Gemini vocal ('editează goal-ul X') pentru editări.", show_alert=True)
+            await query.answer("Folosește Gemini vocal ('editează goal-ul X') pentru editări\\.", show_alert=True)
 
         elif data.startswith("goals_add_subtask_"):
             goal_id = int(parts[-1])
@@ -270,13 +270,13 @@ async def handle_goals_callback(query, pool, data: str):
         elif data.startswith("goals_confirm_delete_"):
             goal_id = int(parts[-1])
             await goal_queries.delete_goal(pool, goal_id)
-            await query.answer("Goal șters.")
+            await query.answer("Goal șters\\.")
             text, markup = await get_goals_dashboard(pool)
             await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
 
     except Exception as e:
         print(f"Error in handle_goals_callback: {e}")
-        await query.answer("A apărut o eroare.", show_alert=True)
+        await query.answer("A apărut o eroare\\.", show_alert=True)
 
 # ── Message Flow (Stateful) ─────────────────────────────────────────
 async def handle_goals_message(update, pool, state: dict, text: str):
@@ -300,7 +300,7 @@ async def handle_goals_message(update, pool, state: dict, text: str):
                 
                 goal = await goal_queries.add_goal(pool, title, desc, category)
                 await clear_state(pool)
-                await update.message.reply_text("✅ Goal salvat!")
+                await update.message.reply_text("✅ Goal salvat!\\")
                 
                 text_md, markup = await get_goal_detail(pool, goal['id'])
                 await update.message.reply_text(text_md, parse_mode="MarkdownV2", reply_markup=markup)
