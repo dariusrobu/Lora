@@ -1,5 +1,5 @@
 from typing import Dict, Any, Tuple, Optional
-from bot.formatter import escape_md, safe_markdown
+from bot.formatter import escape_md
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 import db.queries.goals as goal_queries
 
@@ -73,6 +73,125 @@ async def handle_goal_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[s
         return f"✅ Obiectiv actualizat: *{escape_md(new_title)}*", None
 
     return "Această acțiune pentru goals nu este încă suportată.", None
+
+# ── Dashboard Rendering ────────────────────────────────────────────────
+
+async def get_goals_dashboard(pool) -> Tuple[str, Any]:
+    overview = await goal_queries.get_goals_overview(pool)
+    active = overview.get('total_active', 0)
+    completed = overview.get('total_completed', 0)
+    risk = overview.get('total_risk', 0)
+    
+    lines = [
+        "🎯 *Goals Dashboard*",
+        "━━━━━━━━━━━━━━━",
+        f"Active: *{active}* · Completate: *{completed}* · ⚠️ În pericol: *{risk}*"
+    ]
+    from bot.keyboards import goals_main_keyboard
+    return "\n".join(lines), goals_main_keyboard()
+
+async def get_active_goals(pool) -> Tuple[str, Any]:
+    goals = await goal_queries.get_all_goals(pool)
+    from bot.keyboards import goals_list_keyboard
+    if not goals:
+        return "🎯 Nu ai obiective active momentan.", goals_list_keyboard([])
+        
+    lines = ["🎯 *Goals Active*\n"]
+    current_cat = None
+    for g in goals:
+        if g['category'] != current_cat:
+            current_cat = g['category']
+            lines.append(f"*{escape_md(current_cat)}*")
+            
+        progress = g.get('progress', 0)
+        filled = int(progress / 10)
+        bar = "█" * filled + "░" * (10 - filled)
+        lines.append(f"• {escape_md(g['title'])} — `{bar}` {progress}%")
+        
+    return "\n".join(lines), goals_list_keyboard(goals)
+
+async def get_completed_goals(pool) -> Tuple[str, Any]:
+    goals = await goal_queries.get_completed_goals(pool)
+    from telegram import InlineKeyboardMarkup
+    if not goals:
+        return "✅ Nu ai obiective finalizate încă.", InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Înapoi", callback_data="goals_cancel")]])
+        
+    lines = ["✅ *Obiective Completate*\n"]
+    for g in goals:
+        date_str = g['updated_at'].strftime('%d %b %Y') if g['updated_at'] else "N/A"
+        lines.append(f"• {escape_md(g['title'])} — {escape_md(date_str)}")
+        
+    return "\n".join(lines), InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Înapoi", callback_data="goals_cancel")]])
+
+async def get_goal_detail(pool, goal_id: int) -> Tuple[str, Any]:
+    goal_data = await goal_queries.get_goal_by_id(pool, goal_id)
+    if not goal_data:
+        from bot.keyboards import goals_main_keyboard
+        return "❌ Goal-ul nu mai există.", goals_main_keyboard()
+        
+    title = escape_md(goal_data['title'])
+    category = escape_md(goal_data['category'])
+    progress = goal_data.get('progress', 0)
+    filled = int(progress / 10)
+    bar = "█" * filled + "░" * (10 - filled)
+    is_completed = (goal_data['status'] == 'completed')
+    
+    tasks = goal_data.get('tasks', [])
+    total_tasks = len(tasks)
+    completed_tasks = sum(1 for t in tasks if t['is_completed'])
+    
+    lines = [
+        f"🎯 *{title}*",
+        "━━━━━━━━━━━━━━━",
+        f"Categorie: *{category}*",
+        f"Progres: `{bar}` {progress}%",
+    ]
+    if total_tasks > 0:
+        lines.append(f"Sub-tasks: *{completed_tasks}/{total_tasks}* completate\n")
+        for t in tasks:
+            icon = "✅" if t['is_completed'] else "⬜"
+            lines.append(f"{icon} {escape_md(t['title'])}")
+            
+    if goal_data.get('description'):
+        lines.append(f"\n📝 Descriere: {escape_md(goal_data['description'])}")
+        
+    days_ago = "N/A"
+    if goal_data.get('updated_at'):
+        from datetime import datetime
+        delta = (datetime.now() - goal_data['updated_at'].replace(tzinfo=None)).days
+        days_ago = f"{delta} zile în urmă" if delta > 0 else "Azi"
+        
+    lines.append(f"\n_Ultimul update: {days_ago}_")
+    
+    from bot.keyboards import goal_detail_keyboard
+    return "\n".join(lines), goal_detail_keyboard(goal_id, is_completed)
+
+async def get_goals_overview(pool) -> Tuple[str, Any]:
+    overview = await goal_queries.get_goals_overview(pool)
+    lines = [
+        "📊 *Overview Goals*",
+        "━━━━━━━━━━━━━━━"
+    ]
+    
+    cats = overview.get('categories', [])
+    if not cats:
+        lines.append("Niciun goal existent.")
+    else:
+        for c in cats:
+            cat_name = escape_md(c['category'])
+            parts = []
+            if c['active_count'] > 0:
+                parts.append(f"*{c['active_count']} active*")
+            if c['completed_count'] > 0:
+                parts.append(f"*{c['completed_count']} completate*")
+            if c['risk_count'] > 0:
+                parts.append(f"⚠️ *{c['risk_count']} în pericol*")
+            
+            summary = " · ".join(parts) if parts else "0"
+            lines.append(f"• {cat_name}: {summary}")
+            
+    from telegram import InlineKeyboardMarkup
+    return "\n".join(lines), InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Înapoi", callback_data="goals_cancel")]])
 
 # ── Callback Flow ──────────────────────────────────────────────────
 async def handle_goals_callback(query, pool, data: str):
