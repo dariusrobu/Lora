@@ -32,11 +32,11 @@ async def get_today_schedule(pool) -> list:
     
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT * FROM schedule
+            SELECT DISTINCT ON (id) * FROM schedule
             WHERE day_of_week = $1
               AND is_active = TRUE
               AND (week_type = 'both' OR week_type = $2)
-            ORDER BY start_time ASC
+            ORDER BY id, start_time ASC
         """, day_of_week, week_type)
     return [dict(r) for r in rows]
 
@@ -75,12 +75,32 @@ async def get_upcoming_classes(pool, minutes_ahead=20) -> list:
     
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT * FROM schedule
+            SELECT DISTINCT ON (id) * FROM schedule
             WHERE day_of_week = $1
               AND is_active = TRUE
               AND (week_type = 'both' OR week_type = $2)
               AND start_time > $3
               AND start_time <= $4
-            ORDER BY start_time ASC
+            ORDER BY id, start_time ASC
         """, today.weekday(), week_type, now_time, target_time)
     return [dict(r) for r in rows]
+
+async def is_reminder_sent(pool, schedule_id, reminder_date) -> bool:
+    """Verifică dacă s-a trimis deja reminder pentru un curs azi."""
+    async with pool.acquire() as conn:
+        exists = await conn.fetchval("""
+            SELECT EXISTS (
+                SELECT 1 FROM schedule_reminders_sent 
+                WHERE schedule_id = $1 AND reminder_date = $2
+            )
+        """, schedule_id, reminder_date)
+        return exists
+
+async def log_reminder_sent(pool, schedule_id, reminder_date) -> None:
+    """Înregistrează trimiterea unui reminder."""
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO schedule_reminders_sent (schedule_id, reminder_date)
+            VALUES ($1, $2)
+            ON CONFLICT (schedule_id, reminder_date) DO NOTHING
+        """, schedule_id, reminder_date)

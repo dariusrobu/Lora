@@ -612,14 +612,20 @@ async def send_journal_night(application, pool) -> None:
 async def check_class_reminders(application, pool) -> None:
     """Verifică cursurile care încep în 15 minute și trimite reminder."""
     try:
-        from db.queries.schedule import get_upcoming_classes
+        from db.queries.schedule import get_upcoming_classes, is_reminder_sent, log_reminder_sent
         from bot.formatter import escape_md
         from telegram.constants import ParseMode
+        from datetime import date
         
         # We check slightly ahead (16m) to ensure we don't miss it between 5m intervals
         classes = await get_upcoming_classes(pool, minutes_ahead=16)
+        today = date.today()
         
         for c in classes:
+            # Idempotency check: don't send the same reminder twice today
+            if await is_reminder_sent(pool, c['id'], today):
+                continue
+                
             start = c['start_time'].strftime('%H:%M')
             end = c['end_time'].strftime('%H:%M')
             room = f"Sala *{escape_md(c['room'])}*" if c.get('room') else "Sala necunoscută"
@@ -636,6 +642,10 @@ async def check_class_reminders(application, pool) -> None:
                 text=msg,
                 parse_mode=ParseMode.MARKDOWN_V2
             )
+            
+            # Log that we sent the reminder
+            await log_reminder_sent(pool, c['id'], today)
+            
     except Exception as e:
         print(f"Error in check_class_reminders: {e}", flush=True)
 
