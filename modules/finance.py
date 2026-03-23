@@ -12,7 +12,8 @@ async def handle_finance_intent(pool, intent: str, data: Dict[str, Any]) -> Tupl
         amount = data.get("amount")
         category = data.get("category", "other").lower()
         
-        if not amount: return "How much was it?", None
+        if not amount:
+            return "How much was it?", None
         
         await finance_queries.add_finance(pool, type=type_, amount=float(amount), category=category, description=data.get("description"))
         
@@ -73,7 +74,8 @@ async def handle_finance_intent(pool, intent: str, data: Dict[str, Any]) -> Tupl
     elif intent == "set_budget":
         amount = data.get("amount") or data.get("limit")
         category = data.get("category", "other").lower()
-        if not amount: return "What is the budget limit?", None
+        if not amount:
+            return "What is the budget limit?", None
         
         await finance_queries.set_budget(pool, category, float(amount))
         return f"✅ Budget set for *{escape_md(category)}*: `{int(amount)} RON`/month.", None
