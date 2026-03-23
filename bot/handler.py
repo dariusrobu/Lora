@@ -833,6 +833,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         query = update.callback_query
         data = query.data
 
+        if data.startswith("goals_"):
+            from modules.goals import handle_goals_callback
+            await handle_goals_callback(query, pool, data)
+            return
+
         # Route onboarding callbacks
         if data.startswith("onboard:"):
             await handle_onboarding_callback(update, context, pool)
@@ -867,11 +872,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             msg_text = query.message.text
             await query.edit_message_reply_markup(reply_markup=None)
             await query.edit_message_text(
-                f"{msg_text}\        if data.startswith("goals_"):
-            from modules.goals import handle_goals_callback
-            await handle_goals_callback(query, pool, data)
-            return
-n\n_{status} înregistrat\\._",
+                f"{msg_text}\\n\\n_{status} înregistrat\\\\._",
                 parse_mode="MarkdownV2"
             )
             return
