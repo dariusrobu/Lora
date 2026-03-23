@@ -104,6 +104,14 @@ async def timeblock_command(update, context):
     reply, markup = await generate_time_block(pool)
     await update.message.reply_text(reply, parse_mode="MarkdownV2")
 
+async def uni_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles /uni command — opens academic dashboard."""
+    pool = context.bot_data.get("pool")
+    if not pool:
+        await update.message.reply_text("Database pool error.")
+        return
+    await show_uni_dashboard(update.message, pool, send_new=True)
+
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool, text=None):
     # Log EVERY message before the security check
     user_id = update.effective_user.id if update.effective_user else "Unknown"
@@ -293,6 +301,18 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
                 await clear_state(pool)
                 await update.message.reply_text("Notat\\. Sesiune salvată\\. 💪", parse_mode="MarkdownV2")
                 return
+
+            elif state['state_type'] == 'awaiting_uni_input':
+                action = state.get('action')
+                if action == 'add_subject':
+                    from db.queries.university import add_subject
+                    await add_subject(pool, text)
+                    await clear_state(pool)
+                    await update.message.reply_text(
+                        f"✅ *{escape_md(text)}* adăugată\\.",
+                        parse_mode="MarkdownV2"
+                    )
+                    return
 
             elif state['state_type'] == 'awaiting_edit_field':
                 context_snapshot = await build_context(pool)
@@ -526,6 +546,10 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             )
             return
 
+        if data.startswith("uni:"):
+            await handle_uni_callback(query, pool, data)
+            return
+
         # Phase 4: Module callbacks (module:action:item_id)
         parts = data.split(":")
         if len(parts) >= 2:
@@ -638,3 +662,221 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     except Exception as e:
         print(f"ERROR in callback_handler: {e}")
         traceback.print_exc()
+
+
+async def show_uni_dashboard(message_or_query, pool, send_new: bool = False):
+    """Renders the /uni academic dashboard."""
+    from db.queries.schedule import get_current_week_type
+    from db.queries.university import get_general_average, get_attendance_warnings
+    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+    from datetime import date
+
+    week_type = await get_current_week_type(pool)
+    week_label = "impară" if week_type == 'odd' else "pară"
+
+    config = await pool.fetchrow("SELECT semester_start FROM semester_config ORDER BY id DESC LIMIT 1")
+    week_num = 1
+    if config:
+        delta = (date.today() - config['semester_start']).days
+        week_num = delta // 7 + 1
+
+    avg = await get_general_average(pool)
+    warnings = await get_attendance_warnings(pool)
+
+    avg_str = f"*{avg}*" if avg else "—"
+    warn_str = f"⚠️ {len(warnings)} materii sub minim" if warnings else "✅ Toate ok"
+
+    text = (
+        f"🎓 *Viața Academică*\n\n"
+        f"📅 Semestrul II — săptămâna *{week_num}* \\({escape_md(week_label)}\\)\n"
+        f"📊 Medie generală: {avg_str}\n"
+        f"👁 Prezențe: {escape_md(warn_str)}\n"
+    )
+
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📊 Overview", callback_data="uni:overview"),
+            InlineKeyboardButton("📚 Materii", callback_data="uni:subjects")
+        ],
+        [
+            InlineKeyboardButton("📅 Orar", callback_data="uni:schedule"),
+            InlineKeyboardButton("🎓 Examene", callback_data="uni:exams")
+        ],
+        [
+            InlineKeyboardButton("📝 Note & Prezențe", callback_data="uni:grades")
+        ],
+        [
+            InlineKeyboardButton("🔍 Analiză", callback_data="uni:analysis"),
+            InlineKeyboardButton("📥 Import", callback_data="uni:import")
+        ]
+    ])
+
+    if send_new:
+        await message_or_query.reply_text(text, parse_mode="MarkdownV2", reply_markup=keyboard)
+    else:
+        await message_or_query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=keyboard)
+
+
+async def handle_uni_callback(query, pool, data: str):
+    """Routes all uni: callback queries."""
+    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+
+    parts = data.split(":")
+    section = parts[1] if len(parts) > 1 else ""
+    action = parts[2] if len(parts) > 2 else ""
+    item_id = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else None
+
+    await query.answer()
+
+    back_btn = InlineKeyboardButton("← Înapoi", callback_data="uni:dashboard")
+
+    # ━━━ DASHBOARD ━━━
+    if section == "dashboard":
+        await show_uni_dashboard(query, pool, send_new=False)
+        return
+
+    # ━━━ OVERVIEW ━━━
+    elif section == "overview":
+        from db.queries.schedule import get_today_schedule, get_current_week_type
+        from db.queries.university import list_subjects, get_upcoming_exams
+        from datetime import date
+
+        week_type = await get_current_week_type(pool)
+        week_label = "impară" if week_type == 'odd' else "pară"
+        config = await pool.fetchrow("SELECT semester_start FROM semester_config ORDER BY id DESC LIMIT 1")
+        week_num = 1
+        if config:
+            delta = (date.today() - config['semester_start']).days
+            week_num = delta // 7 + 1
+
+        classes_today = await get_today_schedule(pool)
+        subjects = await list_subjects(pool)
+        exams = await get_upcoming_exams(pool, days=14)
+
+        lines = [f"📊 *Overview Academic*\n"]
+        lines.append(f"📅 Săptămâna *{week_num}* \\({escape_md(week_label)}\\)")
+        lines.append(f"📚 Materii active: *{len(subjects)}*\n")
+
+        if classes_today:
+            lines.append("*Azi la facultate:*")
+            for c in classes_today:
+                start = c['start_time'].strftime('%H:%M')
+                icon = "📖" if c['class_type'] == 'curs' else "✏️"
+                room = f" · {escape_md(c['room'])}" if c.get('room') else ""
+                lines.append(f"{icon} `{start}` {escape_md(c['subject_name'])}{room}")
+        else:
+            lines.append("✅ Nu ai cursuri azi\\.")
+
+        if exams:
+            lines.append(f"\n*Examene în 14 zile:*")
+            for e in exams[:3]:
+                lines.append(f"• {escape_md(e['exam_date'].strftime('%d %b'))} — {escape_md(e['subject_name'])}")
+
+        keyboard = InlineKeyboardMarkup([[back_btn]])
+        await query.edit_message_text("\n".join(lines), parse_mode="MarkdownV2", reply_markup=keyboard)
+
+    # ━━━ MATERII ━━━
+    elif section == "subjects":
+        if not action:
+            from db.queries.university import list_subjects
+            subjects = await list_subjects(pool)
+
+            lines = ["📚 *Materii*\n"]
+            for s in subjects:
+                name = escape_md(s['name'])
+                attended = s.get('attended_count') or 0
+                total = s.get('total_seminars') or s.get('total_logged') or 0
+                avg = f" · medie *{s['avg_grade']}*" if s.get('avg_grade') else ""
+                pres = f"Prezențe: {attended}/{total}" if total > 0 else "Prezențe: —"
+                lines.append(f"• *{name}*{avg}\n  {escape_md(pres)}")
+
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("➕ Adaugă", callback_data="uni:subjects:add")],
+                [back_btn]
+            ])
+            await query.edit_message_text("\n".join(lines), parse_mode="MarkdownV2", reply_markup=keyboard)
+
+        elif action == "add":
+            from core.state import set_state
+            await set_state(pool, "awaiting_uni_input", "university", "add_subject", None)
+            keyboard = InlineKeyboardMarkup([[back_btn]])
+            await query.edit_message_text(
+                "📚 *Adaugă materie*\n\nScrie numele materiei:",
+                parse_mode="MarkdownV2",
+                reply_markup=keyboard
+            )
+
+        elif action == "delete" and item_id:
+            subject = await pool.fetchrow("SELECT * FROM subjects WHERE id = $1", item_id)
+            if subject:
+                await pool.execute("UPDATE subjects SET is_active = FALSE WHERE id = $1", item_id)
+                await query.answer(f"{subject['name']} ștearsă.")
+            await handle_uni_callback(query, pool, "uni:subjects")
+            return
+
+    # ━━━ ORAR ━━━
+    elif section == "schedule":
+        from db.queries.schedule import get_today_schedule
+        classes = await get_today_schedule(pool)
+        if classes:
+            lines = ["📅 *Orar azi*\n"]
+            for c in classes:
+                start = c['start_time'].strftime('%H:%M')
+                end = c['end_time'].strftime('%H:%M')
+                icon = "📖" if c['class_type'] == 'curs' else "✏️"
+                room = f" · {escape_md(c['room'])}" if c.get('room') else ""
+                lines.append(f"{icon} `{start}`\\-`{end}` {escape_md(c['subject_name'])}{room}")
+        else:
+            lines = ["📅 *Orar azi*\n\n✅ Liber azi\\!"]
+
+        keyboard = InlineKeyboardMarkup([[back_btn]])
+        await query.edit_message_text("\n".join(lines), parse_mode="MarkdownV2", reply_markup=keyboard)
+
+    # ━━━ EXAMENE ━━━
+    elif section == "exams":
+        from db.queries.university import get_upcoming_exams
+        exams = await get_upcoming_exams(pool, days=60)
+        if exams:
+            lines = ["🎓 *Examene viitoare*\n"]
+            for e in exams:
+                lines.append(f"• {escape_md(e['exam_date'].strftime('%d %b %Y'))} — *{escape_md(e['subject_name'])}*")
+        else:
+            lines = ["🎓 *Examene viitoare*\n\nNiciun examen programat\\."]
+
+        keyboard = InlineKeyboardMarkup([[back_btn]])
+        await query.edit_message_text("\n".join(lines), parse_mode="MarkdownV2", reply_markup=keyboard)
+
+    # ━━━ NOTE & PREZENȚE ━━━
+    elif section == "grades":
+        from db.queries.university import list_subjects
+        subjects = await list_subjects(pool)
+        lines = ["📝 *Note & Prezențe*\n"]
+        for s in subjects:
+            name = escape_md(s['name'])
+            attended = s.get('attended_count') or 0
+            total_seminars = s.get('total_seminars') or 0
+            total_logged = s.get('total_logged') or 0
+            total = total_seminars if total_seminars > 0 else total_logged
+
+            if total > 0:
+                pct = int(attended / total * 100)
+                warn = " ⚠️" if pct < s['min_attendance_pct'] else ""
+                att_str = f"{attended}/{total} \\({pct}%\\){warn}"
+            else:
+                att_str = "—"
+
+            grade_str = f"*{s['avg_grade']}*" if s.get('avg_grade') else "—"
+            lines.append(f"• *{name}*\n  Medie: {grade_str} · Prezențe: {escape_md(att_str)}")
+
+        keyboard = InlineKeyboardMarkup([[back_btn]])
+        await query.edit_message_text("\n".join(lines), parse_mode="MarkdownV2", reply_markup=keyboard)
+
+    # ━━━ ANALIZĂ / IMPORT (placeholder) ━━━
+    elif section in ("analysis", "import"):
+        label = "🔍 Analiză" if section == "analysis" else "📥 Import"
+        keyboard = InlineKeyboardMarkup([[back_btn]])
+        await query.edit_message_text(
+            f"{label}\n\n_În curând\\._",
+            parse_mode="MarkdownV2",
+            reply_markup=keyboard
+        )

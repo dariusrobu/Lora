@@ -54,6 +54,12 @@ async def get_subject_by_name(pool, name) -> dict | None:
         """, f"%{name}%")
         return dict(row) if row else None
 
+async def get_subject_by_id(pool, subject_id: int) -> dict | None:
+    """Returnează o materie după ID."""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM subjects WHERE id = $1", subject_id)
+        return dict(row) if row else None
+
 async def log_attendance(pool, subject_id, attended, class_date, notes=None) -> None:
     async with pool.acquire() as conn:
         await conn.execute("""
