@@ -268,6 +268,7 @@ CREATE TABLE IF NOT EXISTS workouts (
     id SERIAL PRIMARY KEY,
     workout_date DATE NOT NULL,
     duration_min INT,
+    calories INT,
     notes TEXT,
     created_at TIMESTAMP DEFAULT NOW()
 );

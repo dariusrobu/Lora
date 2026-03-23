@@ -13,14 +13,21 @@ async def handle_workout_intent(pool, intent: str, data: dict, bot=None):
         date_str = data.get("date")
         if date_str:
             try:
+                from datetime import date
                 workout_date = date.fromisoformat(date_str)
             except ValueError:
+                from datetime import date
                 workout_date = date.today()
         else:
+            from datetime import date
             workout_date = date.today()
             
         sport_name = data.get("sport_name", "Gym")
-        duration = data.get("duration_min", 0)
+        if sport_name.lower() in ("sală", "sala"):
+            sport_name = "Gym"
+            
+        duration = data.get("duration_min") or 0
+        calories = data.get("calories")
         notes = data.get("notes") or ""
         exercises = data.get("exercises", [])
         
@@ -29,19 +36,19 @@ async def handle_workout_intent(pool, intent: str, data: dict, bot=None):
         
         if matched_sport:
             sport_id = matched_sport['id']
-            icon = matched_sport.get('icon', '')
+            icon = matched_sport.get('icon', '🏅')
         else:
             try:
-                await sport_queries.add_sport(pool, sport_name, "Sport", False, True, True, "🏃")
+                await sport_queries.add_sport(pool, sport_name, "Forță", False, True, True, "🏃")
                 sports = await sport_queries.get_all_sports(pool)
                 sport_id = next((s['id'] for s in sports if s['name'].lower() == sport_name.lower()), 1)
                 icon = "🏃"
             except Exception:
                 sport_id = sports[0]['id'] if sports else 1
-                icon = "��"
+                icon = "🏅"
         
         workout_id = await workout_queries.log_workout(
-            pool, workout_date, sport_id, duration, notes
+            pool, workout_date, sport_id, duration, notes, calories
         )
         
         ex_summary = []
@@ -52,16 +59,35 @@ async def handle_workout_intent(pool, intent: str, data: dict, bot=None):
                     pool, workout_id, name,
                     ex.get("sets"), ex.get("reps"), ex.get("weight_kg")
                 )
-                str_ex = f"{name}"
-                if ex.get("weight_kg"):
-                    str_ex += f" {ex.get('weight_kg')}kg"
-                ex_summary.append(str_ex)
+                
+                reps_w = ex.get('reps')
+                sets_w = ex.get('sets')
+                vol_str = ""
+                if sets_w and reps_w:
+                    vol_str = f"{sets_w}x{reps_w}"
+                elif reps_w:
+                    vol_str = f"{reps_w} reps"
+                elif sets_w:
+                    vol_str = f"{sets_w} sets"
+                    
+                weight_str = f" · {escape_md(str(ex.get('weight_kg')))}kg" if ex.get("weight_kg") else ""
+                vol_md = f" — {escape_md(vol_str)}" if vol_str else ""
+                ex_summary.append(f"• {escape_md(name)}{vol_md}{weight_str}")
         
-        reply = f"✅ Antrenament salvat: {icon} *{escape_md(sport_name)}* \({duration} min\)\."
+        cal_str = f" · {calories} kcal" if calories else ""
+        dur_str = f" · {duration} min" if duration else ""
+        
+        lines = [
+            "✅ *Antrenament salvat!*",
+            f"{icon} {escape_md(sport_name)}{dur_str}{cal_str}"
+        ]
+        
         if ex_summary:
-            reply += "\n" + escape_md(", ".join(ex_summary))
+            lines.append("")
+            lines.append("*Exerciții:*")
+            lines.extend(ex_summary)
             
-        return reply, workout_main_keyboard()
+        return "\n".join(lines), workout_main_keyboard()
 
     elif intent == "workout_list":
         return await get_workout_dashboard(pool)

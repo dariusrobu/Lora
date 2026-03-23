@@ -138,8 +138,14 @@ FAPTE DESPRE {user_name}:
     - Cuvinte cheie: "heat map habits", "streak vizual", "grafic habits", "vizualizare habits", "heatmap".
 20. Workout: module="workout":
     - intent="workout_log" pentru înregistrarea unui antrenament (gym, fotbal, cardio, alergare etc.).
+        * REGULI de extragere date pentru `workout_log`:
+        - sport_name: numele sportului/tipului de antrenament (ex: "Gym", "Fotbal", "Alergare"). Dacă userul zice "sală" sau "sala" → "Gym".
+        - duration_min: durata în minute (integer). Dacă zice "1h" → 60, "1h30min" → 90.
+        - calories: caloriile arse (integer). Doar dacă userul le menționează explicit, altfel null.
+        - notes: orice info extra relevantă (ex: "push day", "cardio ușor").
+        - exercises: listă de exerciții. Doar dacă sunt menționate explicit. Include name, sets (int|null), reps (int|null), weight_kg (float|null).
     - intent="workout_list" pentru a vedea dashboard-ul principal sau lista de antrenamente.
-    - intent="workout_stats" pentru a vedea statisticile (data={"period_days": 7/30/180}).
+    - intent="workout_stats" pentru a vedea statisticile (data={{"period_days": 7/30/180}}).
     - intent="workout_prs" pentru a vedea recordurile personale la exerciții.
     - intent="workout_week" pentru a vedea rezumatul săptămânii.
     - intent="workout_add_sport" pentru a adăuga un sport nou.
@@ -184,10 +190,10 @@ Exemple de output JSON pentru workout_log:
   Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "Statistică", "attended": false, "date": "{now.strftime('%Y-%m-%d')}" }}, "reply": "Statistică Inferențială — absent ❌ înregistrat." }}
 - Input: "adaugă materia Contabilitate"
   Output: {{ "intent": "uni_add_subject", "module": "university", "data": {{ "name": "Contabilitate" }}, "reply": "Contabilitate adăugată. 📚" }}
-- Input: "am făcut gym 1h: bench 4×8 80kg, squat 3×10 100kg"
-  Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "sport_name": "Gym", "duration_min": 60, "notes": null, "exercises": [{{ "name": "Bench Press", "sets": 4, "reps": 8, "weight_kg": 80.0 }}, {{ "name": "Squat", "sets": 3, "reps": 10, "weight_kg": 100.0 }}] }}, "reply": "Gym 1h salvat — bench 80kg, squat 100kg. 💪" }}
-- Input: "fotbal 90 min"
-  Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "sport_name": "Fotbal", "duration_min": 90, "notes": null, "exercises": [] }}, "reply": "Fotbal 90min notat." }}
+- Input: "am făcut gym 50 min push day, bench press 60kg 5 reps, am ars 300 calorii"
+  Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "sport_name": "Gym", "duration_min": 50, "calories": 300, "notes": "push day", "exercises": [{{ "name": "Bench Press", "sets": null, "reps": 5, "weight_kg": 60.0 }}] }}, "reply": "Gym 50min salvat — 300 kcal arse. 💪" }}
+- Input: "am alergat 5km în 30 de minute"
+  Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "sport_name": "Alergare", "duration_min": 30, "calories": null, "notes": null, "exercises": [] }}, "reply": "Alergare 30min notată. 🏃" }}
 
 IntentResponse schema:
 {{
@@ -206,10 +212,11 @@ IntentResponse schema:
        "goals": {{ "title": string, "description": string, "deadline": "YYYY-MM-DD", "task_title": string, "progress": number }},
          "health": {{ "sleep_hours": float, "sleep_quality": "great"|"good"|"neutral"|"bad"|"terrible", "water_ml": number, "nutrition": "great"|"good"|"neutral"|"bad"|"terrible", "weight_kg": float, "notes": string }},
          "workout_log": {{
-             "sport_name": "Gym"|"Fotbal"|"Cardio"|"Alergare"|"alt",
+             "sport_name": string,
              "duration_min": int,
-             "notes": string,
-             "exercises": [{{"name": string, "sets": int, "reps": int, "weight_kg": float}}]
+             "calories": int | null,
+             "notes": string | null,
+             "exercises": [{{"name": string, "sets": int | null, "reps": int | null, "weight_kg": float | null}}]
          }},
          "workout_stats": {{"period_days": int}},
          "workout_add_sport": {{"name": string, "category": "Forță"|"Cardio"|"Sport"|"Mobilitate"}},

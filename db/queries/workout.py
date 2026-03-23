@@ -1,11 +1,11 @@
 # db/queries/workout.py
 
-async def log_workout(pool, workout_date, sport_id, duration_min, notes) -> int:
+async def log_workout(pool, workout_date, sport_id, duration_min, notes, calories=None) -> int:
     async with pool.acquire() as conn:
         return await conn.fetchval("""
-            INSERT INTO workouts (workout_date, sport_id, duration_min, notes)
-            VALUES ($1, $2, $3, $4) RETURNING id
-        """, workout_date, sport_id, duration_min, notes)
+            INSERT INTO workouts (workout_date, sport_id, duration_min, notes, calories)
+            VALUES ($1, $2, $3, $4, $5) RETURNING id
+        """, workout_date, sport_id, duration_min, notes, calories)
 
 async def log_exercise(pool, workout_id, name, sets, reps, weight_kg) -> None:
     async with pool.acquire() as conn:
