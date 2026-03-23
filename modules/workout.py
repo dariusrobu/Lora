@@ -149,7 +149,7 @@ async def get_personal_records(pool) -> Tuple[str, Any]:
         
     lines = ["🏆 *Personal Records*\n"]
     for pr in prs:
-        lines.append(f"• {escape_md(pr['exercise_name'])}: *{pr['max_weight']}kg*")
+        lines.append(f"• {escape_md(pr['exercise_name'])}: *{escape_md(str(pr['max_weight']))}kg*")
         
     return "\n".join(lines), None
 
@@ -213,7 +213,7 @@ async def handle_workout_callback(query, pool, data: str):
     elif data.startswith("workout_log_sport_"):
         sport_id = int(parts[-1])
         await set_state(pool, "awaiting_workout_input", "workout", "log_duration", sport_id)
-        await query.edit_message_text("⏱ Câte minute a durat antrenamentul?\n_Scrie doar numărul_.", parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Anulează", callback_data="workout_main")]]))
+        await query.edit_message_text("⏱ Câte minute a durat antrenamentul?\n_Scrie doar numărul_\\.", parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Anulează", callback_data="workout_main")]]))
 
     elif data == "workout_stats_menu":
         await query.edit_message_text("📊 Alege perioada pentru statistici:", reply_markup=workout_stats_period_keyboard())
