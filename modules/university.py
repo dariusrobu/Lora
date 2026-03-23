@@ -43,23 +43,26 @@ async def handle_university_intent(pool, intent: str, data: Dict[str, Any], bot=
             total_logged = s.get('total_logged') or 0
             total_seminars = s.get('total_seminars') or 0
             
+            # Medie materie
+            avg_val = s.get('avg_grade')
+            avg_str = f"*{avg_val}*" if avg_val else "—"
+            
+            # Format requested: Note: — (sau nota)
+            # Prezențe: 3/7 (sau —)
             if total_seminars > 0:
                 # Folosește totalul real din semestru
                 pct = int(attended / total_seminars * 100) if total_seminars > 0 else 0
                 warn = " ⚠️" if pct < s['min_attendance_pct'] else ""
-                attendance_str = f"Prezențe: {attended}/{total_seminars} \\({pct}%\\){warn}"
+                pres_str = f"{attended}/{total_seminars} \\({pct}%\\){warn}"
             elif total_logged > 0:
                 # Fallback la ce e logat
                 pct = int(attended / total_logged * 100)
                 warn = " ⚠️" if pct < s['min_attendance_pct'] else ""
-                attendance_str = f"Prezențe: {attended}/{total_logged} \\({pct}%\\){warn}"
+                pres_str = f"{attended}/{total_logged} \\({pct}%\\){warn}"
             else:
-                attendance_str = "Prezențe: —"
+                pres_str = "—"
             
-            # Medie materie
-            grade_str = f"Medie: *{s['avg_grade']}*" if s.get('avg_grade') else "Nicio notă"
-            
-            lines.append(f"*{name}*\n  {grade_str} · {attendance_str}")
+            lines.append(f"*{name}*\nNote: {avg_str}\nPrezențe: {escape_md(pres_str)}")
         
         return "\n".join(lines), None
 

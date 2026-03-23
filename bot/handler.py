@@ -1243,14 +1243,18 @@ async def handle_uni_callback(query, pool, data: str):
 
             lines = ["📝 *Note \\& Prezențe*\n"]
             for s in subjects:
-                if not s.get('total_seminars') and not s.get('avg_grade'):
-                    continue
                 name = escape_md(s['name'])
-                avg = f"Medie: *{s['avg_grade']}*" if s.get('avg_grade') else "Nicio notă"
+                
+                # Note: — (or grade)
+                avg_val = s.get('avg_grade')
+                avg_str = f"*{avg_val}*" if avg_val else "—"
+                
+                # Prezențe: 3/7 (or —)
                 attended = s.get('attended_count') or 0
                 total = s.get('total_seminars') or 0
-                pres = f"Prezențe: {attended}/{total}" if total > 0 else ""
-                lines.append(f"*{name}*\n  {avg}" + (f" · {escape_md(pres)}" if pres else ""))
+                pres_str = f"{attended}/{total}" if total > 0 else "—"
+                
+                lines.append(f"*{name}*\nNote: {avg_str}\nPrezențe: {escape_md(pres_str)}")
 
             keyboard = InlineKeyboardMarkup([
                 [
