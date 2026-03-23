@@ -282,7 +282,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
         # Skills State Handling
         if state and state['state_type'].startswith("skills_"):
             from modules.skills import handle_skills_message
-            if await handle_skills_message(update, context, pool, state['state_type']):
+            if await handle_skills_message(update, context, pool, state):
                 return
         
         if state:

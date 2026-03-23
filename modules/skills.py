@@ -95,13 +95,13 @@ async def handle_skills_callback(update, context, pool) -> None:
             await query.edit_message_text(text, reply_markup=markup, parse_mode="MarkdownV2")
             
         elif data == "skills_add_new":
-            await set_state(pool, "skills_add_name")
+            await set_state(pool, "skills_add_name", "skills", "add", None)
             await query.edit_message_text("➕ *Skill Nou*\n\nIntrodu numele skill\\-ului \\(ex: Sah, Duolingo, Rubik\\):", parse_mode="MarkdownV2")
             
         elif data.startswith("skills_log_entry_"):
             skill_id = int(data.split("_")[-1])
             skill = await skill_queries.get_skill_by_id(pool, skill_id)
-            await set_state(pool, f"skills_log_value_{skill_id}")
+            await set_state(pool, "skills_log_value", "skills", "log", skill_id)
             await query.edit_message_text(f"📝 *Log {escape_md(skill['name'])}*\n\nIntrodu valoarea \\({escape_md(skill['unit'])}\\):", parse_mode="MarkdownV2")
             
         elif data.startswith("skills_delete_"):
@@ -126,21 +126,21 @@ async def handle_skills_callback(update, context, pool) -> None:
         logging.error(f"Error in skills callback: {e}")
         await query.answer("Eroare la procesarea cererii\\.")
 
-async def handle_skills_message(update, context, pool, state: str) -> bool:
+async def handle_skills_message(update, context, pool, state: dict) -> bool:
     """Handles text input for skills state machine."""
     from core.state import set_state, clear_state
     msg_text = update.message.text.strip()
+    state_type = state.get("state_type")
     
     try:
-        if state == "skills_add_name":
-            await set_state(pool, "skills_add_unit", metadata={"name": msg_text})
+        if state_type == "skills_add_name":
+            await set_state(pool, "skills_add_unit", "skills", "add", None, extra={"name": msg_text})
             await update.message.reply_text(f"✅ Nume: *{escape_md(msg_text)}*\n\nAcum introdu unitatea de măsură \\(ex: elo, min, kg, puncte\\):", parse_mode="MarkdownV2")
             return True
             
-        elif state == "skills_add_unit":
-            from core.state import get_state
-            current_state = await get_state(pool)
-            name = current_state['metadata'].get("name")
+        elif state_type == "skills_add_unit":
+            extra = state.get("extra") or {}
+            name = extra.get("name")
             unit = msg_text
             await skill_queries.add_skill(pool, name, unit=unit)
             await clear_state(pool)
@@ -149,8 +149,8 @@ async def handle_skills_message(update, context, pool, state: str) -> bool:
             await update.message.reply_text(text, reply_markup=markup, parse_mode="MarkdownV2")
             return True
             
-        elif state.startswith("skills_log_value_"):
-            skill_id = int(state.split("_")[-1])
+        elif state_type == "skills_log_value":
+            skill_id = state.get("item_id")
             try:
                 # Remove unit if user included it (e.g. "1200 elo" -> 1200)
                 val_raw = msg_text.split()[0].replace(",", ".")
