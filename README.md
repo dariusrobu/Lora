@@ -155,8 +155,8 @@ Every Gemini call **must** return this JSON. Parse with `json.loads()`. Retry on
 
 ```json
 {
-  "intent": "add_task | list_tasks | complete_task | edit_task | delete_task | add_habit | list_habits | log_habit | add_project | list_projects | archive_project | add_note | list_notes | log_expense | log_income | list_finance | finance_summary | add_event | list_events | add_item | list_items | delete_item | get_weather | fetch_news | update_profile | chat | clarify",
-  "module": "tasks | habits | projects | notes | finance | events | shopping | weather | news | null",
+  "intent": "add_task | list_tasks | complete_task | edit_task | delete_task | add_habit | list_habits | log_habit | add_project | list_projects | archive_project | add_note | list_notes | log_expense | log_income | list_finance | finance_summary | add_event | list_events | add_item | list_items | delete_item | get_weather | fetch_news | update_profile | list_schedule | log_attendance | add_exam | workout_log | add_sport | add_exercise | view_prs | add_goal | add_subtask | complete_subtask | view_goals | chat | clarify",
+  "module": "tasks | habits | projects | notes | finance | events | shopping | weather | news | university | workout | goals | health | nutrition | focus | null",
   "data": {
     "tasks":    { "title": "string", "priority": "low|medium|high", "due_date": "YYYY-MM-DD", "project": "string" },
     "habits":   { "name": "string", "frequency": "daily|weekly" },
@@ -166,7 +166,11 @@ Every Gemini call **must** return this JSON. Parse with `json.loads()`. Retry on
     "weather":  { "city": "string" },
     "shopping": { "item": "string", "category": "string" },
     "news":     { "topic": "string" },
-    "projects": { "name": "string", "description": "string", "status": "active|archived|on-hold" }
+    "projects": { "name": "string", "description": "string", "status": "active|archived|on-hold" },
+    "university": { "subject": "string", "type": "curs|seminar|laborator", "date": "YYYY-MM-DD" },
+    "workout":  { "sport_name": "string", "duration_min": 0, "calories": 0, "exercises": [] },
+    "goals":    { "title": "string", "category": "string", "task_title": "string" },
+    "health":   { "sleep_hours": 0, "water_ml": 0, "weight_kg": 0 }
   },
   "reply": "Lora's Telegram MarkdownV2 reply — RAW characters, NO JSON backslash escaping",
   "needs_confirmation": false
@@ -177,52 +181,31 @@ Every Gemini call **must** return this JSON. Parse with `json.loads()`. Retry on
 
 ## Modules & Supported Intents
 
-### Tasks (`modules/tasks.py` + `db/queries/tasks.py`)
-- `add_task`, `list_tasks`, `complete_task`, `edit_task`, `delete_task`
-- Projects are resolved by name → fuzzy match against `projects` table
-- List display: overdue (⚠️) → due today → upcoming → no date
-- Recurring tasks: on complete, auto-creates next occurrence
-- Delete always triggers `awaiting_confirmation` state
+### University (`modules/university.py`)
+- `list_schedule`, `log_attendance`, `add_exam`, `view_attendance_stats`
+- **Week Parity**: Calculated based on `semester_start` from `semester_config`. Even (pară) / Odd (impară).
+- **Attendance**: Logged per subject and type (Course/Seminar/Lab).
 
-### Habits (`modules/habits.py` + `db/queries/habits.py`)
-- `add_habit`, `list_habits`, `log_habit` (done/skipped), `delete_habit`
-- Streak recalculated after every log entry
-- `missed_habit_nudge` scheduler job logs `missed` status for previous day
+### Workout (`modules/workout.py`)
+- `workout_log`, `view_prs`, `add_sport`, `add_exercise`, `view_week_stats`
+- **NLP Logging**: Supports sentences like "am făcut gym 1h, bench press 60kg 5 repetări".
+- **Sports/Exercises**: Custom list of sports (`sport_types`) and exercises.
+- **Calories**: Optional field for calorie tracking per session.
 
-### Projects (`modules/projects.py` + `db/queries/projects.py`)
-- `add_project`, `list_projects`, `archive_project`, `delete_project`  
-- Status flow: `active` ↔ `paused` → `done` → `archived`
-- Archived projects excluded from default list queries
+### Goals Dashboard (`modules/goals.py`)
+- `add_goal`, `add_subtask`, `complete_subtask`, `view_goals`, `complete_goal`
+- **Hierarchy**: Goals can have multiple sub-tasks.
+- **Progress**: Automatically recalculated (0-100%) based on completed sub-tasks.
+- **Categories**: Academice, Sport, Skills, Financiare, Lectură, Personal, Sănătate.
 
-### Notes & Journal (`modules/notes.py` + `db/queries/notes.py`)
-- `add_note`, `list_notes`, `search_notes`
-- `type`: `note` or `journal`. Journal entries have a `mood` field.
-- Trigger words: "jurnal", "journal", "my daily log"
+### Health & Nutrition (`modules/health.py`, `modules/nutrition.py`)
+- `log_health` (sleep, water, weight), `log_nutrition` (calories, quality)
+- Trends and insights generated during EOD reflection.
 
-### Finance (`modules/finance.py` + `db/queries/finance.py`)
-- `log_expense`, `log_income`, `list_finance`, `finance_summary`
-- Budget limit warnings: >80% → 💡 tip; exceeded → ⚠️ alert
-- Default currency: RON
-- Categories: food & drink, transport, housing, health, entertainment, shopping, work, education, savings, other
-
-### Events (`modules/events.py` + `db/queries/events.py`)
-- `add_event`, `list_events`, `delete_event`
-- Supports recurring events with `remind_1day` / `remind_1hour` flags
-- Event reminder scheduler job: `check_event_reminders()` (runs every 15 min)
-
-### Shopping List (`modules/shopping.py` + `db/queries/shopping.py`)
-- `add_item`, `list_items`, `delete_item`
-- Trigger phrases: "cumpără", "pune pe listă", "ce trebuie să cumpăr"
-
-### Weather (`modules/weather.py`)
-- `get_weather_summary()` — calls OpenWeather API
-- Trigger: "cum e vremea", "prognoza"
-- Used in morning briefing data gathering
-
-### News (`modules/news.py`)
-- `fetch_tech_news(limit=5)` — RSS via `feedparser`
-- Included in daily morning briefing
-- Trigger: "ce mai e nou", "știri tech"
+### Focus & Planner (`modules/focus.py`, `modules/planner.py`)
+- `start_focus`, `stop_focus`, `plan_day`
+- Focus mode silences non-urgent notifications (logic in handler).
+- Planner aggregates tasks and events into a cohesive daily schedule.
 
 ---
 
@@ -286,6 +269,18 @@ Lora speaks **Romglish** — Romanian as the base language with natural English 
 | `budget_limits` | Per-category monthly spending caps |
 | `events` | event_date, event_time, reminded_1day, reminded_1hour flags |
 | `projects` | status: active/paused/done/archived |
+| `university_schedule` | day_of_week, start_time, end_time, week_type, type (Course/Seminar), location |
+| `subjects` | academic subjects with avg_grade and target_grade |
+| `attendance` | log of presence at university courses |
+| `exams` | dates and types of university exams |
+| `sport_types` | available sports with metric flags (distance, weight, reps), icon, category |
+| `exercises` | muscle groups and exercise library |
+| `workouts` | workout logs referencing sport_id, duration, calories, notes |
+| `goals` | main objectives with categories and progress |
+| `goal_tasks` | sub-tasks belonging to goals |
+| `health_metrics` | sleep, water, weight tracking logs |
+| `nutrition_logs` | calorie intake and nutrition quality tracking |
+| `focus_sessions` | log of deep work sessions |
 
 Run schema once: `psql $DATABASE_URL -f db/schema.sql`
 
