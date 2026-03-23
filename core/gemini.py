@@ -175,6 +175,10 @@ FAPTE DESPRE {user_name}:
     - Cuvinte cheie long: "pe termen lung", "ultimele 6 luni", "istoricul antrenamentelor", "tot istoricul", "progres pe termen lung", "evoluție gym".
 
 Exemple de output JSON pentru workout_log:
+- Input: "am fost la MRU seminar azi"
+  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "MRU", "attended": true, "date": "2026-03-23" }}, "reply": "MRU — prezent ✅ înregistrat." }}
+- Input: "am lipsit de la Statistică seminar"
+  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "Statistică", "attended": false, "date": "2026-03-23" }}, "reply": "Statistică Inferențială — absent ❌ înregistrat." }}
 - Input: "am făcut gym 1h: bench 4×8 80kg, squat 3×10 100kg"
   Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "type": "gym", "duration_min": 60, "notes": null, "exercises": [{{ "name": "bench", "sets": 4, "reps": 8, "weight_kg": 80.0 }}, {{ "name": "squat", "sets": 3, "reps": 10, "weight_kg": 100.0 }}] }}, "reply": "Gym 1h salvat — bench 80kg, squat 100kg. 💪" }}
 - Input: "fotbal 90 min"
