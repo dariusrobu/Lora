@@ -308,10 +308,132 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
                     from db.queries.university import add_subject
                     await add_subject(pool, text)
                     await clear_state(pool)
-                    await update.message.reply_text(
-                        f"✅ *{escape_md(text)}* adăugată\\.",
-                        parse_mode="MarkdownV2"
-                    )
+                    await update.message.reply_text(f"✅ *{escape_md(text)}* adăugată\\.", parse_mode="MarkdownV2")
+                    return
+
+                elif action == 'add_schedule':
+                    try:
+                        parts = [p.strip() for p in text.split(',')]
+                        days_map = {'luni': 0, 'marți': 1, 'miercuri': 2, 'joi': 3, 'vineri': 4}
+                        day = days_map.get(parts[0].lower(), 0)
+                        times = parts[1].split('-')
+                        start_time = times[0].strip()
+                        end_time = times[1].strip()
+                        subject = parts[2].strip()
+                        class_type = parts[3].strip().lower()
+                        room = parts[4].strip() if len(parts) > 4 else None
+                        week_type = parts[5].strip().lower() if len(parts) > 5 else 'both'
+                        await pool.execute("""
+                            INSERT INTO schedule (day_of_week, start_time, end_time, subject_name, class_type, room, week_type)
+                            VALUES ($1, $2, $3, $4, $5, $6, $7)
+                        """, day, start_time, end_time, subject, class_type, room, week_type)
+                        await clear_state(pool)
+                        await update.message.reply_text("✅ Oră adăugată în orar\\.", parse_mode="MarkdownV2")
+                    except Exception:
+                        await clear_state(pool)
+                        await update.message.reply_text("❌ Format greșit\\. Încearcă: `Luni, 08:00\\-09:30, MRU, seminar, 208, odd`", parse_mode="MarkdownV2")
+                    return
+
+                elif action == 'add_exam':
+                    try:
+                        parts = [p.strip() for p in text.split(',')]
+                        from db.queries.university import get_subject_by_name, add_exam
+                        from datetime import datetime
+                        subject = await get_subject_by_name(pool, parts[0])
+                        exam_date = datetime.strptime(parts[1].strip(), "%Y-%m-%d").date()
+                        exam_type = parts[2].strip() if len(parts) > 2 else 'examen'
+                        location = parts[3].strip() if len(parts) > 3 else None
+                        if subject:
+                            await add_exam(pool, subject['id'], exam_date, exam_type, location)
+                            await clear_state(pool)
+                            await update.message.reply_text("✅ Examen adăugat\\.", parse_mode="MarkdownV2")
+                        else:
+                            await clear_state(pool)
+                            await update.message.reply_text(f"❌ Materia *{escape_md(parts[0])}* nu e în listă\\.", parse_mode="MarkdownV2")
+                    except Exception:
+                        await clear_state(pool)
+                        await update.message.reply_text("❌ Format greșit\\.", parse_mode="MarkdownV2")
+                    return
+
+                elif action == 'add_grade':
+                    try:
+                        parts = [p.strip() for p in text.split(',')]
+                        from db.queries.university import get_subject_by_name, add_grade
+                        subject = await get_subject_by_name(pool, parts[0])
+                        if subject:
+                            grade_type = parts[2].strip() if len(parts) > 2 else 'exam'
+                            await add_grade(pool, subject['id'], float(parts[1]), grade_type)
+                            await clear_state(pool)
+                            await update.message.reply_text("✅ Notă adăugată\\.", parse_mode="MarkdownV2")
+                        else:
+                            await clear_state(pool)
+                            await update.message.reply_text("❌ Materia nu e în listă\\.", parse_mode="MarkdownV2")
+                    except Exception:
+                        await clear_state(pool)
+                        await update.message.reply_text("❌ Format greșit\\.", parse_mode="MarkdownV2")
+                    return
+
+                elif action == 'add_attendance':
+                    try:
+                        parts = [p.strip() for p in text.split(',')]
+                        from db.queries.university import get_subject_by_name, log_attendance
+                        from datetime import datetime, date as _date
+                        subject = await get_subject_by_name(pool, parts[0])
+                        attended = parts[1].strip().lower() in ['prezent', 'da', 'yes', 'true']
+                        att_date = datetime.strptime(parts[2].strip(), "%Y-%m-%d").date() if len(parts) > 2 else _date.today()
+                        if subject:
+                            await log_attendance(pool, subject['id'], attended, att_date)
+                            await clear_state(pool)
+                            status = "prezent ✅" if attended else "absent ❌"
+                            await update.message.reply_text(f"{escape_md(subject['name'])} — {status} înregistrat\\.", parse_mode="MarkdownV2")
+                        else:
+                            await clear_state(pool)
+                            await update.message.reply_text("❌ Materia nu e în listă\\.", parse_mode="MarkdownV2")
+                    except Exception:
+                        await clear_state(pool)
+                        await update.message.reply_text("❌ Format greșit\\.", parse_mode="MarkdownV2")
+                    return
+
+                elif action == 'edit_attendance':
+                    try:
+                        parts = [p.strip() for p in text.split(',')]
+                        from db.queries.university import get_subject_by_name
+                        from datetime import datetime
+                        subject = await get_subject_by_name(pool, parts[0])
+                        att_date = datetime.strptime(parts[1].strip(), "%Y-%m-%d").date()
+                        attended = parts[2].strip().lower() in ['prezent', 'da', 'yes', 'true']
+                        if subject:
+                            await pool.execute("UPDATE attendances SET attended = $1 WHERE subject_id = $2 AND class_date = $3", attended, subject['id'], att_date)
+                            await clear_state(pool)
+                            status = "prezent ✅" if attended else "absent ❌"
+                            await update.message.reply_text(f"Prezența actualizată — {status}\\.", parse_mode="MarkdownV2")
+                        else:
+                            await clear_state(pool)
+                            await update.message.reply_text("❌ Materia nu e în listă\\.", parse_mode="MarkdownV2")
+                    except Exception:
+                        await clear_state(pool)
+                        await update.message.reply_text("❌ Format greșit\\.", parse_mode="MarkdownV2")
+                    return
+
+                elif action == 'delete_grade':
+                    try:
+                        parts = [p.strip() for p in text.split(',')]
+                        from db.queries.university import get_subject_by_name
+                        subject = await get_subject_by_name(pool, parts[0])
+                        grade_type = parts[1].strip() if len(parts) > 1 else None
+                        if subject:
+                            if grade_type:
+                                await pool.execute("DELETE FROM grades WHERE subject_id = $1 AND grade_type = $2", subject['id'], grade_type)
+                            else:
+                                await pool.execute("DELETE FROM grades WHERE subject_id = $1", subject['id'])
+                            await clear_state(pool)
+                            await update.message.reply_text("✅ Notă ștearsă\\.", parse_mode="MarkdownV2")
+                        else:
+                            await clear_state(pool)
+                            await update.message.reply_text("❌ Materia nu e în listă\\.", parse_mode="MarkdownV2")
+                    except Exception:
+                        await clear_state(pool)
+                        await update.message.reply_text("❌ Format greșit\\.", parse_mode="MarkdownV2")
                     return
 
             elif state['state_type'] == 'awaiting_edit_field':
@@ -816,60 +938,145 @@ async def handle_uni_callback(query, pool, data: str):
 
     # ━━━ ORAR ━━━
     elif section == "schedule":
-        from db.queries.schedule import get_today_schedule
-        classes = await get_today_schedule(pool)
-        if classes:
-            lines = ["📅 *Orar azi*\n"]
-            for c in classes:
-                start = c['start_time'].strftime('%H:%M')
-                end = c['end_time'].strftime('%H:%M')
-                icon = "📖" if c['class_type'] == 'curs' else "✏️"
-                room = f" · {escape_md(c['room'])}" if c.get('room') else ""
-                lines.append(f"{icon} `{start}`\\-`{end}` {escape_md(c['subject_name'])}{room}")
-        else:
-            lines = ["📅 *Orar azi*\n\n✅ Liber azi\\!"]
+        if not action:
+            from db.queries.schedule import get_week_schedule, get_current_week_type
+            week_schedule, days, week_type = await get_week_schedule(pool)
+            week_label = "impară" if week_type == 'odd' else "pară"
 
-        keyboard = InlineKeyboardMarkup([[back_btn]])
-        await query.edit_message_text("\n".join(lines), parse_mode="MarkdownV2", reply_markup=keyboard)
+            lines = [f"📅 *Orar — săptămână {escape_md(week_label)}*\n"]
+            for day_idx, day_name in days.items():
+                classes = week_schedule.get(day_idx, [])
+                if not classes:
+                    continue
+                lines.append(f"*{escape_md(day_name)}*")
+                for c in classes:
+                    start = c['start_time'].strftime('%H:%M')
+                    icon = "📖" if c['class_type'] == 'curs' else "✏️"
+                    room = f" · {escape_md(c['room'])}" if c.get('room') else ""
+                    lines.append(f"  {icon} `{start}` {escape_md(c['subject_name'])}{room}")
+                lines.append("")
+
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("➕ Adaugă oră", callback_data="uni:schedule:add")],
+                [back_btn]
+            ])
+            await query.edit_message_text("\n".join(lines), parse_mode="MarkdownV2", reply_markup=keyboard)
+
+        elif action == "add":
+            from core.state import set_state
+            await set_state(pool, "awaiting_uni_input", "university", "add_schedule", None)
+            keyboard = InlineKeyboardMarkup([[back_btn]])
+            await query.edit_message_text(
+                "📅 *Adaugă oră în orar*\n\n"
+                "Scrie în format:\n"
+                "`Zi, HH:MM\\-HH:MM, Materie, tip, sala, sapt`\n\n"
+                "Exemplu: `Luni, 08:00\\-09:30, MRU, seminar, 208, odd`",
+                parse_mode="MarkdownV2",
+                reply_markup=keyboard
+            )
 
     # ━━━ EXAMENE ━━━
     elif section == "exams":
-        from db.queries.university import get_upcoming_exams
-        exams = await get_upcoming_exams(pool, days=60)
-        if exams:
-            lines = ["🎓 *Examene viitoare*\n"]
-            for e in exams:
-                lines.append(f"• {escape_md(e['exam_date'].strftime('%d %b %Y'))} — *{escape_md(e['subject_name'])}*")
-        else:
-            lines = ["🎓 *Examene viitoare*\n\nNiciun examen programat\\."]
+        if not action:
+            from db.queries.university import get_upcoming_exams
+            exams = await get_upcoming_exams(pool, days=90)
 
-        keyboard = InlineKeyboardMarkup([[back_btn]])
-        await query.edit_message_text("\n".join(lines), parse_mode="MarkdownV2", reply_markup=keyboard)
+            if not exams:
+                text_msg = "🎓 *Examene*\n\nNiciun examen înregistrat\\."
+            else:
+                lines = ["🎓 *Examene upcoming*\n"]
+                for e in exams:
+                    date_str = escape_md(e['exam_date'].strftime('%d %b %Y'))
+                    subject = escape_md(e['subject_name'])
+                    type_str = escape_md(e.get('exam_type', 'examen'))
+                    loc = f" · {escape_md(e['location'])}" if e.get('location') else ""
+                    lines.append(f"• *{date_str}* — {subject} \\({type_str}\\){loc}")
+                text_msg = "\n".join(lines)
+
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("➕ Adaugă examen", callback_data="uni:exams:add")],
+                [back_btn]
+            ])
+            await query.edit_message_text(text_msg, parse_mode="MarkdownV2", reply_markup=keyboard)
+
+        elif action == "add":
+            from core.state import set_state
+            await set_state(pool, "awaiting_uni_input", "university", "add_exam", None)
+            keyboard = InlineKeyboardMarkup([[back_btn]])
+            await query.edit_message_text(
+                "🎓 *Adaugă examen*\n\n"
+                "Scrie în format:\n"
+                "`Materie, YYYY\\-MM\\-DD, tip, sala`\n\n"
+                "Exemplu: `Statistică, 2026\\-06\\-15, examen, A2`",
+                parse_mode="MarkdownV2",
+                reply_markup=keyboard
+            )
 
     # ━━━ NOTE & PREZENȚE ━━━
     elif section == "grades":
-        from db.queries.university import list_subjects
-        subjects = await list_subjects(pool)
-        lines = ["📝 *Note & Prezențe*\n"]
-        for s in subjects:
-            name = escape_md(s['name'])
-            attended = s.get('attended_count') or 0
-            total_seminars = s.get('total_seminars') or 0
-            total_logged = s.get('total_logged') or 0
-            total = total_seminars if total_seminars > 0 else total_logged
+        if not action:
+            from db.queries.university import list_subjects
+            subjects = await list_subjects(pool)
 
-            if total > 0:
-                pct = int(attended / total * 100)
-                warn = " ⚠️" if pct < s['min_attendance_pct'] else ""
-                att_str = f"{attended}/{total} \\({pct}%\\){warn}"
-            else:
-                att_str = "—"
+            lines = ["📝 *Note \\& Prezențe*\n"]
+            for s in subjects:
+                if not s.get('total_seminars') and not s.get('avg_grade'):
+                    continue
+                name = escape_md(s['name'])
+                avg = f"Medie: *{s['avg_grade']}*" if s.get('avg_grade') else "Nicio notă"
+                attended = s.get('attended_count') or 0
+                total = s.get('total_seminars') or 0
+                pres = f"Prezențe: {attended}/{total}" if total > 0 else ""
+                lines.append(f"*{name}*\n  {avg}" + (f" · {escape_md(pres)}" if pres else ""))
 
-            grade_str = f"*{s['avg_grade']}*" if s.get('avg_grade') else "—"
-            lines.append(f"• *{name}*\n  Medie: {grade_str} · Prezențe: {escape_md(att_str)}")
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("➕ Notă", callback_data="uni:grades:add_grade"),
+                    InlineKeyboardButton("➕ Prezență", callback_data="uni:grades:add_attendance")
+                ],
+                [
+                    InlineKeyboardButton("✏️ Edit prezență", callback_data="uni:grades:edit_attendance"),
+                    InlineKeyboardButton("🗑 Șterge notă", callback_data="uni:grades:delete_grade")
+                ],
+                [back_btn]
+            ])
+            await query.edit_message_text("\n".join(lines), parse_mode="MarkdownV2", reply_markup=keyboard)
 
-        keyboard = InlineKeyboardMarkup([[back_btn]])
-        await query.edit_message_text("\n".join(lines), parse_mode="MarkdownV2", reply_markup=keyboard)
+        elif action == "add_grade":
+            from core.state import set_state
+            await set_state(pool, "awaiting_uni_input", "university", "add_grade", None)
+            keyboard = InlineKeyboardMarkup([[back_btn]])
+            await query.edit_message_text(
+                "📝 *Adaugă notă*\n\nFormat: `Materie, notă, tip`\nExemplu: `Statistică, 8\\.5, partial`",
+                parse_mode="MarkdownV2", reply_markup=keyboard
+            )
+
+        elif action == "add_attendance":
+            from core.state import set_state
+            await set_state(pool, "awaiting_uni_input", "university", "add_attendance", None)
+            keyboard = InlineKeyboardMarkup([[back_btn]])
+            await query.edit_message_text(
+                "📝 *Adaugă prezență*\n\nFormat: `Materie, prezent/absent, YYYY\\-MM\\-DD`\nExemplu: `MRU, prezent, 2026\\-03\\-23`",
+                parse_mode="MarkdownV2", reply_markup=keyboard
+            )
+
+        elif action == "edit_attendance":
+            from core.state import set_state
+            await set_state(pool, "awaiting_uni_input", "university", "edit_attendance", None)
+            keyboard = InlineKeyboardMarkup([[back_btn]])
+            await query.edit_message_text(
+                "✏️ *Editează prezență*\n\nFormat: `Materie, YYYY\\-MM\\-DD, prezent/absent`\nExemplu: `MRU, 2026\\-03\\-23, absent`",
+                parse_mode="MarkdownV2", reply_markup=keyboard
+            )
+
+        elif action == "delete_grade":
+            from core.state import set_state
+            await set_state(pool, "awaiting_uni_input", "university", "delete_grade", None)
+            keyboard = InlineKeyboardMarkup([[back_btn]])
+            await query.edit_message_text(
+                "🗑 *Șterge notă*\n\nFormat: `Materie, tip`\nExemplu: `Statistică, partial`",
+                parse_mode="MarkdownV2", reply_markup=keyboard
+            )
 
     # ━━━ ANALIZĂ / IMPORT (placeholder) ━━━
     elif section in ("analysis", "import"):
