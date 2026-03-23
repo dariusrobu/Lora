@@ -32,11 +32,11 @@ async def get_today_schedule(pool) -> list:
     
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT DISTINCT ON (id) * FROM schedule
+            SELECT DISTINCT ON (start_time, subject_name, room) * FROM schedule
             WHERE day_of_week = $1
               AND is_active = TRUE
               AND (week_type = 'both' OR week_type = $2)
-            ORDER BY id, start_time ASC
+            ORDER BY start_time ASC, subject_name ASC, room ASC
         """, day_of_week, week_type)
     return [dict(r) for r in rows]
 
@@ -46,10 +46,10 @@ async def get_week_schedule(pool) -> tuple:
     
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT * FROM schedule
+            SELECT DISTINCT ON (day_of_week, start_time, subject_name, room) * FROM schedule
             WHERE is_active = TRUE
               AND (week_type = 'both' OR week_type = $1)
-            ORDER BY day_of_week ASC, start_time ASC
+            ORDER BY day_of_week ASC, start_time ASC, subject_name ASC, room ASC
         """, week_type)
     
     days = {0: 'Luni', 1: 'Marți', 2: 'Miercuri', 3: 'Joi', 4: 'Vineri'}
@@ -75,13 +75,13 @@ async def get_upcoming_classes(pool, minutes_ahead=20) -> list:
     
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT DISTINCT ON (id) * FROM schedule
+            SELECT DISTINCT ON (start_time, subject_name, room) * FROM schedule
             WHERE day_of_week = $1
               AND is_active = TRUE
               AND (week_type = 'both' OR week_type = $2)
               AND start_time > $3
               AND start_time <= $4
-            ORDER BY id, start_time ASC
+            ORDER BY start_time ASC, subject_name ASC, room ASC
         """, today.weekday(), week_type, now_time, target_time)
     return [dict(r) for r in rows]
 
