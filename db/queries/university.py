@@ -125,26 +125,25 @@ async def get_upcoming_exams(pool, days=30) -> list:
         return [dict(r) for r in rows]
 
 async def get_attendance_warnings(pool) -> list:
-    """Returnează materiile cu prezență la SEMINAR sub pragul minim."""
+    """Returnează materiile unde prezența e sub pragul minim."""
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT s.name, s.min_attendance_pct,
+            SELECT s.name, s.min_attendance_pct, s.total_seminars,
                 COUNT(a.id) FILTER (WHERE a.attended = TRUE) as attended,
-                COUNT(a.id) as total,
-                CASE WHEN COUNT(a.id) > 0 
+                COUNT(a.id) as total_logged,
+                CASE WHEN s.total_seminars > 0
+                    THEN ROUND(COUNT(a.id) FILTER (WHERE a.attended = TRUE) * 100.0 / s.total_seminars, 0)
+                    WHEN COUNT(a.id) > 0
                     THEN ROUND(COUNT(a.id) FILTER (WHERE a.attended = TRUE) * 100.0 / COUNT(a.id), 0)
-                    ELSE 0 
+                    ELSE 0
                 END as pct
             FROM subjects s
             LEFT JOIN attendances a ON a.subject_id = s.id
-            WHERE s.is_active = TRUE
-              AND EXISTS (
-                  SELECT 1 FROM schedule sch 
-                  WHERE LOWER(sch.subject_name) = LOWER(s.name) 
-                    AND sch.class_type = 'seminar'
-              )
-            GROUP BY s.id, s.name, s.min_attendance_pct
-            HAVING COUNT(a.id) > 0
-              AND ROUND(COUNT(a.id) FILTER (WHERE a.attended = TRUE) * 100.0 / COUNT(a.id), 0) < s.min_attendance_pct
+            WHERE s.is_active = TRUE AND s.total_seminars > 0
+            GROUP BY s.id, s.name, s.min_attendance_pct, s.total_seminars
+            HAVING CASE WHEN s.total_seminars > 0
+                    THEN ROUND(COUNT(a.id) FILTER (WHERE a.attended = TRUE) * 100.0 / s.total_seminars, 0)
+                    ELSE 0
+                END < s.min_attendance_pct
         """)
         return [dict(r) for r in rows]

@@ -492,6 +492,40 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             await handle_onboarding_callback(update, context, pool)
             return
 
+        if data.startswith("attendance:"):
+            parts = data.split(":")
+            action = parts[1]    # "present" sau "absent"
+            schedule_id = int(parts[2])
+            
+            from db.queries.schedule import get_schedule_by_id
+            from db.queries.university import get_subject_by_name, log_attendance
+            from datetime import date
+            
+            schedule_item = await get_schedule_by_id(pool, schedule_id)
+            if not schedule_item:
+                await query.answer("Eroare — cursul nu a fost găsit.")
+                return
+            
+            subject = await get_subject_by_name(pool, schedule_item['subject_name'])
+            if not subject:
+                await query.answer("Materia nu e în listă.")
+                return
+            
+            attended = action == "present"
+            await log_attendance(pool, subject['id'], attended, date.today())
+            
+            status = "prezent ✅" if attended else "absent ❌"
+            await query.answer(f"{schedule_item['subject_name']} — {status}")
+            
+            # Update message to show status
+            msg_text = query.message.text
+            await query.edit_message_reply_markup(reply_markup=None)
+            await query.edit_message_text(
+                f"{msg_text}\n\n_{status} înregistrat\\._",
+                parse_mode="MarkdownV2"
+            )
+            return
+
         # Phase 4: Module callbacks (module:action:item_id)
         parts = data.split(":")
         if len(parts) >= 2:

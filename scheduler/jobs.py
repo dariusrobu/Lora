@@ -642,11 +642,20 @@ async def check_class_reminders(application, pool) -> None:
                 f"📍 {room}"
             )
             
+            from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("✅ Prezent", callback_data=f"attendance:present:{c['id']}"),
+                    InlineKeyboardButton("❌ Absent", callback_data=f"attendance:absent:{c['id']}")
+                ]
+            ])
+            
             # 2. Trimite mesaj
             await application.bot.send_message(
                 chat_id=TELEGRAM_USER_ID,
                 text=msg,
-                parse_mode=ParseMode.MARKDOWN_V2
+                parse_mode=ParseMode.MARKDOWN_V2,
+                reply_markup=keyboard
             )
             
             # 3. Loghează DUPĂ trimitere (cu ON CONFLICT DO NOTHING)

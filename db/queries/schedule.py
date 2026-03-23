@@ -104,3 +104,9 @@ async def log_reminder_sent(pool, schedule_id, reminder_date) -> None:
             VALUES ($1, $2)
             ON CONFLICT (schedule_id, reminder_date) DO NOTHING
         """, schedule_id, reminder_date)
+
+async def get_schedule_by_id(pool, schedule_id: int) -> dict | None:
+    """Returnează un curs după ID."""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM schedule WHERE id = $1", schedule_id)
+        return dict(row) if row else None

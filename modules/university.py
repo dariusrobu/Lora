@@ -39,27 +39,27 @@ async def handle_university_intent(pool, intent: str, data: Dict[str, Any], bot=
         
         for s in subjects:
             name = escape_md(s['name'])
+            attended = s.get('attended_count') or 0
+            total_logged = s.get('total_logged') or 0
+            total_seminars = s.get('total_seminars') or 0
             
-            # Prezențe
-            attended = s.get('attended_count')
-            total_logged = s.get('total_logged')
-            
-            if total_logged is not None:
-                if total_logged > 0:
-                    pct = int(attended / total_logged * 100)
-                    pct_str = f"{pct}%"
-                    warn = " ⚠️" if pct < s['min_attendance_pct'] else ""
-                    attendance_str = f"Prezențe: {attended}/{total_logged} \\({pct_str}\\){warn}"
-                else:
-                    attendance_str = "Prezențe: nicio înregistrare"
+            if total_seminars > 0:
+                # Folosește totalul real din semestru
+                pct = int(attended / total_seminars * 100) if total_seminars > 0 else 0
+                warn = " ⚠️" if pct < s['min_attendance_pct'] else ""
+                attendance_str = f"Prezențe: {attended}/{total_seminars} \\({pct}%\\){warn}"
+            elif total_logged > 0:
+                # Fallback la ce e logat
+                pct = int(attended / total_logged * 100)
+                warn = " ⚠️" if pct < s['min_attendance_pct'] else ""
+                attendance_str = f"Prezențe: {attended}/{total_logged} \\({pct}%\\){warn}"
             else:
-                attendance_str = "Prezențe: _numai curs_ \\(nu se trackează\\)"
+                attendance_str = "Prezențe: —"
             
             # Medie materie
             grade_str = f"Medie: *{s['avg_grade']}*" if s.get('avg_grade') else "Nicio notă"
             
-            lines.append(f"*{name}*")
-            lines.append(f"  {grade_str} · {attendance_str}")
+            lines.append(f"*{name}*\n  {grade_str} · {attendance_str}")
         
         return "\n".join(lines), None
 
