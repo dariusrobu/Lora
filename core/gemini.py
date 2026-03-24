@@ -379,24 +379,37 @@ IntentResponse schema:
         raw_text = None
         for attempt in range(2):
             try:
+                response_schema = types.Schema(
+                    type="object",
+                    properties={
+                        "intent": types.Schema(type="string"),
+                        "module": types.Schema(type=["string", "null"]),
+                        "data": types.Schema(type="object"),
+                        "reply": types.Schema(type="string"),
+                        "needs_confirmation": types.Schema(type="boolean"),
+                    },
+                    required=[
+                        "intent",
+                        "module",
+                        "data",
+                        "reply",
+                        "needs_confirmation",
+                    ],
+                )
                 response = await asyncio.to_thread(
                     client.models.generate_content,
                     model="gemini-2.5-flash",
                     contents=contents,
                     config=types.GenerateContentConfig(
                         system_instruction=system_prompt,
-                        response_mime_type="text/plain",
-                        temperature=0.4,
+                        response_mime_type="application/json",
+                        response_schema=response_schema,
+                        temperature=0.3,
                         max_output_tokens=4000,
                     ),
                 )
                 raw_text = response.text
                 print(f"DEBUG RAW TEXT: {repr(raw_text)}", flush=True)
-
-                if "```json" in raw_text:
-                    raw_text = raw_text.split("```json")[1].split("```")[0].strip()
-                elif "```" in raw_text:
-                    raw_text = raw_text.split("```")[1].split("```")[0].strip()
 
                 raw_text = re.sub(r"\\([^.!_~\-])", r"\1", raw_text)
                 parsed = json.loads(raw_text)
