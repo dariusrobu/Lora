@@ -330,7 +330,7 @@ IntentResponse schema:
     try:
         response = await asyncio.to_thread(
             client.models.generate_content,
-            model="gemini-2.5-flash",
+            model="gemini-2.0-flash",
 
             contents=contents,
             config=types.GenerateContentConfig(
@@ -400,7 +400,7 @@ FORMATARE:
     try:
         response = await asyncio.to_thread(
             client.models.generate_content,
-            model="gemini-2.5-flash",
+            model="gemini-2.0-flash",
 
             contents=[types.Content(role="user", parts=[types.Part(text=data_summary)])],
             config=types.GenerateContentConfig(

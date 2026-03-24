@@ -711,8 +711,6 @@ Reguli:
                         
                         if itinerary:
                             await save_day_plan(pool, today, text, itinerary)
-                            # Safe markdown for Telegram
-                            from bot.formatter import safe_markdown
                             await update.message.reply_text(safe_markdown(itinerary), parse_mode="MarkdownV2")
                             await clear_state(pool)
                             # Mark plan as done for today
@@ -740,7 +738,6 @@ Reguli:
                 from db.queries.day_plans import save_day_plan
                 from db.queries.profile import update_user_profile
                 from core.config import TELEGRAM_USER_ID as TG_UID
-                from bot.formatter import safe_markdown, escape_md
                 import asyncio
 
                 profile = await get_user_profile(pool, telegram_id)
@@ -1056,7 +1053,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         parts = data.split(":")
         if len(parts) >= 2:
             module, action = parts[0], parts[1]
-            item_id = int(parts[2]) if len(parts) > 2 else None
+            item_id = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else None
             
             if module == "tasks":
                 import db.queries.tasks as task_queries
@@ -1498,7 +1495,6 @@ Dacă nu sunt suficiente date: spune direct.
 """
         
         result = await get_proactive_response(instruction, data_ctx)
-        from bot.formatter import safe_markdown
         
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔄 Regenerează", callback_data="uni:analysis")],
