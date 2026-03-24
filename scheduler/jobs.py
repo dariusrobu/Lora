@@ -997,6 +997,67 @@ async def check_proactive_insights(application, pool) -> None:
         print(f"CRITICAL error in check_proactive_insights: {e}", flush=True)
         traceback.print_exc()
 
+async def send_habit_reminder(application, pool) -> None:
+    """Friendly reminder at HABIT_REMINDER_TIME for any habits not yet completed today."""
+    try:
+        from bot.formatter import escape_md
+        from telegram.constants import ParseMode
+        
+        habits = await habit_queries.list_habits(pool)
+        today_logged_ids = await habit_queries.get_today_logs(pool)
+        pending = [h for h in habits if h['id'] not in today_logged_ids]
+        
+        if not pending:
+            print("No pending habits to remind — skipping.", flush=True)
+            return
+            
+        habit_list = "\n".join([f"• {escape_md(h['name'])}" for h in pending])
+        message = (
+            f"🔁 *Reminder Habits*\n\n"
+            f"Încă nu ai bifat aceste habits azi:\n{habit_list}\n\n"
+            f"Hai că poți\\! 💪"
+        )
+        
+        await application.bot.send_message(
+            chat_id=TELEGRAM_USER_ID,
+            text=message,
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
+        print(f"Habit reminder sent for {len(pending)} habits.", flush=True)
+        
+    except Exception as e:
+        print(f"Error in send_habit_reminder: {e}", flush=True)
+
+async def missed_habit_nudge(application, pool) -> None:
+    """A gentle nudge 1h after the morning briefing if no habits have been started yet."""
+    try:
+        from bot.formatter import escape_md
+        from telegram.constants import ParseMode
+        
+        today_logged_ids = await habit_queries.get_today_logs(pool)
+        if today_logged_ids:
+            # At least one habit started/done
+            return
+            
+        habits = await habit_queries.list_habits(pool)
+        if not habits:
+            return
+            
+        message = (
+            f"✨ *Start mic, impact mare\\!*\n\n"
+            f"Încă nu ai început niciun habit azi\\. Cu care vrei să începi? 🚀"
+        )
+        
+        await application.bot.send_message(
+            chat_id=TELEGRAM_USER_ID,
+            text=message,
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
+        print("Missed habit nudge sent.", flush=True)
+        
+    except Exception as e:
+        print(f"Error in missed_habit_nudge: {e}", flush=True)
+
 def setup_scheduler(application, pool):
     scheduler = AsyncIOScheduler(timezone=TIMEZONE)
     
