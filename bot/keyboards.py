@@ -98,6 +98,25 @@ def tasks_project_detail_keyboard(project_id: int) -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(keyboard)
 
+def projects_main_keyboard(projects: list) -> InlineKeyboardMarkup:
+    # Dedicated projects dashboard keyboard
+    keyboard = []
+    
+    # 1. Row for adding
+    keyboard.append([InlineKeyboardButton("➕ Proiect Nou", callback_data="projects:new")])
+    
+    # 2. List some projects as buttons (max 5 for the main view)
+    for p in projects[:5]:
+        keyboard.append([InlineKeyboardButton(f"📂 {p['name']}", callback_data=f"tasks:project_view:{p['id']}")])
+    
+    # 3. View all / Tasks
+    keyboard.append([
+        InlineKeyboardButton("📋 Vezi toate", callback_data="tasks:projects_list"),
+        InlineKeyboardButton("✅ Tasks", callback_data="tasks:main")
+    ])
+    
+    return InlineKeyboardMarkup(keyboard)
+
 def mood_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [

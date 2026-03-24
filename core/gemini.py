@@ -137,7 +137,7 @@ FAPTE DESPRE {user_name}:
     - intent="delete_task" — "șterge task-ul X".
     - intent="edit_task" — "schimbă data la X", "pune prioritate mare la Y".
     - intent="add_project" — "creează proiectul X", "proiect nou: Y".
-    - intent="list_projects" — "ce proiecte am", "vezi proiectele".
+    - intent="list_projects" sau "view_projects" — "ce proiecte am", "vezi proiectele", "dashboard proiecte".
 15. Goals: module="goals":
     - intent="add_goal" — "vreau să îmi setez un goal", "adaugă obiectiv: X"
     - intent="update_goal" — "am progresat la goal-ul X", "actualizează goal-ul Y"
@@ -159,6 +159,7 @@ FAPTE DESPRE {user_name}:
 - "Pune la proiectul Casă să cumpăr becuri" -> intent="add_task", module="tasks", data={{"title": "cumpăr becuri", "project": "Casă"}}
 - "Arată-mi task-urile de la facultate" -> intent="list_tasks", module="tasks", data={{"project": "facultate"}}
 - "Creează proiectul Licență" -> intent="add_project", module="tasks", data={{"name": "Licență"}}
+- "Arată-mi dashboard proiecte" -> intent="list_projects", module="tasks"
 20. Workout: module="workout":
     - intent="workout_log" pentru înregistrarea unui antrenament (gym, fotbal, cardio, alergare etc.).
         * REGULI de extragere date pentru `workout_log`:

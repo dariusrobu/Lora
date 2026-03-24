@@ -57,3 +57,34 @@ async def handle_project_intent(pool, intent: str, data: Dict[str, Any]) -> Tupl
         return f"Are you sure you want to delete project *{escape_md(project['name'])}*?\\nTasks linked to it will NOT be deleted\\.", confirmation_keyboard("projects", "delete", project_id)
 
     return "Project module is ready\\! (Phase 5 continues)", None
+
+async def get_projects_dashboard(pool) -> Tuple[str, Any]:
+    """Returns a high-level overview of projects and their activity."""
+    projects = await project_queries.list_projects(pool, exclude_status="archived")
+    
+    total_active = len(projects)
+    
+    # Fetch projects with pending tasks
+    from db.queries.tasks import list_tasks
+    active_with_tasks = []
+    
+    for p in projects:
+        tasks = await list_tasks(pool, project_id=p['id'], status="pending")
+        if tasks:
+            active_with_tasks.append({
+                'id': p['id'],
+                'name': p['name'],
+                'count': len(tasks)
+            })
+            
+    lines = ["🏗 *Dashboard Proiecte*\n"]
+    lines.append(f"📊 Total proiecte active: *{total_active}*")
+    lines.append(f"🔥 Proiecte cu task-uri: *{len(active_with_tasks)}*")
+    
+    if active_with_tasks:
+        lines.append("\n*Activitate curentă:*")
+        for ap in active_with_tasks:
+            lines.append(f"• {escape_md(ap['name'])}: {ap['count']} task-uri")
+    
+    from bot.keyboards import projects_main_keyboard
+    return "\n".join(lines), projects_main_keyboard(projects)

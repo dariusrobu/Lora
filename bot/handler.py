@@ -1630,6 +1630,16 @@ async def tasks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text, markup = await get_tasks_dashboard(pool)
     await update.message.reply_text(text, parse_mode="MarkdownV2", reply_markup=markup)
 
+async def projects_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles /projects command — opens projects dashboard."""
+    pool = context.bot_data.get("pool")
+    if not await security_check(update):
+        return
+    
+    from modules.projects import get_projects_dashboard
+    text, markup = await get_projects_dashboard(pool)
+    await update.message.reply_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+
 async def handle_tasks_callback(query, pool, data: str):
     """Processes task-related callback queries."""
     from modules.tasks import get_tasks_dashboard, get_projects_list_view, get_project_tasks_view, handle_task_intent
@@ -1725,7 +1735,12 @@ async def handle_projects_callback(query, pool, data: str):
     parts = data.split(":")
     action = parts[1]
     
-    if action == "new":
+    if action == "main":
+        from modules.projects import get_projects_dashboard
+        text, markup = await get_projects_dashboard(pool)
+        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+    
+    elif action == "new":
         from core.state import set_state
         await set_state(pool, "awaiting_project_input", "projects", "add", None)
         await query.edit_message_text("📂 *Creează proiect nou*\n\nScrie numele proiectului și o scurtă descriere.\n_Ex: Licență, Planificare și scriere capitol 1_", parse_mode="MarkdownV2")
