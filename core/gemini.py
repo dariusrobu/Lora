@@ -398,6 +398,7 @@ IntentResponse schema:
                 elif "```" in raw_text:
                     raw_text = raw_text.split("```")[1].split("```")[0].strip()
 
+                raw_text = re.sub(r"\\([^.!_~\-])", r"\1", raw_text)
                 parsed = json.loads(raw_text)
                 break
             except json.JSONDecodeError as e:
