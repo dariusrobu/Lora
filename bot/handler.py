@@ -857,7 +857,17 @@ Reguli:
                 await update.message.reply_text(text_out, parse_mode="MarkdownV2", reply_markup=markup)
                 return
 
-            elif state['state_type'] in ['awaiting_health_input', 'awaiting_finance_input']:
+            elif state['state_type'] in ['awaiting_health_input', 'awaiting_finance_input', 'awaiting_workout_input']:
+                if state['module'] == 'health':
+                    from modules.health import handle_health_message
+                    await handle_health_message(update, pool, state, text)
+                elif state['module'] == 'finance':
+                    from modules.finance import handle_finance_message
+                    await handle_finance_message(update, pool, state, text)
+                elif state['module'] == 'workout':
+                    from modules.workout import handle_workout_message
+                    await handle_workout_message(update, pool, state, text)
+                return
                 from core.state import clear_state
                 await clear_state(pool)
                 # Fall through to Gemini
