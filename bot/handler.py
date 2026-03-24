@@ -935,6 +935,34 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             await handle_workout_callback(query, pool, data)
             return
 
+        if data.startswith("health_"):
+            from modules.health import handle_health_intent
+            if data == "health_chart":
+                result, _ = await handle_health_intent(pool, "health_chart", {}, bot=context.bot)
+                if isinstance(result, bytes):
+                    await context.bot.send_photo(
+                        chat_id=update.effective_chat.id,
+                        photo=result,
+                        caption="Health Trends 📊 (ultimele 30 zile)"
+                    )
+                    await query.answer()
+                else:
+                    await query.answer(result)
+                    await query.message.reply_text(result)
+            elif data == "health_log_water":
+                await query.edit_message_text("💧 *Câți ml ai băut?*\n_(ex: am băut 500ml, 1.5L, +250)_", parse_mode="MarkdownV2")
+                await query.answer()
+            elif data == "health_log_sleep":
+                await query.edit_message_text("😴 *Câte ore ai dormit?*\n_(ex: 8 ore, somn bun, 7h30)_", parse_mode="MarkdownV2")
+                await query.answer()
+            elif data == "health_log_weight":
+                await query.edit_message_text("⚖️ *Care e greutatea ta azi?*\n_(ex: 74.5kg, am 75)_", parse_mode="MarkdownV2")
+                await query.answer()
+            elif data == "health_log_nutrition":
+                await query.edit_message_text("🥗 *Cum ai mâncat azi?*\n_(ex: excelent, ok, prost, junk food)_", parse_mode="MarkdownV2")
+                await query.answer()
+            return
+
         # Phase 4: Module callbacks (module:action:item_id)
         parts = data.split(":")
         if len(parts) >= 2:
@@ -1438,3 +1466,13 @@ async def goals_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print(f"Error in goals_command: {e}")
         await update.message.reply_text("❌ Eroare la încărcarea dashboard-ului Goals.")
+
+async def health_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles /health command — opens health dashboard."""
+    pool = context.bot_data.get("pool")
+    if not await security_check(update):
+        return
+    
+    from modules.health import handle_health_intent
+    text, markup = await handle_health_intent(pool, "health_summary", {}, bot=context.bot)
+    await update.message.reply_text(text, parse_mode="MarkdownV2", reply_markup=markup)

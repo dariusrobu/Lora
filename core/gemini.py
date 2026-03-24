@@ -124,10 +124,13 @@ FAPTE DESPRE {user_name}:
     - intent="get_insights" sau "ask_insights" pentru a analiza corelații între mood și productivitate.
     - Cuvinte cheie: "ce patterns ai observat", "analizează productivitatea", "insights", "ce observi", "cum mă descurc".
 18. Health: module="health":
-    - intent="health_log" pentru înregistrare (somn, apă, nutriție, greutate).
-    - intent="health_summary" pentru rezumatul zilei.
+    - intent="health_log" pentru înregistrare (somn, apă, nutriție, greutate). Poate loga mai multe odată.
+    - intent="log_water" pentru a ADĂUGA apă la totalul zilei (ex: "am mai băut 500ml").
+    - intent="health_summary" pentru rezumatul text (ultimele 7 zile).
     - intent="health_chart" pentru grafice (somn, apă, greutate) pe ultimele 30 zile.
-    - intent="health_insights" pentru analize pe termen lung (somn vs productivitate, nutriție vs energie).
+    - Regulă conversie APĂ: "2L" / "2 litri" → 2000 | "un pahar" → 250 | "500ml" → 500.
+    - Regulă SOMN: "7h30/7 și jumătate" → 7.5.
+    - Regulă CALITATE: "bună/ok" → "good" | "proastă/rău" → "bad" | "excelentă" → "great" | "groaznic" → "terrible" | "neutru" → "neutral".
 15. Goals: module="goals":
     - intent="add_goal" — "vreau să îmi setez un goal", "adaugă obiectiv: X"
     - intent="update_goal" — "am progresat la goal-ul X", "actualizează goal-ul Y"
@@ -226,7 +229,14 @@ IntentResponse schema:
        "complete_subtask": {{"title": string, "task_title": string}},
        "view_goals": {{}},
        "delete_goal": {{"title": string}},
-         "health": {{ "sleep_hours": float, "sleep_quality": "great"|"good"|"neutral"|"bad"|"terrible", "water_ml": number, "nutrition": "great"|"good"|"neutral"|"bad"|"terrible", "weight_kg": float, "notes": string }},
+         "health": {{ 
+             "sleep_hours": float, 
+             "sleep_quality": "great"|"good"|"neutral"|"bad"|"terrible", 
+             "water_ml": int, 
+             "nutrition": "great"|"good"|"neutral"|"bad"|"terrible", 
+             "weight_kg": float, 
+             "notes": string 
+         }},
          "workout_log": {{
              "sport_name": string,
              "duration_min": int,

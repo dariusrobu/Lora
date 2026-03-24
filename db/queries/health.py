@@ -1,73 +1,115 @@
-from typing import List, Optional, Dict, Any
-from datetime import date
+from typing import Optional, List, Dict, Any
+from datetime import date, timedelta
 
-async def upsert_health_log(pool, log_date: date, **kwargs) -> int:
-    """Updates or inserts health metrics for a specific date."""
-    keys = []
-    values = []
-    placeholders = []
-    updates = []
-    
-    # Always include log_date as $1
-    keys.append("log_date")
-    values.append(log_date)
-    placeholders.append("$1")
-    
-    i = 2
-    for k, v in kwargs.items():
-        if v is not None:
-            keys.append(k)
-            values.append(v)
-            placeholders.append(f"${i}")
-            updates.append(f"{k} = EXCLUDED.{k}")
-            i += 1
-            
-    if not updates:
-        return 0 # Nothing to update
-        
-    query = f"""
-        INSERT INTO health_logs ({', '.join(keys)})
-        VALUES ({', '.join(placeholders)})
-        ON CONFLICT (log_date) DO UPDATE
-        SET {', '.join(updates)}, updated_at = NOW()
-        RETURNING id
+async def upsert_health_log(
+    pool, 
+    log_date: date, 
+    sleep_hours: Optional[float] = None,
+    sleep_quality: Optional[str] = None,
+    water_ml: Optional[int] = None,
+    nutrition: Optional[str] = None,
+    weight_kg: Optional[float] = None,
+    notes: Optional[str] = None
+) -> None:
     """
-    
+    Upserts a health log entry for a specific date.
+    Uses COALESCE to avoid overwriting existing values with NULL.
+    """
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(query, *values)
-        return row['id'] if row else 0
-
-async def get_health_log(pool, log_date: date) -> Optional[Dict[str, Any]]:
-    """Retrieves health log for a specific date."""
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT * FROM health_logs WHERE log_date = $1",
-            log_date
+        await conn.execute(
+            """
+            INSERT INTO health_logs (
+                log_date, sleep_hours, sleep_quality, water_ml, nutrition, weight_kg, notes
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (log_date) 
+            DO UPDATE SET 
+                sleep_hours   = COALESCE($2, health_logs.sleep_hours),
+                sleep_quality = COALESCE($3, health_logs.sleep_quality),
+                water_ml      = COALESCE($4, health_logs.water_ml),
+                nutrition     = COALESCE($5, health_logs.nutrition),
+                weight_kg     = COALESCE($6, health_logs.weight_kg),
+                notes         = COALESCE($7, health_logs.notes),
+                updated_at    = NOW()
+            """,
+            log_date, sleep_hours, sleep_quality, water_ml, nutrition, weight_kg, notes
         )
-        return dict(row) if row else None
+
+async def add_water(pool, log_date: date, ml_to_add: int) -> int:
+    """
+    Adds water to the existing amount for the day. Returns the new total.
+    """
+    async with pool.acquire() as conn:
+        new_total = await conn.fetchval(
+            """
+            INSERT INTO health_logs (log_date, water_ml)
+            VALUES ($1, $2)
+            ON CONFLICT (log_date) 
+            DO UPDATE SET 
+                water_ml = COALESCE(health_logs.water_ml, 0) + EXCLUDED.water_ml,
+                updated_at = NOW()
+            RETURNING water_ml
+            """,
+            log_date, ml_to_add
+        )
+        return new_total
 
 async def get_health_history(pool, days: int = 30) -> List[Dict[str, Any]]:
-    """Retrieves historical health data for the specified number of days."""
+    """
+    Retrieves health logs for the last N days.
+    """
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT * FROM health_logs 
-            WHERE log_date > CURRENT_DATE - INTERVAL '1 day' * $1
+            WHERE log_date > CURRENT_DATE - $1::INTERVAL
             ORDER BY log_date ASC
             """,
-            days
+            f"{days} days"
         )
         return [dict(r) for r in rows]
 
-async def get_monthly_health_avg(pool, start_date, end_date) -> dict:
+async def get_health_summary(pool, days: int = 7) -> Dict[str, Any]:
+    """
+    Aggregates health stats for the last N days.
+    """
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("""
+        row = await conn.fetchrow(
+            """
             SELECT 
-                ROUND(AVG(sleep_hours)::numeric, 1) as avg_sleep,
-                ROUND(AVG(water_ml)::numeric, 0) as avg_water,
-                MIN(weight_kg) as min_weight,
-                MAX(weight_kg) as max_weight
+                AVG(sleep_hours) as avg_sleep,
+                MODE() WITHIN GROUP (ORDER BY sleep_quality) as common_sleep_quality,
+                AVG(water_ml) as avg_water,
+                MAX(water_ml) as max_water,
+                MIN(weight_kg) FILTER (WHERE weight_kg > 0) as min_weight,
+                MAX(weight_kg) FILTER (WHERE weight_kg > 0) as max_weight,
+                COUNT(*) FILTER (WHERE nutrition IN ('great', 'good')) as good_nutrition_days,
+                COUNT(*) as total_days
             FROM health_logs
-            WHERE log_date >= $1 AND log_date < $2
-        """, start_date, end_date)
-        return dict(row) if row else {}
+            WHERE log_date > CURRENT_DATE - $1::INTERVAL
+            """,
+            f"{days} days"
+        )
+        
+        # Trend calculation for weight
+        recent_weights = await conn.fetch(
+            """
+            SELECT weight_kg FROM health_logs 
+            WHERE weight_kg IS NOT NULL 
+            ORDER BY log_date DESC LIMIT 2
+            """
+        )
+        
+        trend = "stable"
+        if len(recent_weights) >= 2:
+            w1 = recent_weights[0]['weight_kg'] # newest
+            w2 = recent_weights[1]['weight_kg'] # second newest
+            if w1 < w2: trend = "down"
+            elif w1 > w2: trend = "up"
+            
+        summary = dict(row) if row else {}
+        summary['weight_trend'] = trend
+        summary['recent_weight'] = recent_weights[0]['weight_kg'] if recent_weights else None
+        summary['prev_weight'] = recent_weights[1]['weight_kg'] if len(recent_weights) >= 2 else None
+        
+        return summary
