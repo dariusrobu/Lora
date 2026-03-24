@@ -1668,7 +1668,7 @@ async def handle_tasks_callback(query, pool, data: str):
             await query.answer("Nu ai task-uri finalizate recent.")
             return
         
-        lines = ["✅ *Task-uri finalizate recent:*"]
+        lines = ["✅ *Task\\-uri finalizate recent:*"]
         for t in tasks[:10]: # Last 10
             lines.append(f"• ~{escape_md(t['title'])}~")
         
@@ -1743,7 +1743,7 @@ async def handle_projects_callback(query, pool, data: str):
     elif action == "new":
         from core.state import set_state
         await set_state(pool, "awaiting_project_input", "projects", "add", None)
-        await query.edit_message_text("📂 *Creează proiect nou*\n\nScrie numele proiectului și o scurtă descriere.\n_Ex: Licență, Planificare și scriere capitol 1_", parse_mode="MarkdownV2")
+        await query.edit_message_text("📂 *Creează proiect nou*\n\nScrie numele proiectului și o scurtă descriere\\.\n_Ex: Licență, Planificare și scriere capitol 1_", parse_mode="MarkdownV2")
         
     elif action == "delete":
         project_id = int(parts[2])

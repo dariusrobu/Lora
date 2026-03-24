@@ -79,12 +79,12 @@ async def get_projects_dashboard(pool) -> Tuple[str, Any]:
             
     lines = ["🏗 *Dashboard Proiecte*\n"]
     lines.append(f"📊 Total proiecte active: *{total_active}*")
-    lines.append(f"🔥 Proiecte cu task-uri: *{len(active_with_tasks)}*")
+    lines.append(f"🔥 Proiecte cu task\\-uri: *{len(active_with_tasks)}*")
     
     if active_with_tasks:
         lines.append("\n*Activitate curentă:*")
         for ap in active_with_tasks:
-            lines.append(f"• {escape_md(ap['name'])}: {ap['count']} task-uri")
+            lines.append(f"• {escape_md(ap['name'])}: {ap['count']} task\\-uri")
     
     from bot.keyboards import projects_main_keyboard
     return "\n".join(lines), projects_main_keyboard(projects)
