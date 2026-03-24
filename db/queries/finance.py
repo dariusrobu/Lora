@@ -70,6 +70,25 @@ async def get_budget_status(pool) -> List[Dict[str, Any]]:
         )
         return [dict(r) for r in rows]
 
+async def get_monthly_summary(pool, month: int, year: int) -> Dict[str, float]:
+    """Gets total income and total expenses for a specific month."""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT 
+                COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+                COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+            FROM finances
+            WHERE EXTRACT(MONTH FROM tx_date) = $1 
+              AND EXTRACT(YEAR FROM tx_date) = $2
+            """,
+            month, year
+        )
+        return {
+            'income': float(row['income']),
+            'expense': float(row['expense'])
+        }
+
 async def get_finance_history(pool, days: int = 30) -> List[Dict[str, Any]]:
     """Retrieves daily spending history."""
     async with pool.acquire() as conn:
