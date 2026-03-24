@@ -159,7 +159,7 @@ FAPTE DESPRE {user_name}:
 - "Pune la proiectul Casă să cumpăr becuri" -> intent="add_task", module="tasks", data={{"title": "cumpăr becuri", "project": "Casă"}}
 - "Arată-mi task-urile de la facultate" -> intent="list_tasks", module="tasks", data={{"project": "facultate"}}
 - "Creează proiectul Licență" -> intent="add_project", module="tasks", data={{"name": "Licență"}}
-- "Arată-mi dashboard proiecte" -> intent="list_projects", module="tasks"
+- "Arată-mi dashboard proiecte" -> intent="list_projects", module="projects"
 20. Workout: module="workout":
     - intent="workout_log" pentru înregistrarea unui antrenament (gym, fotbal, cardio, alergare etc.).
         * REGULI de extragere date pentru `workout_log`:
