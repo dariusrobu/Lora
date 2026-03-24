@@ -1,88 +1,41 @@
 # modules/nutrition.py
 
-import aiohttp
-from typing import Dict, Any, Tuple, List, Optional
+from typing import Dict, Any, Tuple
 from bot.formatter import escape_md
 from datetime import date
-from core.config import NUTRITIONIX_APP_ID, NUTRITIONIX_API_KEY
 import db.queries.nutrition as nutrition_queries
 
-NUTRITIONIX_URL = "https://trackapi.nutritionix.com/v2/natural/nutrients"
-
-async def get_nutritionix_data(query: str) -> Optional[List[Dict]]:
-    """Calls Nutritionix Natural Language API to parse food string."""
-    if not NUTRITIONIX_APP_ID or not NUTRITIONIX_API_KEY:
-        print("Nutritionix API keys missing.", flush=True)
-        return None
-        
-    headers = {
-        "x-app-id": NUTRITIONIX_APP_ID,
-        "x-app-key": NUTRITIONIX_API_KEY,
-        "Content-Type": "application/json"
-    }
-    
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(NUTRITIONIX_URL, headers=headers, json={"query": query}, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                if resp.status != 200:
-                    text = await resp.text()
-                    print(f"Nutritionix API error ({resp.status}): {text}", flush=True)
-                    return None
-                data = await resp.json()
-                return data.get("foods", [])
-    except Exception as e:
-        print(f"Nutritionix call error: {e}", flush=True)
-        return None
 
 async def handle_nutrition_intent(pool, intent: str, data: Dict[str, Any], bot=None) -> Tuple[str, None]:
     """Main router for nutrition-related intents."""
     
     if intent == "meal_log":
-        # We can accept either pre-parsed items or a raw description
-        items = data.get("items", [])
         meal_type = data.get("meal_type", "masa")
-        description = data.get("description") # The raw text like "2 oua si o felie de paine"
+        description = data.get("description", "Masă fără descriere")
         
-        # If Gemini didn't extract items but gave a description, or if we want to re-parse
-        # for better accuracy using Nutritionix's NLP:
-        query = description if description else ", ".join([f"{i.get('quantity_g', '')}g {i['name']}" for i in items])
+        # Macros are now estimated by Gemini and passed directly in 'data'
+        total_cal = float(data.get("calories", 0))
+        total_prot = float(data.get("protein", 0))
+        total_carbs = float(data.get("carbs", 0))
+        total_fat = float(data.get("fat", 0))
         
-        if not query:
-            return "Spune-mi ce ai mâncat și cantitățile aproximative\\. 🍎", None
-            
-        foods = await get_nutritionix_data(query)
-        
-        if not foods:
-            return "Nu am putut analiza nutrienții pentru această masă\\. 😕 Verifică dacă API key-ul este valid\\.", None
-            
+        items_data = data.get("items", [])
         found_items = []
-        total_cal = total_prot = total_carbs = total_fat = 0.0
-        
-        for f in foods:
-            cal = float(f.get("nf_calories", 0))
-            prot = float(f.get("nf_protein", 0))
-            carbs = float(f.get("nf_total_carbohydrate", 0))
-            fat = float(f.get("nf_total_fat", 0))
-            
-            total_cal += cal
-            total_prot += prot
-            total_carbs += carbs
-            total_fat += fat
-            
+        for item in items_data:
             found_items.append({
-                "name": f.get("food_name", "Unknown"),
-                "quantity_g": float(f.get("serving_weight_grams", 0)),
-                "calories": cal,
-                "protein": prot,
-                "carbs": carbs,
-                "fat": fat
+                "name": item.get("name", "Unknown"),
+                "quantity_g": float(item.get("quantity_g", 0)),
+                "calories": 0, # We don't have individual item macros from Gemini yet, just totals
+                "protein": 0,
+                "carbs": 0,
+                "fat": 0
             })
             
         # Log to DB
         await nutrition_queries.log_meal(
             pool, date.today(), meal_type,
             {"calories": total_cal, "protein": total_prot, "carbs": total_carbs, "fat": total_fat},
-            description or query,
+            description,
             found_items
         )
         
@@ -94,10 +47,6 @@ async def handle_nutrition_intent(pool, intent: str, data: Dict[str, Any], bot=N
         lines = [f"🍽 *{escape_md(meal_type.replace('_', ' ').title())}* înregistrat\\!"]
         lines.append(f"🔥 *{int(total_cal)}* kcal | 💪 *{total_prot:.1f}g* P | 🍞 *{total_carbs:.1f}g* C | 🫒 *{total_fat:.1f}g* F")
         
-        if len(found_items) > 1:
-            item_names = [escape_md(f['name']) for f in found_items]
-            lines.append(f"_{', '.join(item_names)}_")
-            
         lines.append("")
         lines.append(f"📊 *Total azi:* {int(day_totals['calories'])} kcal")
         
@@ -113,6 +62,7 @@ async def handle_nutrition_intent(pool, intent: str, data: Dict[str, Any], bot=N
                 lines.append("⚠️ Ai depășit targetul de calorii pe azi\\.")
 
         return "\n".join(lines), None
+
 
     elif intent == "nutrition_summary":
         day_totals = await nutrition_queries.get_daily_totals(pool, date.today())

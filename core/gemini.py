@@ -178,8 +178,14 @@ FAPTE DESPRE {user_name}:
     - intent="uni_attendance_warning" pentru verificarea prezenței ("cum stau cu prezențele", "am probleme cu prezența").
 25. Nutrition: module="nutrition":
     - intent="meal_log" pentru logarea unei mese ("am mâncat la prânz 150g pui", "mic dejun: 3 ouă").
+        * REGULI EXTRA calorie/macro:
+        - Estimează calorii și macro-uri (P/C/F) pentru TOATE elementele menționate.
+        - Dacă lipsește cantitatea, folosește porții medii (ex: o felie pâine = 30g, un măr = 150g, o ciorbă = 350ml).
+        - Folosește specificul românesc pentru mâncăruri tradiționale (ciorbă, mămăligă, sarmale etc.).
+        - "description" va conține textul brut al utilizatorului.
     - intent="nutrition_summary" pentru sumarul zilei ("ce am mâncat azi", "nutriție azi", "macros azi").
     - intent="nutrition_target" pentru targeturi ("ce target am", "câte proteine trebuie").
+
 26. Schedule: module="schedule":
     - intent="schedule_today" pentru orarul de azi ("ce cursuri am azi", "orarul de azi", "ce am la facultate").
     - intent="schedule_week" pentru orarul săptămânii ("orarul săptămânii", "ce am săptămâna asta").
@@ -290,16 +296,21 @@ IntentResponse schema:
              "exam_type": "examen" | "colocviu" | "restanta",
              "location": string | null
          }},
-         "meal_log": {{
-             "meal_type": "mic_dejun" | "pranz" | "cina" | "gustare" | "masa",
-             "description": string,      -- Raw text of the meal (e.g. "2 eggs and a coffee") for NLP parsing
-             "items": [                  -- Optional: individual items if easily identified
-                 {{
-                     "name": string,
-                     "quantity_g": float
-                 }}
-             ]
-         }}
+          "meal_log": {{
+              "meal_type": "mic_dejun" | "pranz" | "cina" | "gustare" | "masa",
+              "description": string,      // Raw meal text
+              "calories": number,         // Estimated total kcal
+              "protein": number,          // Estimated protein (g)
+              "carbs": number,            // Estimated carbs (g)
+              "fat": number,              // Estimated fat (g)
+              "items": [                  // Breakdown of items detected
+                  {{
+                      "name": string,
+                      "quantity_g": float
+                  }}
+              ]
+          }}
+
     }},
   "reply": string,               // Lora's reply in Telegram MarkdownV2 (RAW, NO JSON ESCAPING)
   "needs_confirmation": boolean  // true only for destructive actions
