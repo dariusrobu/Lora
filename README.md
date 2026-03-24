@@ -18,7 +18,7 @@ Lora is a **private Telegram bot** that acts as a personal AI second brain for e
 |---|---|---|
 | Language | Python 3.11+ | Type hints required everywhere |
 | Telegram | `python-telegram-bot==22.6` | Async, long polling |
-| LLM | `google-genai` (latest) | **Model: `gemini-2.5-flash`** |
+| LLM | `google-genai` (latest) | **Model: `gemini-2.0-flash`** |
 | Database | Neon (serverless PostgreSQL) | Cloud-hosted Postgres |
 | DB driver | `asyncpg` | Raw SQL — **no ORM** |
 | Scheduler | `apscheduler==3.10.4` | `AsyncIOScheduler` |
@@ -351,7 +351,7 @@ Please implement: [describe what you want].
 
 ### 🐛 Debug / Fix a Bug
 ```
-In Lora (Python Telegram bot, gemini-2.5-flash, asyncpg/PostgreSQL):
+In Lora (Python Telegram bot, gemini-2.0-flash, asyncpg/PostgreSQL):
 Bug description: [WHAT IS WRONG]
 Affected file(s): [e.g. core/gemini.py, modules/tasks.py]
 Error message or observed behaviour: [PASTE ERROR / DESCRIBE]
@@ -418,4 +418,4 @@ Change needed: [DESCRIBE THE SCHEMA CHANGE AND WHY]
 
 ---
 
-*Last updated: 2026-03-19 | Bot version: v2.5 (gemini-2.5-flash, google-genai SDK)*
+*Last updated: 2026-03-19 | Bot version: v2.5 (gemini-2.0-flash, google-genai SDK)*

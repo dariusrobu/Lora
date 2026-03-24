@@ -4,7 +4,8 @@ from telegram.ext import ContextTypes
 from core.config import TELEGRAM_USER_ID
 from bot.onboarding import start_onboarding, handle_onboarding, handle_onboarding_callback
 from db.queries.profile import is_onboarding_complete, get_user_profile
-from bot.formatter import escape_md, split_message
+from bot.formatter import escape_md, safe_markdown, split_message
+
 from core.context import build_context
 from core.gemini import get_gemini_response
 from core.router import route_intent
@@ -504,7 +505,7 @@ Returnează EXCLUSIV JSON valid, fără markdown:
 week_type: "odd" dacă e marcat SI, "even" dacă SP, "both" dacă apare în ambele sau nu e marcat.
 """
                         response = client.models.generate_content(
-                            model="gemini-2.5-flash",
+                            model="gemini-2.0-flash",
                             contents=[
                                 types.Content(parts=[
                                     types.Part(inline_data=types.Blob(mime_type="image/jpeg", data=image_data)),
@@ -596,7 +597,7 @@ Returnează EXCLUSIV JSON valid:
 }
 """
                         response = client.models.generate_content(
-                            model="gemini-2.5-flash",
+                            model="gemini-2.0-flash",
                             contents=[
                                 types.Content(parts=[
                                     types.Part(inline_data=types.Blob(mime_type="application/pdf", data=pdf_data)),
