@@ -2,7 +2,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime, timedelta
 import pytz
 from core.config import TELEGRAM_USER_ID, TIMEZONE, MORNING_BRIEFING_TIME, EOD_REFLECTION_TIME
-from bot.formatter import escape_md, safe_markdown
+from bot.formatter import escape_md
 from telegram.constants import ParseMode
 import db.queries.profile as profile_queries
 import db.queries.tasks as task_queries
@@ -11,7 +11,6 @@ import db.queries.events as event_queries
 import db.queries.finance as finance_queries
 import db.queries.notes as note_queries
 import db.queries.health as health_queries
-import db.queries.goals as goal_queries
 
 _global_scheduler = None
 
@@ -451,7 +450,7 @@ async def send_evening_flow(application, pool):
 async def check_class_reminders(application, pool) -> None:
     """Verifică cursurile care încep în 15 minute și trimite reminder."""
     try:
-        from db.queries.schedule import get_upcoming_classes, is_reminder_sent, log_reminder_sent
+        from db.queries.schedule import get_upcoming_classes
         from bot.formatter import escape_md
         from telegram.constants import ParseMode
         from datetime import date
@@ -512,7 +511,6 @@ async def send_weekly_review(application, pool) -> None:
     from datetime import timedelta, datetime
     import pytz
     from core.config import TIMEZONE, TELEGRAM_USER_ID
-    from bot.formatter import safe_markdown
     from telegram.constants import ParseMode
     
     try:
@@ -538,7 +536,6 @@ async def send_weekly_review(application, pool) -> None:
         # Concise Finance Section for Sunday Review
         finance_summary = await finance_queries.get_weekly_finance_summary(pool, start_date, end_date)
         finance_ctx = f"Cheltuieli totale săptămâna asta: {int(finance_summary['total'])} RON"
-        finance_footer = "" # Not needed here
 
         # Enhanced Mood Section
         import db.queries.mood as mood_queries
@@ -582,7 +579,7 @@ async def send_weekly_review(application, pool) -> None:
                     GROUP BY meal_date
                 ) daily
             """, start_date, end_date)
-            targets = await conn.fetchrow("SELECT * FROM nutrition_targets LIMIT 1")
+            await conn.fetchrow("SELECT * FROM nutrition_targets LIMIT 1")
         
         nutrition_ctx = ""
         if nutrition_stats and nutrition_stats['avg_cal']:
@@ -804,7 +801,7 @@ async def check_event_reminders(application, pool):
 
 async def send_monthly_review(bot, pool) -> None:
     """Aggregates monthly data and sends a reflective review on the 1st of each month."""
-    from bot.formatter import safe_markdown, escape_md
+    from bot.formatter import safe_markdown
     from datetime import timedelta
     import asyncio
     
@@ -981,66 +978,6 @@ async def check_proactive_insights(application, pool) -> None:
         print(f"CRITICAL error in check_proactive_insights: {e}", flush=True)
         traceback.print_exc()
 
-async def send_habit_reminder(application, pool) -> None:
-    """Friendly reminder at HABIT_REMINDER_TIME for any habits not yet completed today."""
-    try:
-        from bot.formatter import escape_md
-        from telegram.constants import ParseMode
-        
-        habits = await habit_queries.list_habits(pool)
-        today_logged_ids = await habit_queries.get_today_logs(pool)
-        pending = [h for h in habits if h['id'] not in today_logged_ids]
-        
-        if not pending:
-            print("No pending habits to remind — skipping.", flush=True)
-            return
-            
-        habit_list = "\n".join([f"• {escape_md(h['name'])}" for h in pending])
-        message = (
-            f"🔁 *Reminder Habits*\n\n"
-            f"Încă nu ai bifat aceste habits azi:\n{habit_list}\n\n"
-            f"Hai că poți\\! 💪"
-        )
-        
-        await application.bot.send_message(
-            chat_id=TELEGRAM_USER_ID,
-            text=message,
-            parse_mode=ParseMode.MARKDOWN_V2
-        )
-        print(f"Habit reminder sent for {len(pending)} habits.", flush=True)
-        
-    except Exception as e:
-        print(f"Error in send_habit_reminder: {e}", flush=True)
-
-async def missed_habit_nudge(application, pool) -> None:
-    """A gentle nudge 1h after the morning briefing if no habits have been started yet."""
-    try:
-        from bot.formatter import escape_md
-        from telegram.constants import ParseMode
-        
-        today_logged_ids = await habit_queries.get_today_logs(pool)
-        if today_logged_ids:
-            # At least one habit started/done
-            return
-            
-        habits = await habit_queries.list_habits(pool)
-        if not habits:
-            return
-            
-        message = (
-            f"✨ *Start mic, impact mare\\!*\n\n"
-            f"Încă nu ai început niciun habit azi\\. Cu care vrei să începi? 🚀"
-        )
-        
-        await application.bot.send_message(
-            chat_id=TELEGRAM_USER_ID,
-            text=message,
-            parse_mode=ParseMode.MARKDOWN_V2
-        )
-        print("Missed habit nudge sent.", flush=True)
-        
-    except Exception as e:
-        print(f"Error in missed_habit_nudge: {e}", flush=True)
 
 def setup_scheduler(application, pool):
     scheduler = AsyncIOScheduler(timezone=TIMEZONE)
@@ -1050,14 +987,9 @@ def setup_scheduler(application, pool):
 
     m_h, m_m = map(int, MORNING_BRIEFING_TIME.split(':'))
     e_h, e_m = map(int, EOD_REFLECTION_TIME.split(':'))
-    h_h, h_m = map(int, HABIT_REMINDER_TIME.split(':'))
 
     # 1. Daily check at 05:00 to schedule briefing
     scheduler.add_job(check_wake_time_and_schedule, 'cron', hour=5, minute=0,
-                      misfire_grace_time=3600, args=[application, pool])
-
-    # 2. Habit reminder
-    scheduler.add_job(send_habit_reminder, 'cron', hour=h_h, minute=h_m,
                       misfire_grace_time=3600, args=[application, pool])
 
     # 3. Evening flow
@@ -1072,15 +1004,13 @@ def setup_scheduler(application, pool):
 
     # Weekly Finance Summary: Monday, 5 mins before Morning Briefing
     f_h, f_m = m_h, (m_m - 5) % 60
-    if m_m < 5: f_h = (m_h - 1) % 24
+    if m_m < 5:
+        f_h = (m_h - 1) % 24
     
     scheduler.add_job(send_weekly_finance_summary, 'cron', day_of_week='mon', hour=f_h, minute=f_m,
                       misfire_grace_time=3600, args=[application, pool])
 
     scheduler.add_job(reset_budget_alerts, 'cron', day=1, hour=0, minute=0,
-                      misfire_grace_time=3600, args=[application, pool])
-
-    scheduler.add_job(missed_habit_nudge, 'cron', hour=(m_h + 1) % 24, minute=m_m,
                       misfire_grace_time=3600, args=[application, pool])
 
     # University Attendace Warning (Insight) - Daily at 09:00
