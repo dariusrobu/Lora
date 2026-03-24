@@ -6,7 +6,8 @@ from db.connection import get_pool, close_pool
 from bot.handler import (
     message_handler, callback_handler, voice_handler,
     habitstreaks_command, focus_command, stopfocus_command,
-    timeblock_command, uni_command, workout_command, goals_command, health_command, finance_command
+    timeblock_command, uni_command, workout_command, goals_command, health_command, finance_command,
+    tasks_command
 )
 from modules.skills import skills_command
 from functools import partial
@@ -52,6 +53,7 @@ async def start_bot():
     application.add_handler(CommandHandler("skills", skills_command))
     application.add_handler(CommandHandler("health", health_command))
     application.add_handler(CommandHandler("finance", finance_command))
+    application.add_handler(CommandHandler("tasks", tasks_command))
     application.add_handler(MessageHandler(filters.VOICE, voice_handler_with_pool))
     application.add_handler(MessageHandler(filters.ALL, msg_handler_with_pool))
     application.add_handler(CallbackQueryHandler(cb_handler_with_pool))

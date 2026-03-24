@@ -145,6 +145,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
                 await update.message.reply_text("I can only read text for now — what would you like to do?")
             return
         
+        # Handle /tasks command
+        if text.startswith("/tasks"):
+            from modules.tasks import get_tasks_dashboard
+            text_out, markup = await get_tasks_dashboard(pool)
+            await update.message.reply_text(text_out, parse_mode="MarkdownV2", reply_markup=markup)
+            return
+
         # Handle /reload command
         if text == "/reload":
             await update.message.reply_text("🔄 Reloading Lora... I'll be back in a second!")
@@ -812,9 +819,42 @@ Reguli:
                 await update.message.reply_text(reply, parse_mode="MarkdownV2")
                 return
 
-            elif state['state_type'] == 'awaiting_workout_input':
-                from modules.workout import handle_workout_message
-                await handle_workout_message(update, pool, state, text)
+            elif state['state_type'] == 'awaiting_task_input':
+                from modules.tasks import handle_task_intent
+                from core.state import clear_state
+                # Try to extract project_id from state extra
+                project_id = state.get('extra')
+                # We can call handle_task_intent with "add_task"
+                # But we need Gemini to parse the description, or we just use the raw text.
+                # Let's let it fall through to Gemini BUT with a hint.
+                # Actually, the most robust way is to just clear state and let Gemini handle it naturally.
+                # BUT if we have a project_id, we MUST pass it.
+                if project_id:
+                    # Forced add to project
+                    data = {"title": text, "project_id": project_id}
+                    reply, markup = await handle_task_intent(pool, "add_task", data)
+                    await clear_state(pool)
+                    await update.message.reply_text(reply, parse_mode="MarkdownV2", reply_markup=markup)
+                    return
+                await clear_state(pool)
+                # Fall through to Gemini
+
+            elif state['state_type'] == 'awaiting_project_input':
+                from db.queries.projects import add_project
+                from core.state import clear_state
+                from modules.tasks import get_projects_list_view
+                
+                # Simple parsing: first line name, rest description
+                lines = text.split('\n')
+                name = lines[0].strip()
+                desc = '\n'.join(lines[1:]).strip() if len(lines) > 1 else None
+                
+                await add_project(pool, name, desc)
+                await clear_state(pool)
+                await update.message.reply_text(f"📂 Proiect creat: *{escape_md(name)}*", parse_mode="MarkdownV2")
+                # Show projects list again
+                text_out, markup = await get_projects_list_view(pool)
+                await update.message.reply_text(text_out, parse_mode="MarkdownV2", reply_markup=markup)
                 return
 
             elif state['state_type'] in ['awaiting_health_input', 'awaiting_finance_input']:
@@ -931,6 +971,14 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
 
         if data.startswith("uni:"):
             await handle_uni_callback(query, pool, data)
+            return
+
+        if data.startswith("tasks:"):
+            await handle_tasks_callback(query, pool, data)
+            return
+
+        if data.startswith("projects:"):
+            await handle_projects_callback(query, pool, data)
             return
 
         if data.startswith("workout_"):
@@ -1571,3 +1619,120 @@ async def finance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from modules.finance import handle_finance_intent
     text, markup = await handle_finance_intent(pool, "finance_summary", {})
     await update.message.reply_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+
+async def tasks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles /tasks command — opens tasks dashboard."""
+    pool = context.bot_data.get("pool")
+    if not await security_check(update):
+        return
+    
+    from modules.tasks import get_tasks_dashboard
+    text, markup = await get_tasks_dashboard(pool)
+    await update.message.reply_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+
+async def handle_tasks_callback(query, pool, data: str):
+    """Processes task-related callback queries."""
+    from modules.tasks import get_tasks_dashboard, get_projects_list_view, get_project_tasks_view, handle_task_intent
+    from core.state import clear_state, set_state
+    
+    parts = data.split(":")
+    action = parts[1]
+    
+    if action == "main":
+        text, markup = await get_tasks_dashboard(pool)
+        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+    
+    elif action == "projects_list":
+        text, markup = await get_projects_list_view(pool)
+        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+        
+    elif action == "project_view":
+        project_id = int(parts[2])
+        text, markup = await get_project_tasks_view(pool, project_id)
+        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+        
+    elif action == "complete":
+        task_id = int(parts[2])
+        # "list" suffix means we should return to the list view after completion
+        is_list = len(parts) > 3 and parts[3] == "list"
+        
+        from db.queries.tasks import complete_task, get_task
+        task = await get_task(pool, task_id)
+        await complete_task(pool, task_id)
+        
+        await query.answer(f"✅ Bifat: {task['title'] if task else 'Task'}")
+        
+        if is_list:
+            # Refresh the current view
+            # If we were in a project view, we stay there. 
+            # But task_list_keyboard 'back' doesn't easily tell us WHICH project.
+            # Simplified: just show the general dashboard or re-list all tasks.
+            text, markup = await handle_task_intent(pool, "list_tasks", {})
+            await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+        else:
+            await query.edit_message_text(f"✅ Task completat: *{escape_md(task['title'])}*", parse_mode="MarkdownV2")
+            
+    elif action == "new":
+        await set_state(pool, "awaiting_task_input", "tasks", "add", None)
+        await query.edit_message_text("📝 *Adaugă task nou*\n\nScrie titlul task-ului (și opțional data sau prioritatea).\n_Ex: Cumpără becuri mâine !!high_", parse_mode="MarkdownV2")
+        
+    elif action == "new_for_project":
+        project_id = int(parts[2])
+        await set_state(pool, "awaiting_task_input", "tasks", "add", project_id)
+        await query.edit_message_text("📝 *Adaugă task în proiect*\n\nScrie titlul task-ului.\nLora îl va asocia automat cu acest proiect.", parse_mode="MarkdownV2")
+
+    elif action == "delete":
+        task_id = int(parts[2])
+        from modules.tasks import handle_task_intent
+        text, markup = await handle_task_intent(pool, "delete_task", {"id": task_id})
+        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+
+    elif action == "delete_confirmed":
+        task_id = int(parts[2])
+        from db.queries.tasks import delete_task, get_task
+        task = await get_task(pool, task_id)
+        await delete_task(pool, task_id)
+        await query.answer("🗑️ Task șters.")
+        text, markup = await get_tasks_dashboard(pool)
+        await query.edit_message_text(f"🗑️ Task șters: *{escape_md(task['title'])}*\n\n{text}", parse_mode="MarkdownV2", reply_markup=markup)
+
+    await query.answer()
+
+async def handle_projects_callback(query, pool, data: str):
+    """Processes project-related callback queries."""
+    from db.queries.projects import delete_project, get_project, update_project_status
+    from modules.tasks import get_projects_list_view
+    
+    parts = data.split(":")
+    action = parts[1]
+    
+    if action == "new":
+        from core.state import set_state
+        await set_state(pool, "awaiting_project_input", "projects", "add", None)
+        await query.edit_message_text("📂 *Creează proiect nou*\n\nScrie numele proiectului și o scurtă descriere.\n_Ex: Licență, Planificare și scriere capitol 1_", parse_mode="MarkdownV2")
+        
+    elif action == "delete":
+        project_id = int(parts[2])
+        project = await get_project(pool, project_id)
+        from bot.keyboards import confirmation_keyboard
+        await query.edit_message_text(
+            f"⚠️ Ești sigur că vrei să ștergi proiectul *{escape_md(project['name'])}*?\n\nTask-urile asociate vor rămâne fără proiect, dar nu vor fi șterse.",
+            parse_mode="MarkdownV2",
+            reply_markup=confirmation_keyboard("projects", "delete", project_id)
+        )
+        
+    elif action == "delete_confirmed":
+        project_id = int(parts[2])
+        await delete_project(pool, project_id)
+        await query.answer("🗑️ Proiect șters.")
+        text, markup = await get_projects_list_view(pool)
+        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+        
+    elif action == "complete":
+        project_id = int(parts[2])
+        await update_project_status(pool, project_id, "done")
+        await query.answer("🏁 Proiect marcat ca finalizat!")
+        text, markup = await get_projects_list_view(pool)
+        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+
+    await query.answer()

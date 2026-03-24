@@ -103,7 +103,10 @@ async def handle_task_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[s
                 lines.append(f"{prefix}• {escape_md(t['title'])}")
 
         from bot.keyboards import task_list_keyboard
-        return "\n".join(lines), task_list_keyboard(tasks)
+        return "\n".join(lines), task_list_keyboard(tasks, back_callback="tasks:main")
+
+        from bot.keyboards import task_list_keyboard
+        return "\n".join(lines), task_list_keyboard(tasks, back_callback="tasks:main")
 
     elif intent == "complete_task":
         # Usually Gemini finds the ID or we get it from a button
@@ -129,7 +132,7 @@ async def handle_task_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[s
                     task_id = matches[0]['id']
                 elif len(matches) > 1:
                     from bot.keyboards import task_list_keyboard
-                    return f"I found multiple tasks matching *{escape_md(search_term)}*. Which one did you mean?", task_list_keyboard(matches)
+                    return f"I found multiple tasks matching *{escape_md(search_term)}*. Which one did you mean?", task_list_keyboard(matches, back_callback="tasks:main")
 
         if not task_id:
             return "Which task should I edit?", None
@@ -163,7 +166,7 @@ async def handle_task_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[s
                     task_id = matches[0]['id']
                 elif len(matches) > 1:
                     from bot.keyboards import task_list_keyboard
-                    return f"I found multiple tasks matching *{escape_md(title)}*. Which one did you mean?", task_list_keyboard(matches)
+                    return f"I found multiple tasks matching *{escape_md(title)}*. Which one did you mean?", task_list_keyboard(matches, back_callback="tasks:main")
             # if 0 matches, we'll fall through to "Which task..."
             
         if not task_id:
@@ -180,4 +183,87 @@ async def handle_task_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[s
         from bot.keyboards import confirmation_keyboard
         return f"Are you sure you want to delete *{escape_md(task['title'])}*?", confirmation_keyboard("tasks", "delete", task_id)
 
+    elif intent == "add_project":
+        name = data.get("name")
+        if not name:
+            return "Cum vrei să se numească noul proiect?", None
+        
+        import db.queries.projects as project_queries
+        await project_queries.add_project(pool, name, data.get("description"))
+        text, markup = await get_projects_list_view(pool)
+        return f"📂 Proiect creat: *{escape_md(name)}*\n\n{text}", markup
+
+    elif intent == "list_projects":
+        return await get_projects_list_view(pool)
+
     return "I'm not sure how to handle that task request yet.", None
+
+async def get_tasks_dashboard(pool) -> Tuple[str, Any]:
+    """Returns a high-level overview of pending tasks grouped by project."""
+    tasks = await task_queries.list_tasks(pool, status="pending")
+    if not tasks:
+        from bot.keyboards import tasks_main_keyboard
+        return "Nu ai niciun task activ în acest moment\\! 🎉\nPoți adăuga unul nou prin limbaj natural sau folosind butonul de mai jos\\.", tasks_main_keyboard()
+    
+    # Simple count
+    total = len(tasks)
+    overdue = sum(1 for t in tasks if t.get("due_date") and t["due_date"] < datetime.now().date())
+    
+    # Grouping for the summary
+    from collections import Counter
+    projects = Counter(t.get("project_name") or "Fără proiect" for t in tasks)
+    
+    lines = ["📋 *Tasks Overview*\n"]
+    lines.append(f"✅ *{total}* task\\-uri active pe *{len(projects)}* proiecte\\.")
+    if overdue > 0:
+        lines.append(f"🔴 *{overdue}* sunt restante\\!")
+    
+    lines.append("\n*Repartiție pe proiecte:*")
+    for proj, count in projects.items():
+        lines.append(f"• {escape_md(proj)}: {count}")
+    
+    from bot.keyboards import tasks_main_keyboard
+    return "\n".join(lines), tasks_main_keyboard()
+
+async def get_projects_list_view(pool) -> Tuple[str, Any]:
+    """Lists all projects with their task counts."""
+    import db.queries.projects as project_queries
+    projects = await project_queries.list_projects(pool, exclude_status="archived")
+    
+    projects_with_counts = []
+    for p in projects:
+        tasks = await task_queries.list_tasks(pool, project_id=p['id'])
+        projects_with_counts.append({
+            'id': p['id'],
+            'name': p['name'],
+            'task_count': len(tasks)
+        })
+    
+    msg = "📂 *Proiectele Tale*\n\nAlege un proiect pentru a vedea detaliile sau a adăuga task\\-uri noi\\."
+    from bot.keyboards import tasks_projects_keyboard
+    return msg, tasks_projects_keyboard(projects_with_counts)
+
+async def get_project_tasks_view(pool, project_id: int) -> Tuple[str, Any]:
+    """Lists tasks for a specific project."""
+    import db.queries.projects as project_queries
+    project = await project_queries.get_project(pool, project_id)
+    if not project:
+        return "Proiectul nu a fost găsit\\.", None
+    
+    tasks = await task_queries.list_tasks(pool, project_id=project_id)
+    
+    lines = [f"📂 *Proiect: {escape_md(project['name'])}*"]
+    if project.get('description'):
+        lines.append(f"_{escape_md(project['description'])}_")
+    lines.append("")
+    
+    if not tasks:
+        lines.append("Niciun task activ în acest proiect\\.")
+    else:
+        for t in tasks:
+            prefix = "🔴 " if t.get("due_date") and t["due_date"] < datetime.now().date() else "• "
+            lines.append(f"{prefix}{escape_md(t['title'])}")
+            
+    from bot.keyboards import tasks_project_detail_keyboard
+    from bot.keyboards import task_list_keyboard
+    return "\n".join(lines), task_list_keyboard(tasks, back_callback="tasks:projects_list")

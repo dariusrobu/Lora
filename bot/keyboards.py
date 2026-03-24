@@ -47,14 +47,55 @@ def habit_list_keyboard(habits: list) -> InlineKeyboardMarkup:
         ])
     return InlineKeyboardMarkup(keyboard)
 
-def task_list_keyboard(tasks: list) -> InlineKeyboardMarkup:
+def task_list_keyboard(tasks: list, back_callback: str = "tasks:main") -> InlineKeyboardMarkup:
     # Multiple tasks, each with a 'Done' button
     keyboard = []
     for t in tasks:
         # One row per task: [ Title (Done) ]
         keyboard.append([
-            InlineKeyboardButton(f"✅ {t['title'][:20]}...", callback_data=f"tasks:complete:{t['id']}:list")
+            InlineKeyboardButton(f"✅ {t['title'][:25]}", callback_data=f"tasks:complete:{t['id']}:list")
         ])
+    keyboard.append([InlineKeyboardButton("◀️ Înapoi", callback_data=back_callback)])
+    return InlineKeyboardMarkup(keyboard)
+
+def tasks_main_keyboard() -> InlineKeyboardMarkup:
+    keyboard = [
+        [
+            InlineKeyboardButton("📋 Toate task-urile", callback_data="tasks:list_all"),
+            InlineKeyboardButton("📂 Pe proiecte", callback_data="tasks:projects_list"),
+        ],
+        [
+            InlineKeyboardButton("➕ Task nou", callback_data="tasks:new"),
+            InlineKeyboardButton("➕ Proiect nou", callback_data="projects:new"),
+        ],
+        [
+            InlineKeyboardButton("✅ Recent încheiate", callback_data="tasks:recent_done")
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def tasks_projects_keyboard(projects_with_counts: list) -> InlineKeyboardMarkup:
+    keyboard = []
+    for p in projects_with_counts:
+        # p is dict with 'id', 'name', 'task_count'
+        label = f"📁 {p['name']} ({p['task_count']})"
+        keyboard.append([InlineKeyboardButton(label, callback_data=f"tasks:project_view:{p['id']}")])
+    
+    keyboard.append([InlineKeyboardButton("➕ Proiect nou", callback_data="projects:new")])
+    keyboard.append([InlineKeyboardButton("◀️ Înapoi", callback_data="tasks:main")])
+    return InlineKeyboardMarkup(keyboard)
+
+def tasks_project_detail_keyboard(project_id: int) -> InlineKeyboardMarkup:
+    keyboard = [
+        [
+            InlineKeyboardButton("➕ Adaugă task aici", callback_data=f"tasks:new_for_project:{project_id}"),
+        ],
+        [
+            InlineKeyboardButton("🏁 Marcheză proiect ca GATA", callback_data=f"projects:complete:{project_id}"),
+            InlineKeyboardButton("🗑️ Șterge proiect", callback_data=f"projects:delete:{project_id}"),
+        ],
+        [InlineKeyboardButton("◀️ Înapoi la proiecte", callback_data="tasks:projects_list")]
+    ]
     return InlineKeyboardMarkup(keyboard)
 
 def mood_keyboard() -> InlineKeyboardMarkup:

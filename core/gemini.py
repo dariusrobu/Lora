@@ -130,6 +130,14 @@ FAPTE DESPRE {user_name}:
     - Regulă conversie APĂ: "2L" / "2 litri" → 2000 | "un pahar" → 250 | "500ml" → 500.
     - Regulă SOMN: "7h30/7 și jumătate" → 7.5.
     - Regulă CALITATE: "bună/ok" → "good" | "proastă/rău" → "bad" | "excelentă" → "great" | "groaznic" → "terrible" | "neutru" → "neutral".
+19. Tasks: module="tasks":
+    - intent="add_task" — "vreau să îmi setez un task", "adaugă: X". Poți specifica și proiectul (data: {{"project": "nume"}}).
+    - intent="list_tasks" — "ce am de făcut", "arată-mi task-urile". Poți filtra pe proiect (data: {{"project": "nume"}}).
+    - intent="complete_task" — "am terminat X", "bifează Y".
+    - intent="delete_task" — "șterge task-ul X".
+    - intent="edit_task" — "schimbă data la X", "pune prioritate mare la Y".
+    - intent="add_project" — "creează proiectul X", "proiect nou: Y".
+    - intent="list_projects" — "ce proiecte am", "vezi proiectele".
 15. Goals: module="goals":
     - intent="add_goal" — "vreau să îmi setez un goal", "adaugă obiectiv: X"
     - intent="update_goal" — "am progresat la goal-ul X", "actualizează goal-ul Y"
@@ -148,6 +156,9 @@ FAPTE DESPRE {user_name}:
 - "Am făcut 1h sală, spate și biceps" -> intent="workout_log", module="workout", data={{"sport_name": "Gym", "duration_min": 60, "notes": "spate și biceps"}}
 - "12 ron uber" -> intent="finance_log", module="finance", data={{"amount": 12, "type": "expense", "category": "transport", "description": "uber"}}
 - "Am primit salariul 5000 ron" -> intent="finance_log", module="finance", data={{"amount": 5000, "type": "income", "category": "salariu"}}
+- "Pune la proiectul Casă să cumpăr becuri" -> intent="add_task", module="tasks", data={{"title": "cumpăr becuri", "project": "Casă"}}
+- "Arată-mi task-urile de la facultate" -> intent="list_tasks", module="tasks", data={{"project": "facultate"}}
+- "Creează proiectul Licență" -> intent="add_project", module="tasks", data={{"name": "Licență"}}
 20. Workout: module="workout":
     - intent="workout_log" pentru înregistrarea unui antrenament (gym, fotbal, cardio, alergare etc.).
         * REGULI de extragere date pentru `workout_log`:
