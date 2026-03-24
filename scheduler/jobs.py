@@ -15,6 +15,61 @@ import db.queries.goals as goal_queries
 
 _global_scheduler = None
 
+async def check_wake_time_and_schedule(application, pool):
+    """Daily check at 05:00 to schedule the morning briefing based on wake_time."""
+    try:
+        from db.queries.day_plans import get_day_plan
+        from core.config import MORNING_BRIEFING_TIME, TELEGRAM_USER_ID, TIMEZONE
+        import pytz
+        from datetime import date, datetime
+
+        user_tz = pytz.timezone(TIMEZONE)
+        today = date.today()
+        
+        # 1. Check if already sent (idempotency)
+        profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
+        if profile.get('last_briefing_date') == today:
+            print(f"Briefing already sent for {today} — skipping schedule.", flush=True)
+            return
+
+        # 2. Get wake_time from day_plans
+        plan = await get_day_plan(pool, today)
+        wake_time = plan.get('wake_time') if plan else None
+        
+        if not wake_time:
+            wake_time = MORNING_BRIEFING_TIME
+            print(f"No wake_time found for {today}, using fallback: {wake_time}", flush=True)
+        else:
+            print(f"Found wake_time for {today}: {wake_time}", flush=True)
+
+        # 3. Schedule the job
+        wake_h, wake_m = map(int, wake_time.split(':'))
+        run_time = datetime.now(user_tz).replace(hour=wake_h, minute=wake_m, second=0, microsecond=0)
+        
+        # If wake_time is already in the past (e.g. at 05:00 we see wake_time=04:30), run ASAP or skip
+        if run_time < datetime.now(user_tz):
+            run_time = datetime.now(user_tz) + timedelta(seconds=10)
+        
+        global _global_scheduler
+        if _global_scheduler:
+            _global_scheduler.add_job(
+                send_morning_briefing,
+                'date',
+                run_date=run_time,
+                args=[application, pool],
+                id=f"morning_briefing_{today}",
+                replace_existing=True,
+                misfire_grace_time=3600
+            )
+            print(f"Morning briefing scheduled for {run_time}", flush=True)
+        else:
+            print("Error: Global scheduler not initialized.", flush=True)
+
+    except Exception as e:
+        print(f"Error in check_wake_time_and_schedule: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+
 async def send_morning_briefing(application, pool):
     """Sends a daily summary of tasks, events, and habits."""
     try:
@@ -97,6 +152,12 @@ HABITS PENDING:
         itinerary_instruction = f"""Ești Lora, asistenta lui {name}.
 Generezi secțiunea 'Planul zilei' pentru morning briefing-ul de Telegram.
 Creează un itinerar realist pe ore combinând tasks + events + habits.
+
+IMPORTANT: Userul îți va menționa ce a făcut deja azi. 
+NU include în plan activități menționate ca deja făcute. 
+Planul trebuie să înceapă de la momentul curent și să meargă în viitor. 
+Dacă userul zice 'am făcut X și Y', începe planul cu următoarea activitate logică conform orei.
+
 - Sugerează ore aproximative, ex: '9:00 — focus pe X', '11:00 — meeting Y'
 - Dacă sunt puține date, sugerează blocuri de focus time generice
 - Maxim 5-6 rânduri, fiecare pe linie separată
@@ -347,7 +408,8 @@ async def send_evening_flow(application, pool):
             "\n\nRăspunde la cele 3 întrebări ca să închidem ziua:\n"
             "*1.* Ce a mers bine azi?\n"
             "*2.* Ce ai vrea să faci diferit?\n"
-            "*3.* Cum vrei să arate ziua de mâine? _(tasks, program, priorități)_"
+            "*3.* Cum vrei să arate ziua de mâine? _(tasks, program, priorități)_\n\n"
+            "📌 *La ce oră te trezești mâine?* _(ex: la 7, pe la 8:30)_"
         )
         
         full_message = intro_text + summary_text + questions_text
@@ -945,13 +1007,15 @@ def setup_scheduler(application, pool):
     e_h, e_m = map(int, EOD_REFLECTION_TIME.split(':'))
     h_h, h_m = map(int, HABIT_REMINDER_TIME.split(':'))
 
-    # Added misfire_grace_time=3600 (1 hour) so if bot restarts late, it still sends
-    scheduler.add_job(send_morning_briefing, 'cron', hour=m_h, minute=m_m,
+    # 1. Daily check at 05:00 to schedule briefing
+    scheduler.add_job(check_wake_time_and_schedule, 'cron', hour=5, minute=0,
                       misfire_grace_time=3600, args=[application, pool])
 
+    # 2. Habit reminder
     scheduler.add_job(send_habit_reminder, 'cron', hour=h_h, minute=h_m,
                       misfire_grace_time=3600, args=[application, pool])
 
+    # 3. Evening flow
     scheduler.add_job(send_evening_flow, 'cron', hour=e_h, minute=e_m,
                       misfire_grace_time=3600, args=[application, pool])
 

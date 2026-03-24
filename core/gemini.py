@@ -188,6 +188,10 @@ FAPTE DESPRE {user_name}:
     - intent="log_skill" pentru a înregistra o valoare ("am făcut 20 min sah", "elo la sah e 1200", "log 50 puncte la germana").
         * data={{"skill_name": string, "value": float}}
     - intent="view_skills" pentru a vedea dashboard-ul ("dashboard skills", "cum stau cu skill-urile", "skills").
+28. Morning Briefing Trigger:
+    - intent="trigger_morning_briefing" pentru când userul se trezește sau vrea briefing-ul acum.
+        * Cuvinte cheie: "m-am trezit", "bună dimineața", "am început ziua", "vreau briefingul", "morning briefing".
+        * data={{}}
 
 Exemple de output JSON pentru workout_log:
 - Input: "am fost la MRU seminar azi"

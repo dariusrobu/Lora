@@ -746,16 +746,17 @@ Reguli:
                 today = _date.today()
                 tomorrow = today + timedelta(days=1)
 
-                # 1. Extract Reflection & Tomorrow Plan
+                # 1. Extract Reflection, Tomorrow Plan & Wake Time
                 extraction_instruction = textwrap.dedent("""
                     Ești Lora, asistenta personală.
-                    Userul a răspuns la întrebările de seară (ce a mers bine, ce vrea diferit, plan mâine).
+                    Userul a răspuns la întrebările de seară (ce a mers bine, ce vrea diferit, plan mâine, oră trezire).
                     Extrage:
                     - reflection_text: rezumat (ce a mers bine + ce ar face diferit) (max 3 propoziții)
                     - mood: great/good/neutral/bad/terrible (pe baza tonului)
                     - tomorrow_plan: ce a zis despre programul de mâine
+                    - wake_time: ora de trezire menționată, format HH:MM (ex: "la 7" -> "07:00", "8 jumate" -> "08:30"). Dacă nu e menționată, returnează null.
                     Returnează EXCLUSIV JSON valid:
-                    {"reflection_text": "...", "mood": "...", "tomorrow_plan": "..."}
+                    {"reflection_text": "...", "mood": "...", "tomorrow_plan": "...", "wake_time": "..."}
                 """).strip()
 
                 raw_extraction = await get_proactive_response(extraction_instruction, text)
@@ -768,10 +769,12 @@ Reguli:
                     reflection_text = extracted.get("reflection_text", text[:500])
                     mood = extracted.get("mood", "neutral")
                     tomorrow_plan = extracted.get("tomorrow_plan", "")
+                    wake_time = extracted.get("wake_time")
                 except Exception:
                     reflection_text = text[:500]
                     mood = "neutral"
                     tomorrow_plan = ""
+                    wake_time = None
 
                 # 2. Save Journal Entry
                 await journal_queries.save_journal_entry(pool, today, reflection_text, mood, tomorrow_plan)
@@ -785,6 +788,7 @@ Reguli:
                     Bazează-te pe:
                     1. Planul menționat de user (tomorrow_plan).
                     2. Tasks pending și evenimente din calendar (vezi context).
+                    3. Ora de trezire (wake_time).
                     
                     Format:
                     *Mâine:*
@@ -799,10 +803,10 @@ Reguli:
                     - Returnează DOAR itinerarul.
                 """
                 
-                itinerary = await get_proactive_response(itinerary_instruction, f" tomorrow_plan: {tomorrow_plan}\n\nCONTEXT:\n{context_snapshot}")
+                itinerary = await get_proactive_response(itinerary_instruction, f" tomorrow_plan: {tomorrow_plan}\n wake_time: {wake_time}\n\nCONTEXT:\n{context_snapshot}")
                 
                 if itinerary:
-                    await save_day_plan(pool, tomorrow, tomorrow_plan, itinerary)
+                    await save_day_plan(pool, tomorrow, tomorrow_plan, itinerary, wake_time)
                 
                 await clear_state(pool)
                 await update_user_profile(pool, TG_UID, last_evening_date=today)

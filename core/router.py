@@ -106,5 +106,38 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
         if weather:
             return f"{reply}\n\n🌤️ {weather}", None
         return reply, None
+    elif intent == "trigger_morning_briefing":
+        from scheduler.jobs import send_morning_briefing
+        from core.config import TELEGRAM_USER_ID as TG_UID
+        import db.queries.profile as profile_queries
+        from datetime import date
+        
+        today = date.today()
+        profile = await profile_queries.get_user_profile(pool, TG_UID)
+        if profile.get('last_briefing_date') == today:
+            return "Deja ți-am trimis briefing-ul de dimineață. O zi productivă! ☀️", None
+        
+        # We need the application object to call send_morning_briefing
+        # But wait, send_morning_briefing needs 'application'
+        # In handler.py, we have context.application.
+        # router.py takes 'bot' as an optional argument.
+        # Let's check if we can get application from somewhere or if we need to pass it.
+        
+        # Actually, send_morning_briefing uses application.bot.
+        # If we have 'bot', we can wrap it or modify send_morning_briefing.
+        # Better: let's see how morning briefing is normally called.
+        
+        # The user's request says: "apelează send_morning_briefing() imediat"
+        # I should probably pass a mock application if I only have the bot.
+        
+        class MockApp:
+            def __init__(self, bot):
+                self.bot = bot
+        
+        if bot:
+            await send_morning_briefing(MockApp(bot), pool)
+            return None, None # The job sends its own messages
+        else:
+            return "Nu am putut iniția briefing-ul manual (lipsă bot context).", None
     
     return f"{reply}\n\n_(Note: Module {module} is still being implemented)_", None
