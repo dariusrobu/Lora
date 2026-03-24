@@ -19,14 +19,22 @@ async def get_skills_dashboard(pool) -> Tuple[str, InlineKeyboardMarkup]:
     lines = ["🧠 *Skills Tracking*\n"]
     for s in skills:
         val = s.get('last_value')
+        # Priority: last_metric (from log) > unit (from skill definition)
         unit = s.get('last_metric') or s.get('unit', '')
         streak = await skill_queries.get_skill_streak(pool, s['id'])
         streak_str = f" 🔥{streak}" if streak > 0 else ""
+        
+        name_esc = escape_md(s['name'])
         if val is not None:
             val_str = f"{float(val):.0f}" if float(val) == int(val) else f"{float(val):.2f}"
-            lines.append(f"• *{escape_md(s['name'])}*: {escape_md(val_str)} {escape_md(unit)}{streak_str}")
+            # If the unit already starts with a number (like "589 ELO"), it's likely a data entry error
+            # We'll try to show it cleanly.
+            display_val = f"**{escape_md(val_str)}**"
+            display_unit = escape_md(unit)
+            
+            lines.append(f"• *{name_esc}*: {display_val} {display_unit}{streak_str}")
         else:
-            lines.append(f"• *{escape_md(s['name'])}*: _fără date_{streak_str}")
+            lines.append(f"• *{name_esc}*: _fără date_{streak_str}")
             
     return "\n".join(lines), skills_main_keyboard()
 
@@ -184,19 +192,26 @@ async def handle_skills_message(update, context, pool, state: dict) -> bool:
         elif state_type == "skills_log_value":
             skill_id = state.get("item_id")
             try:
-                # Remove unit if user included it (e.g. "1200 elo" -> 1200)
-                val_raw = msg_text.split()[0].replace(",", ".")
-                val = float(val_raw)
-            except ValueError:
-                await update.message.reply_text("❌ Te rog introdu un număr valid\\.", parse_mode="MarkdownV2")
-                return True
+                # Better parsing: extract first number, use rest as potential unit/metric override
+                import re
+                match = re.search(r"(\d+([.,]\d+)?)", msg_text)
+                if not match:
+                    raise ValueError("No number found")
                 
-            await skill_queries.log_skill_value(pool, skill_id, val)
-            await clear_state(pool)
-            text, markup = await get_skill_detail_view(pool, skill_id)
-            await update.message.reply_text("✅ Valoare înregistrată\\!", parse_mode="MarkdownV2")
-            await update.message.reply_text(text, reply_markup=markup, parse_mode="MarkdownV2")
-            return True
+                val = float(match.group(1).replace(",", "."))
+                # Rest of text after the number could be the unit (e.g. "589 ELO" -> "ELO")
+                remaining = msg_text.replace(match.group(1), "", 1).strip()
+                metric = remaining if remaining else None
+                
+                await skill_queries.log_skill_value(pool, skill_id, val, metric=metric)
+                await clear_state(pool)
+                text, markup = await get_skill_detail_view(pool, skill_id)
+                await update.message.reply_text("✅ Valoare înregistrată!", parse_mode="MarkdownV2")
+                await update.message.reply_text(text, reply_markup=markup, parse_mode="MarkdownV2")
+                return True
+            except (ValueError, IndexError):
+                await update.message.reply_text("❌ Te rog introdu un număr valid (ex: 589, 74.5).", parse_mode="MarkdownV2")
+                return True
             
     except Exception as e:
         import logging
