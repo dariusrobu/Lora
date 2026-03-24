@@ -380,13 +380,13 @@ IntentResponse schema:
         for attempt in range(2):
             try:
                 response_schema = types.Schema(
-                    type="object",
+                    type=types.Type.OBJECT,
                     properties={
-                        "intent": types.Schema(type="string"),
-                        "module": types.Schema(type=["string", "null"]),
-                        "data": types.Schema(type="object"),
-                        "reply": types.Schema(type="string"),
-                        "needs_confirmation": types.Schema(type="boolean"),
+                        "intent": types.Schema(type=types.Type.STRING),
+                        "module": types.Schema(type=types.Type.STRING, nullable=True),
+                        "data": types.Schema(type=types.Type.OBJECT),
+                        "reply": types.Schema(type=types.Type.STRING),
+                        "needs_confirmation": types.Schema(type=types.Type.BOOLEAN),
                     },
                     required=[
                         "intent",
