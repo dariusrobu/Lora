@@ -819,6 +819,11 @@ Reguli:
                 await handle_workout_message(update, pool, state, text)
                 return
 
+            elif state['state_type'] == 'awaiting_health_input':
+                from core.state import clear_state
+                await clear_state(pool)
+                # Fall through to Gemini with the newly added history context
+
         # 3. Build context snapshot
         context_snapshot = await build_context(pool)
         profile = await get_user_profile(pool, telegram_id)
@@ -949,17 +954,41 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                     await query.answer(result)
                     await query.message.reply_text(result)
             elif data == "health_log_water":
-                await query.edit_message_text("💧 *Câți ml ai băut?*\n_(ex: am băut 500ml, 1\\.5L, \\+250)_", parse_mode="MarkdownV2")
+                from core.state import set_state
+                await set_state(pool, "awaiting_health_input", "health", "log_water", None)
+                prompt = "💧 *Câți ml ai băut?*\n_\\(ex: am băut 500ml, 1\\.5L, \\+250\\)_"
+                await query.edit_message_text(prompt, parse_mode="MarkdownV2")
                 await query.answer()
+                async with pool.acquire() as conn:
+                    await conn.execute("INSERT INTO conversations (role, content) VALUES ($1, $2)", "assistant", prompt)
+                return
             elif data == "health_log_sleep":
-                await query.edit_message_text("😴 *Câte ore ai dormit?*\n_(ex: 8 ore, somn bun, 7h30)_", parse_mode="MarkdownV2")
+                from core.state import set_state
+                await set_state(pool, "awaiting_health_input", "health", "log_sleep", None)
+                prompt = "😴 *Câte ore ai dormit?*\n_\\(ex: 8 ore, somn bun, 7h30\\)_"
+                await query.edit_message_text(prompt, parse_mode="MarkdownV2")
                 await query.answer()
+                async with pool.acquire() as conn:
+                    await conn.execute("INSERT INTO conversations (role, content) VALUES ($1, $2)", "assistant", prompt)
+                return
             elif data == "health_log_weight":
-                await query.edit_message_text("⚖️ *Care e greutatea ta azi?*\n_(ex: 74\\.5kg, am 75)_", parse_mode="MarkdownV2")
+                from core.state import set_state
+                await set_state(pool, "awaiting_health_input", "health", "log_weight", None)
+                prompt = "⚖️ *Care e greutatea ta azi?*\n_\\(ex: 74\\.5kg, am 75\\)_"
+                await query.edit_message_text(prompt, parse_mode="MarkdownV2")
                 await query.answer()
+                async with pool.acquire() as conn:
+                    await conn.execute("INSERT INTO conversations (role, content) VALUES ($1, $2)", "assistant", prompt)
+                return
             elif data == "health_log_nutrition":
-                await query.edit_message_text("🥗 *Cum ai mâncat azi?*\n_(ex: excelent, ok, prost, junk food)_", parse_mode="MarkdownV2")
+                from core.state import set_state
+                await set_state(pool, "awaiting_health_input", "health", "log_nutrition", None)
+                prompt = "🥗 *Cum ai mâncat azi?*\n_\\(ex: excelent, ok, prost, junk food\\)_"
+                await query.edit_message_text(prompt, parse_mode="MarkdownV2")
                 await query.answer()
+                async with pool.acquire() as conn:
+                    await conn.execute("INSERT INTO conversations (role, content) VALUES ($1, $2)", "assistant", prompt)
+                return
             return
 
         # Phase 4: Module callbacks (module:action:item_id)
