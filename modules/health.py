@@ -85,6 +85,9 @@ async def _generate_health_summary_text(pool) -> Tuple[str, Any]:
         f"🥗 *Nutriție:* {nutrition_days}/{total_days} zile bune"
     )
     
+    from bot.formatter import safe_markdown
+    text = safe_markdown(text)
+    
     # Inline buttons for /health
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
     keyboard = InlineKeyboardMarkup([

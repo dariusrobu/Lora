@@ -452,12 +452,6 @@ async def send_evening_flow(application, pool):
         print(f"CRITICAL error in send_evening_flow: {e}", flush=True)
         traceback.print_exc()
 
-    except Exception as e:
-        import traceback
-        print(f"CRITICAL error in send_journal_night: {e}", flush=True)
-        traceback.print_exc()
-
-
 async def check_class_reminders(application, pool) -> None:
     """Verifică cursurile care încep în 15 minute și trimite reminder."""
     try:
