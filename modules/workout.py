@@ -295,11 +295,11 @@ async def handle_workout_callback(query, pool, data: str):
         keyboard = []
         for w in recent[:10]:
             label = f"{w['workout_date']} - {w['type']} ({w['duration_min']}m)"
-            keyboard.append([InlineKeyboardButton(label, callback_data=f"w_del_{w['id']}")])
+            keyboard.append([InlineKeyboardButton(label, callback_data=f"workout_delete_{w['id']}")])
         keyboard.append([InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")])
         await query.edit_message_text("🗑 *Șterge antrenament*\n\nAlege antrenamentul:", parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup(keyboard))
 
-    elif data.startswith("w_del_"):
+    elif data.startswith("workout_delete_"):
         try:
             workout_id = int(parts[-1])
             await workout_queries.delete_workout(pool, workout_id)
