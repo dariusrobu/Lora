@@ -113,7 +113,7 @@ FAPTE DESPRE {user_name}:
 13. Projects: module="projects", intent= "add_project"/"list_projects"/"archive_project"/"delete_project".
 14. Finance: module="finance":
     - intent="finance_log" pentru înregistrare (cheltuieli, venituri). 
-      Data: {amount: număr, type: "expense"|"income", category: text, description: text}
+      Data: {{amount: număr, type: "expense"|"income", category: text, description: text}}
     - intent="finance_summary" pentru dashboard/rezumat (cheltuieli azi, tranzacții, buget).
     - intent="finance_chart" pentru grafic trend (ultimele 30 zile).
     - Categorii sugerate: mâncare, transport, utilități, chirie, sănătate, shopping, distracție, altele.
