@@ -94,6 +94,17 @@ async def handle_skills_callback(update, context, pool) -> None:
             text, markup = await get_skills_dashboard(pool)
             await query.edit_message_text(text, reply_markup=markup, parse_mode="MarkdownV2")
             
+        elif data == "skills_log_list":
+            skills = await skill_queries.get_all_skills(pool)
+            text = "📝 *Selectează Skill pentru Log:*\n\nAlege skill\\-ul pentru care vrei să înregistrezi o valoare:"
+            await query.edit_message_text(text, reply_markup=skills_list_keyboard(skills, action_prefix="skills_log_entry_"), parse_mode="MarkdownV2")
+
+        elif data == "skills_manage" or data == "skills_progress":
+            # For now, these can both show the list, maybe with a different prefix if needed
+            skills = await skill_queries.get_all_skills(pool)
+            text = "⚙️ *Manage Skills:*\n\nAlege un skill pentru a\\-l edita sau sterge:"
+            await query.edit_message_text(text, reply_markup=skills_list_keyboard(skills), parse_mode="MarkdownV2")
+
         elif data.startswith("skills_detail_"):
             skill_id = int(data.split("_")[-1])
             text, markup = await get_skill_detail_view(pool, skill_id)
@@ -109,6 +120,22 @@ async def handle_skills_callback(update, context, pool) -> None:
             await set_state(pool, "skills_log_value", "skills", "log", skill_id)
             await query.edit_message_text(f"📝 *Log {escape_md(skill['name'])}*\n\nIntrodu valoarea \\({escape_md(skill['unit'])}\\):", parse_mode="MarkdownV2")
             
+        elif data.startswith("skills_history_"):
+            skill_id = int(data.split("_")[-1])
+            history = await skill_queries.get_skill_history(pool, skill_id, limit=20)
+            skill = await skill_queries.get_skill_by_id(pool, skill_id)
+            lines = [f"📊 *Istoric Detaliat: {escape_md(skill['name'])}*\n"]
+            for h in history:
+                date_str = h['log_date'].strftime('%d %b %Y')
+                val_str = f"{float(h['value']):.0f}" if float(h['value']) == int(h['value']) else f"{float(h['value']):.2f}"
+                lines.append(f"• {escape_md(date_str)}: {escape_md(val_str)} {escape_md(h['metric'] or skill['unit'])}")
+            if not history:
+                lines.append("_Nicio înregistrare încă_")
+            
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            back_markup = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Înapoi", callback_data=f"skills_detail_{skill_id}")]])
+            await query.edit_message_text("\n".join(lines), reply_markup=back_markup, parse_mode="MarkdownV2")
+
         elif data.startswith("skills_delete_"):
             skill_id = int(data.split("_")[-1])
             await query.edit_message_text("⚠️ Sigur vrei să ștergi acest skill și tot istoricul său?", reply_markup=confirm_delete_skill_keyboard(skill_id))
