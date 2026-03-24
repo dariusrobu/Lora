@@ -62,10 +62,10 @@ async def get_health_history(pool, days: int = 30) -> List[Dict[str, Any]]:
         rows = await conn.fetch(
             """
             SELECT * FROM health_logs 
-            WHERE log_date > CURRENT_DATE - $1
+            WHERE log_date > CURRENT_DATE - $1::integer
             ORDER BY log_date ASC
             """,
-            timedelta(days=days)
+            int(days)
         )
         return [dict(r) for r in rows]
 
@@ -86,9 +86,9 @@ async def get_health_summary(pool, days: int = 7) -> Dict[str, Any]:
                 COUNT(*) FILTER (WHERE nutrition IN ('great', 'good')) as good_nutrition_days,
                 COUNT(*) as total_days
             FROM health_logs
-            WHERE log_date > CURRENT_DATE - $1
+            WHERE log_date > CURRENT_DATE - $1::integer
             """,
-            timedelta(days=days)
+            int(days)
         )
         
         # Trend calculation for weight
