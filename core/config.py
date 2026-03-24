@@ -19,6 +19,11 @@ REQUIRED_VARS = [
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
 WEATHER_CITY = os.getenv("WEATHER_CITY", "Bucharest")
 
+# Optional Nutritionix API
+NUTRITIONIX_APP_ID = os.getenv("NUTRITIONIX_APP_ID")
+NUTRITIONIX_API_KEY = os.getenv("NUTRITIONIX_API_KEY")
+
+
 for var in REQUIRED_VARS:
     if not os.getenv(var):
         raise EnvironmentError(f"Missing required environment variable: {var}")

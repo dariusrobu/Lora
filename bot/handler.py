@@ -982,13 +982,15 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 return
             elif data == "health_log_nutrition":
                 from core.state import set_state
+                # We use awaiting_health_input so the message handler routes it to Gemini
                 await set_state(pool, "awaiting_health_input", "health", "log_nutrition", None)
-                prompt = "🥗 *Cum ai mâncat azi?*\n_\\(ex: excelent, ok, prost, junk food\\)_"
+                prompt = "🍎 *Ce ai mâncat azi?*\n_\\(ex: 2 ouă și o felie de pâine, am mâncat un măr, prânz: pui cu orez 200g\\)_"
                 await query.edit_message_text(prompt, parse_mode="MarkdownV2")
                 await query.answer()
                 async with pool.acquire() as conn:
                     await conn.execute("INSERT INTO conversations (role, content) VALUES ($1, $2)", "assistant", prompt)
                 return
+
             return
 
         # Phase 4: Module callbacks (module:action:item_id)

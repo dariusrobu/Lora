@@ -331,3 +331,40 @@ CREATE TABLE IF NOT EXISTS skill_logs (
 
 CREATE INDEX idx_skill_logs_date ON skill_logs(log_date DESC);
 
+-- ── Nutrition Tracking ───────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS meals (
+    id              SERIAL PRIMARY KEY,
+    meal_date       DATE NOT NULL DEFAULT CURRENT_DATE,
+    meal_type       TEXT NOT NULL CHECK (meal_type IN ('mic_dejun', 'pranz', 'cina', 'gustare', 'masa')),
+    total_calories  NUMERIC(8, 2) DEFAULT 0.0,
+    total_protein   NUMERIC(8, 2) DEFAULT 0.0,
+    total_carbs     NUMERIC(8, 2) DEFAULT 0.0,
+    total_fat       NUMERIC(8, 2) DEFAULT 0.0,
+    description     TEXT,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_meals_date ON meals(meal_date);
+
+CREATE TABLE IF NOT EXISTS meal_items (
+    id              SERIAL PRIMARY KEY,
+    meal_id         INT NOT NULL REFERENCES meals(id) ON DELETE CASCADE,
+    food_name       TEXT NOT NULL,
+    quantity_g      NUMERIC(8, 2),
+    calories        NUMERIC(8, 2),
+    protein         NUMERIC(8, 2),
+    carbs           NUMERIC(8, 2),
+    fat             NUMERIC(8, 2),
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS nutrition_targets (
+    id              SERIAL PRIMARY KEY,
+    calories        INT DEFAULT 2000,
+    protein_g       INT DEFAULT 150,
+    carbs_g         INT DEFAULT 200,
+    fat_g           INT DEFAULT 70,
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+INSERT INTO nutrition_targets (id, calories, protein_g, carbs_g, fat_g) 
+VALUES (1, 2000, 150, 200, 70) 
+ON CONFLICT (id) DO NOTHING;

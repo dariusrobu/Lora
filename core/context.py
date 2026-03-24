@@ -101,16 +101,24 @@ async def build_context(pool) -> str:
     else:
         snapshot.append("No active goals.")
         
-    # 9. Health
+    # 9. Health & Nutrition
     health_today = await health_queries.get_health_log(pool, today)
-    snapshot.append("\n--- HEALTH TODAY ---")
+    import db.queries.nutrition as nutri_queries
+    nutri_today = await nutri_queries.get_daily_totals(pool, today)
+    nutri_targets = await nutri_queries.get_nutrition_targets(pool)
+    
+    snapshot.append("\n--- HEALTH & NUTRITION TODAY ---")
     if health_today:
         h = health_today
         s_h = f"{float(h['sleep_hours']):.1f}h" if h['sleep_hours'] else "N/A"
         w_l = float(h['water_ml'])/1000 if h['water_ml'] else 0
-        snapshot.append(f"Sleep: {s_h} ({h['sleep_quality'] or 'N/A'}) | Water: {w_l:.1f}L | Nutrition: {h['nutrition'] or 'N/A'} | Weight: {h['weight_kg'] or 'N/A'}kg")
-    else:
-        snapshot.append("No health metrics logged today.")
+        snapshot.append(f"Sleep: {s_h} ({h['sleep_quality'] or 'N/A'}) | Water: {w_l:.1f}L | Weight: {h['weight_kg'] or 'N/A'}kg")
+    
+    snapshot.append(f"Nutrition: {int(nutri_today['calories'])}/{nutri_targets['calories']} kcal | P: {int(nutri_today['protein'])}g/{nutri_targets['protein_g']}g | C: {int(nutri_today['carbs'])}g | F: {int(nutri_today['fat'])}g")
+    
+    if nutri_today['calories'] == 0 and not health_today:
+        snapshot.append("No health or nutrition metrics logged today.")
+
         
     # Historical Health for Insights
     history = await health_queries.get_health_history(pool, 30)

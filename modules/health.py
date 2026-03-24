@@ -1,5 +1,5 @@
-from typing import Dict, Any, Optional, Tuple
-from datetime import date, timedelta
+from typing import Dict, Any, Tuple
+from datetime import date
 import io
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -51,10 +51,14 @@ async def _handle_upsert(pool, intent: str, data: Dict[str, Any], log_date: date
     
     # Build a nice confirmation message
     parts = []
-    if sleep_hours is not None: parts.append(f"somn {sleep_hours}h ✓")
-    if water_ml is not None: parts.append(f"apă {water_ml}ml ✓")
-    if weight_kg is not None: parts.append(f"{weight_kg}kg ✓")
-    if nutrition is not None: parts.append(f"nutriție: {nutrition} ✓")
+    if sleep_hours is not None:
+        parts.append(f"somn {sleep_hours}h ✓")
+    if water_ml is not None:
+        parts.append(f"apă {water_ml}ml ✓")
+    if weight_kg is not None:
+        parts.append(f"{weight_kg}kg ✓")
+    if nutrition is not None:
+        parts.append(f"nutriție: {nutrition} ✓")
     
     if not parts:
         return "Am salvat log-ul de sănătate. ✅", None
@@ -63,7 +67,12 @@ async def _handle_upsert(pool, intent: str, data: Dict[str, Any], log_date: date
     return escape_md(msg), None
 
 async def _generate_health_summary_text(pool) -> Tuple[str, Any]:
+    import db.queries.nutrition as nutrition_queries
+    
     summary = await health_queries.get_health_summary(pool, 7)
+    nutrition_today = await nutrition_queries.get_daily_totals(pool, date.today())
+    targets = await nutrition_queries.get_nutrition_targets(pool)
+    
     if not summary or summary.get('total_days', 0) == 0:
         return "Nu am destule date pentru un rezumat încă. Mai loghează câteva zile! 📊", None
     
@@ -72,17 +81,20 @@ async def _generate_health_summary_text(pool) -> Tuple[str, Any]:
     avg_water = summary.get('avg_water', 0) or 0
     max_water = summary.get('max_water', 0) or 0
     recent_weight = summary.get('recent_weight', '—')
-    prev_weight = summary.get('prev_weight', '—')
     trend_emoji = "↓" if summary.get('weight_trend') == "down" else "↑" if summary.get('weight_trend') == "up" else "→"
-    nutrition_days = summary.get('good_nutrition_days', 0)
-    total_days = summary.get('total_days', 0)
+    
+    # Nutrition part
+    nutri_text = "Nicio masă azi."
+    if nutrition_today['calories'] > 0:
+        cal_pct = min(int((nutrition_today['calories'] / targets['calories']) * 100), 100)
+        nutri_text = f"{int(nutrition_today['calories'])}/{targets['calories']} kcal ({cal_pct}%) · {int(nutrition_today['protein'])}g P"
     
     text = (
         "📊 *Health — ultimele 7 zile*\n\n"
-        f"😴 *Somn:* medie {avg_sleep:.1f}h · calitate dominantă: {common_quality}\n"
-        f"💧 *Apă:* medie {int(avg_water)}ml/zi · cel mai bun: {max_water}ml\n"
-        f"⚖️ *Greutate:* {prev_weight}kg → {recent_weight}kg (trend: {trend_emoji})\n"
-        f"🥗 *Nutriție:* {nutrition_days}/{total_days} zile bune"
+        f"😴 *Somn:* medie {avg_sleep:.1f}h · {common_quality}\n"
+        f"💧 *Apă:* medie {int(avg_water)}ml · max {max_water}ml\n"
+        f"⚖️ *Greutate:* {recent_weight}kg (trend: {trend_emoji})\n"
+        f"🍎 *Nutriție Azi:* {nutri_text}"
     )
     
     from bot.formatter import safe_markdown
@@ -97,12 +109,13 @@ async def _generate_health_summary_text(pool) -> Tuple[str, Any]:
         ],
         [
             InlineKeyboardButton("⚖️ Greutate", callback_data="health_log_weight"),
-            InlineKeyboardButton("🥗 Nutriție", callback_data="health_log_nutrition")
+            InlineKeyboardButton("🍎 Nutriție", callback_data="health_log_nutrition")
         ],
         [InlineKeyboardButton("📊 Grafic COMPLET", callback_data="health_chart")]
     ])
     
     return text, keyboard
+
 
 async def _generate_health_chart(pool) -> Tuple[str, Any]:
     history = await health_queries.get_health_history(pool, 30)

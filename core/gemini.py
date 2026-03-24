@@ -292,8 +292,8 @@ IntentResponse schema:
          }},
          "meal_log": {{
              "meal_type": "mic_dejun" | "pranz" | "cina" | "gustare" | "masa",
-             "description": string | null,
-             "items": [
+             "description": string,      -- Raw text of the meal (e.g. "2 eggs and a coffee") for NLP parsing
+             "items": [                  -- Optional: individual items if easily identified
                  {{
                      "name": string,
                      "quantity_g": float
