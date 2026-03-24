@@ -949,13 +949,13 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                     await query.answer(result)
                     await query.message.reply_text(result)
             elif data == "health_log_water":
-                await query.edit_message_text("💧 *Câți ml ai băut?*\n_(ex: am băut 500ml, 1.5L, +250)_", parse_mode="MarkdownV2")
+                await query.edit_message_text("💧 *Câți ml ai băut?*\n_(ex: am băut 500ml, 1\\.5L, \\+250)_", parse_mode="MarkdownV2")
                 await query.answer()
             elif data == "health_log_sleep":
                 await query.edit_message_text("😴 *Câte ore ai dormit?*\n_(ex: 8 ore, somn bun, 7h30)_", parse_mode="MarkdownV2")
                 await query.answer()
             elif data == "health_log_weight":
-                await query.edit_message_text("⚖️ *Care e greutatea ta azi?*\n_(ex: 74.5kg, am 75)_", parse_mode="MarkdownV2")
+                await query.edit_message_text("⚖️ *Care e greutatea ta azi?*\n_(ex: 74\\.5kg, am 75)_", parse_mode="MarkdownV2")
                 await query.answer()
             elif data == "health_log_nutrition":
                 await query.edit_message_text("🥗 *Cum ai mâncat azi?*\n_(ex: excelent, ok, prost, junk food)_", parse_mode="MarkdownV2")
