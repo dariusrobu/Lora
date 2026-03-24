@@ -203,8 +203,18 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
             await habitstreaks_command(update, context)
             return
 
-        # Handle /journal command
-            
+        # Handle /journal and /eod commands
+        if text in ["/journal", "/eod"]:
+            from db.queries.profile import update_user_profile
+            from core.config import TELEGRAM_USER_ID as TG_UID
+            from scheduler.jobs import send_evening_flow
+            try:
+                await update_user_profile(pool, TG_UID, last_evening_date=None)
+                await send_evening_flow(context.application, pool)
+            except Exception as e:
+                print(f"Evening flow manual trigger error: {e}", flush=True)
+                await update.message.reply_text(f"❌ Eroare la inițierea flow-ului de seară: {e}")
+            return
         # Handle /plan command
         if text == "/plan":
             from db.queries.profile import update_user_profile
@@ -720,61 +730,84 @@ Reguli:
                         await clear_state(pool)
                         return
 
-            elif state['state_type'] == 'awaiting_journal_response':
+            elif state['state_type'] == 'awaiting_evening_response':
                 import json as _json
                 import textwrap
-                from datetime import date as _date
+                from datetime import date as _date, timedelta
                 from core.gemini import get_proactive_response
                 from db.queries import journal as journal_queries
+                from db.queries.day_plans import save_day_plan
                 from db.queries.profile import update_user_profile
                 from core.config import TELEGRAM_USER_ID as TG_UID
+                from bot.formatter import safe_markdown, escape_md
+                import asyncio
 
                 profile = await get_user_profile(pool, telegram_id)
                 today = _date.today()
+                tomorrow = today + timedelta(days=1)
 
+                # 1. Extract Reflection & Tomorrow Plan
                 extraction_instruction = textwrap.dedent("""
                     Ești Lora, asistenta personală.
-                    Userul tocmai a răspuns la întrebările din jurnalul de seară.
-                    Extrage din răspunsul lor liber:
-                    - reflection_text: un rezumat scurt al reflecției (max 3 propoziții)
-                    - mood: una din: great / good / neutral / bad / terrible (pe baza tonului general)
-                    - tomorrow_focus: lucrul cel mai important menționat pentru mâine (1 propoziție)
-                    Returnează EXCLUSIV JSON valid, fără markdown:
-                    {"reflection_text": "...", "mood": "...", "tomorrow_focus": "..."}
+                    Userul a răspuns la întrebările de seară (ce a mers bine, ce vrea diferit, plan mâine).
+                    Extrage:
+                    - reflection_text: rezumat (ce a mers bine + ce ar face diferit) (max 3 propoziții)
+                    - mood: great/good/neutral/bad/terrible (pe baza tonului)
+                    - tomorrow_plan: ce a zis despre programul de mâine
+                    Returnează EXCLUSIV JSON valid:
+                    {"reflection_text": "...", "mood": "...", "tomorrow_plan": "..."}
                 """).strip()
 
                 raw_extraction = await get_proactive_response(extraction_instruction, text)
-                await clear_state(pool)
-
+                
                 try:
-                    # Strip possible markdown fences
                     clean = raw_extraction.strip()
                     if clean.startswith("```"):
-                        clean = clean.split("```")[1].lstrip("json").strip()
+                        clean = clean.split("```")[1].lstrip("json").strip().rstrip("```")
                     extracted = _json.loads(clean)
-                    reflection_text: str = extracted.get("reflection_text", text[:500])
-                    mood: str = extracted.get("mood", "neutral")
-                    tomorrow_focus: str = extracted.get("tomorrow_focus", "")
+                    reflection_text = extracted.get("reflection_text", text[:500])
+                    mood = extracted.get("mood", "neutral")
+                    tomorrow_plan = extracted.get("tomorrow_plan", "")
                 except Exception:
                     reflection_text = text[:500]
                     mood = "neutral"
-                    tomorrow_focus = ""
+                    tomorrow_plan = ""
 
-                await journal_queries.save_journal_entry(pool, today, reflection_text, mood, tomorrow_focus)
-                await update_user_profile(pool, TG_UID, last_journal_date=today)
+                # 2. Save Journal Entry
+                await journal_queries.save_journal_entry(pool, today, reflection_text, mood, tomorrow_plan)
 
-                mood_emoji = {
-                    "great": "🌟", "good": "😊", "neutral": "😐",
-                    "bad": "😔", "terrible": "😞",
-                }.get(mood, "📝")
+                # 3. Generate Tomorrow's Itinerary
+                from core.context import build_context
+                context_snapshot = await build_context(pool)
+                
+                itinerary_instruction = """
+                    Generează un itinerar structurat pe ore pentru MÂINE.
+                    Bazează-te pe:
+                    1. Planul menționat de user (tomorrow_plan).
+                    2. Tasks pending și evenimente din calendar (vezi context).
+                    
+                    Format:
+                    *Mâine:*
+                    09:00 — [activitate]
+                    11:00 — [activitate]
+                    ...
+                    
+                    Reguli:
+                    - Fii realist și echilibrat.
+                    - Doar orele și activitățile, maxim 6 sloturi.
+                    - Ton cald, Romglish permis.
+                    - Returnează DOAR itinerarul.
+                """
+                
+                itinerary = await get_proactive_response(itinerary_instruction, f" tomorrow_plan: {tomorrow_plan}\n\nCONTEXT:\n{context_snapshot}")
+                
+                if itinerary:
+                    await save_day_plan(pool, tomorrow, tomorrow_plan, itinerary)
+                
+                await clear_state(pool)
+                await update_user_profile(pool, TG_UID, last_evening_date=today)
 
-                name_esc = escape_md(profile.get('name', 'User'))
-                focus_esc = escape_md(tomorrow_focus) if tomorrow_focus else "să fii prezent\\."  
-                reply = (
-                    f"{mood_emoji} Mulțumesc, {name_esc}\\. Am salvat reflecția de azi\\.\n\n"
-                    f"*Mâine te concentrezi pe:* {focus_esc}\n\n"
-                    f"Noapte bună\\! 🌙"
-                )
+                reply = f"✅ Jurnal salvat\\.\n\n{safe_markdown(itinerary or 'Noapte bună!')}\n\nNoapte bună\\. 🌙"
                 await update.message.reply_text(reply, parse_mode="MarkdownV2")
                 return
 

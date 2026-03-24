@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS user_profile (
     last_plan_date DATE,                  -- prevents duplicate daily plan prompt
     last_weekly_review_date DATE,                -- prevents duplicate weekly review
     last_finance_summary_date DATE,              -- prevents duplicate weekly finance summary
-    last_monthly_review_date DATE,               -- prevents duplicate monthly review
+    last_evening_date     DATE,                  -- prevents duplicate evening flow
     created_at            TIMESTAMPTZ DEFAULT NOW(),
     updated_at            TIMESTAMPTZ DEFAULT NOW()
 );

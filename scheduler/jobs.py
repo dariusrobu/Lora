@@ -313,295 +313,82 @@ HABITS PENDING AZI:
         print(f"CRITICAL error in send_morning_briefing: {e}", flush=True)
         traceback.print_exc()
 
-async def send_eod_reflection(application, pool):
-    """Checks in with the user at the end of the day."""
-    profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
-    today = datetime.now(pytz.timezone(TIMEZONE)).date()
-    
-    if profile.get('last_eod_date') == today:
-        return
-
-    # 1. Gather achievements
-    from db.queries.tasks import get_completed_tasks_today
-    from db.queries.habits import get_habits_completed_today
-    
-    v_tasks = await get_completed_tasks_today(pool)
-    v_habits = await get_habits_completed_today(pool)
-
-    # 2. Format data for Gemini
-    data_summary = f"""
-USER: {profile.get('name', 'User')}
-DATE: {today.strftime('%A, %Y-%m-%d')}
-
-TASK-URI COMPLETATE AZI: {len(v_tasks)}
-{chr(10).join([f"  • {t['title']}{' [' + t['project_name'] + ']' if t.get('project_name') else ''}" for t in v_tasks]) if v_tasks else "  • Niciun task completat"}
-
-HABITS BIFATE AZI: {len(v_habits)}
-{chr(10).join([f"  • {h}" for h in v_habits]) if v_habits else "  • Niciun habit bifat"}
-"""
-
-    # 3. Call Gemini for synthesis
-    from core.gemini import get_proactive_response
-    system_instruction = f"""
-Ești Lora, asistenta personală a lui {profile.get('name', 'User')}. Trimiți mesajul EOD de seară.
-
-LIMBĂ: Mesajul se scrie EXCLUSIV în română.
-Sunt permise DOAR: task, habit, meeting, gym, chess.
-INTERZIS: vibes, achievements, wins, chill, off, have a great evening, bravo, recap.
-Folosește echivalente românești (ex: "bine făcut" în loc de "bravo").
-
-TON: Calm, sincer, reflectiv.
-NU folosi: "super", "solide", "major", "wow", "meriti din plin", "extraordinar", "fascinant".
-Maxim 2 emoji per mesaj. INTERZIS: 💖 sau orice emoji romantic.
-NU adăuga sugestii nesolicitate despre ce să facă userul seara (plimbare, serial, muzică) dacă nu au fost menționate.
-
-STRUCTURĂ (maxim 100 de cuvinte):
-1. Ce ai făcut azi (2-3 propoziții, bazat pe task-uri completate + habits bifate)
-2. O singură întrebare de reflecție (scurtă, directă)
-3. Urare de seară (1 propoziție, max 1 emoji)
-
-Formatare: Telegram MarkdownV2 raw.
-"""
-    from bot.formatter import safe_markdown
-    raw_ai_reflection: str = await get_proactive_response(system_instruction, data_summary)
-    ai_reflection: str = ""
-    if raw_ai_reflection:
-        ai_reflection = safe_markdown(raw_ai_reflection)
-
-    # Fallback
-    if not ai_reflection:
-        raw_ai_reflection = ""
-        ai_reflection = f"Hey {escape_md(profile.get('name', 'User'))}, end of day 🌙\n\nHow did today go?"
-
-    from bot.keyboards import mood_keyboard
-    print(f"DEBUG ai_reflection: {ai_reflection}", flush=True)
-    await application.bot.send_message(
-        chat_id=TELEGRAM_USER_ID,
-        text=ai_reflection,
-        reply_markup=mood_keyboard(),
-        parse_mode=ParseMode.MARKDOWN_V2
-    )
-    
-    # Generate and send voice reflection
-    try:
-        from bot.tts import text_to_speech
-        import os
-
-        print("🎙️ Starting TTS generation for EOD Reflection...", flush=True)
-        # Pass raw text — prepare_podcast_text() inside tts.py does full cleanup
-        tts_text: str = raw_ai_reflection or ai_reflection
-        print(f"🎙️ TTS input length: {len(tts_text)} characters", flush=True)
-        voice_file = await text_to_speech(tts_text, podcast_mode=True)
-        print(f"🎙️ TTS file generated: {voice_file} (size: {os.path.getsize(voice_file) if os.path.exists(voice_file) else 'NOT FOUND'} bytes)", flush=True)
-
-        with open(voice_file, 'rb') as f:
-            print(f"🎙️ Sending voice to Telegram (chat_id: {TELEGRAM_USER_ID})...", flush=True)
-            await application.bot.send_voice(
-                chat_id=TELEGRAM_USER_ID,
-                voice=f,
-                caption="🎙️ *Lora Podcast: EOD Reflection*",
-                parse_mode=ParseMode.MARKDOWN_V2
-            )
-            print("🎙️ Voice message sent successfully!", flush=True)
-
-        os.remove(voice_file)
-        print(f"🎙️ Temporary voice file removed: {voice_file}", flush=True)
-    except Exception as e:
-        error_msg = f"❌ *EOD TTS error:* `{escape_md(str(e))}`"
-        print(f"❌ {error_msg}", flush=True)
-        import traceback
-        traceback.print_exc()
-        try:
-            await application.bot.send_message(
-                chat_id=TELEGRAM_USER_ID,
-                text=error_msg,
-                parse_mode=ParseMode.MARKDOWN_V2
-            )
-        except:
-            await application.bot.send_message(
-                chat_id=TELEGRAM_USER_ID,
-                text=f"❌ EOD TTS error: {str(e)}"
-            )
-    
-    
-    # 3.5 Nutrition Integration for EOD
-    try:
-        from modules.nutrition import get_daily_totals
-        totals = await get_daily_totals(pool, today)
-        async with pool.acquire() as conn:
-            targets = await conn.fetchrow("SELECT * FROM nutrition_targets LIMIT 1")
-        
-        nutrition_note = ""
-        if totals['meal_count'] == 0:
-            nutrition_note = "\n\n⚠️ Nu ai logat nicio masă azi\\."
-        elif targets:
-            prot_pct = (float(totals['protein']) / float(targets['protein_g'])) * 100
-            if prot_pct < 80:
-                prot_rem = float(targets['protein_g']) - float(totals['protein'])
-                nutrition_note = f"\n\n🍗 Mai ai nevoie de *{prot_rem:.0f}g proteină* azi\\."
-        
-        if nutrition_note:
-            await application.bot.send_message(
-                chat_id=TELEGRAM_USER_ID,
-                text=f"🥗 *Nutriție:* {nutrition_note.strip()}",
-                parse_mode=ParseMode.MARKDOWN_V2
-            )
-    except Exception as ne:
-        print(f"EOD Nutrition inclusion failed: {ne}", flush=True)
-
-    await profile_queries.update_user_profile(pool, TELEGRAM_USER_ID, last_eod_date=today)
-
-async def send_habit_reminder(application, pool):
-    """Sends a friendly nudge about pending habits."""
-    profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
-    today = datetime.now(pytz.timezone(TIMEZONE)).date()
-    
-    # 1. Find pending habits
-    habits = await habit_queries.list_habits(pool)
-    done_ids = await habit_queries.get_today_logs(pool)
-    pending = [h for h in habits if h['id'] not in done_ids]
-    
-    if not pending:
-        return
-
-    # 2. Format data for Gemini
-    data_summary = f"""
-USER: {profile.get('name', 'User')}
-TONE: {profile.get('tone', 'warm')}
-PENDING HABITS:
-{chr(10).join([f"  • {h['name']}" for h in pending])}
-"""
-
-    # 3. Call Gemini for nudge
-    from core.gemini import get_proactive_response
-    system_instruction = f"""
-Ești Lora, asistenta lui {profile.get('name', 'Robu')}.
-Trimiți un reminder scurt pentru habit-urile nepending de azi.
-
-HABIT-URI PENDING: {chr(10).join([f"- {h['name']}" for h in pending])}
-
-Reguli STRICTE:
-- MAX 2 propoziții
-- Listează habit-urile pending direct, fără introduceri
-- Ton neutru, direct — ca un coleg care îți amintește ceva
-- Fără: "cu drag", "viitorul tău", "un pas mic", "gândește-te", 
-  "te vei simți bine", "important pentru tine", "bravo", "hai"
-- Fără emoji excesive (max 1)
-- Limbă: română + termeni tehnici în engleză (reading, chess, gym rămân)
-
-Exemple corecte:
-→ "Mai ai reading, Duolingo și chess pentru azi. 🔁"
-→ "Habits nepending: reading, gym, chess."
-
-Exemple GREȘITE:
-→ "Bună Robu! Am vrut să te salut..."
-→ "Fiecare pas mic contează pentru viitorul tău!"
-"""
-    ai_nudge = await get_proactive_response(system_instruction, data_summary)
-    
-    if not ai_nudge:
-        ai_nudge = f"Hei {escape_md(profile.get('name', 'User'))}, nu uita de habit-urile tale de azi! ✨"
-
-    await application.bot.send_message(
-        chat_id=TELEGRAM_USER_ID,
-        text=ai_nudge,
-        parse_mode=ParseMode.MARKDOWN_V2
-    )
-
-async def missed_habit_nudge(application, pool):
-    """Silently logs 'missed' for habits not completed yesterday."""
-    from datetime import timedelta
-    yesterday = datetime.now(pytz.timezone(TIMEZONE)).date() - timedelta(days=1)
-    
-    habits = await habit_queries.list_habits(pool)
-    async with pool.acquire() as conn:
-        for h in habits:
-            # Check if log exists for yesterday
-            exists = await conn.fetchval(
-                "SELECT 1 FROM habit_logs WHERE habit_id = $1 AND log_date = $2",
-                h['id'], yesterday
-            )
-            if not exists:
-                await habit_queries.log_habit(pool, h['id'], yesterday, 'missed')
-                print(f"Logged missed habit: {h['name']} for {yesterday}")
-
-async def send_journal_night(application, pool) -> None:
-    """Sends the evening journal prompt and sets state to await user's reflection."""
+async def send_evening_flow(application, pool):
+    """Unified evening flow: Summary + Reflection Questions + Tomorrow Planning."""
     try:
         user_tz = pytz.timezone(TIMEZONE)
-        today = datetime.now(user_tz).date()
+        now = datetime.now(user_tz)
+        today = now.date()
 
         # 1. Idempotency check
         profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
-        if profile.get('last_journal_date') == today:
-            print(f"Journal night already prompted for {today} — skipping.", flush=True)
+        if profile.get('last_evening_date') == today:
+            print(f"Evening flow already sent for {today} — skipping.", flush=True)
             return
 
-        name: str = profile.get('name', 'User')
-        print(f"Starting journal night prompt for {today}...", flush=True)
+        name = profile.get('name', 'User')
+        print(f"Starting evening flow for {today}...", flush=True)
 
-        # 2. Build deterministic prompt message
-        prompt_text = (
-            f"━━━━━━━━━━━━━━━\n"
-            f"🌙 *Reflecție de seară, {escape_md(name)}*\n"
-            f"━━━━━━━━━━━━━━━\n\n"
-            "Ia 2 minute pentru tine\\. Trei întrebări scurte:\n\n"
-            "*1\\.* Ce a mers bine azi?\n"
-            "*2\\.* Ce ai vrea să faci diferit?\n"
-            "*3\\.* Care e un lucru important pentru mâine?\n\n"
-            "_Răspunde liber, cu câte cuvinte vrei \u2014 eu mă ocup de rest\\_"
+        # 2. Gather achievements
+        from db.queries.tasks import get_completed_tasks_today
+        from db.queries.habits import get_habits_completed_today
+        v_tasks = await get_completed_tasks_today(pool)
+        v_habits = await get_habits_completed_today(pool)
+
+        # 3. Build message
+        task_count = len(v_tasks)
+        task_status = f"{task_count} tasks completate" if task_count > 0 else "niciun task completat"
+        habit_status = f" {len(v_habits)} habits bifate" if v_habits else ""
+        
+        intro_text = f"🌙 *Bună seara, {escape_md(name)}.*\n\n"
+        summary_text = f"Azi ai {task_status}.{habit_status}."
+        
+        questions_text = (
+            "\n\nRăspunde la cele 3 întrebări ca să închidem ziua:\n"
+            "*1.* Ce a mers bine azi?\n"
+            "*2.* Ce ai vrea să faci diferit?\n"
+            "*3.* Cum vrei să arate ziua de mâine? _(tasks, program, priorități)_"
+        )
+        
+        full_message = intro_text + summary_text + questions_text
+
+        # 4. Send text message
+        await application.bot.send_message(
+            chat_id=TELEGRAM_USER_ID,
+            text=full_message,
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
 
-        # Health reminder check
-        health_today = await health_queries.get_health_log(pool, today)
-        if not health_today:
-            prompt_text += "\n\nLoghează și somnul când te culci\\."
-
-        # 3. Send text message
-        try:
-            await application.bot.send_message(
-                chat_id=TELEGRAM_USER_ID,
-                text=prompt_text,
-                parse_mode=ParseMode.MARKDOWN_V2,
-            )
-        except Exception as e:
-            print(f"Journal night MarkdownV2 failed, falling back: {e}", flush=True)
-            plain = (
-                f"🌙 Reflecție de seară, {name}\n\n"
-                f"1. Ce a mers bine azi?\n"
-                f"2. Ce ai vrea să faci diferit?\n"
-                f"3. Care e un lucru important pentru mâine?\n\n"
-                f"Răspunde liber."
-            )
-            await application.bot.send_message(chat_id=TELEGRAM_USER_ID, text=plain)
-
-        # 4. Send voice version
+        # 5. Send voice TTS (AlinaNeural) - ONLY for first 2 sentences
         try:
             from bot.tts import text_to_speech
             import os
-            tts_raw = (
-                f"Bună seara, {name}. Hai să ne gândim puțin la ziua de azi. "
-                f"Înti ce a mers bine, ce ai schimba, şi care e un lucru important pentru mâine. "
-                "Răspunde liber, eu mă ocup de rest."
-            )
-            voice_file = await text_to_speech(tts_raw, podcast_mode=True)
+            # First 2 sentences: Intro + Summary
+            tts_text = f"Bună seara, {name}. {summary_text}"
+            voice_file = await text_to_speech(tts_text) # Uses ro-RO-AlinaNeural by default in tts.py
+            
             with open(voice_file, 'rb') as f:
                 await application.bot.send_voice(
                     chat_id=TELEGRAM_USER_ID,
                     voice=f,
-                    caption="🎙️ *Lora: Reflecție de seară*",
+                    caption="🎙️ *Lora: Bună seara*",
                     parse_mode=ParseMode.MARKDOWN_V2,
                 )
             if os.path.exists(voice_file):
                 os.remove(voice_file)
         except Exception as e:
-            print(f"Journal night TTS failed (non-critical): {e}", flush=True)
+            print(f"Evening flow TTS failed: {e}", flush=True)
 
-        # 5. Set state + mark as prompted (idempotency for tomorrow's job)
+        # 6. Set state + mark as prompted
         from core.state import set_state
-        await set_state(pool, 'awaiting_journal_response', 'journal', 'save', None)
-        await profile_queries.update_user_profile(pool, TELEGRAM_USER_ID, last_journal_date=today)
-        print(f"Journal night prompt sent. Awaiting response for {today}.", flush=True)
+        await set_state(pool, 'awaiting_evening_response', 'journal', 'save', None)
+        await profile_queries.update_user_profile(pool, TELEGRAM_USER_ID, last_evening_date=today)
+        print(f"Evening flow initiated for {today}.", flush=True)
+
+    except Exception as e:
+        import traceback
+        print(f"CRITICAL error in send_evening_flow: {e}", flush=True)
+        traceback.print_exc()
 
     except Exception as e:
         import traceback
@@ -1157,7 +944,6 @@ def setup_scheduler(application, pool):
     m_h, m_m = map(int, MORNING_BRIEFING_TIME.split(':'))
     e_h, e_m = map(int, EOD_REFLECTION_TIME.split(':'))
     h_h, h_m = map(int, HABIT_REMINDER_TIME.split(':'))
-    j_h, j_m = map(int, JOURNAL_NIGHT_TIME.split(':'))
 
     # Added misfire_grace_time=3600 (1 hour) so if bot restarts late, it still sends
     scheduler.add_job(send_morning_briefing, 'cron', hour=m_h, minute=m_m,
@@ -1166,10 +952,7 @@ def setup_scheduler(application, pool):
     scheduler.add_job(send_habit_reminder, 'cron', hour=h_h, minute=h_m,
                       misfire_grace_time=3600, args=[application, pool])
 
-    scheduler.add_job(send_eod_reflection, 'cron', hour=e_h, minute=e_m,
-                      misfire_grace_time=3600, args=[application, pool])
-
-    scheduler.add_job(send_journal_night, 'cron', hour=j_h, minute=j_m,
+    scheduler.add_job(send_evening_flow, 'cron', hour=e_h, minute=e_m,
                       misfire_grace_time=3600, args=[application, pool])
 
     scheduler.add_job(send_weekly_review, 'cron', day_of_week='sun', hour=e_h, minute=e_m,
