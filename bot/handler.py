@@ -1646,6 +1646,25 @@ async def handle_tasks_callback(query, pool, data: str):
         text, markup = await get_projects_list_view(pool)
         await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
         
+    elif action == "list_all":
+        text, markup = await handle_task_intent(pool, "list_tasks", {})
+        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+        
+    elif action == "recent_done":
+        # Simplified: just a message for now, or list completed tasks
+        from db.queries.tasks import list_tasks
+        tasks = await list_tasks(pool, status="completed")
+        if not tasks:
+            await query.answer("Nu ai task-uri finalizate recent.")
+            return
+        
+        lines = ["✅ *Task-uri finalizate recent:*"]
+        for t in tasks[:10]: # Last 10
+            lines.append(f"• ~{escape_md(t['title'])}~")
+        
+        from bot.keyboards import tasks_main_keyboard
+        await query.edit_message_text("\n".join(lines), parse_mode="MarkdownV2", reply_markup=tasks_main_keyboard())
+        
     elif action == "project_view":
         project_id = int(parts[2])
         text, markup = await get_project_tasks_view(pool, project_id)
