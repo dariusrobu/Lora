@@ -113,3 +113,14 @@ async def get_health_summary(pool, days: int = 7) -> Dict[str, Any]:
         summary['prev_weight'] = recent_weights[1]['weight_kg'] if len(recent_weights) >= 2 else None
         
         return summary
+
+async def get_health_log(pool, log_date: date) -> Optional[Dict[str, Any]]:
+    """
+    Retrieves the health log for a specific date.
+    """
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM health_logs WHERE log_date = $1",
+            log_date
+        )
+        return dict(row) if row else None
