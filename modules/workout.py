@@ -316,7 +316,7 @@ async def handle_workout_callback(query, pool, data: str):
             label = f"✏️ {w['workout_date']} - {w['type']} ({w['duration_min']}m)"
             keyboard.append([InlineKeyboardButton(label, callback_data=f"workout_edit_sel_{w['id']}")])
         keyboard.append([InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")])
-        await query.edit_message_text("✏️ *Editează antrenament*\n\nAlege antrenamentul pe care vrei să-l modifici:", parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.edit_message_text("✏️ *Editează antrenament*\n\nAlege antrenamentul pe care vrei să\\-l modifici:", parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup(keyboard))
 
     elif data.startswith("workout_edit_sel_"):
         workout_id = int(parts[-1])
