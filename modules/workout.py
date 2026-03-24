@@ -310,7 +310,44 @@ async def handle_workout_callback(query, pool, data: str):
             await query.answer("Eroare la ștergere.")
 
     elif data == "workout_edit":
-        await query.answer("Folosește Gemini vocal ('editează antrenamentul de ieri') pentru editări complexe.", show_alert=True)
+        recent = await workout_queries.get_recent_workouts(pool, days=30)
+        keyboard = []
+        for w in recent[:10]:
+            label = f"✏️ {w['workout_date']} - {w['type']} ({w['duration_min']}m)"
+            keyboard.append([InlineKeyboardButton(label, callback_data=f"workout_edit_sel_{w['id']}")])
+        keyboard.append([InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")])
+        await query.edit_message_text("✏️ *Editează antrenament*\n\nAlege antrenamentul pe care vrei să-l modifici:", parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup(keyboard))
+
+    elif data.startswith("workout_edit_sel_"):
+        workout_id = int(parts[-1])
+        w = await workout_queries.get_workout_by_id(pool, workout_id)
+        if not w:
+            await query.answer("Antrenament negăsit.")
+            return
+            
+        text = f"✏️ *Editează {escape_md(w['sport_name'])}* \\({escape_md(str(w['workout_date']))}\\)\n\n"
+        text += f"⏱ Durată: {w['duration_min']} min\n"
+        text += f"📝 Note: {escape_md(w['notes'] or 'fără note')}\n\n"
+        text += "Ce dorești să modifici?"
+        
+        keyboard = [
+            [InlineKeyboardButton("⏱ Durată", callback_data=f"workout_edit_f_dur_{workout_id}")],
+            [InlineKeyboardButton("📝 Note", callback_data=f"workout_edit_f_notes_{workout_id}")],
+            [InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_edit")]
+        ]
+        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup(keyboard))
+
+    elif data.startswith("workout_edit_f_"):
+        # workout_edit_f_dur_ID or workout_edit_f_notes_ID
+        field = parts[3]
+        workout_id = int(parts[-1])
+        
+        if field == "dur":
+            await set_state(pool, "awaiting_workout_input", "workout", "edit_duration", workout_id)
+            await query.edit_message_text("⏱ *Editează Durată*\n\nIntrodu noua durată în minute:", parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Anulează", callback_data=f"workout_edit_sel_{workout_id}")]]))
+        elif field == "notes":
+            await set_state(pool, "awaiting_workout_input", "workout", "edit_notes", workout_id)
+            await query.edit_message_text("📝 *Editează Note*\n\nIntrodu noile note pentru acest antrenament:", parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Anulează", callback_data=f"workout_edit_sel_{workout_id}")]]))
 
 async def handle_workout_message(update, pool, state: dict, text: str):
     action = state.get("action")
@@ -342,6 +379,20 @@ async def handle_workout_message(update, pool, state: dict, text: str):
             from datetime import date
             workout_id = await workout_queries.log_workout(pool, date.today(), item_id, duration, "")
             await update.message.reply_text(f"✅ Antrenament salvat: {duration} min\\. Poți folosi integrarea vocală pentru detalii extra\\.", parse_mode="MarkdownV2")
+            
+        elif action == "edit_duration":
+            duration = int(text.strip())
+            w = await workout_queries.get_workout_by_id(pool, item_id)
+            if w:
+                await workout_queries.update_workout(pool, item_id, w['sport_id'], duration, w['notes'])
+                await update.message.reply_text(f"✅ Durată actualizată la *{duration} min*\\.", parse_mode="MarkdownV2")
+            
+        elif action == "edit_notes":
+            notes = text.strip()
+            w = await workout_queries.get_workout_by_id(pool, item_id)
+            if w:
+                await workout_queries.update_workout(pool, item_id, w['sport_id'], w['duration_min'], notes)
+                await update.message.reply_text(f"✅ Note actualizate\\.", parse_mode="MarkdownV2")
             
     except Exception as e:
         print(f"Error in workout state handler: {e}")
