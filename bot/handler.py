@@ -780,7 +780,6 @@ Reguli:
                 await journal_queries.save_journal_entry(pool, today, reflection_text, mood, tomorrow_plan)
 
                 # 3. Generate Tomorrow's Itinerary
-                from core.context import build_context
                 context_snapshot = await build_context(pool)
                 
                 itinerary_instruction = """
