@@ -30,6 +30,9 @@ async def handle_health_intent(pool, intent: str, data: Dict[str, Any], bot=None
     elif intent == "health_chart":
         return await _generate_health_chart(pool)
     
+    elif intent == "view_today_logs":
+        return await _generate_today_logs_text(pool)
+    
     return escape_md("Nu sunt sigură cum să procesez această cerere pentru sănătate. 🤔"), None
 
 
@@ -113,7 +116,8 @@ async def _generate_health_summary_text(pool) -> Tuple[str, Any]:
             InlineKeyboardButton("⚖️ Greutate", callback_data="health_log_weight"),
             InlineKeyboardButton("🍎 Nutriție", callback_data="health_log_nutrition")
         ],
-        [InlineKeyboardButton("📊 Grafic COMPLET", callback_data="health_chart")]
+        [InlineKeyboardButton("📊 Grafic COMPLET", callback_data="health_chart")],
+        [InlineKeyboardButton("📜 Jurnal AZI", callback_data="health_today_logs")]
     ])
     
     return text, keyboard
@@ -167,4 +171,53 @@ async def _generate_health_chart(pool) -> Tuple[str, Any]:
     buf.seek(0)
     plt.close(fig)
     
+    
     return buf, "photo"
+
+async def _generate_today_logs_text(pool) -> Tuple[str, Any]:
+    """Generates a detailed summary of all logs for today."""
+    import db.queries.nutrition as nutrition_queries
+    from bot.formatter import safe_markdown
+    
+    today = date.today()
+    health = await health_queries.get_health_log(pool, today)
+    meals = await nutrition_queries.get_daily_meals(pool, today)
+    totals = await nutrition_queries.get_daily_totals(pool, today)
+    
+    if not health and not meals:
+        return "Nu ai logat nimic pentru azi încă. 🍎💧", None
+    
+    # Header
+    text = f"📜 *Jurnal Sănătate — {today.strftime('%d %b %Y')}*\n\n"
+    
+    # 1. Health Metrics
+    if health:
+        metrics = []
+        if health.get('sleep_hours'): metrics.append(f"😴 *Somn:* {health['sleep_hours']}h ({health.get('sleep_quality', '—')})")
+        if health.get('water_ml'): metrics.append(f"💧 *Apă:* {health['water_ml']}ml")
+        if health.get('weight_kg'): metrics.append(f"⚖️ *Greutate:* {health['weight_kg']}kg")
+        if health.get('notes'): metrics.append(f"📝 *Note:* {health['notes']}")
+        
+        if metrics:
+            text += "\n".join(metrics) + "\n\n"
+    
+    # 2. Meals
+    if meals:
+        text += "🍎 *Mese:* \n"
+        for i, m in enumerate(meals, 1):
+            time_str = m['created_at'].strftime('%H:%M')
+            text += f"{i}. `[{time_str}]` *{m['total_calories']} kcal* — {m['description']}\n"
+        
+        # Totals
+        text += f"\n🔥 *Total Calorii:* {int(totals['calories'])} kcal\n"
+        text += f"📊 *Macros:* {int(totals['protein'])}g P · {int(totals['carbs'])}g C · {int(totals['fat'])}g F\n"
+    else:
+        text += "🍎 *Mese:* Nicio masă logată încă.\n"
+    
+    text = safe_markdown(text)
+    
+    # Button to go back to summary
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Înapoi la Dashboard", callback_data="health_summary")]])
+    
+    return text, keyboard

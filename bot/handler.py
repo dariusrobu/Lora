@@ -955,6 +955,19 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 else:
                     await query.answer(result)
                     await query.message.reply_text(result)
+                return
+
+            elif data == "health_today_logs":
+                text, markup = await handle_health_intent(pool, "view_today_logs", {}, bot=context.bot)
+                await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+                await query.answer()
+                return
+
+            elif data == "health_summary":
+                text, markup = await handle_health_intent(pool, "health_summary", {}, bot=context.bot)
+                await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+                await query.answer()
+                return
             elif data == "health_log_water":
                 from core.state import set_state
                 await set_state(pool, "awaiting_health_input", "health", "log_water", None)

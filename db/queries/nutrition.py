@@ -80,3 +80,11 @@ async def get_recent_meals(pool, limit: int = 5) -> List[Dict[str, Any]]:
         limit
     )
     return [dict(r) for r in rows]
+
+async def get_daily_meals(pool, log_date: date) -> List[Dict[str, Any]]:
+    """Gets all meals for a specific date."""
+    rows = await pool.fetch(
+        "SELECT id, total_calories, total_protein, total_carbs, total_fat, description, created_at FROM meals WHERE meal_date = $1 ORDER BY created_at ASC",
+        log_date
+    )
+    return [dict(r) for r in rows]
