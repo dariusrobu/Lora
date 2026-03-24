@@ -79,12 +79,12 @@ async def handle_workout_intent(pool, intent: str, data: dict, bot=None):
         
         lines = [
             "✅ *Antrenament salvat!*",
-            f"{icon} {escape_md(sport_name)}{dur_str}{cal_str}"
+            f"{icon} *{escape_md(sport_name)}*{dur_str}{cal_str}"
         ]
         
         if ex_summary:
             lines.append("")
-            lines.append("*Exerciții:*")
+            lines.append("🏋️ *Exerciții:*")
             lines.extend(ex_summary)
             
         return "\n".join(lines), workout_main_keyboard()

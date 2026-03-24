@@ -48,18 +48,20 @@ async def handle_nutrition_intent(pool, intent: str, data: Dict[str, Any], bot=N
         lines.append(f"🔥 *{int(total_cal)}* kcal | 💪 *{total_prot:.1f}g* P | 🍞 *{total_carbs:.1f}g* C | 🫒 *{total_fat:.1f}g* F")
         
         lines.append("")
-        lines.append(f"📊 *Total azi:* {int(day_totals['calories'])} kcal")
+        cal_pct = int((day_totals['calories'] / targets['calories']) * 100)
+        cal_bar = "█" * min(cal_pct // 10, 10) + "░" * max(10 - cal_pct // 10, 0)
+        lines.append(f"📊 *Total azi:* {int(day_totals['calories'])}/{targets['calories']} kcal")
+        lines.append(f"🔥 `{cal_bar}` {cal_pct}%")
         
-        if targets:
-            prot_pct = int((day_totals['protein'] / targets['protein_g']) * 100)
-            prot_bar = "█" * min(prot_pct // 10, 10) + "░" * max(10 - prot_pct // 10, 0)
-            lines.append(f"💪 Proteină: `{prot_bar}` {int(day_totals['protein'])}/{targets['protein_g']}g")
-            
-            cal_rem = targets['calories'] - int(day_totals['calories'])
-            if cal_rem > 0:
-                lines.append(f"🍴 Mai poți consuma *{cal_rem}* kcal azi\\.")
-            else:
-                lines.append("⚠️ Ai depășit targetul de calorii pe azi\\.")
+        prot_pct = int((day_totals['protein'] / targets['protein_g']) * 100)
+        prot_bar = "█" * min(prot_pct // 10, 10) + "░" * max(10 - prot_pct // 10, 0)
+        lines.append(f"💪 Proteină: `{prot_bar}` {int(day_totals['protein'])}/{targets['protein_g']}g")
+        
+        cal_rem = targets['calories'] - int(day_totals['calories'])
+        if cal_rem > 0:
+            lines.append(f"\n🍴 Mai poți consuma *{cal_rem}* kcal azi\\.")
+        else:
+            lines.append("\n⚠️ Ai depășit targetul de calorii pe azi\\.")
 
         return "\n".join(lines), None
 

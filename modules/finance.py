@@ -39,11 +39,14 @@ async def _handle_log_expense(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
         description=description
     )
     
-    msg = f"✅ Adăugat: {amount} RON la *{category}*"
+    msg = f"✅ {amount} RON la *{category}* înregistrat\\."
     if description:
-        msg += f" ({description})"
+        msg = f"✅ {amount} RON — *{description}* ({category}) înregistrat\\."
+        
+    daily_total = await finance_queries.get_daily_total(pool, date.today())
+    msg += f"\n💸 *Cheltuieli azi:* {daily_total:.2f} RON"
     
-    return safe_markdown(msg), None
+    return msg, None
 
 async def _generate_finance_summary_text(pool) -> Tuple[str, Any]:
     today = date.today()

@@ -22,7 +22,13 @@ async def handle_health_intent(pool, intent: str, data: Dict[str, Any], bot=None
             return "Câți ml ai băut? 💧", None
         
         new_total = await health_queries.add_water(pool, today, water_ml)
-        return escape_md(f"✅ +{water_ml}ml adăugați. Total azi: {new_total}ml. 💧"), None
+        # Check water target (default 2500ml or from profile/settings if available)
+        target = 2500 
+        pct = min(int((new_total / target) * 100), 100)
+        bar = "█" * (pct // 10) + "░" * (10 - (pct // 10))
+        
+        msg = f"✅ +{water_ml}ml adăugați\\.\n💧 *Total azi:* {new_total}/{target}ml\n`{bar}` {pct}%"
+        return msg, None
     
     elif intent == "health_summary":
         return await _generate_health_summary_text(pool)

@@ -140,6 +140,14 @@ FAPTE DESPRE {user_name}:
     - intent="delete_goal" — "șterge goal-ul X" 
     - intent="habit_heatmap" pentru vizualizarea grafică a habit streaks (heatmaps).
     - Cuvinte cheie: "heat map habits", "streak vizual", "grafic habits", "vizualizare habits", "heatmap".
+
+━━━ EXEMPLE NLP LOGGING ━━━
+- "Am mâncat 2 ouă și 50g brânză" -> intent="meal_log", module="nutrition", data={"meal_type": "masa", "description": "..., "items": [...], "calories": ..., "protein": ...}
+- "Am băut 300ml apă" -> intent="log_water", module="health", data={"water_ml": 300}
+- "7.5h somn aseară, m-am simțit super" -> intent="health_log", module="health", data={"sleep_hours": 7.5, "sleep_quality": "great", "notes": "super"}
+- "Am făcut 1h sală, spate și biceps" -> intent="workout_log", module="workout", data={"sport_name": "Gym", "duration_min": 60, "notes": "spate și biceps"}
+- "12 ron uber" -> intent="finance_log", module="finance", data={"amount": 12, "type": "expense", "category": "transport", "description": "uber"}
+- "Am primit salariul 5000 ron" -> intent="finance_log", module="finance", data={"amount": 5000, "type": "income", "category": "salariu"}
 20. Workout: module="workout":
     - intent="workout_log" pentru înregistrarea unui antrenament (gym, fotbal, cardio, alergare etc.).
         * REGULI de extragere date pentru `workout_log`:
