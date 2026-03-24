@@ -505,7 +505,7 @@ Returnează EXCLUSIV JSON valid, fără markdown:
 week_type: "odd" dacă e marcat SI, "even" dacă SP, "both" dacă apare în ambele sau nu e marcat.
 """
                         response = client.models.generate_content(
-                            model="gemini-1.5-flash",
+                            model="gemini-2.5-flash",
                             contents=[
                                 types.Content(parts=[
                                     types.Part(inline_data=types.Blob(mime_type="image/jpeg", data=image_data)),
@@ -597,7 +597,7 @@ Returnează EXCLUSIV JSON valid:
 }
 """
                         response = client.models.generate_content(
-                            model="gemini-1.5-flash",
+                            model="gemini-2.5-flash",
                             contents=[
                                 types.Content(parts=[
                                     types.Part(inline_data=types.Blob(mime_type="application/pdf", data=pdf_data)),
