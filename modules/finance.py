@@ -1,136 +1,120 @@
-from typing import Dict, Any, Tuple
-from datetime import datetime
+from typing import Dict, Any, Tuple, List
+from datetime import date, datetime
+import io
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from bot.formatter import escape_md, safe_markdown
 import db.queries.finance as finance_queries
-from bot.formatter import escape_md
-import logging
-
-logger = logging.getLogger(__name__)
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 async def handle_finance_intent(pool, intent: str, data: Dict[str, Any]) -> Tuple[str, Any]:
-    if intent in ["log_expense", "log_income", "add_expense", "add_income"]:
-        type_ = "expense" if "expense" in intent else "income"
-        amount = data.get("amount")
-        category = data.get("category", "other").lower()
-        
-        if not amount:
-            return "How much was it?", None
-        
-        await finance_queries.add_finance(pool, type=type_, amount=float(amount), category=category, description=data.get("description"))
-        
-        # Budget check for expenses
-        warning = ""
-        if type_ == "expense":
-            budget = await finance_queries.get_budget_status(pool, category)
-            if budget and budget['monthly_limit']:
-                limit = float(budget['monthly_limit'])
-                cat_total = await finance_queries.get_monthly_total_by_category(pool, category)
-                
-                alerted_80 = budget['alerted_80']
-                alerted_100 = budget['alerted_100']
-                
-                pct = (float(cat_total) / float(limit)) * 100
-                logger.info(f"💰 BUDGET CHECK [{category}]: {cat_total}/{limit} ({pct:.1f}%) | Alerts: 80={alerted_80}, 100={alerted_100}")
-
-                if float(cat_total) >= float(limit) and not alerted_100:
-                    warning = f"\n🔴 *Ai depășit bugetul* de {escape_md(category)}! ({int(float(cat_total))} / {int(float(limit))} RON)"
-                    await finance_queries.update_budget_alert_flags(pool, category, alerted_80, True)
-                elif float(cat_total) >= float(limit) * 0.8 and not alerted_80:
-                    warning = f"\n⚠️ *Ai cheltuit 80%* din bugetul de {escape_md(category)} luna asta ({int(float(cat_total))} / {int(float(limit))} RON)"
-                    await finance_queries.update_budget_alert_flags(pool, category, True, alerted_100)
- 
-        emoji = "💸" if type_ == "expense" else "💰"
-        return f"Logged {emoji} `{amount} RON` — {escape_md(category)}{warning}", None
- 
-    elif intent in ["finance_summary", "list_finance", "show_finances"]:
-        if intent == "list_finance":
-            recent = await finance_queries.get_recent_finances(pool, limit=10)
-            if not recent:
-                return "Nu am găsit nicio tranzacție recentă\\.", None
-            
-            lines = ["📜 *Tranzacții Recente:*"]
-            for tx in recent:
-                date_str = tx['tx_date'].strftime("%d %b")
-                emoji = "💸" if tx['type'] == 'expense' else "💰"
-                desc = f" \\({escape_md(tx['description'])}\\)" if tx['description'] else ""
-                lines.append(f"• `{date_str}` {emoji} `{tx['amount']} RON` — {escape_md(tx['category'])}{desc}")
-            
-            return "\n".join(lines), None
-
-        now = datetime.now()
-        s = await finance_queries.get_monthly_summary(pool, now.month, now.year)
-        
-        lines = [f"📊 *Finance Summary ({now.strftime('%B')}):*"]
-        lines.append(f"• Income: `{s['income']} RON`")
-        lines.append(f"• Expenses: `{s['expense']} RON`")
-        lines.append(f"• Net: `{float(s['income']) - float(s['expense'])} RON`")
-        
-        if s['breakdown']:
-            lines.append("\n*Top Expenses:*")
-            for c in s['breakdown'][:3]:
-                lines.append(f"• {escape_md(c['category'])}: `{c['total']} RON`")
-                
-        return "\n".join(lines), None
-
-    elif intent == "set_budget":
-        amount = data.get("amount") or data.get("limit")
-        category = data.get("category", "other").lower()
-        if not amount:
-            return "What is the budget limit?", None
-        
-        await finance_queries.set_budget(pool, category, float(amount))
-        return f"✅ Budget set for *{escape_md(category)}*: `{int(amount)} RON`/month.", None
-
-    elif intent == "budget_forecast":
-        return await generate_forecast(pool)
-
-    return "Finance module is active\\!", None
-
-async def generate_forecast(pool) -> tuple[str, None]:
-    from db.queries.finance import get_budget_forecast, get_days_left_in_month
-    from bot.formatter import escape_md
+    """
+    Main router for finance-related intents.
+    """
+    if intent == "finance_log":
+        return await _handle_log_expense(pool, data)
     
-    forecasts = await get_budget_forecast(pool)
-    days_left = await get_days_left_in_month(pool)
+    elif intent == "finance_summary" or intent == "view_finance":
+        return await _generate_finance_summary_text(pool)
     
-    if not forecasts:
-        return "Nu sunt suficiente date pentru forecast \\(minim câteva zile de cheltuieli\\).", None
+    elif intent == "finance_chart":
+        return await _generate_finance_chart(pool)
     
-    lines = [
-        f"📈 *Budget Forecast — {days_left} zile rămase în lună*\n"
-    ]
+    return escape_md("Nu sunt sigură cum să procesez această cerere pentru finanțe. 💸"), None
+
+async def _handle_log_expense(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
+    amount = data.get("amount")
+    category = data.get("category", "other")
+    description = data.get("description", "")
+    tx_type = data.get("type", "expense")
     
-    has_warnings = False
-    for f in forecasts:
-        category = escape_md(f['category'] or 'Altele')
-        spent = float(f['spent'] or 0)
-        projected = float(f['projected_total'] or 0)
-        limit = float(f['monthly_limit']) if f.get('monthly_limit') else None
-        
-        if limit:
-            pct = (projected / limit) * 100
-            if pct >= 100:
-                icon = "🔴"
-                has_warnings = True
-            elif pct >= 85:
-                icon = "🟡"
-                has_warnings = True
-            else:
-                icon = "🟢"
-            
-            bar_filled = min(int(pct / 10), 10)
-            bar = "█" * bar_filled + "░" * (10 - bar_filled)
-            
-            lines.append(
-                f"{icon} *{category}*\n"
-                f"   Cheltuit: `{int(spent)} RON` · Proiectat: `{int(projected)} RON` / `{int(limit)} RON`\n"
-                f"   `{bar}` {int(pct)}%"
-            )
-        else:
-            lines.append(
-                f"• *{category}*: `{int(spent)} RON` cheltuit · proiectat `{int(projected)} RON`"
-            )
+    if amount is None:
+        return "Te rog să specifici suma (ex: 50 RON). 💸", None
     
-    if not has_warnings:
-        lines.append("\n✅ Toate categoriile sunt în buget\\.")
+    await finance_queries.log_transaction(
+        pool, 
+        tx_type=tx_type, 
+        amount=amount, 
+        category=category, 
+        description=description
+    )
     
-    return "\n".join(lines), None
+    msg = f"✅ Adăugat: {amount} RON la *{category}*"
+    if description:
+        msg += f" ({description})"
+    
+    return safe_markdown(msg), None
+
+async def _generate_finance_summary_text(pool) -> Tuple[str, Any]:
+    today = date.today()
+    daily_total = await finance_queries.get_daily_total(pool, today)
+    daily_txs = await finance_queries.get_daily_transactions(pool, today)
+    budget_status = await finance_queries.get_budget_status(pool)
+    
+    # Header
+    text = f"💰 *Finanțe — {today.strftime('%d %b %Y')}*\n\n"
+    text += f"💸 *Cheltuieli azi:* {daily_total:.2f} RON\n\n"
+    
+    # Today's breakdown
+    if daily_txs:
+        text += "📝 *Tranzacții azi:*\n"
+        for tx in daily_txs:
+            icon = "🔻" if tx['type'] == 'expense' else "🔹"
+            desc = f" — {tx['description']}" if tx['description'] else ""
+            text += f"{icon} {tx['amount']:.2f} RON | {tx['category']}{desc}\n"
+        text += "\n"
+    
+    # Budget status (last 30 days / monthly)
+    if budget_status:
+        text += "📊 *Buget lunar:*\n"
+        for b in budget_status:
+            spent = float(b['current_spent'])
+            limit = float(b['monthly_limit'])
+            pct = (spent / limit) * 100 if limit > 0 else 0
+            bar = "🟩" if pct < 80 else "🟧" if pct < 100 else "🟥"
+            text += f"{bar} *{b['category']}:* {spent:.0f}/{limit:.0f} RON ({pct:.1f}%)\n"
+    
+    text = safe_markdown(text)
+    
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("➕ Cheltuială", callback_data="finance_add_expense"),
+            InlineKeyboardButton("➕ Venit", callback_data="finance_add_income")
+        ],
+        [InlineKeyboardButton("📈 Grafic Trend", callback_data="finance_chart")],
+        [InlineKeyboardButton("📊 Statistici DETALIATE", callback_data="finance_stats")]
+    ])
+    
+    return text, keyboard
+
+async def _generate_finance_chart(pool) -> Tuple[str, Any]:
+    history = await finance_queries.get_finance_history(pool, 30)
+    if len(history) < 2:
+        return "Am nevoie de măcar 2 zile cu cheltuieli pentru a genera un trend. 📈", None
+    
+    dates = [row['tx_date'] for row in history]
+    totals = [float(row['total']) for row in history]
+    
+    # If there are gaps in dates, matplotlib will handle them, but let's ensure it looks good
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(dates, totals, marker='o', linestyle='-', color='#e74c3c', linewidth=2, label='Cheltuieli Zilnice')
+    ax.fill_between(dates, totals, color='#e74c3c', alpha=0.1)
+    
+    ax.set_title('Trend Cheltuieli (Ultimele 30 zile)', fontsize=14, pad=15)
+    ax.set_ylabel('RON', fontsize=12)
+    ax.grid(True, alpha=0.3)
+    
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d %b'))
+    plt.xticks(rotation=45)
+    
+    # Median line
+    median = sum(totals) / len(totals)
+    ax.axhline(median, color='#3498db', linestyle='--', alpha=0.5, label=f'Medie: {median:.0f} RON')
+    ax.legend()
+    
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight', dpi=100)
+    buf.seek(0)
+    plt.close(fig)
+    
+    return buf, "photo"

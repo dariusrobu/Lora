@@ -112,12 +112,11 @@ FAPTE DESPRE {user_name}:
     module="news", intent="fetch_news".
 13. Projects: module="projects", intent= "add_project"/"list_projects"/"archive_project"/"delete_project".
 14. Finance: module="finance":
-    - intent="log_expense" pentru cheltuieli
-    - intent="log_income" pentru venituri
-    - intent="list_finance" pentru istoric sau sumar
-    - intent="set_budget" pentru a seta un buget lunar pe o categorie
-    - intent="budget_forecast" pentru a vedea prognoza cheltuielilor până la sfârșitul lunii
-    - Cuvinte cheie finance: "forecast buget", "cât mai pot cheltui", "cum stau cu banii", "voi depăși bugetul", "prognoză cheltuieli", "cât am rămas".
+    - intent="finance_log" pentru înregistrare (cheltuieli, venituri). 
+      Data: {amount: număr, type: "expense"|"income", category: text, description: text}
+    - intent="finance_summary" pentru dashboard/rezumat (cheltuieli azi, tranzacții, buget).
+    - intent="finance_chart" pentru grafic trend (ultimele 30 zile).
+    - Categorii sugerate: mâncare, transport, utilități, chirie, sănătate, shopping, distracție, altele.
 16. Mood: module="mood":
     - intent="get_mood_chart" sau "mood_chart" pentru afișarea evoluției lunare sub formă de grafic.
 17. Insights: module="insights":

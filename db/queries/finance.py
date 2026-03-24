@@ -1,214 +1,87 @@
-from typing import List, Optional, Dict, Any
-from datetime import date
+from typing import List, Dict, Any, Optional
+from datetime import date, datetime
+import decimal
 
-async def add_finance(pool, type: str, amount: float, category: str, description: Optional[str] = None, tx_date: date = None) -> int:
-    if not tx_date: tx_date = date.today()
+async def log_transaction(pool, tx_type: str, amount: float, category: str, description: str = None, tx_date: date = None):
+    """Logs a new finance transaction."""
+    if tx_date is None:
+        tx_date = date.today()
+        
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
+        await conn.execute(
             """
             INSERT INTO finances (type, amount, category, description, tx_date)
             VALUES ($1, $2, $3, $4, $5)
-            RETURNING id
             """,
-            type, amount, category, description, tx_date
+            tx_type, decimal.Decimal(str(amount)), category, description, tx_date
         )
-        return row['id']
 
-async def get_monthly_summary(pool, month: int, year: int) -> Dict[str, Any]:
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT type, SUM(amount) as total 
-            FROM finances 
-            WHERE EXTRACT(MONTH FROM tx_date) = $1 AND EXTRACT(YEAR FROM tx_date) = $2
-            GROUP BY type
-            """,
-            month, year
-        )
-        summary = {"income": 0, "expense": 0}
-        for r in rows:
-            summary[r['type']] = float(r['total'])
-        
-        # Breakdown
-        breakdown = await conn.fetch(
-            """
-            SELECT LOWER(category) as category, SUM(amount) as total 
-            FROM finances 
-            WHERE type = 'expense' AND EXTRACT(MONTH FROM tx_date) = $1 AND EXTRACT(YEAR FROM tx_date) = $2
-            GROUP BY LOWER(category) 
-            ORDER BY total DESC
-            """,
-            month, year
-        )
-        summary['breakdown'] = [dict(r) for r in breakdown]
-        return summary
-
-async def get_budget_limit(pool, category: str) -> Optional[float]:
-    async with pool.acquire() as conn:
-        val = await conn.fetchval("SELECT monthly_limit FROM budget_limits WHERE category = $1", category)
-        return float(val) if val else None
-
-async def get_recent_finances(pool, limit: int = 10) -> List[Dict[str, Any]]:
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id, type, amount, category, description, tx_date
-            FROM finances
-            ORDER BY tx_date DESC, id DESC
-            LIMIT $1
-            """,
-            limit
-        )
-        return [dict(r) for r in rows]
-
-async def delete_finance(pool, finance_id: int):
-    async with pool.acquire() as conn:
-        await conn.execute("DELETE FROM finances WHERE id = $1", finance_id)
-
-async def get_weekly_finance_summary(pool, start_date: date, end_date: date) -> Dict[str, Any]:
-    """Returns total expense and top category for the week."""
-    async with pool.acquire() as conn:
-        total = await conn.fetchval(
-            "SELECT SUM(amount) FROM finances WHERE type = 'expense' AND tx_date BETWEEN $1 AND $2",
-            start_date, end_date
-        )
-        top = await conn.fetchrow(
-            """
-            SELECT category, SUM(amount) as amount 
-            FROM finances 
-            WHERE type = 'expense' AND tx_date BETWEEN $1 AND $2 
-            GROUP BY category 
-            ORDER BY amount DESC 
-            LIMIT 1
-            """,
-            start_date, end_date
-        )
-        return {
-            "total": float(total) if total else 0,
-            "top_category": top['category'] if top else None
-        }
-
-async def get_monthly_total_by_category(pool, category: str) -> float:
-    """Returns the total expense for a category in the current month."""
+async def get_daily_total(pool, log_date: date, tx_type: str = 'expense') -> float:
+    """Gets total for a specific type on a specific date."""
     async with pool.acquire() as conn:
         val = await conn.fetchval(
-            """
-            SELECT SUM(amount) 
-            FROM finances 
-            WHERE type = 'expense' AND LOWER(category) = LOWER($1)
-            AND EXTRACT(MONTH FROM tx_date) = EXTRACT(MONTH FROM CURRENT_DATE)
-            AND EXTRACT(YEAR FROM tx_date) = EXTRACT(YEAR FROM CURRENT_DATE)
-            """,
-            category
+            "SELECT SUM(amount) FROM finances WHERE tx_date = $1 AND type = $2",
+            log_date, tx_type
         )
-        return float(val) if val else 0.0
+        return float(val or 0)
 
-async def update_budget_alert_flags(pool, category: str, alerted_80: bool, alerted_100: bool):
-    """Persists alert state for a category."""
+async def get_daily_transactions(pool, log_date: date) -> List[Dict[str, Any]]:
+    """Gets all transactions for a specific date."""
     async with pool.acquire() as conn:
-        await conn.execute(
-            "UPDATE budget_limits SET alerted_80 = $1, alerted_100 = $2 WHERE category = $3",
-            alerted_80, alerted_100, category
+        rows = await conn.fetch(
+            "SELECT * FROM finances WHERE tx_date = $1 ORDER BY created_at ASC",
+            log_date
         )
-
-async def reset_all_budget_alerts(pool):
-    """Resets all alert flags for the new month."""
-    async with pool.acquire() as conn:
-        await conn.execute("UPDATE budget_limits SET alerted_80 = FALSE, alerted_100 = FALSE")
-
-async def set_budget(pool, category: str, limit: float):
-    """Upserts a budget limit and resets alerts. Category is forced lower."""
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            INSERT INTO budget_limits (category, monthly_limit, alerted_80, alerted_100)
-            VALUES (LOWER($1), $2, FALSE, FALSE)
-            ON CONFLICT ON CONSTRAINT budget_limits_category_unique DO UPDATE 
-            SET monthly_limit = $2, alerted_80 = FALSE, alerted_100 = FALSE
-            """,
-            category, limit
-        )
-
-async def get_budget_status(pool, category: str) -> Optional[Dict[str, Any]]:
-    """Returns limit and alert flags for a category (case-insensitive)."""
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT monthly_limit, alerted_80, alerted_100 FROM budget_limits WHERE LOWER(category) = LOWER($1)",
-            category
-        )
-        return dict(row) if row else None
-
-async def get_monthly_comparison(pool) -> dict:
-    async with pool.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT 
-                category,
-                SUM(amount) FILTER (WHERE tx_date >= date_trunc('month', CURRENT_DATE)) as current_month,
-                SUM(amount) FILTER (WHERE tx_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
-                    AND tx_date < date_trunc('month', CURRENT_DATE)) as last_month
-            FROM finances
-            WHERE type = 'expense'
-            GROUP BY category
-        """)
-        return {r["category"]: {"current": float(r["current_month"] or 0), 
-                                "last": float(r["last_month"] or 0)} for r in rows}
-
-async def get_daily_avg_by_category(pool, days=30) -> list:
-    async with pool.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT category,
-                   ROUND((SUM(amount) / $1)::numeric, 2) as daily_avg,
-                   SUM(amount) as total
-            FROM finances
-            WHERE type = 'expense' AND tx_date >= CURRENT_DATE - $1 * INTERVAL '1 day'
-            GROUP BY category
-            ORDER BY total DESC
-        """, days)
         return [dict(r) for r in rows]
 
-async def get_days_left_in_month(pool) -> int:
+async def get_monthly_category_totals(pool, month: int, year: int) -> List[Dict[str, Any]]:
+    """Gets category totals for a specific month."""
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("""
-            SELECT 
-                DATE_PART('day', 
-                    DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month' - CURRENT_DATE
-                )::int as days_left
-        """)
-        return row['days_left'] if row else 0
+        rows = await conn.fetch(
+            """
+            SELECT category, SUM(amount) as total
+            FROM finances
+            WHERE EXTRACT(MONTH FROM tx_date) = $1 
+              AND EXTRACT(YEAR FROM tx_date) = $2
+              AND type = 'expense'
+            GROUP BY category
+            ORDER BY total DESC
+            """,
+            month, year
+        )
+        return [dict(r) for r in rows]
 
-async def get_budget_forecast(pool) -> list:
-    """Returnează forecast per categorie până la sfârșitul lunii."""
+async def get_budget_status(pool) -> List[Dict[str, Any]]:
+    """Gets current month spending vs limits for all categories with limits."""
     async with pool.acquire() as conn:
-        rows = await conn.fetch("""
-            WITH daily_avg AS (
-                SELECT category,
-                       SUM(amount) / GREATEST(DATE_PART('day', CURRENT_DATE - DATE_TRUNC('month', CURRENT_DATE)), 1) as daily_avg
-                FROM finances
-                WHERE type = 'expense' AND tx_date >= DATE_TRUNC('month', CURRENT_DATE)
-                GROUP BY category
-            ),
-            days_left AS (
-                SELECT DATE_PART('day', 
-                    DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month' - CURRENT_DATE
-                )::int as days_left
-            ),
-            spent_this_month AS (
-                SELECT category, SUM(amount) as spent
-                FROM finances
-                WHERE type = 'expense' AND tx_date >= DATE_TRUNC('month', CURRENT_DATE)
-                GROUP BY category
-            )
+        rows = await conn.fetch(
+            """
             SELECT 
-                s.category,
-                s.spent,
-                d.daily_avg,
-                dl.days_left,
-                ROUND((s.spent + d.daily_avg * dl.days_left)::numeric, 2) as projected_total,
-                bl.monthly_limit
-            FROM spent_this_month s
-            JOIN daily_avg d ON d.category = s.category
-            CROSS JOIN days_left dl
-            LEFT JOIN budget_limits bl ON LOWER(bl.category) = LOWER(s.category)
-            ORDER BY s.spent DESC
-        """)
+                bl.category, 
+                bl.monthly_limit,
+                COALESCE(SUM(f.amount), 0) as current_spent
+            FROM budget_limits bl
+            LEFT JOIN finances f ON LOWER(f.category) = LOWER(bl.category) 
+                AND f.type = 'expense'
+                AND EXTRACT(MONTH FROM f.tx_date) = EXTRACT(MONTH FROM CURRENT_DATE)
+                AND EXTRACT(YEAR FROM f.tx_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+            GROUP BY bl.category, bl.monthly_limit
+            """
+        )
+        return [dict(r) for r in rows]
+
+async def get_finance_history(pool, days: int = 30) -> List[Dict[str, Any]]:
+    """Retrieves daily spending history."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT tx_date, SUM(amount) as total
+            FROM finances
+            WHERE tx_date > CURRENT_DATE - $1::integer
+              AND type = 'expense'
+            GROUP BY tx_date
+            ORDER BY tx_date ASC
+            """,
+            int(days)
+        )
         return [dict(r) for r in rows]

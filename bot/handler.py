@@ -820,10 +820,10 @@ Reguli:
                 await handle_workout_message(update, pool, state, text)
                 return
 
-            elif state['state_type'] == 'awaiting_health_input':
+            elif state['state_type'] in ['awaiting_health_input', 'awaiting_finance_input']:
                 from core.state import clear_state
                 await clear_state(pool)
-                # Fall through to Gemini with the newly added history context
+                # Fall through to Gemini
 
         # 3. Build context snapshot
         context_snapshot = await build_context(pool)
@@ -1005,6 +1005,44 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 async with pool.acquire() as conn:
                     await conn.execute("INSERT INTO conversations (role, content) VALUES ($1, $2)", "assistant", prompt)
                 return
+
+            elif data.startswith("finance_"):
+                from modules.finance import handle_finance_intent
+                if data == "finance_chart":
+                    result, _ = await handle_finance_intent(pool, "finance_chart", {})
+                    if isinstance(result, bytes):
+                        await context.bot.send_photo(
+                            chat_id=update.effective_chat.id,
+                            photo=result,
+                            caption="Finance Trends 📉 (ultimele 30 zile)"
+                        )
+                        await query.answer()
+                    else:
+                        await query.answer(result)
+                        await query.message.reply_text(result)
+                    return
+                
+                elif data == "finance_summary":
+                    text, markup = await handle_finance_intent(pool, "finance_summary", {})
+                    await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+                    await query.answer()
+                    return
+                
+                elif data == "finance_add_expense":
+                    from core.state import set_state
+                    await set_state(pool, "awaiting_finance_input", "finance", "finance_log", {"type": "expense"})
+                    prompt = "💸 *Ce cheltuială ai făcut?*\n_\\(ex: 50 RON cafea, taxi 30lei, mâncare 100\\)_"
+                    await query.edit_message_text(prompt, parse_mode="MarkdownV2")
+                    await query.answer()
+                    return
+                
+                elif data == "finance_add_income":
+                    from core.state import set_state
+                    await set_state(pool, "awaiting_finance_input", "finance", "finance_log", {"type": "income"})
+                    prompt = "💰 *Ce venit ai primit?*\n_\\(ex: salariu 5000, bonus 200, vânzare olx 50\\)_"
+                    await query.edit_message_text(prompt, parse_mode="MarkdownV2")
+                    await query.answer()
+                    return
 
             return
 
@@ -1520,4 +1558,14 @@ async def health_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     from modules.health import handle_health_intent
     text, markup = await handle_health_intent(pool, "health_summary", {}, bot=context.bot)
+    await update.message.reply_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+
+async def finance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles /finance command — opens finance dashboard."""
+    pool = context.bot_data.get("pool")
+    if not await security_check(update):
+        return
+    
+    from modules.finance import handle_finance_intent
+    text, markup = await handle_finance_intent(pool, "finance_summary", {})
     await update.message.reply_text(text, parse_mode="MarkdownV2", reply_markup=markup)
