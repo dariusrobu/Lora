@@ -1,7 +1,5 @@
 import asyncio
 import sys
-import os
-from pathlib import Path
 from telegram.ext import (
     ApplicationBuilder,
     MessageHandler,
@@ -34,30 +32,6 @@ from bot.handler import (
 )
 from modules.skills import skills_command
 from functools import partial
-
-PID_FILE = Path(__file__).parent / "lora.pid"
-
-
-def acquire_pid_lock():
-    """Prevents running multiple instances of the bot simultaneously."""
-    if PID_FILE.exists():
-        old_pid = PID_FILE.read_text().strip()
-        try:
-            os.kill(int(old_pid), 0)
-            print(
-                f"ERROR: Bot already running with PID {old_pid}. Exiting.", flush=True
-            )
-            sys.exit(1)
-        except (ProcessLookupError, ValueError):
-            print(f"Stale PID file found (PID {old_pid}). Removing.", flush=True)
-    PID_FILE.write_text(str(os.getpid()))
-    print(f"PID lock acquired: {os.getpid()}", flush=True)
-
-
-def release_pid_lock():
-    """Cleans up the PID file on shutdown."""
-    if PID_FILE.exists():
-        PID_FILE.unlink()
 
 
 async def start_bot():
@@ -112,6 +86,18 @@ async def start_bot():
 
     print("Lora is ready. Starting polling... 🤖")
 
+    async def error_handler(update, context):
+        from telegram.error import Conflict
+
+        if isinstance(context.error, Conflict):
+            print("Conflict: another instance is polling. Exiting.", flush=True)
+            await close_pool()
+            sys.exit(1)
+
+    application.add_error_handler(error_handler)
+
+    await asyncio.sleep(5)
+
     async with application:
         await application.initialize()
         await application.start()
@@ -141,11 +127,4 @@ if __name__ == "__main__":
     sys.stdout.reconfigure(line_buffering=True)
     sys.stderr.reconfigure(line_buffering=True)
 
-    acquire_pid_lock()
-
-    try:
-        asyncio.run(start_bot())
-    except KeyboardInterrupt:
-        pass
-    finally:
-        release_pid_lock()
+    asyncio.run(start_bot())
