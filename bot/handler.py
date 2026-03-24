@@ -856,7 +856,8 @@ Reguli:
             current_markup = reply_markup if i == len(chunks) - 1 else None
             try:
                 print(f"📤 SENDING: {repr(chunk[:50])}...")
-                await update.message.reply_text(chunk, parse_mode="MarkdownV2", reply_markup=current_markup)
+                await update.message.reply_text(safe_markdown(chunk), parse_mode="MarkdownV2", reply_markup=current_markup)
+
             except Exception as e:
                 print(f"⚠️ MarkdownV2 FAILED, falling back to plain text: {e}")
                 await update.message.reply_text(chunk, reply_markup=current_markup)

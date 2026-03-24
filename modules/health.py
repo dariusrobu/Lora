@@ -12,7 +12,8 @@ async def handle_health_intent(pool, intent: str, data: Dict[str, Any], bot=None
     """
     today = date.today()
     
-    if intent in ["log_health", "log_sleep", "log_weight", "log_nutrition"]:
+    if intent in ["health_log", "log_health", "log_sleep", "log_weight", "log_nutrition", "nutrition_log"]:
+
         return await _handle_upsert(pool, intent, data, today)
     
     elif intent == "log_water":
@@ -29,7 +30,8 @@ async def handle_health_intent(pool, intent: str, data: Dict[str, Any], bot=None
     elif intent == "health_chart":
         return await _generate_health_chart(pool)
     
-    return "Nu sunt sigură cum să procesez această cerere pentru sănătate. 🤔", None
+    return escape_md("Nu sunt sigură cum să procesez această cerere pentru sănătate. 🤔"), None
+
 
 async def _handle_upsert(pool, intent: str, data: Dict[str, Any], log_date: date) -> Tuple[str, Any]:
     sleep_hours = data.get("sleep_hours")

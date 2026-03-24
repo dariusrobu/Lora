@@ -331,15 +331,16 @@ IntentResponse schema:
     try:
         response = await asyncio.to_thread(
             client.models.generate_content,
-            model="gemini-2.5-flash",
+            model="gemini-2.0-flash",
             contents=contents,
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
                 response_mime_type="application/json",
                 temperature=0.4,
-                max_output_tokens=1000,
+                max_output_tokens=2000,
             )
         )
+
         
         raw_text = response.text
         print(f"DEBUG RAW TEXT: {repr(raw_text)}", flush=True)
@@ -366,6 +367,7 @@ IntentResponse schema:
             "module": None,
             "data": {},
             "reply": "I'm having a little trouble thinking clearly right now\\. Could you try again in a moment? 🧠💨",
+
             "needs_confirmation": False
         }
     

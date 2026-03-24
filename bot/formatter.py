@@ -30,9 +30,10 @@ def safe_markdown(text: str) -> str:
 
     # Re-escape only what's necessary to prevent parser errors for lone special chars.
     # Characters that MUST be escaped if not part of a tag: _ [ ] ( ) ~ > # + = | { } . ! -
-    must_escape = r'_[]()~>#+=|{}.!-'
+    must_escape = r'[]()~>#+=|{}.!-'
     for char in must_escape:
         text = text.replace(char, f"\\{char}")
+
         
     # Ensure * and ` are handled:
     # We assume Gemini uses them in pairs. If there's an odd number, it might break.
