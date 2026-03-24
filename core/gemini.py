@@ -10,20 +10,21 @@ import re
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
+
 async def get_gemini_response(
-    user_message: str, 
-    user_name: str, 
-    tone: str, 
-    context_snapshot: str, 
+    user_message: str,
+    user_name: str,
+    tone: str,
+    context_snapshot: str,
     history: List[Dict[str, str]],
-    personal_notes: str = ""
+    personal_notes: str = "",
 ) -> Dict[str, Any]:
     """Calls Gemini and returns the parsed IntentResponse JSON."""
-    
+
     user_tz = pytz.timezone(TIMEZONE)
     now = datetime.now(user_tz)
     tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
-    
+
     system_prompt = f"""
 Ești Lora, asistentul personal AI al lui {user_name}, care trăiește în Telegram.
 Ești second brain-ul lor — organizat, proactiv, și niciodată enervant.
@@ -38,7 +39,7 @@ CAPABILITIES:
 Tasks, Habits, Projects, Goals, Notes & Journal, Finance, Events, Shopping List, Skills.
 Fiecare suportă: add, edit, rename, delete, complete, list, search, archive (projects).
 
-ASTĂZI: {now.strftime('%Y-%m-%d')}, {now.strftime('%A')}
+ASTĂZI: {now.strftime("%Y-%m-%d")}, {now.strftime("%A")}
 
 CONTEXT CURENT:
 {context_snapshot}
@@ -245,9 +246,9 @@ FAPTE DESPRE {user_name}:
 
 Exemple de output JSON pentru workout_log:
 - Input: "am fost la MRU seminar azi"
-  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "MRU", "attended": true, "date": "{now.strftime('%Y-%m-%d')}" }}, "reply": "MRU — prezent ✅ înregistrat." }}
+  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "MRU", "attended": true, "date": "{now.strftime("%Y-%m-%d")}" }}, "reply": "MRU — prezent ✅ înregistrat." }}
 - Input: "am lipsit de la Statistică seminar"
-  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "Statistică", "attended": false, "date": "{now.strftime('%Y-%m-%d')}" }}, "reply": "Statistică Inferențială — absent ❌ înregistrat." }}
+  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "Statistică", "attended": false, "date": "{now.strftime("%Y-%m-%d")}" }}, "reply": "Statistică Inferențială — absent ❌ înregistrat." }}
 - Input: "adaugă materia Contabilitate"
   Output: {{ "intent": "uni_add_subject", "module": "university", "data": {{ "name": "Contabilitate" }}, "reply": "Contabilitate adăugată. 📚" }}
 - Input: "am făcut gym 50 min push day, bench press 60kg 5 reps, am ars 300 calorii"
@@ -362,43 +363,58 @@ IntentResponse schema:
     for m in history:
         role = "user" if m["role"] == "user" else "model"
         contents.append(types.Content(role=role, parts=[types.Part(text=m["content"])]))
-    
-    contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
-    
-    print(f"🚀 GEMINI CALL: contents count={len(contents)} | last turn: {repr(user_message)}", flush=True)
-    if len(contents) > 1:
-        print(f"📜 HISTORY SAMPLE: {repr(contents[-2].parts[0].text[:50])}...", flush=True)
-    
-    try:
-        response = await asyncio.to_thread(
-            client.models.generate_content,
-            model="gemini-2.5-flash",
 
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                response_mime_type="text/plain",
-                temperature=0.4,
-                max_output_tokens=2000,
-            )
+    contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
+
+    print(
+        f"🚀 GEMINI CALL: contents count={len(contents)} | last turn: {repr(user_message)}",
+        flush=True,
+    )
+    if len(contents) > 1:
+        print(
+            f"📜 HISTORY SAMPLE: {repr(contents[-2].parts[0].text[:50])}...", flush=True
         )
 
-        
-        raw_text = response.text
-        print(f"DEBUG RAW TEXT: {repr(raw_text)}", flush=True)
-        
-        # Robust cleaning
-        if "```json" in raw_text:
-            raw_text = raw_text.split("```json")[1].split("```")[0].strip()
-        elif "```" in raw_text:
-            raw_text = raw_text.split("```")[1].split("```")[0].strip()
-            
-        try:
-            parsed = json.loads(raw_text)
-        except json.JSONDecodeError:
-            cleaned = re.sub(r'\\([.!#\-])', r'\1', raw_text)
-            parsed = json.loads(cleaned)
-            
+    try:
+        raw_text = None
+        for attempt in range(2):
+            try:
+                response = await asyncio.to_thread(
+                    client.models.generate_content,
+                    model="gemini-2.5-flash",
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        response_mime_type="text/plain",
+                        temperature=0.4,
+                        max_output_tokens=4000,
+                    ),
+                )
+                raw_text = response.text
+                print(f"DEBUG RAW TEXT: {repr(raw_text)}", flush=True)
+
+                if "```json" in raw_text:
+                    raw_text = raw_text.split("```json")[1].split("```")[0].strip()
+                elif "```" in raw_text:
+                    raw_text = raw_text.split("```")[1].split("```")[0].strip()
+
+                parsed = json.loads(raw_text)
+                break
+            except json.JSONDecodeError as e:
+                print(f"JSONDecodeError attempt {attempt + 1}: {e}", flush=True)
+                if attempt == 0:
+                    match = re.search(
+                        r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", raw_text or ""
+                    )
+                    if match:
+                        raw_text = match.group(0)
+                        print(
+                            f"Trying extracted JSON: {repr(raw_text[:100])}...",
+                            flush=True,
+                        )
+                        continue
+                raise
+
         if isinstance(parsed, list) and len(parsed) > 0:
             parsed = parsed[0]
         return parsed
@@ -409,10 +425,10 @@ IntentResponse schema:
             "module": None,
             "data": {},
             "reply": "I'm having a little trouble thinking clearly right now\\. Could you try again in a moment? 🧠💨",
-
-            "needs_confirmation": False
+            "needs_confirmation": False,
         }
-    
+
+
 async def get_proactive_response(system_instruction: str, data_summary: str) -> str:
     """Calls Gemini for a natural language proactive message (briefing/reflection)."""
     tone_rules = """
@@ -443,13 +459,14 @@ FORMATARE:
         response = await asyncio.to_thread(
             client.models.generate_content,
             model="gemini-2.5-flash",
-
-            contents=[types.Content(role="user", parts=[types.Part(text=data_summary)])],
+            contents=[
+                types.Content(role="user", parts=[types.Part(text=data_summary)])
+            ],
             config=types.GenerateContentConfig(
                 system_instruction=full_instruction,
                 temperature=0.7,
                 max_output_tokens=2000,
-            )
+            ),
         )
         return response.text.strip()
     except Exception as e:
