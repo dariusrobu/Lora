@@ -1,12 +1,12 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime, timedelta
 import pytz
-from core.config import TELEGRAM_USER_ID, TIMEZONE, MORNING_BRIEFING_TIME, EOD_REFLECTION_TIME, HABIT_REMINDER_TIME
+from core.config import TELEGRAM_USER_ID, TIMEZONE, MORNING_BRIEFING_TIME, EOD_REFLECTION_TIME
 from bot.formatter import escape_md, safe_markdown
 from telegram.constants import ParseMode
 import db.queries.profile as profile_queries
 import db.queries.tasks as task_queries
-import db.queries.habits as habit_queries
+import db.queries.skills as skill_queries
 import db.queries.events as event_queries
 import db.queries.finance as finance_queries
 import db.queries.notes as note_queries
@@ -95,15 +95,13 @@ async def send_morning_briefing(application, pool):
         (
             all_tasks,
             events,
-            habits,
-            today_logged_ids,
+            skills,
             weather_info,
             shopping_items,
         ) = await asyncio.gather(
             task_queries.list_tasks(pool),
             event_queries.list_events(pool, today, today),
-            habit_queries.list_habits(pool),
-            habit_queries.get_today_logs(pool),
+            skill_queries.get_all_skills(pool),
             get_weather_summary(),
             list_shopping_items(pool),
         )
@@ -112,7 +110,7 @@ async def send_morning_briefing(application, pool):
         overdue: list = [t for t in all_tasks if t['due_date'] and t['due_date'] < today]
         due_today: list = [t for t in all_tasks if t['due_date'] == today]
         priority_tasks: list = (overdue + due_today)[:5]
-        pending_habits: list = [h for h in habits if h['id'] not in today_logged_ids]
+        pending_skills = [s for s in skills if s.get('last_log_date') != today]
 
         
         # 3. Build shared context strings for Gemini calls
@@ -131,7 +129,7 @@ async def send_morning_briefing(application, pool):
             for e in events
         ) or "Niciun eveniment."
 
-        habit_text = "\n".join(h['name'] for h in pending_habits) or "Toate bifate."
+        skill_text = "\n".join(s['name'] for s in pending_skills) or "Totul e la zi."
 
         gemini_context = f"""USER: {name}
 DATE: {today.strftime('%A, %d %B %Y')}
@@ -144,14 +142,14 @@ TASKS PRIORITARE:
 EVENIMENTE AZI:
 {event_text}
 
-HABITS PENDING:
-{habit_text}
+SKILLS PENDING AZI:
+{skill_text}
 """
 
         # 4. Gemini calls — itinerary + focus + automated time block
         itinerary_instruction = f"""Ești Lora, asistenta lui {name}.
 Generezi secțiunea 'Planul zilei' pentru morning briefing-ul de Telegram.
-Creează un itinerar realist pe ore combinând tasks + events + habits.
+Creează un itinerar realist pe ore combinând tasks + events + skills.
 
 IMPORTANT: Userul îți va menționa ce a făcut deja azi. 
 NU include în plan activități menționate ca deja făcute. 
@@ -251,13 +249,14 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
                 type_str = escape_md(e['exam_type'])
                 lines.append(f"• *{date_str}* — {subject} \\({type_str}\\)")
 
-        lines += ["", "🔁 *Habits pending*"]
-        if pending_habits:
-            for h in pending_habits:
-                streak = f" \\(streak: {h['streak_count']} 🔥\\)" if h.get('streak_count', 0) > 0 else ""
-                lines.append(f"• {escape_md(h['name'])}{streak}")
+        lines += ["", "🧠 *Skills de lucrat azi*"]
+        if pending_skills:
+            for s in pending_skills:
+                streak = await skill_queries.get_skill_streak(pool, s['id'])
+                streak_str = f" \\(streak: {streak} 🔥\\)" if streak > 0 else ""
+                lines.append(f"• {escape_md(s['name'])}{streak_str}")
         else:
-            lines.append("Toate habit\\-urile bifate ✅")
+            lines.append("Toate skill\\-urile sunt la zi ✅")
 
         # We don't add the section title if we use generate_time_block directly 
         # because it already includes "🗓 *Time Block*"
@@ -310,15 +309,15 @@ TOP 3 TASKS:
 EVENIMENTE AZI:
 {event_text}
 
-HABITS PENDING AZI:
-{habit_text}
+SKILLS PENDING AZI:
+{skill_text}
 """
             podcast_instruction = f"""Ești Lora, asistenta personală a lui {name}.
  Generezi un podcast vocal de dimineață. Scrie să sune natural când e citit cu voce.
  Generează textul podcastului EXCLUSIV în limba română (MAXIM 250 cuvinte).
  Sunt permise DOAR aceste cuvinte în engleză: task, habit, meeting, gym, chess.
  INTERZIS COMPLET: the game plan, all clear, catch up, deep work, worry, talk of the town, fun, highlights, insights și orice altă expresie idiomatică în engleză.
- Structură: salut + oră → vreme → top tasks ca plan, nu liste → evenimente + habits → gând scurt motivațional.
+  Structură: salut + oră → vreme → top tasks ca plan, nu liste → evenimente + skills → gând scurt motivațional.
  Ton: cald și direct. EVITĂ superlativele și entuziasmul exagerat (ex: super, fascinant, minunat, amazing, extraordinar, wow). Nu repeta 'zâmbete', 'energie', 'bucurie'.
  Vorbește ca un asistent de încredere, nu ca un hype-man. Fără bullet points, fără titluri de secțiuni.
  Formatare: Telegram MarkdownV2 raw (fără backslash escape în JSON)."""
@@ -392,17 +391,14 @@ async def send_evening_flow(application, pool):
 
         # 2. Gather achievements
         from db.queries.tasks import get_completed_tasks_today
-        from db.queries.habits import get_habits_completed_today
         v_tasks = await get_completed_tasks_today(pool)
-        v_habits = await get_habits_completed_today(pool)
 
         # 3. Build message
         task_count = len(v_tasks)
         task_status = f"{task_count} tasks completate" if task_count > 0 else "niciun task completat"
-        habit_status = f" {len(v_habits)} habits bifate" if v_habits else ""
         
         intro_text = f"🌙 *Bună seara, {escape_md(name)}.*\n\n"
-        summary_text = f"Azi ai {task_status}.{habit_status}."
+        summary_text = f"Azi ai {task_status}."
         
         questions_text = (
             "\n\nRăspunde la cele 3 întrebări ca să închidem ziua:\n"
@@ -537,7 +533,6 @@ async def send_weekly_review(application, pool) -> None:
 
         # 3. Aggregated Data Collection
         task_stats = await task_queries.get_weekly_task_stats(pool, start_date, end_date)
-        habit_stats = await habit_queries.get_weekly_habit_stats(pool, start_date, end_date)
         events = await event_queries.list_events(pool, start_date, end_date)
         
         # Concise Finance Section for Sunday Review
@@ -601,9 +596,6 @@ async def send_weekly_review(application, pool) -> None:
         tasks_per_day = await task_queries.get_completed_tasks_per_day(pool, start_date, end_date)
         
         # Restore Formatting for Context
-        habit_ctx = []
-        for h in habit_stats[:5]:
-            habit_ctx.append(f"{h['name']}: {h['completion_days']}/7 zile, streak {h['streak_count']}")
         
         event_ctx = [e['title'] for e in events]
         
@@ -624,7 +616,6 @@ async def send_weekly_review(application, pool) -> None:
         data_summary = f"""
 SĂPTĂMÂNA: {start_date} — {end_date}
 TASKS: {task_stats['completed']} completate din {task_stats['added']} adăugate săptămâna asta.
-HABITS: {", ".join(habit_ctx)}
 FINANCE BREAKDOWN:
 {finance_ctx}
 MOOD SUMMARY: {mood_summary}
@@ -654,7 +645,6 @@ Structură FIXĂ (MarkdownV2):
 📊 *Săptămâna {start_date.strftime('%d.%m')} — {end_date.strftime('%d.%m')}*
 
 ✅ *Tasks*: {task_stats['completed']} completate din {task_stats['added']}
-🔁 *Habits*: [top 3 habits relevanți cu streak]
 
 💰 *Finanțe*
 {finance_ctx}

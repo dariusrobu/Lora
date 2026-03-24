@@ -5,7 +5,7 @@ from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_USER_ID, TIMEZONE, MORNING_
 from db.connection import get_pool, close_pool
 from bot.handler import (
     message_handler, callback_handler, voice_handler,
-    habitstreaks_command, focus_command, stopfocus_command,
+    focus_command, stopfocus_command,
     timeblock_command, uni_command, workout_command, goals_command, health_command, finance_command,
     tasks_command, projects_command
 )
@@ -43,7 +43,6 @@ async def start_bot():
     cb_handler_with_pool = partial(callback_handler, pool=pool)
     voice_handler_with_pool = partial(voice_handler, pool=pool)
     
-    application.add_handler(CommandHandler("habitstreaks", habitstreaks_command))
     application.add_handler(CommandHandler("focus", focus_command))
     application.add_handler(CommandHandler("stopfocus", stopfocus_command))
     application.add_handler(CommandHandler("timeblock", timeblock_command))

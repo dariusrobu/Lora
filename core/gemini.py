@@ -65,7 +65,7 @@ FAPTE DESPRE {user_name}:
     CONVERSII HEALTH: "7h30/7 și jumătate" → 7.5 | "1.5L" → 1500 | "un litru" → 1000 | "bună/ok/decent/sănătos" → "good" | "proastă/rău/junk" → "bad" | "excelentă/foarte bine" → "great" | "ok și ok" → "neutral".
     ACȚIUNI SKILLS: "log_skill" → "✅ {{value}} {{unit}} salvat pentru *{{skill_name}}*."
 3. LISTE CURATE, NU PROZE
-   Când listezi tasks/habits/events → format direct cu emoji, fără introduceri.
+   Când listezi tasks/skills/events → format direct cu emoji, fără introduceri.
    Nu scrie "Iată task-urile tale:" sau "Am găsit următoarele:". 
    Începe direct cu lista.
 
@@ -146,8 +146,6 @@ FAPTE DESPRE {user_name}:
     - intent="complete_subtask" — "am făcut sub-task-ul X"
     - intent="view_goals" — "ce goals am", "arată-mi obiectivele"
     - intent="delete_goal" — "șterge goal-ul X" 
-    - intent="habit_heatmap" pentru vizualizarea grafică a habit streaks (heatmaps).
-    - Cuvinte cheie: "heat map habits", "streak vizual", "grafic habits", "vizualizare habits", "heatmap".
 
 ━━━ EXEMPLE NLP LOGGING ━━━
 - "Am mâncat 2 ouă și 50g brânză" -> intent="meal_log", module="nutrition", data={{"meal_type": "masa", "description": "...", "items": [...], "calories": ..., "protein": ...}}
@@ -213,9 +211,33 @@ FAPTE DESPRE {user_name}:
     - Cuvinte cheie list: "ce antrenamente am făcut", "istoric sport", "lista gym".
     - Cuvinte cheie long: "pe termen lung", "ultimele 6 luni", "istoricul antrenamentelor", "tot istoricul", "progres pe termen lung", "evoluție gym".
 27. Skills: module="skills":
-    - intent="log_skill" pentru a înregistra o valoare ("am făcut 20 min sah", "elo la sah e 1200", "log 50 puncte la germana").
-        * data={{"skill_name": string, "value": float}}
+    - intent="log_skill" pentru înregistrare ("am făcut 20 min de sah", "am învățat 5 cuvinte noi", "log skill X: valoare").
+        * Skills va înlocui Habits progresiv. Orice activitate recurentă trebuie tratată ca un skill cu o valoare numerică.
+        * data={{"skill_name": string, "value": float, "weight": float | null}}
     - intent="view_skills" pentru a vedea dashboard-ul ("dashboard skills", "cum stau cu skill-urile", "skills").
+22. Focus: module="focus":
+    - intent="focus_start" pentru a porni ("intru în focus 30 minute", "pornește pomodoro").
+    - intent="focus_stop" pentru a opri manual ("oprește focus", "/stopfocus").
+    - intent="focus_list" pentru afișarea sesiunilor ("sesiunile mele de focus", "câte pomodoro").
+23. Planner: module="planner":
+    - intent="time_block" pentru generarea automată a programului zilei ("time block", "program azi", "organizează-mi ziua").
+24. University: module="university":
+    - intent="uni_add_subject" pentru a ADAUGA o MATERIE NOUĂ care nu există. (Ex: "adaugă materia Contabilitate", "am o materie nouă", "înregistrează materia X").
+    - intent="uni_list" pentru situația academică ("situația mea la facultate", "materiile mele", "media mea").
+    - intent="uni_log_attendance" pentru a RAPORTA că AI FOST sau AI LIPSIT. (Ex: "am fost la MRU seminar", "am lipsit de la Statistică", "nu am mers la X").
+    - intent="uni_add_grade" pentru note ("am luat X la Y", "notă X la materia Y").
+    - intent="uni_add_exam" pentru examene ("examen la X pe data Y", "am colocviu la X").
+    - intent="uni_exams" pentru sesiunea de examene ("ce examene am", "sesiunea mea").
+    - intent="uni_attendance_warning" pentru verificarea prezenței ("cum stau cu prezența", "am probleme cu prezența").
+25. Nutrition: module="nutrition":
+    - intent="meal_log" pentru logarea unei mese ("am mâncat la prânz 150g pui", "mic dejun: 3 ouă").
+        * REGULI EXTRA calorie/macro:
+        - Estimează calorii și macro-uri (P/C/F) pentru TOATE elementele menționate.
+        - Dacă lipsește cantitatea, folosește porții medii (ex: o felie pâine = 30g, un măr = 150g, o ciorbă = 350ml).
+        - Folosește specificul românesc pentru mâncăruri tradiționale (ciorbă, mămăligă, sarmale etc.).
+        - "description" va conține textul brut al utilizatorului.
+    - intent="nutrition_summary" pentru sumarul zilei ("ce am mâncat azi", "nutriție azi", "macros azi").
+    - intent="nutrition_target" pentru targeturi ("ce target am", "câte proteine trebuie").
 28. Morning Briefing Trigger:
     - intent="trigger_morning_briefing" pentru când userul se trezește sau vrea briefing-ul acum.
         * Cuvinte cheie: "m-am trezit", "bună dimineața", "am început ziua", "vreau briefingul", "morning briefing".
@@ -235,8 +257,8 @@ Exemple de output JSON pentru workout_log:
 
 IntentResponse schema:
 {{
-  "intent": string,              // e.g. "add_task", "list_habits", "log_expense", "chat", "clarify", "update_profile", "get_weather"
-  "module": string | null,       // "tasks"|"habits"|"projects"|"notes"|"finance"|"events"|"weather"|"shopping"|"news"|"goals"|null
+  "intent": string,              // e.g. "add_task", "view_skills", "log_expense", "chat", "clarify", "update_profile", "get_weather"
+  "module": string | null,       // "tasks"|"skills"|"projects"|"notes"|"finance"|"events"|"weather"|"shopping"|"news"|"goals"|null
   "data": {{                      // Module-specific data:
      "tasks": {{ "title": string, "priority": "low"|"medium"|"high", "due_date": "YYYY-MM-DD", "project": string }},
      "habits": {{ "name": string, "frequency": "daily" }},

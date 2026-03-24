@@ -98,3 +98,35 @@ async def get_skill_stats(pool, skill_id: int) -> Dict[str, Any]:
             "count": stats['count'],
             "trend": trend
         }
+
+async def get_skill_streak(pool, skill_id: int) -> int:
+    """Calculates the current consecutive daily streak for a skill."""
+    from datetime import date, timedelta
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT DISTINCT log_date 
+            FROM skill_logs 
+            WHERE skill_id = $1 
+            ORDER BY log_date DESC
+        """, skill_id)
+        
+        if not rows:
+            return 0
+            
+        dates = [r['log_date'] for r in rows]
+        today = date.today()
+        
+        # If the most recent log is older than yesterday, streak is broken
+        if (today - dates[0]).days > 1:
+            return 0
+                
+        streak = 0
+        current_date = dates[0]
+        
+        for d in dates:
+            if d == current_date:
+                streak += 1
+                current_date -= timedelta(days=1)
+            else:
+                break
+        return streak

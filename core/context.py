@@ -2,7 +2,7 @@ from datetime import datetime
 import pytz
 from core.config import TIMEZONE
 import db.queries.tasks as task_queries
-import db.queries.habits as habit_queries
+import db.queries.skills as skill_queries
 import db.queries.events as event_queries
 import db.queries.finance as finance_queries
 import db.queries.projects as project_queries
@@ -43,19 +43,22 @@ async def build_context(pool) -> str:
     elif not overdue:
         snapshot.append("No urgent tasks pending.")
 
-    # 3. Habits
-    habits = await habit_queries.list_habits(pool)
-    today_logs = await habit_queries.get_today_logs(pool)
-    habit_lines = []
-    for h in habits:
-        status = "Done" if h['id'] in today_logs else "Pending"
-        habit_lines.append(f"{h['name']} ({status}, streak: {h['streak_count']})")
+    # 3. Skills (Habit replacement)
+    skills = await skill_queries.get_all_skills(pool)
+    skill_lines = []
+    for s in skills:
+        streak = await skill_queries.get_skill_streak(pool, s['id'])
+        val = s.get('last_value', 0)
+        unit = s.get('last_metric') or s.get('unit', '')
+        last_date = s.get('last_log_date')
+        status = "Updated" if last_date == today else "Pending"
+        skill_lines.append(f"{s['name']} ({status}, streak: {streak}, last: {val} {unit})")
     
-    snapshot.append("\n--- HABITS ---")
-    if habit_lines:
-        snapshot.append(", ".join(habit_lines))
+    snapshot.append("\n--- SKILLS ---")
+    if skill_lines:
+        snapshot.append(", ".join(skill_lines))
     else:
-        snapshot.append("No habits set up.")
+        snapshot.append("No skills logged yet.")
 
     # 4. Events
     events = await event_queries.list_events(pool, today, today)

@@ -4,7 +4,7 @@ import asyncio
 from typing import Optional
 from datetime import date, timedelta
 import db.queries.health as health_queries
-import db.queries.habits as habit_queries
+import db.queries.skills as skill_queries
 import db.queries.goals as goal_queries
 import db.queries.tasks as task_queries
 
@@ -60,31 +60,10 @@ async def check_goal_stale(pool, recent_types: set) -> Optional[tuple]:
         title = escape_md(rows[0]['title'])
         return 'goal_stale', f"Goalul *{title}* e blocat de 2 săptămâni\\."
 
-async def check_habit_streak_broken(pool, recent_types: set) -> Optional[tuple]:
-    if 'habit_streak_broken' in recent_types:
+async def check_skill_streak_broken(pool, recent_types: set) -> Optional[tuple]:
+    if 'habit_streak_broken' in recent_types: # This should probably be 'skill_streak_broken'
         return None
-    
-    yesterday = date.today() - timedelta(days=1)
-    habits = await habit_queries.list_habits(pool)
-    
-    async with pool.acquire() as conn:
-        for h in habits:
-            if h.get('streak_count', 0) == 0:
-                # Check if had streak of 7+ before yesterday
-                row = await conn.fetchrow("""
-                    SELECT COUNT(*) as streak
-                    FROM habit_logs
-                    WHERE habit_id = $1
-                      AND log_date BETWEEN CURRENT_DATE - INTERVAL '8 days' 
-                          AND CURRENT_DATE - INTERVAL '2 days'
-                      AND status = 'done'
-                """, h['id'])
-                
-                if row and row['streak'] >= 7:
-                    from bot.formatter import escape_md
-                    name = escape_md(h['name'])
-                    return 'habit_streak_broken', f"Ai rupt streak\\-ul de 7\\+ zile la *{name}*\\."
-    
+    # Potentially add skill streak check here later
     return None
 
 async def check_water_low(pool, recent_types: set) -> Optional[tuple]:
@@ -162,7 +141,7 @@ async def run_proactive_insights(pool, bot) -> None:
     checks = await asyncio.gather(
         check_sleep_alert(pool, recent_types),
         check_goal_stale(pool, recent_types),
-        check_habit_streak_broken(pool, recent_types),
+        check_skill_streak_broken(pool, recent_types),
         check_water_low(pool, recent_types),
         check_overdue_tasks(pool, recent_types),
         check_attendance_warning(pool, recent_types),

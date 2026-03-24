@@ -4,8 +4,8 @@ Lora is a private, intelligent Telegram bot that acts as a personal "second brai
 
 ## Project Overview
 
-- **Purpose:** A personal assistant to manage tasks, habits, projects, notes, finances, shopping lists, university schedules, workouts, goals, and health metrics.
-- **Key Features:** Persistent memory, multi-module support, proactive scheduled interactions (morning briefings, EOD reflections, habit nudges), voice interface (TTS & STT), and a custom conversation state machine.
+- **Purpose:** A personal assistant to manage tasks, skills, projects, notes, finances, shopping lists, university schedules, workouts, goals, and health metrics.
+- **Key Features:** Persistent memory, multi-module support, proactive scheduled interactions (morning briefings, EOD reflections), voice interface (TTS & STT), and a custom conversation state machine.
 - **Architecture:** Modular Python application with a PostgreSQL database (Neon) and Telegram interface.
 - **Security:** Single-user whitelist based on Telegram User ID. No multi-tenancy or public registration.
 
@@ -41,7 +41,6 @@ lora/
 │   └── state.py             # Conversation state machine
 ├── modules/                 # Functional logic (returns text + keyboard)
 │   ├── tasks.py             # Task management (Priority, Recurrence)
-│   ├── habits.py            # Habit tracking (Streaks, Reminders)
 │   ├── projects.py          # Project organization (Statuses)
 │   ├── finance.py           # Expense/Income tracking & Reports
 │   ├── notes.py             # Notes, Search, and Journaling

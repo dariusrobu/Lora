@@ -10,42 +10,6 @@ def task_keyboard(task_id: int) -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(keyboard)
 
-def habit_keyboard(habit_id: int) -> InlineKeyboardMarkup:
-    keyboard = [
-        [
-            InlineKeyboardButton("✅ Log", callback_data=f"habits:done:{habit_id}"),
-            InlineKeyboardButton("⏭ Skip", callback_data=f"habits:skip:{habit_id}"),
-            InlineKeyboardButton("🗑 Delete", callback_data=f"habits:delete:{habit_id}"),
-        ]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-def habit_checkin_keyboard(habit_id: int) -> InlineKeyboardMarkup:
-    keyboard = [
-        [
-            InlineKeyboardButton("✅ Done", callback_data=f"habits:done:{habit_id}"),
-            InlineKeyboardButton("⏭ Skip", callback_data=f"habits:skip:{habit_id}"),
-        ]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-def confirmation_keyboard(module: str, action: str, item_id: int) -> InlineKeyboardMarkup:
-    keyboard = [
-        [
-            InlineKeyboardButton("Yes, delete", callback_data=f"{module}:{action}_confirmed:{item_id}"),
-            InlineKeyboardButton("Cancel", callback_data=f"{module}:cancel:{item_id}"),
-        ]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-def habit_list_keyboard(habits: list) -> InlineKeyboardMarkup:
-    # Row of Done buttons for today's habits
-    keyboard = []
-    for h in habits:
-        keyboard.append([
-            InlineKeyboardButton(f"✅ {h['name'].capitalize()}", callback_data=f"habits:done:{h['id']}:list")
-        ])
-    return InlineKeyboardMarkup(keyboard)
 
 def task_list_keyboard(tasks: list, back_callback: str = "tasks:main") -> InlineKeyboardMarkup:
     # Multiple tasks, each with a 'Done' button

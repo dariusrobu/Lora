@@ -50,30 +50,6 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
         print(f"ERROR in voice_handler: {e}")
         traceback.print_exc()
 
-async def habitstreaks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Generates and sends the visual habit streaks heatmap."""
-    from modules.habits import generate_habit_heatmap
-    pool = context.bot_data.get("pool")
-    print(f"DEBUG habitstreaks: pool={pool}", flush=True)
-    if not pool:
-        await update.message.reply_text("Database pool error.")
-        return
-
-    await update.message.reply_text("📊 Generăm habit streaks... un moment!")
-    try:
-        result, _ = await generate_habit_heatmap(pool)
-        print(f"DEBUG habitstreaks: result type={type(result)}", flush=True)
-        if isinstance(result, bytes):
-            await context.bot.send_photo(
-                chat_id=update.effective_chat.id,
-                photo=result,
-                caption="Habit Streaks 🔥",
-            )
-        else:
-            await update.message.reply_text(result)
-    except Exception as e:
-        print(f"Habit streaks command error: {e}", flush=True)
-        await update.message.reply_text(f"❌ Eroare: {e}")
 
 async def focus_command(update, context):
     pool = context.bot_data.get("pool")
@@ -206,10 +182,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
             return
 
         # Handle /habitstreaks command
-        cmd = text.split()[0].split('@')[0].lower() if text else ""
-        if cmd == "/habitstreaks":
-            await habitstreaks_command(update, context)
-            return
 
         # Handle /journal and /eod commands
         if text in ["/journal", "/eod"]:
@@ -256,22 +228,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
                 await update.message.reply_text(final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup)
             return
 
-        # 3.9 Habit Heatmap Direct Bypass (to avoid Gemini misinterpretation)
-        habit_heatmap_triggers = ["habit heatmap", "habit streaks vizual", "heatmap habit", "streak vizual", "grafic habit", "heat map habit", "heat map habits"]
-        if any(trigger in low_text for trigger in habit_heatmap_triggers):
-            intent_response = {
-                "intent": "habit_heatmap",
-                "module": "habits",
-                "data": {"_original_reply": "Generăm heatmap-ul tău... 🔥"},
-                "reply": "Generăm heatmap-ul tău... 🔥"
-            }
-            final_reply, reply_markup = await route_intent(pool, intent_response, bot=context.bot)
-            if final_reply:
-                # Save assistant reply to conversations
-                async with pool.acquire() as conn:
-                    await conn.execute("INSERT INTO conversations (role, content) VALUES ($1, $2)", "assistant", final_reply)
-                await update.message.reply_text(final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup)
-            return
 
         # Check onboarding status
         onboarding_done = await is_onboarding_complete(pool, telegram_id)
@@ -1163,40 +1119,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                         f"• set due date to Friday\\n"
                         f"• change priority to high",
                         parse_mode="MarkdownV2"
-                    )
-            elif module == "habits":
-                import db.queries.habits as habit_queries
-                from datetime import datetime
-                if action in ["done", "skip"]:
-                    status = "done" if action == "done" else "skipped"
-                    await habit_queries.log_habit(pool, item_id, datetime.now().date(), status)
-                    await query.answer(f"Habit {status}!")
-                    
-                    if len(parts) > 3 and parts[3] == "list":
-                        # Re-list habits to show the checkmark
-                        import db.queries.habits as habit_queries
-                        habits = await habit_queries.list_habits(pool)
-                        today_logged = await habit_queries.get_today_logs(pool)
-                        from bot.keyboards import habit_list_keyboard
-                        
-                        lines = ["✅ *Your Habits Today:*"]
-                        for h in habits:
-                            status_icon = "✅" if h['id'] in today_logged else "⬜"
-                            streak = f" (streak: *{h['streak_count']}* 🔥)" if h['streak_count'] > 0 else ""
-                            lines.append(f"{status_icon} {escape_md(h['name'])}{streak}")
-                        
-                        await query.edit_message_text("\n".join(lines), parse_mode="MarkdownV2", reply_markup=habit_list_keyboard(habits))
-                    else:
-                        await query.edit_message_text(f"Habit marked as {status}\\.")
-                elif action == "delete":
-                    habit = await habit_queries.get_habit(pool, item_id)
-                    from bot.keyboards import confirmation_keyboard
-                    from core.state import set_state
-                    await set_state(pool, "awaiting_confirmation", "habits", "delete", item_id)
-                    await query.edit_message_text(
-                        f"Are you sure you want to delete the habit *{escape_md(habit['name'])}*?",
-                        parse_mode="MarkdownV2",
-                        reply_markup=confirmation_keyboard("habits", "delete", item_id)
                     )
                 elif action == "delete_confirmed":
                     await habit_queries.delete_habit(pool, item_id)

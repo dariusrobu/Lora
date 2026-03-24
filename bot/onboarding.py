@@ -65,7 +65,7 @@ async def finish_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     reply = (
         f"Perfect\\. Here's what I can help you with:\n"
         f"📋 *Tasks & Projects*\n"
-        f"✅ *Habits*\n"
+        f"✅ *Skills Tracking*\n"
         f"📓 *Notes & Journal*\n"
         f"💰 *Finance*\n"
         f"📅 *Events*\n\n"

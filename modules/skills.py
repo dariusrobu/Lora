@@ -20,11 +20,13 @@ async def get_skills_dashboard(pool) -> Tuple[str, InlineKeyboardMarkup]:
     for s in skills:
         val = s.get('last_value')
         unit = s.get('last_metric') or s.get('unit', '')
+        streak = await skill_queries.get_skill_streak(pool, s['id'])
+        streak_str = f" 🔥{streak}" if streak > 0 else ""
         if val is not None:
             val_str = f"{float(val):.0f}" if float(val) == int(val) else f"{float(val):.2f}"
-            lines.append(f"• *{escape_md(s['name'])}*: {escape_md(val_str)} {escape_md(unit)}")
+            lines.append(f"• *{escape_md(s['name'])}*: {escape_md(val_str)} {escape_md(unit)}{streak_str}")
         else:
-            lines.append(f"• *{escape_md(s['name'])}*: _fără date_")
+            lines.append(f"• *{escape_md(s['name'])}*: _fără date_{streak_str}")
             
     return "\n".join(lines), skills_main_keyboard()
 
@@ -39,8 +41,11 @@ async def get_skill_detail_view(pool, skill_id: int) -> Tuple[str, InlineKeyboar
     title = escape_md(skill['name'])
     unit = escape_md(skill['unit'])
     
+    streak = await skill_queries.get_skill_streak(pool, skill_id)
+    
     lines = [
         f"📊 *{title}* \\({escape_md(skill['category'])}\\)\n",
+        f"• *Streak*: {streak} 🔥" if streak > 0 else f"• *Streak*: 0 ❄️",
         f"• *Medie*: {escape_md(f'{stats['avg']:.2f}')} {unit}",
         f"• *Best/Max*: {escape_md(f'{stats['max']:.2f}')} {unit}",
         f"• *Trend*: {'📈' if stats['trend'] > 0 else '📉' if stats['trend'] < 0 else '➡️'} {escape_md(f'{abs(stats['trend']):.2f}')} {unit}\n",
