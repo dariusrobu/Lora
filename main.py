@@ -86,15 +86,20 @@ async def start_bot():
 
     print("Lora is ready. Starting polling... 🤖")
 
-    async def error_handler(update, context):
+    shutdown_event = asyncio.Event()
+
+    def polling_error_callback(error) -> None:
         from telegram.error import Conflict
 
-        if isinstance(context.error, Conflict):
+        if isinstance(error, Conflict):
             print("Conflict: another instance is polling. Exiting.", flush=True)
-            await close_pool()
-            sys.exit(1)
+            shutdown_event.set()
 
-    application.add_error_handler(error_handler)
+    async def async_error_handler(update, context):
+        if context.error:
+            polling_error_callback(context.error)
+
+    application.add_error_handler(async_error_handler)
 
     await asyncio.sleep(5)
 
@@ -102,15 +107,14 @@ async def start_bot():
         await application.initialize()
         await application.start()
         await application.updater.start_polling(
-            drop_pending_updates=True, allowed_updates=["message", "callback_query"]
+            drop_pending_updates=True,
+            allowed_updates=["message", "callback_query"],
+            error_callback=polling_error_callback,
         )
 
-        # Keep the bot running
         print("Polling active.")
         try:
-            # Simple wait loop to keep the async function alive while polling
-            while True:
-                await asyncio.sleep(3600)
+            await shutdown_event.wait()
         except (KeyboardInterrupt, asyncio.CancelledError):
             print("Stopping...")
         finally:
