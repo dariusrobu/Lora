@@ -1032,7 +1032,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             
             elif data == "finance_add_expense":
                 from core.state import set_state
-                await set_state(pool, "awaiting_finance_input", "finance", "finance_log", {"type": "expense"})
+                await set_state(pool, "awaiting_finance_input", "finance", "finance_log", None, {"type": "expense"})
                 prompt = "💸 *Ce cheltuială ai făcut?*\n_\\(ex: 50 RON cafea, taxi 30lei, mâncare 100\\)_"
                 await query.edit_message_text(prompt, parse_mode="MarkdownV2")
                 await query.answer()
@@ -1040,7 +1040,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             
             elif data == "finance_add_income":
                 from core.state import set_state
-                await set_state(pool, "awaiting_finance_input", "finance", "finance_log", {"type": "income"})
+                await set_state(pool, "awaiting_finance_input", "finance", "finance_log", None, {"type": "income"})
                 prompt = "💰 *Ce venit ai primit?*\n_\\(ex: salariu 5000, bonus 200, vânzare olx 50\\)_"
                 await query.edit_message_text(prompt, parse_mode="MarkdownV2")
                 await query.answer()
