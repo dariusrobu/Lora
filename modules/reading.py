@@ -52,7 +52,7 @@ async def get_reading_dashboard(pool) -> Tuple[str, InlineKeyboardMarkup]:
                 pages = book.get("pages_read", 0)
                 lines.append(f"\n  *{title}* \\(p\\. {pages}\\)")
     else:
-        lines.append("\n_Nu ai cărți în progres\\. Adaugă una nouă!_")
+        lines.append("\n_Nu ai cărți în progres\\. Adaugă o carte nouă\\!_")
 
     return "\n".join(lines), reading_main_keyboard()
 
