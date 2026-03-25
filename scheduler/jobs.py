@@ -231,20 +231,48 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
             "",
             f"🌤 *Vremea* — {escape_md(weather_info)}",
             "",
-            "📋 *Tasks de azi*",
         ]
-        if priority_tasks:
-            for t in priority_tasks:
-                prefix = "⚠️ " if t in overdue else "• "
-                proj = (
-                    f" _\\[{escape_md(t['project_name'])}\\]_"
-                    if t.get("project_name")
-                    else ""
+
+        # Group tasks by project
+        from collections import defaultdict
+
+        project_groups = defaultdict(lambda: {"tasks": [], "has_overdue": False})
+
+        for t in priority_tasks:
+            proj = t.get("project_name") or "Fără proiect"
+            project_groups[proj]["tasks"].append(t)
+            if t in overdue:
+                project_groups[proj]["has_overdue"] = True
+
+        if project_groups:
+            sorted_projects = sorted(
+                project_groups.items(),
+                key=lambda x: (
+                    -x[1]["has_overdue"],
+                    -sum(1 for t in x[1]["tasks"] if t.get("priority") == "high"),
+                    x[0],
+                ),
+            )
+
+            total_tasks = sum(len(g["tasks"]) for g in project_groups.values())
+            lines.append(
+                f"📋 *Tasks de azi* — {total_tasks} taskuri în {len(project_groups)} proiecte\n"
+            )
+
+            for proj_name, data in sorted_projects:
+                count = len(data["tasks"])
+                overdue_count = sum(1 for t in data["tasks"] if t in overdue)
+                has_high = any(t.get("priority") == "high" for t in data["tasks"])
+
+                overdue_str = f" ({overdue_count} overdue)" if overdue_count > 0 else ""
+                prio_str = " 🔥" if has_high else ""
+                prefix = "⚠️ " if data["has_overdue"] else "📁 "
+
+                lines.append(
+                    f"{prefix}{escape_md(proj_name)} ({count}){overdue_str}{prio_str}"
                 )
-                prio = " 🔥" if t.get("priority") == "high" else ""
-                lines.append(f"{prefix}{escape_md(t['title'])}{prio}{proj}")
         else:
-            lines.append("Niciun task pending azi 🎉")
+            lines.append("📋 *Tasks de azi*\nNiciun task pending azi 🎉")
 
         lines += ["", "📅 *Evenimente*"]
         if events:

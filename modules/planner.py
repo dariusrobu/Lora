@@ -103,3 +103,80 @@ Fără introduceri, fără concluzii. Doar time block-ul.
         return "Nu am putut genera time block-ul\\. Încearcă din nou\\.", None
 
     return safe_markdown(result), None
+
+
+async def get_day_preview(pool) -> str:
+    """Generates a preview of the day with tasks, events, and skills."""
+    import db.queries.tasks as task_queries
+    import db.queries.events as event_queries
+    import db.queries.skills as skill_queries
+
+    user_tz = pytz.timezone(TIMEZONE)
+    now = datetime.now(user_tz)
+    today = now.date()
+
+    all_tasks = await task_queries.list_tasks(pool)
+    events = await event_queries.list_events(pool, today, today)
+    skills = await skill_queries.get_all_skills(pool)
+
+    overdue = [
+        t
+        for t in all_tasks
+        if t.get("due_date") and t["due_date"] < today and t.get("status") != "done"
+    ]
+    due_today = [
+        t for t in all_tasks if t.get("due_date") == today and t.get("status") != "done"
+    ]
+    pending = [
+        t for t in all_tasks if not t.get("due_date") and t.get("status") != "done"
+    ]
+    pending_skills = [s for s in skills if s.get("last_log_date") != today]
+
+    lines = ["🗓 *Planul zilei*\n"]
+
+    if overdue:
+        lines.append(f"⚠️ *Overdue* — {len(overdue)} task-uri")
+        for t in overdue[:3]:
+            prio = " 🔥" if t.get("priority") == "high" else ""
+            lines.append(f"  • {t['title']}{prio}")
+
+    if due_today:
+        lines.append(f"\n📋 *Tasks azi* — {len(due_today)} task-uri")
+        for t in due_today[:5]:
+            prio = " 🔥" if t.get("priority") == "high" else ""
+            lines.append(f"  • {t['title']}{prio}")
+
+    if events:
+        lines.append(f"\n📅 *Evenimente* — {len(events)}")
+        for e in events:
+            time_str = (
+                e["event_time"].strftime("%H:%M") if e.get("event_time") else "tăzi"
+            )
+            lines.append(f"  • `{time_str}` — {e['title']}")
+
+    if pending_skills:
+        lines.append(f"\n🧠 *Skills* — {len(pending_skills)} de lucrat")
+        for s in pending_skills[:3]:
+            streak = f" 🔥{s.get('streak', 0)}" if s.get("streak") else ""
+            lines.append(f"  • {s['name']}{streak}")
+
+    if pending and not overdue and not due_today:
+        lines.append(f"\n📋 *Tasks fără deadline* — {len(pending)}")
+        for t in pending[:3]:
+            lines.append(f"  • {t['title']}")
+
+    if (
+        not overdue
+        and not due_today
+        and not events
+        and not pending_skills
+        and not pending
+    ):
+        lines.append("🎉 Totul e făcut! Ce vrei să faci azi?")
+
+    lines.append("\n_" * 10)
+    lines.append(
+        "\nSpune-mi ce vrei să faci azi sau ce ai de făcut, și eu îți generez planul 🗓"
+    )
+
+    return safe_markdown("\n".join(lines))

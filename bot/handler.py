@@ -1,4 +1,5 @@
 import traceback
+from datetime import date
 from telegram import Update
 from telegram.ext import ContextTypes
 from core.config import TELEGRAM_USER_ID
@@ -209,7 +210,7 @@ async def message_handler(
 
             try:
                 await update_user_profile(
-                    pool, TELEGRAM_USER_ID, last_briefing_date=None
+                    pool, TELEGRAM_USER_ID, last_briefing_date=date.today()
                 )
                 await send_morning_briefing(context.application, pool)
             except Exception as e:
@@ -280,12 +281,12 @@ async def message_handler(
             from db.queries.profile import update_user_profile
             from core.config import TELEGRAM_USER_ID as TG_UID
             from core.state import set_state
+            from modules.planner import get_day_preview
 
             try:
                 await update_user_profile(pool, TG_UID, last_plan_date=None)
-                await update.message.reply_text(
-                    "Cum vrei să-ți arate ziua azi? Spune-mi vocal sau în scris 🗓"
-                )
+                preview = await get_day_preview(pool)
+                await update.message.reply_text(preview, parse_mode="MarkdownV2")
                 await set_state(
                     pool, "awaiting_day_plan_input", "day_plans", "generate", None
                 )
