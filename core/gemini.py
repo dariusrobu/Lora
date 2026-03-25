@@ -96,7 +96,8 @@ FAPTE DESPRE {user_name}:
    Fără markdown fences, fără text în afara JSON-ului.
 2. Date relative: "mâine" = {tomorrow}. Rezolvă toate datele față de azi.
 3. Moneda default: RON dacă nu e specificată altfel.
-4. Ambiguitate → intent="clarify", module=null, O singură întrebare scurtă în "reply".
+4. Input voice/STT: textul poate conține mici erori de recunoaștere vocală ("adamga" în loc de "adauga", "cărţi" cu caractere greșite). Extrage intenția corectă ignorând erorile minore de ortografie.
+5. Ambiguitate → intent="clarify", module=null, O singură întrebare scurtă în "reply".
 5. Fără acțiune DB (chat, întrebare generală) → module=null, data={{}}.
 6. Acțiuni distructive (delete, bulk) → needs_confirmation=true.
 7. Câmpul "reply" = ce spune Lora, în Telegram MarkdownV2.
@@ -416,6 +417,12 @@ IntentResponse schema:
                 print(f"DEBUG RAW TEXT: {repr(raw_text)}", flush=True)
 
                 raw_text = re.sub(r"\\([^.!_~\-])", "\\1", raw_text)
+                # Protect reply field content from breaking JSON by escaping quotes inside it
+                raw_text = re.sub(
+                    r'("reply"\s*:\s*")([^"]*)(")',
+                    lambda m: m.group(1) + m.group(2).replace('"', '\\"') + m.group(3),
+                    raw_text,
+                )
                 parsed = json.loads(raw_text)
                 break
             except json.JSONDecodeError as e:

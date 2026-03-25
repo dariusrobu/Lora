@@ -341,3 +341,7 @@ CREATE TABLE IF NOT EXISTS nutrition_targets (
 INSERT INTO nutrition_targets (id, calories, protein_g, carbs_g, fat_g) 
 VALUES (1, 2000, 150, 200, 70) 
 ON CONFLICT (id) DO NOTHING;
+
+-- ── Health Settings ─────────────────────────────────────────────────
+-- Water target per day (ml)
+ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS water_target_ml INT DEFAULT 2500;

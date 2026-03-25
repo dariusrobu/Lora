@@ -126,6 +126,33 @@ async def message_handler(
     if text is None and update.message:
         text = update.message.text
 
+    # Fix common STT (speech-to-text) typos before processing
+    if text:
+        original_text = text
+        text_lower = text.lower()
+
+        # Fix typos in lowercase version
+        text_lower = text_lower.replace("adamga", "adauga")
+        text_lower = text_lower.replace("adamg", "adaug")
+        text_lower = text_lower.replace("adăuga", "adauga")
+        text_lower = text_lower.replace("adaugă", "adaug")
+        text_lower = text_lower.replace("cărții", "carti")
+        text_lower = text_lower.replace("cărţi", "carti")
+        text_lower = text_lower.replace("şt", "st")
+        text_lower = text_lower.replace("ţ", "t")
+        text_lower = text_lower.replace("ă", "a")
+        text_lower = text_lower.replace("ş", "s")
+
+        # Handle duplicate text from STT (e.g., "text.text")
+        if text_lower.count(".") > 1:
+            parts = text_lower.split(".")
+            # Keep first non-empty part before second occurrence
+            text_lower = parts[0]
+
+        text = text_lower
+        if text != original_text.lower():
+            print(f"🔧 STT FIX: '{original_text}' -> '{text}'")
+
     print(
         f"📥 RECEIVED: Update ID {update.update_id} from user_id {user_id} - Text: {repr(text)}"
     )
@@ -1280,112 +1307,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             await handle_tasks_callback(query, pool, data)
             return
 
-        if data.startswith("health_"):
-            import io
-            from modules.health import handle_health_intent
+        if data.startswith("health:"):
+            from modules.health import handle_health_callback
 
-            if data == "health_chart":
-                result, _ = await handle_health_intent(
-                    pool, "health_chart", {}, bot=context.bot
-                )
-                if isinstance(result, (bytes, io.BytesIO)):
-                    await context.bot.send_photo(
-                        chat_id=update.effective_chat.id,
-                        photo=result,
-                        caption="Health Trends 📊 (ultimele 30 zile)",
-                    )
-                    await query.answer()
-                else:
-                    await query.answer(result)
-                    await query.message.reply_text(result)
-                return
-
-            elif data == "health_today_logs":
-                text, markup = await handle_health_intent(
-                    pool, "view_today_logs", {}, bot=context.bot
-                )
-                await query.edit_message_text(
-                    text, parse_mode="MarkdownV2", reply_markup=markup
-                )
-                await query.answer()
-                return
-
-            elif data == "health_summary":
-                text, markup = await handle_health_intent(
-                    pool, "health_summary", {}, bot=context.bot
-                )
-                await query.edit_message_text(
-                    text, parse_mode="MarkdownV2", reply_markup=markup
-                )
-                await query.answer()
-                return
-            elif data == "health_log_water":
-                from core.state import set_state
-
-                await set_state(
-                    pool, "awaiting_health_input", "health", "log_water", None
-                )
-                prompt = (
-                    "💧 *Câți ml ai băut?*\n_\\(ex: am băut 500ml, 1\\.5L, \\+250\\)_"
-                )
-                await query.edit_message_text(prompt, parse_mode="MarkdownV2")
-                await query.answer()
-                async with pool.acquire() as conn:
-                    await conn.execute(
-                        "INSERT INTO conversations (role, content) VALUES ($1, $2)",
-                        "assistant",
-                        prompt,
-                    )
-                return
-            elif data == "health_log_sleep":
-                from core.state import set_state
-
-                await set_state(
-                    pool, "awaiting_health_input", "health", "log_sleep", None
-                )
-                prompt = "😴 *Câte ore ai dormit?*\n_\\(ex: 8 ore, somn bun, 7h30\\)_"
-                await query.edit_message_text(prompt, parse_mode="MarkdownV2")
-                await query.answer()
-                async with pool.acquire() as conn:
-                    await conn.execute(
-                        "INSERT INTO conversations (role, content) VALUES ($1, $2)",
-                        "assistant",
-                        prompt,
-                    )
-                return
-            elif data == "health_log_weight":
-                from core.state import set_state
-
-                await set_state(
-                    pool, "awaiting_health_input", "health", "log_weight", None
-                )
-                prompt = "⚖️ *Care e greutatea ta azi?*\n_\\(ex: 74\\.5kg, am 75\\)_"
-                await query.edit_message_text(prompt, parse_mode="MarkdownV2")
-                await query.answer()
-                async with pool.acquire() as conn:
-                    await conn.execute(
-                        "INSERT INTO conversations (role, content) VALUES ($1, $2)",
-                        "assistant",
-                        prompt,
-                    )
-                return
-            elif data == "health_log_nutrition":
-                from core.state import set_state
-
-                # We use awaiting_health_input so the message handler routes it to Gemini
-                await set_state(
-                    pool, "awaiting_health_input", "health", "log_nutrition", None
-                )
-                prompt = "🍎 *Ce ai mâncat azi?*\n_\\(ex: 2 ouă și o felie de pâine, am mâncat un măr, prânz: pui cu orez 200g\\)_"
-                await query.edit_message_text(prompt, parse_mode="MarkdownV2")
-                await query.answer()
-                async with pool.acquire() as conn:
-                    await conn.execute(
-                        "INSERT INTO conversations (role, content) VALUES ($1, $2)",
-                        "assistant",
-                        prompt,
-                    )
-                return
+            await handle_health_callback(query, pool, data)
+            return
 
         if data.startswith("finance_"):
             import io

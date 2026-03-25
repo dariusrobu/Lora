@@ -1,19 +1,19 @@
 # AGENTS.md — Development Guide for Lora
 
-> This file is for AI coding agents. Read before making any changes.
+> For AI coding agents. Read before making any changes.
 
 ---
 
 ## Project Overview
 
-Lora is a personal Telegram bot (single-user) using:
-- Python 3.11+ with type hints required everywhere
-- `python-telegram-bot==22.6` (async, long polling)
-- `google-genai` SDK with **gemini-2.0-flash** model
-- `asyncpg` for raw SQL on Neon PostgreSQL — **no ORM**
-- `apscheduler==3.10.4` for scheduled jobs
+**Lora** is a personal Telegram bot (single-user) acting as a "second brain":
+- **Language**: Python 3.11+ with required type hints
+- **Telegram**: `python-telegram-bot==22.6` (async, long polling)
+- **LLM**: `google-genai` SDK with `gemini-2.0-flash`
+- **Database**: Neon PostgreSQL via `asyncpg` — **no ORM**
+- **Scheduler**: `apscheduler==3.10.4`
 
-**Architecture**: message → `core/gemini.py` (IntentResponse JSON) → `core/router.py` → `modules/{module}.py` → `db/queries/{module}.py`
+**Architecture**: `message → core/gemini.py → core/router.py → modules/{module}.py → db/queries/{module}.py`
 
 ---
 
@@ -30,8 +30,19 @@ python main.py
 ruff check .
 ```
 
-### Run a single test
-No test framework currently exists. Add tests with `pytest` if needed.
+### Typecheck (if mypy configured)
+```bash
+ruff check . --select=ANN  # If type annotations enabled
+```
+
+### Test
+No test framework exists. To add tests:
+```bash
+pip install pytest pytest-asyncio
+pytest tests/                    # Run all tests
+pytest tests/test_tasks.py     # Run single test file
+pytest tests/ -v               # Verbose output
+```
 
 ### Database
 ```bash
@@ -40,75 +51,226 @@ psql $DATABASE_URL -f db/schema.sql  # Initialize (run once)
 
 ---
 
-## Code Style Guidelines
+## Code Style
 
-### Type Hints
-- **Required everywhere**: `def foo(pool, user_id: int) -> Tuple[str, Any]:`
-- Use `list[dict[str, Any]]` (Python 3.9+ syntax), `int | None`, `Dict[str, Any]`
+### Type Hints (Required)
+```python
+# Use Python 3.9+ syntax
+def foo(pool, user_id: int) -> Tuple[str, Any]:
+    data: Dict[str, Any] = {}
+    items: list[dict[str, Any]] = []
+    value: int | None = None
 
-### Imports
-- Group by: stdlib → third-party → local
-- Use absolute imports: `from db.queries.tasks import add_task`
-- Never use `from .module import *`
+# All async functions
+async def get_user(pool, user_id: int) -> Optional[Dict[str, Any]]:
+```
 
-### Formatting & Linting
-- Ruff is configured. Run `ruff check .` before commits.
-- No line length limit enforced, but keep under 120 chars when practical.
+### Imports (Ordered)
+```python
+# stdlib
+from typing import Dict, Any, Tuple, Optional
+from datetime import datetime
+import json
+
+# third-party
+import asyncpg
+
+# local (absolute imports, no relative)
+from db.queries.tasks import add_task
+from bot.formatter import escape_md
+
+# NEVER: from .module import * or from module import *
+```
 
 ### Naming Conventions
-- **Files**: `snake_case.py` (e.g., `task_queries.py`)
-- **Functions**: `snake_case` (e.g., `async def get_user_profile`)
-- **Classes**: `PascalCase` (rarely used)
-- **Constants**: `UPPER_SNAKE_CASE` (e.g., `TELEGRAM_BOT_TOKEN`)
-- **Async**: prefix with `async def`, always `await` inside
+| Type | Convention | Example |
+|------|------------|---------|
+| Files | `snake_case.py` | `task_queries.py` |
+| Functions | `snake_case` | `async def get_user_profile` |
+| Classes | `PascalCase` | `MyValidator` |
+| Constants | `UPPER_SNAKE_CASE` | `TELEGRAM_BOT_TOKEN` |
+| Async | `async def` + `await` | Always use both |
 
-### Error Handling
+### Formatting
+- Ruff configured (no explicit `pyproject.toml` needed)
+- No line length limit enforced, keep under 120 chars
+- **Escape f-string parens for Markdown**: `\\(` not `\(` (Python 3.13)
+
+---
+
+## Error Handling
+
+```python
+async def my_handler(update, context):
+    try:
+        # ... logic ...
+    except Exception as e:
+        print(f"ERROR: {e}")
+        traceback.print_exc()
+        await update.message.reply_text("A apărut o eroare. Te rog să încerci din nou.")
+```
+
+Rules:
 - Wrap every handler/job in try/except
-- Log errors with `print(f"ERROR: {e}")` + `traceback.print_exc()`
-- Send friendly error message to user in Romanian
-- Never expose raw exception messages to user
+- Log with `print(f"ERROR: {e}")` + `traceback.print_exc()`
+- Send friendly message in Romanian
+- Never expose raw exceptions to user
 
-### Database (asyncpg raw SQL)
-- Use `$1, $2` placeholders — **never** f-strings or string interpolation
-- Keep all queries in `db/queries/{module}.py` files
-- Never create/alter tables in application code — use `db/schema.sql`
+---
 
-### Modules Pattern
+## Database (asyncpg Raw SQL)
+
+### Query Pattern
+```python
+async def get_user(pool, user_id: int) -> Optional[Dict[str, Any]]:
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM users WHERE id = $1",
+            user_id
+        )
+        return dict(row) if row else None
+```
+
+### Rules
+- **Use `$1, $2` placeholders** — never f-strings or `%` formatting
+- Keep queries in `db/queries/{module}.py`
+- Never create/alter tables in application code
+- Use `json.loads()` to parse JSON columns
+
+---
+
+## Modules Pattern
+
 Every module (`modules/{module}.py`) must:
-1. Accept `(pool, intent: str, data: Dict[str, Any])` as arguments
-2. Return `Tuple[str, InlineKeyboardMarkup | None]`
+
+1. **Accept** `(pool, intent: str, data: Dict[str, Any])` or `(query, pool, data: str)`
+2. **Return** `Tuple[str, InlineKeyboardMarkup | None]`
 3. **Never call Telegram directly** — return data, let `bot/handler.py` send
 
-### MarkdownV2 Formatting
-- Always use `bot/formatter.py`: `escape_md()`, `safe_markdown()`, `split_message()`
-- User input → `escape_md()` → prevents Markdown injection
-- Gemini output → `safe_markdown()` → handles escaping
-- Long messages → `split_message()` → respects Telegram's 4096 char limit
+```python
+async def handle_module_intent(
+    pool,
+    intent: str,
+    data: Dict[str, Any]
+) -> Tuple[str, InlineKeyboardMarkup | None]:
+    if intent == "add_item":
+        # ... logic ...
+        return "Adăugat!", None
+    return "Intent not handled", None
+```
 
-### State Machine (`core/state.py`)
-- Use `set_state()` / `get_state()` / `clear_state()` for multi-turn flows
-- Always `clear_state()` after completing a stateful flow
-- States: `awaiting_confirmation`, `awaiting_edit_field`, `null`
+---
 
-### Gemini Response Contract
-- `reply` field in JSON must be **raw MarkdownV2 characters** (no backslashes)
-- The system prompt enforces: *"RAW characters in the JSON. DO NOT use backslashes to escape."*
+## MarkdownV2 Formatting
+
+**Use `bot/formatter.py`** — never escape manually:
+
+| Function | Use for |
+|----------|---------|
+| `escape_md(text)` | User input, titles, any untrusted text |
+| `safe_markdown(text)` | Gemini output, formatted strings |
+| `split_message(text)` | Messages over 4096 chars |
+
+**Common escapes**: `_` `*` `[` `]` `(` `)` `~` `` ` `` `>` `#` `+` `-` `=` `|` `{` `}` `.` `!` `/`
+
+```python
+# Bad
+"Book: *{title}*"        # title might have *
+
+# Good
+f"Book: *{escape_md(title)}*"
+```
+
+**Rating in bold** (escapes the dot):
+```python
+f"*\\{escape_md(str(avg_rating))}\\*"  # produces *5\.0*
+```
+
+---
+
+## State Machine (`core/state.py`)
+
+```python
+from core.state import set_state, get_state, clear_state
+
+# Set state
+await set_state(pool, "awaiting_confirmation", module, action, entity_id)
+
+# Check state
+state = await get_state(pool)
+if state and state.get("state") == "awaiting_confirmation":
+    # handle...
+
+# Clear after completion
+await clear_state(pool)
+```
+
+**States**: `awaiting_confirmation`, `awaiting_edit_field`, `awaiting_journal_response`, `in_focus_session`, `null`
+
+---
+
+## Gemini Response Contract
+
+```json
+{
+  "intent": "add_task",
+  "data": {"title": "Buy milk", "priority": "high"},
+  "reply": "✓ Adăugat: *Buy milk*"
+}
+```
+
+- `reply` field: **raw MarkdownV2** — no backslashes
 - Parse with `json.loads()`, retry once on failure
+- `reply` can contain `\"` — handle in JSON parsing
 
-### Scheduler Jobs (`scheduler/jobs.py`)
-- Wrap in try/except, log errors
-- Check `last_*_date` in user_profile for idempotency
-- Use `misfire_grace_time=3600` for reliability
+---
 
-### Voice/TTY
-- Incoming voice: `bot/voice.py` → transcribe → rejoin pipeline
-- Outgoing TTS: `bot/tts.py` → returns temp `.ogg` path → send via `send_voice`
-- Strip Markdown before passing to edge-tts
+## Scheduler Jobs (`scheduler/jobs.py`)
 
-### Language
-- **Romglish**: Romanian base, English tech terms naturally mixed
-- User-facing errors in Romanian
-- System/code comments in English
+```python
+async def send_morning_briefing(app: Application):
+    try:
+        pool = app.bot_data["pool"]
+        last = await get_last_briefing_date(pool)
+        if last == today:
+            return  # idempotent
+        
+        # ... logic ...
+        await set_last_briefing_date(pool, today)
+    except Exception as e:
+        print(f"ERROR in send_morning_briefing: {e}")
+        traceback.print_exc()
+```
+
+- Wrap in try/except
+- Check `last_*_date` for idempotency
+- Use `misfire_grace_time=3600`
+
+---
+
+## Voice/TTS
+
+**Incoming voice**: `bot/voice.py` → transcribe → rejoin pipeline
+
+**Outgoing TTS**:
+```python
+from bot.tts import generate_voice
+mp3_path = await generate_voice(text)
+await update.message.reply_voice(voice=open(mp3_path, 'rb'))
+```
+
+- Strip Markdown before edge-tts
+- Use `ro-RO-AlinaNeural` voice
+
+---
+
+## Language
+
+- **Romglish**: Romanian base, English tech terms mixed naturally
+- User errors in Romanian: "A apărut o eroare"
+- System comments in English
+- Avoid filler: "Sigur!", "Cu plăcere!", "Bineînțeles!"
+- Max 1 sentence for simple actions (add_task, log_habit)
 
 ---
 
@@ -116,53 +278,64 @@ Every module (`modules/{module}.py`) must:
 
 ```
 lora/
-├── main.py              # Entry point, asyncio loop
+├── main.py                    # Entry point, ApplicationBuilder
 ├── bot/
-│   ├── handler.py       # Message routing, security, dispatch
-│   ├── keyboards.py     # Inline keyboard builders
-│   ├── formatter.py     # MarkdownV2 utilities (escape_md, safe_markdown, split_message)
-│   ├── onboarding.py    # First-run wizard
-│   ├── tts.py           # edge-tts wrapper
-│   └── voice.py         # STT (transcribe_voice)
+│   ├── handler.py             # Main router, security, dispatch
+│   ├── keyboards.py           # InlineKeyboardMarkup builders
+│   ├── formatter.py           # MarkdownV2 utilities
+│   ├── onboarding.py          # First-run wizard
+│   ├── tts.py                 # edge-tts wrapper
+│   └── voice.py               # STT transcription
 ├── core/
-│   ├── gemini.py        # LLM integration (get_gemini_response, get_proactive_response)
-│   ├── config.py        # Env var loading
-│   ├── context.py       # build_context() — today's data snapshot
-│   ├── router.py        # route_intent() — maps IntentResponse → module
-│   └── state.py         # Conversation state machine
-├── modules/             # Pure business logic (no Telegram calls)
-│   ├── tasks.py, habits.py, projects.py, notes.py, finance.py...
+│   ├── gemini.py              # LLM integration, IntentResponse
+│   ├── config.py              # Env var loading
+│   ├── context.py             # build_context() for prompts
+│   ├── router.py              # Maps intent → module
+│   └── state.py               # Conversation state machine
+├── modules/                   # Pure business logic
+│   ├── tasks.py, habits.py, projects.py, ...
 ├── scheduler/
-│   └── jobs.py          # All APScheduler jobs
+│   └── jobs.py                # APScheduler jobs
 └── db/
-    ├── connection.py    # asyncpg pool (get_pool, close_pool)
-    ├── schema.sql       # Source of truth for all tables
-    └── queries/         # One file per module (raw SQL)
+    ├── connection.py          # asyncpg pool
+    ├── schema.sql             # Table definitions
+    └── queries/               # Raw SQL per module
 ```
 
 ---
 
-## Key Files to Know
+## Key Files
 
 | File | Purpose |
 |------|---------|
 | `core/gemini.py` | LLM calls, system prompt, IntentResponse parsing |
 | `core/router.py` | Routes intents to correct module |
-| `bot/handler.py` | Main entry, security check, error wrapping |
+| `core/state.py` | Conversation state machine |
+| `bot/handler.py` | Message routing, security check, dispatch |
 | `bot/formatter.py` | MarkdownV2 escaping utilities |
-| `db/schema.sql` | All table definitions |
+| `bot/keyboards.py` | All inline keyboard builders |
+| `db/schema.sql` | All table definitions (source of truth) |
 
 ---
 
-## Known Quirks
+## Quirks & Gotchas
 
-- Uses `google-genai` SDK (not `google-generativeai`)
+- SDK: `from google import genai` — NOT `google-generativeai`
 - `conversation_state` table has exactly one row (`state_key='current'`)
-- `/reload` uses `os.execl()` — hard process restart
+- `/reload` uses `os.execl()` — hard process restart, drops in-flight requests
 - `bot.log` grows indefinitely (not rotated)
+- Railway: `numReplicas: 1` required for long polling
+- JSON parsing `reply` field: handle `\\"` escape sequences
 
 ---
 
-## Copilot/Cursor Rules
+## Deploy
 
-No external rules files found. Follow this AGENTS.md and the conventions above.
+```bash
+ruff check .                    # Must pass
+git add -A
+git commit -m "description"
+git push                        # Railway auto-deploys
+```
+
+Verify: `/start` in Telegram → send test message

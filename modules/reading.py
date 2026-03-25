@@ -20,7 +20,7 @@ async def get_reading_dashboard(pool) -> Tuple[str, InlineKeyboardMarkup]:
     current = await reading_queries.get_current_books(pool)
     streak = await reading_queries.get_reading_streak(pool)
 
-    lines = ["📚 *Reading Dashboard*\n"]
+    lines = ["📚 *Reading Dashboard*\\n"]
 
     if stats:
         completed = stats.get("completed", 0)
@@ -32,7 +32,7 @@ async def get_reading_dashboard(pool) -> Tuple[str, InlineKeyboardMarkup]:
         lines.append(f"✅ Terminate: *{completed}*")
         lines.append(f"📅 Anul acesta: *{this_year}*")
         if avg_rating:
-            lines.append(f"⭐ Rating mediu: *{avg_rating}*")
+            lines.append(f"⭐ Rating mediu: *{escape_md(str(avg_rating))}*")
         if streak > 0:
             lines.append(f"🔥 Streak lectură: *{streak}* zile")
 
@@ -70,7 +70,7 @@ async def get_reading_library_view(pool) -> Tuple[str, InlineKeyboardMarkup]:
     reading_books = [b for b in books if b["status"] == "reading"]
     completed_books = [b for b in books if b["status"] == "completed"]
 
-    lines = ["📚 *Biblioteca ta*\n"]
+    lines = ["📚 *Biblioteca ta*\\n"]
 
     if reading_books:
         lines.append(f"*În curs \\({len(reading_books)}\\):*")
@@ -91,7 +91,7 @@ async def get_reading_library_view(pool) -> Tuple[str, InlineKeyboardMarkup]:
             title = escape_md(b.get("title", ""))
             stars = " ⭐" * b["rating"] if b.get("rating") else ""
             year = f" \\({b['finished_at'].year}\\)" if b.get("finished_at") else ""
-            lines.append(f"• {title}{year}{stars}")
+            lines.append(f"• {title}{year}{stars}\\. ")  # Escape trailing .
         if len(completed_books) > 10:
             lines.append(f"\\_...și încă {len(completed_books) - 10}\\_")
 
@@ -108,12 +108,12 @@ async def get_reading_stats_view(
         streak = await reading_queries.get_reading_streak(pool)
         recent = await reading_queries.get_recent_completed_books(pool, limit=5)
 
-        lines = ["📊 *Reading Stats \\- Toate timpurile*\n"]
+        lines = ["📊 *Reading Stats \\- Toate timpurile*\\n"]
         lines.append(f"✅ Terminate total: *{stats.get('completed', 0)}*")
         lines.append(f"📖 În curs: *{stats.get('in_progress', 0)}*")
         lines.append(f"📅 Anul acesta: *{stats.get('this_year', 0)}*")
         if stats.get("avg_rating"):
-            lines.append(f"⭐ Rating mediu: *{stats['avg_rating']}*")
+            lines.append(f"⭐ Rating mediu: *{escape_md(str(stats['avg_rating']))}*")
         if streak > 0:
             lines.append(f"🔥 Streak lectură: *{streak}* zile")
 
@@ -122,19 +122,25 @@ async def get_reading_stats_view(
             for b in recent:
                 title = escape_md(b.get("title", ""))
                 stars = " ⭐" * b["rating"] if b.get("rating") else ""
-                year = f" \\({b['finished_at'].year}\\)" if b.get("finished_at") else ""
-                lines.append(f"• {title}{year}{stars}")
+                year = (
+                    f" \\({escape_md(str(b['finished_at'].year))}\\)"
+                    if b.get("finished_at")
+                    else ""
+                )
+                lines.append(f"• {escape_md(title)}{year}{escape_md(stars)}")
 
         return "\n".join(lines), reading_stats_period_keyboard()
 
     stats = await reading_queries.get_reading_stats_detailed(pool, days)
 
-    lines = [f"📊 *Reading Stats \\({days} zile\\)*\n"]
+    lines = [f"📊 *Reading Stats \\({days} zile\\)*\\n"]
     lines.append(f"✅ Terminate: *{stats.get('completed_period', 0)}*")
     lines.append(f"📖 Pagini citite: *{stats.get('pages_read_period', 0)}*")
     lines.append(f"📚 În curs: *{stats.get('currently_reading', 0)}*")
     if stats.get("avg_rating_period"):
-        lines.append(f"⭐ Rating mediu perioadă: *{stats['avg_rating_period']}*")
+        lines.append(
+            f"⭐ Rating mediu perioadă: *{escape_md(str(stats['avg_rating_period']))}*"
+        )
 
     return "\n".join(lines), reading_stats_period_keyboard()
 
@@ -149,7 +155,7 @@ async def get_book_detail_view(pool, book_id: int) -> Tuple[str, InlineKeyboardM
     title = escape_md(book.get("title", ""))
     author = escape_md(book.get("author", "")) if book.get("author") else "_necunoscut_"
 
-    lines = [f"📖 *{title}*\n"]
+    lines = [f"📖 *{title}*\\n"]
     lines.append(f"👤 Autor: *{author}*")
 
     if book.get("total_pages"):
@@ -168,7 +174,7 @@ async def get_book_detail_view(pool, book_id: int) -> Tuple[str, InlineKeyboardM
         lines.append(f"⭐ Rating: *{book['rating']}*\\/5")
 
     status_emoji = "📖" if book["status"] == "reading" else "✅"
-    lines.append(f"{status_emoji} Status: *{book['status']}*")
+    lines.append(f"{status_emoji} Status: *{escape_md(book['status'])}*")
 
     if book.get("started_at"):
         lines.append(f"📅 Începută: *{book['started_at'].strftime('%d %b %Y')}*")
@@ -177,7 +183,7 @@ async def get_book_detail_view(pool, book_id: int) -> Tuple[str, InlineKeyboardM
 
     notes = await reading_queries.get_book_notes(pool, book_id)
     if notes:
-        lines.append(f"\n📝 Note: *{len(notes)}* salvate")
+        lines.append(f"\\n📝 Note: *{len(notes)}* salvate")
 
     return "\n".join(lines), reading_book_detail_keyboard(book_id, book["status"])
 
@@ -388,7 +394,7 @@ async def handle_reading_callback(query, pool, data: str) -> None:
             current_pages = book.get("pages_read", 0)
             total_pages = book.get("total_pages", "")
             await query.edit_message_text(
-                f"🔄 Update *{escape_md(book['title'])}*\n\nPagina curentă: *{current_pages}*/{total_pages}\n\nIntrodu noua pagină:",
+                f"🔄 Update *{escape_md(book['title'])}*\\n\\nPagina curentă: *{current_pages}*\\/{total_pages}\\n\\nIntrodu noua pagină:",
                 parse_mode="MarkdownV2",
                 reply_markup=InlineKeyboardMarkup(
                     [
@@ -485,7 +491,7 @@ async def handle_reading_callback(query, pool, data: str) -> None:
             await query.answer("Cartea nu a fost găsită.")
             return
 
-        lines = [f"📝 *Note pentru {escape_md(book['title'])}*\n"]
+        lines = [f"📝 *Note pentru {escape_md(book['title'])}*\\n"]
 
         if not notes:
             lines.append("Nu ai nicio notă pentru această carte.")
@@ -545,7 +551,7 @@ async def handle_reading_callback(query, pool, data: str) -> None:
 
 async def handle_reading_message(update, pool, state: dict) -> bool:
     """Handles text input for reading state machine."""
-    msg_text = update.message.text.strip()
+    msg_text = (update.message.text or "").strip()
     state_type = state.get("state_type")
     item_id = state.get("item_id")
 

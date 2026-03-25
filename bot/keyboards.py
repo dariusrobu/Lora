@@ -1,4 +1,5 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from bot.formatter import escape_md
 
 
 def task_keyboard(task_id: int) -> InlineKeyboardMarkup:
@@ -531,7 +532,7 @@ def reading_books_keyboard(
 ) -> InlineKeyboardMarkup:
     keyboard = []
     for b in books:
-        title = b.get("title", "")[:30]
+        title = escape_md(b.get("title", "")[:30])
         keyboard.append(
             [
                 InlineKeyboardButton(
@@ -594,5 +595,45 @@ def reading_confirm_delete_keyboard(book_id: int) -> InlineKeyboardMarkup:
                     "❌ Anulează", callback_data=f"reading_detail_{book_id}"
                 ),
             ]
+        ]
+    )
+
+
+# ── Health Module Keyboards ──────────────────────────────────────────────
+
+
+def health_summary_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("💧 Apă", callback_data="health:log_water"),
+                InlineKeyboardButton("😴 Somn", callback_data="health:log_sleep"),
+            ],
+            [
+                InlineKeyboardButton("⚖️ Greutate", callback_data="health:log_weight"),
+                InlineKeyboardButton(
+                    "🍎 Nutriție", callback_data="health:log_nutrition"
+                ),
+            ],
+            [
+                InlineKeyboardButton("📊 Grafic COMPLET", callback_data="health:chart"),
+            ],
+            [
+                InlineKeyboardButton(
+                    "📜 Jurnal AZI", callback_data="health:today_logs"
+                ),
+            ],
+        ]
+    )
+
+
+def health_back_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "🔙 Înapoi la Dashboard", callback_data="health:summary"
+                )
+            ],
         ]
     )
