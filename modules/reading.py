@@ -73,7 +73,7 @@ async def get_reading_library_view(pool) -> Tuple[str, InlineKeyboardMarkup]:
     lines = ["📚 *Biblioteca ta*\n"]
 
     if reading_books:
-        lines.append(f"*În curs \({len(reading_books)}\):*")
+        lines.append(f"*În curs \\({len(reading_books)}\\):*")
         for b in reading_books:
             title = escape_md(b.get("title", ""))
             author = f" — _{escape_md(b['author'])}_" if b.get("author") else ""
@@ -86,7 +86,7 @@ async def get_reading_library_view(pool) -> Tuple[str, InlineKeyboardMarkup]:
         lines.append("")
 
     if completed_books:
-        lines.append(f"*Terminate \({len(completed_books)}\):*")
+        lines.append(f"*Terminate \\({len(completed_books)}\\):*")
         for b in completed_books[:10]:
             title = escape_md(b.get("title", ""))
             stars = " ⭐" * b["rating"] if b.get("rating") else ""
