@@ -63,7 +63,7 @@ async def get_reading_library_view(pool) -> Tuple[str, InlineKeyboardMarkup]:
 
     if not books:
         return (
-            "📚 *Biblioteca ta*\n\n_Nu ai cărți în bibliotecă\\. Adaugă una cu 'am început să citesc X'\\._",
+            "📚 *Biblioteca ta*\n\nNu ai cărți în bibliotecă\\. Adaugă una cu 'am început să citesc X'\\.",
             reading_main_keyboard(),
         )
 
@@ -73,7 +73,7 @@ async def get_reading_library_view(pool) -> Tuple[str, InlineKeyboardMarkup]:
     lines = ["📚 *Biblioteca ta*\n"]
 
     if reading_books:
-        lines.append(f"*În curs ({len(reading_books)}):*")
+        lines.append(f"*În curs \({len(reading_books)}\):*")
         for b in reading_books:
             title = escape_md(b.get("title", ""))
             author = f" — _{escape_md(b['author'])}_" if b.get("author") else ""
@@ -86,14 +86,14 @@ async def get_reading_library_view(pool) -> Tuple[str, InlineKeyboardMarkup]:
         lines.append("")
 
     if completed_books:
-        lines.append(f"*Terminate ({len(completed_books)}):*")
+        lines.append(f"*Terminate \({len(completed_books)}\):*")
         for b in completed_books[:10]:
             title = escape_md(b.get("title", ""))
             stars = " ⭐" * b["rating"] if b.get("rating") else ""
             year = f" \\({b['finished_at'].year}\\)" if b.get("finished_at") else ""
             lines.append(f"• {title}{year}{stars}")
         if len(completed_books) > 10:
-            lines.append(f"_...și încă {len(completed_books) - 10}_")
+            lines.append(f"\\_...și încă {len(completed_books) - 10}\\_")
 
     books_for_keyboard = reading_books if reading_books else completed_books
     return "\n".join(lines), reading_books_keyboard(books_for_keyboard)
@@ -165,7 +165,7 @@ async def get_book_detail_view(pool, book_id: int) -> Tuple[str, InlineKeyboardM
             lines.append(f"📄 Pagini totale: *{book['total_pages']}*")
 
     if book.get("rating"):
-        lines.append(f"⭐ Rating: *{book['rating']}*/5")
+        lines.append(f"⭐ Rating: *{book['rating']}*\\/5")
 
     status_emoji = "📖" if book["status"] == "reading" else "✅"
     lines.append(f"{status_emoji} Status: *{book['status']}*")
@@ -323,7 +323,7 @@ async def handle_reading_callback(query, pool, data: str) -> None:
         current = await reading_queries.get_current_books(pool)
         if not current:
             await query.edit_message_text(
-                "📝 *Note lectură*\n\n_Nu ai cărți în progres pentru care să adaugi note\\.",
+                "📝 *Note lectură*\n\nNu ai cărți în progres pentru care să adaugi note\\.",
                 parse_mode="MarkdownV2",
                 reply_markup=reading_main_keyboard(),
             )
