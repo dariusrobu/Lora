@@ -537,8 +537,11 @@ def reading_book_detail_keyboard(book_id: int, status: str) -> InlineKeyboardMar
     keyboard.append(
         [
             InlineKeyboardButton(
+                "📖 Vezi note", callback_data=f"reading_view_notes_{book_id}"
+            ),
+            InlineKeyboardButton(
                 "🗑️ Șterge", callback_data=f"reading_delete_book_{book_id}"
-            )
+            ),
         ]
     )
     keyboard.append(

@@ -387,7 +387,7 @@ async def handle_reading_callback(query, pool, data: str) -> None:
             current_pages = book.get("pages_read", 0)
             total_pages = book.get("total_pages", "")
             await query.edit_message_text(
-                f"🔄 *Update **{escape_md(book['title'])}**\n\nPagina curentă: *{current_pages}*/{total_pages}\n\nIntrodu noua pagină:",
+                f"🔄 Update *{escape_md(book['title'])}*\n\nPagina curentă: *{current_pages}*/{total_pages}\n\nIntrodu noua pagină:",
                 parse_mode="MarkdownV2",
                 reply_markup=InlineKeyboardMarkup(
                     [
@@ -432,7 +432,7 @@ async def handle_reading_callback(query, pool, data: str) -> None:
         if book:
             await set_state(pool, "reading_rate_book", "reading", "rate", book_id)
             await query.edit_message_text(
-                f"🏁 *Finalizează **{escape_md(book['title'])}**\n\nAi vrea să îi dai un rating \\(1\\-5 stele\\)?\n\n_Scrie numărul sau 'nu' dacă nu vrei rating\\._",
+                f"🏁 Finalizează *{escape_md(book['title'])}*\n\nAi vrea să îi dai un rating \\(1\\-5 stele\\)?\n\n_Scrie numărul sau 'nu' dacă nu vrei rating\\._",
                 parse_mode="MarkdownV2",
                 reply_markup=InlineKeyboardMarkup(
                     [
@@ -462,7 +462,7 @@ async def handle_reading_callback(query, pool, data: str) -> None:
         if book:
             await set_state(pool, "reading_add_note", "reading", "note", book_id)
             await query.edit_message_text(
-                f"📝 *Notă pentru **{escape_md(book['title'])}**\n\nScrie nota ta \\(poți include și numărul paginii\\):",
+                f"📝 Notă pentru *{escape_md(book['title'])}*\n\nScrie nota ta \\(poți include și numărul paginii\\):",
                 parse_mode="MarkdownV2",
                 reply_markup=InlineKeyboardMarkup(
                     [
@@ -475,12 +475,50 @@ async def handle_reading_callback(query, pool, data: str) -> None:
                 ),
             )
 
+    elif data.startswith("reading_view_notes_"):
+        book_id = int(parts[-1])
+        book = await reading_queries.get_book_by_id(pool, book_id)
+        notes = await reading_queries.get_book_notes(pool, book_id)
+
+        if not book:
+            await query.answer("Cartea nu a fost găsită.")
+            return
+
+        lines = [f"📝 *Note pentru {escape_md(book['title'])}*\n"]
+
+        if not notes:
+            lines.append("Nu ai nicio notă pentru această carte.")
+        else:
+            for i, note in enumerate(notes, 1):
+                page_str = (
+                    f" \\(p\\. {note['page_number']}\\)"
+                    if note.get("page_number")
+                    else ""
+                )
+                lines.append(f"{i}\\. {escape_md(note['content'])}{page_str}")
+
+        from telegram import InlineKeyboardButton
+
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "◀️ Înapoi", callback_data=f"reading_detail_{book_id}"
+                )
+            ]
+        ]
+
+        await query.edit_message_text(
+            "\n".join(lines),
+            parse_mode="MarkdownV2",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+
     elif data.startswith("reading_delete_book_"):
         book_id = int(parts[-1])
         book = await reading_queries.get_book_by_id(pool, book_id)
         if book:
             await query.edit_message_text(
-                f"⚠️ *Șterge carte*\n\nEști sigur că vrei să ștergi **{escape_md(book['title'])}** și toate notele?",
+                f"⚠️ Șterge carte\n\nEști sigur că vrei să ștergi *{escape_md(book['title'])}* și toate notele?",
                 parse_mode="MarkdownV2",
                 reply_markup=reading_confirm_delete_keyboard(book_id),
             )
