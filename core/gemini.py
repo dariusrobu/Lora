@@ -411,7 +411,7 @@ IntentResponse schema:
                 raw_text = response.text
                 print(f"DEBUG RAW TEXT: {repr(raw_text)}", flush=True)
 
-                raw_text = re.sub(r"\\([^.!_~\-])", r"\1", raw_text)
+                raw_text = re.sub(r"\\([^.!_~\-])", "\\1", raw_text)
                 parsed = json.loads(raw_text)
                 break
             except json.JSONDecodeError as e:

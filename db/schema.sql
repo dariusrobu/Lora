@@ -80,33 +80,6 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE INDEX idx_tasks_status   ON tasks(status);
 CREATE INDEX idx_tasks_due_date ON tasks(due_date);
 
--- ── Habits ────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS habits (
-    id                  SERIAL PRIMARY KEY,
-    name                TEXT NOT NULL,
-    frequency           TEXT DEFAULT 'daily'
-                        CHECK (frequency IN ('daily', 'weekly')),
-    target_days         TEXT[],          -- ['mon','wed','fri'] for weekly habits
-    streak_count        INT DEFAULT 0,
-    longest_streak      INT DEFAULT 0,
-    forgiveness_window  INT DEFAULT 1,   -- missed days before streak resets
-    is_active           BOOLEAN DEFAULT TRUE,
-    created_at          TIMESTAMPTZ DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ── Habit logs ────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS habit_logs (
-    id          SERIAL PRIMARY KEY,
-    habit_id    INT NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
-    log_date    DATE NOT NULL DEFAULT CURRENT_DATE,
-    status      TEXT NOT NULL CHECK (status IN ('done', 'skipped', 'missed')),
-    note        TEXT,
-    created_at  TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (habit_id, log_date)
-);
-CREATE INDEX idx_habit_logs_date ON habit_logs(log_date DESC);
-
 -- ── Notes & Journal ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS notes (
     id          SERIAL PRIMARY KEY,

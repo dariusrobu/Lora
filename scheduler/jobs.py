@@ -86,7 +86,7 @@ async def check_wake_time_and_schedule(application, pool):
 
 
 async def send_morning_briefing(application, pool):
-    """Sends a daily summary of tasks, events, and habits."""
+    """Sends a daily summary of tasks, events, skills, and health."""
     try:
         user_tz = pytz.timezone(TIMEZONE)
         now = datetime.now(user_tz)
@@ -357,7 +357,7 @@ SKILLS PENDING AZI:
             podcast_instruction = f"""Ești Lora, asistenta personală a lui {name}.
  Generezi un podcast vocal de dimineață. Scrie să sune natural când e citit cu voce.
  Generează textul podcastului EXCLUSIV în limba română (MAXIM 250 cuvinte).
- Sunt permise DOAR aceste cuvinte în engleză: task, habit, meeting, gym, chess.
+  Sunt permise DOAR aceste cuvinte în engleză: task, meeting, gym, chess, duolingo.
  INTERZIS COMPLET: the game plan, all clear, catch up, deep work, worry, talk of the town, fun, highlights, insights și orice altă expresie idiomatică în engleză.
   Structură: salut + oră → vreme → top tasks ca plan, nu liste → evenimente + skills → gând scurt motivațional.
  Ton: cald și direct. EVITĂ superlativele și entuziasmul exagerat (ex: super, fascinant, minunat, amazing, extraordinar, wow). Nu repeta 'zâmbete', 'energie', 'bucurie'.
@@ -975,7 +975,6 @@ async def send_monthly_review(bot, pool) -> None:
         # 3. Aggregated Data Collection (LUNARE - NU morning briefing)
         # Using task_queries.get_monthly_task_stats instead of morning list_tasks
         from db.queries.tasks import get_monthly_task_stats
-        from db.queries.habits import get_monthly_habit_stats
         from db.queries.goals import get_goals_progress_delta
         from db.queries.finance import get_monthly_comparison
         from db.queries.health import get_monthly_health_avg
@@ -983,14 +982,12 @@ async def send_monthly_review(bot, pool) -> None:
 
         (
             task_stats,
-            habit_stats,
             goals_data,
             finance_comparison,
             health_avg,
             mood_distribution,
         ) = await asyncio.gather(
             get_monthly_task_stats(pool, start_date, end_date),
-            get_monthly_habit_stats(pool, start_date, end_date),
             get_goals_progress_delta(pool),
             get_monthly_comparison(pool),
             get_monthly_health_avg(pool, start_date, end_date),
@@ -1026,7 +1023,6 @@ async def send_monthly_review(bot, pool) -> None:
         data_ctx = f"""
         Months Review Context (Last 30 days):
         Tasks: {task_stats}
-        Habits: {habit_stats}
         Goals: {goals_data}
         Finance (vs last month): {finance_comparison}
         Health (monthly averages): {health_avg}
@@ -1043,7 +1039,6 @@ async def send_monthly_review(bot, pool) -> None:
         ━━━━━━━━━━━━━━━━━
         
         ✅ Tasks: [X] completate din [Y] create ([Z]%)
-        🔁 Habits: [top 2 consistente] / [cel mai ratat]
         🎯 Goals: [care a avansat] / [care e blocat sau omite dacă toate active]
         💰 Finance: [total] RON — [comparație față de luna trecută]
         😴 Health: somn mediu [X]h · apă [X]L · greutate [stabil/+X/-X kg]
