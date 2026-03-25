@@ -1,6 +1,7 @@
 import json
 from typing import Optional, Dict, Any
 
+
 async def get_state(pool) -> Optional[Dict[str, Any]]:
     """Retrieves the current multi-turn state."""
     async with pool.acquire() as conn:
@@ -9,23 +10,35 @@ async def get_state(pool) -> Optional[Dict[str, Any]]:
         )
         if not row:
             return None
-        
+
         # Row might exist but all relevant fields be null
-        if row['state_type'] is None:
+        if row["state_type"] is None:
             return None
-            
+
         data = dict(row)
-        if data.get('extra') and isinstance(data['extra'], str):
+        if data.get("extra") and isinstance(data["extra"], str):
             try:
-                data['extra'] = json.loads(data['extra'])
+                data["extra"] = json.loads(data["extra"])
             except json.JSONDecodeError:
                 pass
         return data
 
-async def set_state(pool, state_type: str, module: Optional[str], action: Optional[str], item_id: Optional[int], extra: Optional[Dict[str, Any]] = None):
+
+async def set_state(
+    pool,
+    state_type: str,
+    module: Optional[str],
+    action: Optional[str],
+    item_id: Optional[int],
+    extra: Optional[Dict[str, Any]] = None,
+):
     """Sets the current multi-turn state."""
+    print(
+        f"🔄 set_state called: state_type='{state_type}', module='{module}', action='{action}', item_id={item_id}",
+        flush=True,
+    )
     extra_json = json.dumps(extra) if extra else None
-    
+
     async with pool.acquire() as conn:
         await conn.execute(
             """
@@ -33,8 +46,13 @@ async def set_state(pool, state_type: str, module: Optional[str], action: Option
             SET state_type = $1, module = $2, action = $3, item_id = $4, extra = $5, created_at = NOW()
             WHERE state_key = 'current'
             """,
-            state_type, module, action, item_id, extra_json
+            state_type,
+            module,
+            action,
+            item_id,
+            extra_json,
         )
+
 
 async def clear_state(pool):
     """Resets the state to null/idle."""

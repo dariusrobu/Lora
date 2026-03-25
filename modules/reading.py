@@ -498,8 +498,6 @@ async def handle_reading_callback(query, pool, data: str) -> None:
                 )
                 lines.append(f"{i}\\. {escape_md(note['content'])}{page_str}")
 
-        from telegram import InlineKeyboardButton
-
         keyboard = [
             [
                 InlineKeyboardButton(
@@ -551,26 +549,57 @@ async def handle_reading_message(update, pool, state: dict) -> bool:
     state_type = state.get("state_type")
     item_id = state.get("item_id")
 
+    print(
+        f"📖 handle_reading_message: state_type='{state_type}', msg='{msg_text}'",
+        flush=True,
+    )
+
     try:
         if state_type == "reading_add_book":
             import re
 
+            # Strip common prefixes like "adauga cartea", "cartea"
             title = msg_text
+            prefixes = [
+                "adauga cartea",
+                "adaug cartea",
+                "adaugati cartea",
+                "cartea",
+                "book",
+                "adauga",
+                "adaug",
+            ]
+            lower_text = msg_text.lower()
+            for prefix in prefixes:
+                if lower_text.startswith(prefix):
+                    title = msg_text[len(prefix) :].strip()
+                    break
+
             author = None
             total_pages = None
 
             match = re.match(
                 r"(.+?)(?:,?\s*de\s+(.+?))?(?:,?\s*(\d+)\s*(?:pag|pagini|pages)?)?$",
-                msg_text,
+                title,
                 re.IGNORECASE,
+            )
+            print(
+                f"📖 DEBUG: after regex match, title='{title}', match={match}",
+                flush=True,
             )
             if match:
                 title = match.group(1).strip() or msg_text
                 author = match.group(2).strip() if match.group(2) else None
                 pages_str = match.group(3)
                 total_pages = int(pages_str) if pages_str else None
+                print(
+                    f"📖 DEBUG: parsed - title='{title}', author='{author}', pages={total_pages}",
+                    flush=True,
+                )
 
+            print(f"📖 DEBUG: calling add_book with title='{title}'", flush=True)
             await reading_queries.add_book(pool, title, author, total_pages)
+            print("📖 DEBUG: add_book completed", flush=True)
             await clear_state(pool)
 
             author_str = f" de {author}" if author else ""
