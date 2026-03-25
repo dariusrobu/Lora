@@ -194,6 +194,7 @@ async def handle_reading_intent(
         total_pages = data.get("total_pages")
 
         if not title:
+            await set_state(pool, "reading_add_book", "reading", "add", None)
             return "Care e titlul cărții?", None
 
         await reading_queries.add_book(pool, title, author, total_pages)

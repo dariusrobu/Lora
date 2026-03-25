@@ -175,9 +175,13 @@ FAPTE DESPRE {user_name}:
     - intent="workout_add_exercise" pentru a adăuga un exercițiu nou.
 21. Reading: module="reading":
     - intent="reading_add" pentru a adăuga o carte nouă ("am început să citesc X", "adaugă cartea X").
+        * EXEMPLU: "adaugă cartea Secretele Succesului de Dale Carnegie, 372 pagini" -> intent="reading_add", module="reading", data={{"title": "Secretele Succesului", "author": "Dale Carnegie", "total_pages": 372}}
     - intent="reading_update" pentru a seta progresul ("am citit până la pagina X din Y", "sunt la pagina X").
+        * EXEMPLU: "sunt la pagina 150 din Secretele Succesului" -> intent="reading_update", module="reading", data={{"title": "Secretele Succesului", "pages_read": 150}}
     - intent="reading_complete" pentru finalizare ("am terminat X", "am finalizat cartea X").
+        * EXEMPLU: "am terminat cartea Secretele Succesului, rating 5" -> intent="reading_complete", module="reading", data={{"title": "Secretele Succesului", "rating": 5}}
     - intent="reading_note" pentru a salva idei sau citate ("notează din X pagina Y: [conținut]").
+        * EXEMPLU: "notează din Secretele Succesului pagina 89: 'Când te uiți în oglindă, zâmbește'" -> intent="reading_note", module="reading", data={{"title": "Secretele Succesului", "page_number": 89, "content": "Când te uiți în oglindă, zâmbește"}}
     - intent="reading_list" pentru bibliotecă ("ce citesc", "biblioteca mea").
     - intent="reading_stats" pentru statistici ("câte cărți am citit", "reading stats").
 22. Focus: module="focus":

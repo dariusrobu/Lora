@@ -66,6 +66,35 @@ def tasks_projects_keyboard(projects_with_counts: list) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
+def tasks_confirm_delete_keyboard(task_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "✅ Confirmă", callback_data=f"tasks:delete_confirmed:{task_id}"
+                ),
+                InlineKeyboardButton("❌ Anulează", callback_data="tasks:cancel"),
+            ]
+        ]
+    )
+
+
+def projects_confirm_delete_keyboard(project_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "✅ Confirmă",
+                    callback_data=f"projects:delete_confirmed:{project_id}",
+                ),
+                InlineKeyboardButton(
+                    "❌ Anulează", callback_data="tasks:projects_list"
+                ),
+            ]
+        ]
+    )
+
+
 def tasks_project_detail_keyboard(project_id: int) -> InlineKeyboardMarkup:
     keyboard = [
         [
