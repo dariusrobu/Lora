@@ -168,10 +168,28 @@ async def handle_health_message(update, pool, state: dict, text: str) -> None:
                 data["weight_kg"] = float(match.group(1))
 
         elif action == "log_nutrition":
-            for quality in ["great", "good", "neutral", "bad", "terrible"]:
-                if quality in text.lower():
-                    data["nutrition"] = quality
-                    break
+            items = _parse_meal_text(text)
+            if items:
+                from modules.nutrition import handle_nutrition_intent
+
+                meal_data = {
+                    "meal_type": "masa",
+                    "description": text,
+                    "calories": sum(i.get("calories", 0) for i in items),
+                    "protein": sum(i.get("protein", 0) for i in items),
+                    "carbs": sum(i.get("carbs", 0) for i in items),
+                    "fat": sum(i.get("fat", 0) for i in items),
+                    "items": items,
+                }
+                reply, _ = await handle_nutrition_intent(pool, "meal_log", meal_data)
+                await update.message.reply_text(reply, parse_mode="MarkdownV2")
+                await clear_state(pool)
+                return
+            else:
+                reply, _ = await handle_health_intent(pool, "health_log", {})
+                await update.message.reply_text(reply, parse_mode="MarkdownV2")
+                await clear_state(pool)
+                return
 
         reply, _ = await handle_health_intent(pool, "health_log", data)
         await update.message.reply_text(reply, parse_mode="MarkdownV2")
@@ -219,6 +237,87 @@ async def _handle_upsert(
 
     msg = "✅ Health logat: " + " + ".join(parts)
     return escape_md(msg), None
+
+
+FOOD_MACROS = {
+    "oua": {"calories": 155, "protein": 13, "carbs": 1.1, "fat": 11, "unit": "100g"},
+    "ou": {"calories": 155, "protein": 13, "carbs": 1.1, "fat": 11, "unit": "100g"},
+    "sunca": {"calories": 120, "protein": 17, "carbs": 0, "fat": 5, "unit": "100g"},
+    "paine": {"calories": 265, "protein": 9, "carbs": 49, "fat": 3, "unit": "100g"},
+    "pâine": {"calories": 265, "protein": 9, "carbs": 49, "fat": 3, "unit": "100g"},
+    "lapte": {"calories": 42, "protein": 3.4, "carbs": 5, "fat": 1, "unit": "100ml"},
+    "branza": {"calories": 98, "protein": 11, "carbs": 3.4, "fat": 4, "unit": "100g"},
+    "Unt": {"calories": 717, "protein": 1, "carbs": 0, "fat": 81, "unit": "100g"},
+    "carne": {"calories": 200, "protein": 26, "carbs": 0, "fat": 10, "unit": "100g"},
+    "pui": {"calories": 165, "protein": 31, "carbs": 0, "fat": 3.6, "unit": "100g"},
+    "oreez": {"calories": 130, "protein": 2.7, "carbs": 28, "fat": 0.3, "unit": "100g"},
+    "cartofi": {"calories": 77, "protein": 2, "carbs": 17, "fat": 0.1, "unit": "100g"},
+    "mar": {"calories": 52, "protein": 0.3, "carbs": 14, "fat": 0.2, "unit": "100g"},
+    "banana": {"calories": 89, "protein": 1.1, "carbs": 23, "fat": 0.3, "unit": "100g"},
+    "iaurt": {"calories": 59, "protein": 10, "carbs": 3.6, "fat": 0.4, "unit": "100g"},
+    "cascaval": {
+        "calories": 350,
+        "protein": 25,
+        "carbs": 1.3,
+        "fat": 27,
+        "unit": "100g",
+    },
+}
+
+
+def _parse_meal_text(text: str) -> list[dict]:
+    """Parse Romanian meal text into items with macros."""
+    import re
+
+    items = []
+    text = text.lower()
+
+    food_pattern = r"(\d+(?:\.\d+)?)\s*(?:gr|g|kg|ml|l)?\s*(?:de\s+)?(\w+)"
+    matches = re.findall(food_pattern, text)
+
+    if not matches:
+        word_pattern = r"(\d+)\s+(\w+)"
+        matches = re.findall(word_pattern, text)
+
+    for qty_str, food_name in matches:
+        qty = float(qty_str)
+        food_key = food_name.lower().rstrip(".,!?")
+
+        if food_key in FOOD_MACROS:
+            macros = FOOD_MACROS[food_key]
+            unit = macros["unit"]
+
+            if "100g" in unit or "100ml" in unit:
+                factor = qty / 100
+            elif "100" in unit:
+                factor = qty / 100
+            else:
+                factor = 1
+
+            items.append(
+                {
+                    "name": food_name.capitalize(),
+                    "quantity_g": int(qty) if "g" in unit else int(qty * 1000),
+                    "calories": macros["calories"] * factor,
+                    "protein": macros["protein"] * factor,
+                    "carbs": macros["carbs"] * factor,
+                    "fat": macros["fat"] * factor,
+                }
+            )
+
+    if not items:
+        items.append(
+            {
+                "name": text[:30],
+                "quantity_g": 100,
+                "calories": 200,
+                "protein": 10,
+                "carbs": 25,
+                "fat": 5,
+            }
+        )
+
+    return items
 
 
 async def _generate_health_summary_text(pool) -> Tuple[str, Any]:
