@@ -546,11 +546,9 @@ async def check_class_reminders(application, pool) -> None:
         from db.queries.schedule import get_upcoming_classes
         from bot.formatter import escape_md
         from telegram.constants import ParseMode
-        from datetime import date
 
         # We check slightly ahead (16m) to ensure we don't miss it between 5m intervals
         classes = await get_upcoming_classes(pool, minutes_ahead=16)
-        today = date.today()
 
         for c in classes:
             # 1. Verificare SELECT (ÎNAINTE de trimitere)
@@ -962,10 +960,97 @@ async def reset_budget_alerts(application, pool) -> None:
 
 
 async def check_event_reminders(application, pool):
-    """Checks for upcoming events and sends reminders."""
-    # Simplified logic for now: query all events and check time diffs
-    # This will be refined in Phase 8
-    pass
+    """Checks for upcoming events and sends reminders ~30 min before."""
+    try:
+        from telegram.constants import ParseMode
+        from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+
+        events = await event_queries.get_events_needing_reminder(
+            pool, minutes_before=30
+        )
+
+        for e in events:
+            remind_min = e.get("remind_before_minutes", 30)
+            time_str = (
+                e["event_time"].strftime("%H:%M")
+                if e.get("event_time")
+                else "toată ziua"
+            )
+
+            msg = f"🔔 *{escape_md(e['title'])}* în {remind_min} minute\n⏰ {time_str}"
+            if e.get("description"):
+                msg += f"\n📝 {escape_md(e['description'])}"
+
+            keyboard = InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "👍 Ok", callback_data=f"event_reminder_ack:{e['id']}"
+                        ),
+                        InlineKeyboardButton(
+                            "📝 Note", callback_data=f"event_note:{e['id']}"
+                        ),
+                    ]
+                ]
+            )
+
+            await application.bot.send_message(
+                chat_id=TELEGRAM_USER_ID,
+                text=msg,
+                parse_mode=ParseMode.MARKDOWN_V2,
+                reply_markup=keyboard,
+            )
+
+            await event_queries.mark_event_reminded(pool, e["id"])
+            print(f"Event reminder sent for: {e['title']}", flush=True)
+
+    except Exception as e:
+        print(f"Error in check_event_reminders: {e}", flush=True)
+
+
+async def check_event_day_reminders(application, pool):
+    """Checks for events tomorrow and sends 1-day reminders at 20:00."""
+    try:
+        from telegram.constants import ParseMode
+        from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+        from datetime import timedelta
+
+        tomorrow = (datetime.now().date()) + timedelta(days=1)
+        events = await event_queries.get_events_for_day_reminder(pool, tomorrow)
+
+        if not events:
+            return
+
+        lines = ["📅 *Evenimente mâine:*\n"]
+        for e in events:
+            time_str = e["event_time"].strftime("%H:%M") if e.get("event_time") else "—"
+            lines.append(f"• `{time_str}` — *{escape_md(e['title'])}*")
+
+        lines.append("\nNu uita să te pregătești!")
+
+        keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton("👍 Ok", callback_data="event_day_ack"),
+                ]
+            ]
+        )
+
+        msg = "\n".join(lines)
+        await application.bot.send_message(
+            chat_id=TELEGRAM_USER_ID,
+            text=msg,
+            parse_mode=ParseMode.MARKDOWN_V2,
+            reply_markup=keyboard,
+        )
+
+        for e in events:
+            await event_queries.mark_day_reminder_sent(pool, e["id"], tomorrow)
+
+        print(f"Day reminder sent for {len(events)} events tomorrow", flush=True)
+
+    except Exception as e:
+        print(f"Error in check_event_day_reminders: {e}", flush=True)
 
 
 async def send_monthly_review(bot, pool) -> None:
@@ -1281,6 +1366,16 @@ def setup_scheduler(application, pool):
 
     scheduler.add_job(
         check_event_reminders, "interval", minutes=15, args=[application, pool]
+    )
+
+    # Day reminder - Every day at 20:00
+    scheduler.add_job(
+        check_event_day_reminders,
+        "cron",
+        hour=20,
+        minute=0,
+        misfire_grace_time=3600,
+        args=[application, pool],
     )
 
     scheduler.add_job(

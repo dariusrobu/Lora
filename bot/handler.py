@@ -341,9 +341,9 @@ async def message_handler(
 
         # Phase 3: Gemini Brain integration
         async with pool.acquire() as conn:
-            # 1. Get history (last 10 turns) BEFORE saving current message
+            # 1. Get history (last 3 USER turns only) BEFORE saving current message
             history_rows = await conn.fetch(
-                "SELECT role, content FROM conversations ORDER BY created_at DESC LIMIT 10"
+                "SELECT role, content FROM conversations WHERE role = 'user' ORDER BY created_at DESC LIMIT 3"
             )
             history = [
                 {"role": r["role"], "content": r["content"]}
@@ -1183,6 +1183,15 @@ Reguli:
                     )
                     return
 
+            elif state["state_type"] == "awaiting_event_note":
+                from datetime import datetime
+
+                event_id = state.get("item_id")
+                if event_id and text:
+                    await update.message.reply_text("Notă adăugată pentru eveniment 📝")
+                await clear_state(pool)
+                return
+
             elif state["state_type"] in [
                 "awaiting_health_input",
                 "awaiting_finance_input",
@@ -1210,15 +1219,33 @@ Reguli:
         context_snapshot = await build_context(pool)
         profile = await get_user_profile(pool, telegram_id)
 
-        # 4. Call Gemini
-        intent_response = await get_gemini_response(
-            user_message=text,
-            user_name=profile.get("name", "User"),
-            tone=profile.get("tone", "warm"),
-            context_snapshot=context_snapshot,
-            history=history,
-            personal_notes=profile.get("personal_notes") or "",
-        )
+        # 4. Try regex parser first for simple add_task patterns
+        intent_response = None
+        low_text = text.lower()
+        if low_text.startswith("adaug") and "task" in low_text:
+            from modules.tasks import parse_add_task_text
+
+            parsed = parse_add_task_text(text)
+            if parsed and parsed.get("title"):
+                intent_response = {
+                    "intent": "add_task",
+                    "module": "tasks",
+                    "data": parsed,
+                    "reply": "",
+                    "needs_confirmation": False,
+                }
+                print(f"🔧 REGEX PARSER: {parsed}")
+
+        # 5. Fall back to Gemini if regex didn't match
+        if not intent_response:
+            intent_response = await get_gemini_response(
+                user_message=text,
+                user_name=profile.get("name", "User"),
+                tone=profile.get("tone", "warm"),
+                context_snapshot=context_snapshot,
+                history=history,
+                personal_notes=profile.get("personal_notes") or "",
+            )
         print(
             f"🧠 GEMINI: Intent={intent_response.get('intent')}, Module={intent_response.get('module')}, Data={intent_response.get('data')}"
         )
@@ -1378,6 +1405,51 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 )
                 return
 
+            return
+
+        # Event Reminders
+        if data.startswith("event_reminder:"):
+            parts = data.split(":")
+            if len(parts) >= 3:
+                event_id = int(parts[1])
+                minutes = int(parts[2])
+                from db.queries.events import update_event_reminder
+
+                await update_event_reminder(pool, event_id, minutes)
+
+                if minutes == 0:
+                    msg = "Reminder dezactivat 🔕"
+                elif minutes == 1440:
+                    msg = "Reminder setat la 1 zi 📅"
+                else:
+                    msg = f"Reminder setat la {minutes} minute 🔔"
+
+                await query.answer(msg)
+                await query.edit_message_text(msg)
+            return
+
+        if data.startswith("event_reminder_ack:"):
+            event_id = data.split(":")[1]
+            await query.answer("Ok 👍")
+            await query.edit_message_text("Reminder confirmat 👍")
+            return
+
+        if data.startswith("event_note:"):
+            event_id = data.split(":")[1]
+            from core.state import set_state
+
+            await set_state(
+                pool, "awaiting_event_note", "events", "add_note", int(event_id)
+            )
+            await query.answer()
+            await query.edit_message_text(
+                "Ce note vrei să adaugi pentru acest eveniment?"
+            )
+            return
+
+        if data == "event_day_ack":
+            await query.answer("Ok 👍")
+            await query.edit_message_text("Reminder 1 zi confirmat 👍")
             return
 
         # Tasks and projects are handled by handle_tasks_callback (set above)

@@ -124,22 +124,30 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_limits_category_lower ON budget_lim
 
 -- ── Events ────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS events (
-    id                SERIAL PRIMARY KEY,
-    title             TEXT NOT NULL,
-    description       TEXT,
-    event_date        DATE NOT NULL,
-    event_time        TIME,
-    project_id        INT REFERENCES projects(id) ON DELETE SET NULL,
-    is_recurring      BOOLEAN DEFAULT FALSE,
-    recurrence        TEXT CHECK (recurrence IN ('daily','weekly','monthly','yearly', NULL)),
-    remind_1day       BOOLEAN DEFAULT TRUE,
-    remind_1hour      BOOLEAN DEFAULT TRUE,
-    reminded_1day     BOOLEAN DEFAULT FALSE,   -- flag: 1-day reminder already sent
-    reminded_1hour    BOOLEAN DEFAULT FALSE,   -- flag: 1-hour reminder already sent
-    created_at        TIMESTAMPTZ DEFAULT NOW(),
-    updated_at        TIMESTAMPTZ DEFAULT NOW()
+    id                     SERIAL PRIMARY KEY,
+    title                  TEXT NOT NULL,
+    description            TEXT,
+    event_date             DATE NOT NULL,
+    event_time             TIME,
+    project_id             INT REFERENCES projects(id) ON DELETE SET NULL,
+    is_recurring           BOOLEAN DEFAULT FALSE,
+    recurrence             TEXT CHECK (recurrence IN ('daily','weekly','monthly','yearly', NULL)),
+    remind_before_minutes  INT DEFAULT 30,           -- custom reminder (30 = 30 min before)
+    reminded_at            TIMESTAMPTZ,              -- when time-based reminder was sent
+    remind_1day            BOOLEAN DEFAULT FALSE,   -- separate 1-day reminder flag
+    created_at             TIMESTAMPTZ DEFAULT NOW(),
+    updated_at             TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX idx_events_date ON events(event_date);
+
+-- ── Event Day Reminders (separate table for 1-day reminders) ───
+CREATE TABLE IF NOT EXISTS event_day_reminders (
+    event_id    INT REFERENCES events(id) ON DELETE CASCADE,
+    event_date  DATE,
+    sent        BOOLEAN DEFAULT FALSE,
+    PRIMARY KEY (event_id, event_date)
+);
+CREATE INDEX idx_event_day_reminders ON event_day_reminders(event_date, sent);
 -- ── Shopping List ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS shopping_list (
     id          SERIAL PRIMARY KEY,

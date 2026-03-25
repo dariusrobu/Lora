@@ -1,7 +1,62 @@
 from typing import Dict, Any, Tuple
 from datetime import datetime
+import re
 import db.queries.tasks as task_queries
 from bot.formatter import escape_md
+
+
+def parse_add_task_text(text: str) -> Dict[str, Any] | None:
+    """
+    Fast regex parser for add_task intents.
+    Bypasses Gemini for simple, unambiguous patterns.
+    Returns dict with 'title', 'project', 'priority', 'due_date' or None if no match.
+    """
+    original = text.strip()
+
+    # Pattern 1: "adauga task proiectul X: title" or "adauga task proiectul X prioritate Y: title"
+    m = re.match(
+        r"adaug[ăa]\s+(?:task|task-ul|taskul)\s+proiectul\s+(\S+)(?:\s+prioritate[tă]?\s+(\S+))?\s*:\s*(.+)$",
+        original,
+        re.IGNORECASE,
+    )
+    if m:
+        result = {"title": m.group(3).strip()}
+        if m.group(1):
+            result["project"] = m.group(1)
+        if m.group(2):
+            result["priority"] = _normalize_priority(m.group(2))
+        return result
+
+    # Pattern 2: "adauga task prioritate X: title"
+    m = re.match(
+        r"adaug[ăa]\s+(?:task|task-ul|taskul)\s+prioritate[tă]?\s+(\S+)\s*:\s*(.+)$",
+        original,
+        re.IGNORECASE,
+    )
+    if m:
+        return {
+            "priority": _normalize_priority(m.group(1)),
+            "title": m.group(2).strip(),
+        }
+
+    # Pattern 3: "adauga task: title" or "adaug task title"
+    m = re.match(
+        r"adaug[ăa]\s+(?:task|task-ul|taskul)(?:\s*:)?\s*(.+)$", original, re.IGNORECASE
+    )
+    if m:
+        return {"title": m.group(1).strip()}
+
+    return None
+
+
+def _normalize_priority(p: str) -> str:
+    """Normalize priority string to low/medium/high."""
+    p = p.lower().strip()
+    if p in ("high", "mare", "înaltă", "important", "urgent", "h"):
+        return "high"
+    if p in ("low", "mică", "low", "l"):
+        return "low"
+    return "medium"
 
 
 async def handle_tasks_callback(query, pool, data: str) -> None:
