@@ -29,6 +29,7 @@ from bot.handler import (
     finance_command,
     tasks_command,
     projects_command,
+    reading_command,
 )
 from modules.skills import skills_command
 from functools import partial
@@ -80,6 +81,7 @@ async def start_bot():
     application.add_handler(CommandHandler("finance", finance_command))
     application.add_handler(CommandHandler("tasks", tasks_command))
     application.add_handler(CommandHandler("projects", projects_command))
+    application.add_handler(CommandHandler("reading", reading_command))
     application.add_handler(MessageHandler(filters.VOICE, voice_handler_with_pool))
     application.add_handler(MessageHandler(filters.ALL, msg_handler_with_pool))
     application.add_handler(CallbackQueryHandler(cb_handler_with_pool))
