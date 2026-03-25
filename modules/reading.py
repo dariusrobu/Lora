@@ -52,7 +52,7 @@ async def get_reading_dashboard(pool) -> Tuple[str, InlineKeyboardMarkup]:
                 pages = book.get("pages_read", 0)
                 lines.append(f"\n  *{title}* \\(p\\. {pages}\\)")
     else:
-        lines.append("\n_Nu ai cărți în progres. Adaugă una nouă!_")
+        lines.append("\n_Nu ai cărți în progres\\. Adaugă una nouă!_")
 
     return "\n".join(lines), reading_main_keyboard()
 
@@ -63,7 +63,7 @@ async def get_reading_library_view(pool) -> Tuple[str, InlineKeyboardMarkup]:
 
     if not books:
         return (
-            "📚 *Biblioteca ta*\n\n_Nu ai cărți în bibliotecă. Adaugă una cu 'am început să citesc X'._",
+            "📚 *Biblioteca ta*\n\n_Nu ai cărți în bibliotecă\\. Adaugă una cu 'am început să citesc X'\\._",
             reading_main_keyboard(),
         )
 
@@ -580,7 +580,7 @@ async def handle_reading_message(update, pool, state: dict) -> bool:
                         raise ValueError()
                 except ValueError:
                     await update.message.reply_text(
-                        "❌ Rating invalid. Introdu un număr 1\\-5 sau 'nu'\\.",
+                        "❌ Rating invalid\\. Introdu un număr 1\\-5 sau 'nu'\\.",
                         parse_mode="MarkdownV2",
                     )
                     return True
