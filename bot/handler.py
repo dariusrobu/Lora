@@ -1219,9 +1219,11 @@ Reguli:
         context_snapshot = await build_context(pool)
         profile = await get_user_profile(pool, telegram_id)
 
-        # 4. Try regex parser first for simple add_task patterns
+        # 4. Try regex parser first for simple add_task / add_event patterns
         intent_response = None
         low_text = text.lower()
+
+        # Try task patterns
         if any(
             low_text.startswith(p) and "task" in low_text
             for p in ["adaug", "add", "create"]
@@ -1237,7 +1239,28 @@ Reguli:
                     "reply": "",
                     "needs_confirmation": False,
                 }
-                print(f"🔧 REGEX PARSER: {parsed}")
+                print(f"🔧 TASK REGEX: {parsed}")
+
+        # Try event patterns
+        elif any(
+            (
+                low_text.startswith(p)
+                and ("event" in low_text or "eveniment" in low_text)
+            )
+            for p in ["adaug", "add", "create"]
+        ):
+            from modules.events import parse_add_event_text
+
+            parsed = parse_add_event_text(text)
+            if parsed and parsed.get("title"):
+                intent_response = {
+                    "intent": "add_event",
+                    "module": "events",
+                    "data": parsed,
+                    "reply": "",
+                    "needs_confirmation": False,
+                }
+                print(f"🔧 EVENT REGEX: {parsed}")
 
         # 5. Fall back to Gemini if regex didn't match
         if not intent_response:

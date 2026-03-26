@@ -1,8 +1,44 @@
 from typing import Dict, Any, Tuple
 from datetime import datetime, timedelta
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+import re
 import db.queries.events as event_queries
 from bot.formatter import escape_md
+
+
+def parse_add_event_text(text: str) -> Dict[str, Any] | None:
+    """
+    Fast regex parser for add_event intents.
+    Returns dict with 'title', 'event_date', 'event_time' or None if no match.
+    """
+    original = text.strip()
+
+    # Pattern: "add event at/la 17:00: fotbal" or "add event fotbal at 17:00"
+    patterns = [
+        r"(?:adaug|add|create)\s+(?:eveniment|event)\s+(?:la|at)?\s*(\d{1,2}:\d{2})\s*[:\-]?\s*(.+)$",
+        r"(?:adaug|add|create)\s+(?:eveniment|event)\s+(.+?)\s+(?:la|at)\s*(\d{1,2}:\d{2})\s*$",
+    ]
+
+    for pattern in patterns:
+        m = re.match(pattern, original, re.IGNORECASE)
+        if m:
+            groups = m.groups()
+            if len(groups) == 2:
+                # Figure out which is time and which is title
+                if ":" in groups[0]:
+                    return {
+                        "event_time": groups[0],
+                        "title": groups[1].strip(),
+                        "event_date": datetime.now().strftime("%Y-%m-%d"),
+                    }
+                else:
+                    return {
+                        "title": groups[0].strip(),
+                        "event_time": groups[1],
+                        "event_date": datetime.now().strftime("%Y-%m-%d"),
+                    }
+
+    return None
 
 
 async def handle_event_intent(
