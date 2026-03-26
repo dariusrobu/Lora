@@ -3,7 +3,123 @@
 from typing import Dict, Any, Tuple
 from bot.formatter import safe_markdown
 from datetime import date
+import re
 import db.queries.nutrition as nutrition_queries
+
+
+def parse_meal_text(text: str) -> Dict[str, Any] | None:
+    """
+    Fast regex parser for meal_log intents.
+    Returns dict with 'meal_type', 'description', 'items', 'calories', etc.
+    """
+    original = text.strip().lower()
+
+    # Determine meal type based on time keywords
+    meal_type = "masa"
+    if any(w in original for w in ["mic dejun", "breakfast", "dimineața", "dejun"]):
+        meal_type = "mic_dejun"
+    elif any(w in original for w in ["prânz", "pranz", "lunch", "amiază"]):
+        meal_type = "pranz"
+    elif any(w in original for w in ["cină", "cina", " dinner", "seară"]):
+        meal_type = "cina"
+    elif any(w in original for w in ["gustare", "snack", "nun", "pauză"]):
+        meal_type = "gustare"
+
+    # Extract items with quantities
+    items = []
+
+    # Pattern: "3 oua", "80 gr de kaiser", "2 felii paine"
+    quantity_pattern = r"(\d+(?:[.,]\d+)?)\s*(kg|g|gr|ml|l|felii|buche)?\s*(?:de\s+)?(.+?)(?=\d+\s*(?:kg|g|gr|ml|l|felii|buche)|$)"
+
+    for m in re.finditer(quantity_pattern, text, re.IGNORECASE):
+        qty = m.group(1).replace(",", ".")
+        unit = (m.group(2) or "buc").lower()
+        food = m.group(3).strip()
+
+        if food and len(food) > 1:
+            # Convert to grams
+            qty_num = float(qty)
+            if unit in ["kg", "k"]:
+                qty_num *= 1000
+            elif unit in ["l", "litri"]:
+                qty_num *= 1000
+            elif unit in ["ml"]:
+                pass
+            elif unit in ["g", "gr"]:
+                pass
+            elif unit in ["felii", "buc", "buche"]:
+                # Estimate 30g per felie/buc
+                qty_num *= 30
+
+            items.append({"name": food, "quantity_g": qty_num})
+
+    if not items:
+        # Fallback: just use the whole description
+        return {
+            "meal_type": meal_type,
+            "description": text,
+            "items": [],
+            "calories": 0,
+            "protein": 0,
+            "carbs": 0,
+            "fat": 0,
+        }
+
+    # Rough calorie estimation per item
+    calories_per_100g = {
+        "oua": 155,
+        "ou": 155,
+        "kaiser": 290,
+        "carnati": 250,
+        "paine": 265,
+        "paine alba": 280,
+        "lapte": 42,
+        "cereale": 350,
+        "iaurt": 59,
+        "unt": 717,
+        "branza": 300,
+        "sunca": 120,
+        "rosii": 18,
+        "castraveti": 15,
+        "salata": 20,
+        "cartofi": 77,
+        "orez": 130,
+        "paste": 131,
+        "carne": 200,
+        "pui": 165,
+        "porc": 242,
+        "vita": 250,
+    }
+
+    total_cal = 0
+    total_prot = 0
+    total_carbs = 0
+    total_fat = 0
+
+    for item in items:
+        food_lower = item["name"].lower()
+        cal_per_100g = 100  # default
+        for key, val in calories_per_100g.items():
+            if key in food_lower:
+                cal_per_100g = val
+                break
+
+        qty_factor = item["quantity_g"] / 100
+        item_cal = cal_per_100g * qty_factor
+        total_cal += item_cal
+        total_prot += item_cal * 0.15 / 4  # ~15% protein, 4 cal/g
+        total_carbs += item_cal * 0.45 / 4  # ~45% carbs
+        total_fat += item_cal * 0.40 / 9  # ~40% fat, 9 cal/g
+
+    return {
+        "meal_type": meal_type,
+        "description": text,
+        "items": items,
+        "calories": round(total_cal),
+        "protein": round(total_prot, 1),
+        "carbs": round(total_carbs, 1),
+        "fat": round(total_fat, 1),
+    }
 
 
 async def handle_nutrition_intent(

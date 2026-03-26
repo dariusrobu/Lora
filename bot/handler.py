@@ -1262,6 +1262,35 @@ Reguli:
                 }
                 print(f"🔧 EVENT REGEX: {parsed}")
 
+        # Try meal logging patterns
+        elif any(
+            w in low_text
+            for w in [
+                "mancat",
+                "mâncat",
+                "masa",
+                "mic dejun",
+                "pranz",
+                "prânz",
+                "cina",
+                "cină",
+                "gustare",
+                "snack",
+            ]
+        ):
+            from modules.nutrition import parse_meal_text
+
+            parsed = parse_meal_text(text)
+            if parsed and parsed.get("description"):
+                intent_response = {
+                    "intent": "meal_log",
+                    "module": "nutrition",
+                    "data": parsed,
+                    "reply": "",
+                    "needs_confirmation": False,
+                }
+                print(f"🔧 MEAL REGEX: {parsed}")
+
         # 5. Fall back to Gemini if regex didn't match
         if not intent_response:
             intent_response = await get_gemini_response(

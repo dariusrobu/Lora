@@ -94,7 +94,7 @@ async def handle_event_intent(
             remind_msg = f" \\+ reminder {remind_minutes} min"
 
         return (
-            f"Done ✅ Adăugat *{escape_md(title)}* pentru {escape_md(date_str)}{time_msg}{remind_msg}\\.",
+            f"Done ✅ Adăugat *{escape_md(title)}* pentru {date_str}{time_msg}{remind_msg}\\.",
             None,
         )
 
