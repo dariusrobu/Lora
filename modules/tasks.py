@@ -13,23 +13,18 @@ def parse_add_task_text(text: str) -> Dict[str, Any] | None:
     """
     original = text.strip()
 
-    # Pattern 1: "adauga task proiectul X: title" or "adauga task proiectul X prioritate Y: title"
+    # Pattern 1: "adauga/add task proiectul/to project X: title"
     m = re.match(
-        r"adaug[ăa]\s+(?:task|task-ul|taskul)\s+proiectul\s+(\S+)(?:\s+prioritate[tă]?\s+(\S+))?\s*:\s*(.+)$",
+        r"(?:adaug[ăa]|add|create)\s+(?:task|task-ul|taskul)\s+(?:proiectul|to project)\s+(\S+?)\s*:\s*(.+)$",
         original,
         re.IGNORECASE,
     )
     if m:
-        result = {"title": m.group(3).strip()}
-        if m.group(1):
-            result["project"] = m.group(1)
-        if m.group(2):
-            result["priority"] = _normalize_priority(m.group(2))
-        return result
+        return {"project": m.group(1), "title": m.group(2).strip()}
 
-    # Pattern 2: "adauga task prioritate X: title"
+    # Pattern 2: "adauga/add task prioritate/priority X: title"
     m = re.match(
-        r"adaug[ăa]\s+(?:task|task-ul|taskul)\s+prioritate[tă]?\s+(\S+)\s*:\s*(.+)$",
+        r"(?:adaug[ăa]|add|create)\s+(?:task|task-ul|taskul)\s+(?:prioritate[tă]?|priority)\s+(\S+)\s*:\s*(.+)$",
         original,
         re.IGNORECASE,
     )
@@ -39,9 +34,11 @@ def parse_add_task_text(text: str) -> Dict[str, Any] | None:
             "title": m.group(2).strip(),
         }
 
-    # Pattern 3: "adauga task: title" or "adaug task title"
+    # Pattern 3: "adauga/add task: title" or "adaug/add task title"
     m = re.match(
-        r"adaug[ăa]\s+(?:task|task-ul|taskul)(?:\s*:)?\s*(.+)$", original, re.IGNORECASE
+        r"(?:adaug[ăa]|add|create)\s+(?:task|task-ul|taskul)\s*[:\-]?\s*(.+)$",
+        original,
+        re.IGNORECASE,
     )
     if m:
         return {"title": m.group(1).strip()}

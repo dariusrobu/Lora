@@ -1222,7 +1222,10 @@ Reguli:
         # 4. Try regex parser first for simple add_task patterns
         intent_response = None
         low_text = text.lower()
-        if low_text.startswith("adaug") and "task" in low_text:
+        if any(
+            low_text.startswith(p) and "task" in low_text
+            for p in ["adaug", "add", "create"]
+        ):
             from modules.tasks import parse_add_task_text
 
             parsed = parse_add_task_text(text)
