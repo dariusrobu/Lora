@@ -136,15 +136,32 @@ async def send_morning_briefing(application, pool):
         name: str = profile.get("name", "User")
         tone: str = profile.get("tone", "warm")
 
-        task_text = (
-            "\n".join(
-                f"{'OVERDUE: ' if t in overdue else ''}{t['title']}"
-                + (f" (prioritate: {t['priority']})" if t.get("priority") else "")
-                + (f" [{t['project_name']}]" if t.get("project_name") else "")
-                for t in priority_tasks
+        # If priority_tasks is empty, use all pending tasks
+        if priority_tasks:
+            tasks_to_show = priority_tasks
+        else:
+            tasks_to_show = all_tasks
+
+        # If more than 5 tasks, show summary by project
+        if len(tasks_to_show) > 5:
+            from collections import Counter
+
+            project_counts = Counter(
+                t.get("project_name") or "Fără proiect" for t in tasks_to_show
             )
-            or "Niciun task prioritar."
-        )
+            task_text = " • ".join(
+                f"{proj}: {count} task-uri" for proj, count in project_counts.items()
+            )
+        else:
+            task_text = (
+                "\n".join(
+                    f"{'OVERDUE: ' if t in overdue else ''}{t['title']}"
+                    + (f" (prioritate: {t['priority']})" if t.get("priority") else "")
+                    + (f" [{t['project_name']}]" if t.get("project_name") else "")
+                    for t in tasks_to_show
+                )
+                or "Niciun task."
+            )
 
         event_text = (
             "\n".join(
