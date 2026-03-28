@@ -41,18 +41,136 @@ def parse_add_event_text(text: str) -> Dict[str, Any] | None:
     return None
 
 
+def parse_reminder_text(text: str) -> Dict[str, Any] | None:
+    """
+    Parse reminder text like:
+    - "add reminder today at 12:38 test reminder"
+    - "reapă-mă mâine la 10:00 să îmi pregătesc rucsacul"
+    - "amintește-mi duminică să verific mail-ul"
+
+    Returns dict with 'title', 'date' (YYYY-MM-DD), 'time' (HH:MM) or None.
+    """
+    if not text:
+        return None
+
+    text = text.strip().lower()
+    today = datetime.now().date()
+
+    # Pattern to extract: "add reminder <date> at <time> <title>"
+    # or: "reapă-mă <date> la <time> <title>"
+
+    # Find time pattern (HH:MM or HH:MM:SS)
+    time_match = re.search(r"(\d{1,2}):(\d{2})(?::\d{2})?", text)
+    time_str = None
+    if time_match:
+        time_str = f"{time_match.group(1)}:{time_match.group(2)}"
+
+    # Find date keywords and convert to date
+    date_str = None
+
+    if "azi" in text or "today" in text:
+        date_str = today.strftime("%Y-%m-%d")
+    elif "mâine" in text or "tomorrow" in text:
+        date_str = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+    elif "duminică" in text:
+        # Find next Sunday
+        days_until_sunday = (6 - today.weekday()) % 7
+        if days_until_sunday == 0:
+            days_until_sunday = 7
+        date_str = (today + timedelta(days=days_until_sunday)).strftime("%Y-%m-%d")
+    elif "luni" in text:
+        days_until = (0 - today.weekday()) % 7
+        if days_until == 0:
+            days_until = 7
+        date_str = (today + timedelta(days=days_until)).strftime("%Y-%m-%d")
+    elif "marți" in text:
+        days_until = (1 - today.weekday()) % 7
+        if days_until == 0:
+            days_until = 7
+        date_str = (today + timedelta(days=days_until)).strftime("%Y-%m-%d")
+    elif "miercuri" in text:
+        days_until = (2 - today.weekday()) % 7
+        if days_until == 0:
+            days_until = 7
+        date_str = (today + timedelta(days=days_until)).strftime("%Y-%m-%d")
+    elif "joi" in text:
+        days_until = (3 - today.weekday()) % 7
+        if days_until == 0:
+            days_until = 7
+        date_str = (today + timedelta(days=days_until)).strftime("%Y-%m-%d")
+    elif "vineri" in text:
+        days_until = (4 - today.weekday()) % 7
+        if days_until == 0:
+            days_until = 7
+        date_str = (today + timedelta(days=days_until)).strftime("%Y-%m-%d")
+    elif "sâmbătă" in text or "sambata" in text:
+        days_until = (5 - today.weekday()) % 7
+        if days_until == 0:
+            days_until = 7
+        date_str = (today + timedelta(days=days_until)).strftime("%Y-%m-%d")
+    else:
+        # Default to today if no date specified
+        date_str = today.strftime("%Y-%m-%d")
+
+    # Extract title - everything after the keywords
+    # Remove common prefixes to get the title
+    title = text
+    for prefix in [
+        "add reminder",
+        "reapă-mă",
+        "reapama",
+        "amintește-mi",
+        "amintește-mi ",
+        "să mă reapă",
+        "setez reminder",
+    ]:
+        title = title.replace(prefix, "").strip()
+
+    # Remove date/time patterns from title
+    title = re.sub(r"\d{1,2}:\d{2}(?::\d{2})?", "", title).strip()
+    title = re.sub(
+        r"(azi|mâine|duminică|luni|marți|miercuri|joi|vineri|sâmbătă)", "", title
+    ).strip()
+    title = re.sub(r"\s+at\s+", " ", title).strip()
+    title = re.sub(r"\s+la\s+", " ", title).strip()
+
+    # Clean up: remove trailing "test reminder" or similar
+    # and get the meaningful part
+    title = title.strip(":").strip()
+
+    if not title:
+        title = "Reminder"
+
+    # Remove action verbs from title but keep original casing
+    title = re.sub(r"^(să|sa|sa|pentru|că|ca)\s+", "", title, flags=re.IGNORECASE)
+
+    return {"title": title, "date": date_str, "time": time_str}
+
+
 async def handle_event_intent(
     pool, intent: str, data: Dict[str, Any]
 ) -> Tuple[str, Any]:
-    if intent == "add_event":
+    if intent in ("add_event", "add_reminder"):
+        is_reminder = intent == "add_reminder"
+
+        # Try to get data from Gemini response first
         title = data.get("title") or data.get("description") or data.get("name")
         date_str = data.get("event_date") or data.get("date")
         time_str = data.get("event_time") or data.get("time")
-        remind_minutes = data.get("remind_before_minutes", 30)
-        remind_1day = data.get("remind_1day", False)
+
+        # If Gemini didn't extract data, parse from user message
+        if not title or not date_str:
+            user_msg = data.get("_user_message", "") or ""
+            parsed = parse_reminder_text(user_msg)
+            if parsed:
+                title = parsed.get("title")
+                date_str = parsed.get("date")
+                time_str = parsed.get("time")
+
+        remind_minutes = data.get("remind_before_minutes", 30) if not is_reminder else 0
 
         if not title or not date_str:
-            return "Care este evenimentul și când este?", None
+            return "Care este evenimentul/reminder-ul și când este?", None
 
         try:
             event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -65,36 +183,21 @@ async def handle_event_intent(
                 None,
             )
 
-        if remind_1day:
-            event_id = await event_queries.add_event_with_1day_reminder(
-                pool,
-                title=title,
-                event_date=event_date,
-                event_time=event_time,
-                description=data.get("description") or title,
-                is_recurring=data.get("is_recurring", False),
-                remind_before_minutes=remind_minutes,
-            )
-        else:
-            event_id = await event_queries.add_event(
-                pool,
-                title=title,
-                event_date=event_date,
-                event_time=event_time,
-                description=data.get("description") or title,
-                is_recurring=data.get("is_recurring", False),
-                remind_before_minutes=remind_minutes,
-            )
+        event_id = await event_queries.add_event(
+            pool,
+            title=title,
+            event_date=event_date,
+            event_time=event_time,
+            description=data.get("description") or title,
+            is_recurring=data.get("is_recurring", False),
+            remind_before_minutes=remind_minutes,
+            event_type="reminder" if is_reminder else "event",
+        )
 
         time_msg = f" la {time_str}" if event_time else ""
-        remind_msg = ""
-        if remind_1day:
-            remind_msg = " \\+ reminder 1 zi"
-        elif remind_minutes:
-            remind_msg = f" \\+ reminder {remind_minutes} min"
-
+        type_msg = "🔔 Reminder" if is_reminder else "📅 Eveniment"
         return (
-            f"Done ✅ Adăugat *{escape_md(title)}* pentru {date_str}{time_msg}{remind_msg}\\.",
+            f"Done ✅ {type_msg} adăugat: {escape_md(title)} pentru {date_str}{time_msg}",
             None,
         )
 
@@ -122,6 +225,38 @@ async def handle_event_intent(
                 f"• {time_str} — *{escape_md(e['title'])}* (`{format_date_short(e['event_date'])}`){remind}{day_remind}"
             )
         return "\n".join(lines), None
+
+    elif intent == "list_reminders":
+        reminders = await event_queries.list_reminders(pool)
+        if not reminders:
+            return "Nu ai reminder-e viitoare\\.", None
+
+        lines = ["🔔 *Reminder-e Viitoare:*"]
+        from bot.formatter import format_date_short
+
+        for r in reminders:
+            time_str = (
+                f" la {r['event_time'].strftime('%H:%M')}" if r["event_time"] else ""
+            )
+            lines.append(
+                f"• *{escape_md(r['title'])}* — {format_date_short(r['event_date'])}{time_str}"
+            )
+        return "\n".join(lines), None
+
+    elif intent in ("delete_event", "delete_reminder"):
+        event_id = data.get("id") or data.get("event_id")
+        title = data.get("title")
+
+        if event_id:
+            await event_queries.delete_event(pool, event_id)
+            return "Eveniment șters. ✅", None
+
+        if title:
+            event_type = "reminder" if intent == "delete_reminder" else "event"
+            await event_queries.delete_event_by_title(pool, title, event_type)
+            return f"Șters: *{escape_md(title)}*\\. ✅", None
+
+        return "Ce eveniment/reminder vrei să ștergi?", None
 
     elif intent == "edit_event_reminder":
         event_id = data.get("event_id")

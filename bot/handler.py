@@ -1306,6 +1306,7 @@ Reguli:
         )
 
         # 5. Route intent and get final reply + keyboard
+        intent_response["_user_message"] = text
         final_reply, reply_markup = await route_intent(
             pool, intent_response, bot=context.bot
         )

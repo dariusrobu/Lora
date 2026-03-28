@@ -72,6 +72,18 @@ CAPABILITIES:
 Tasks, Habits, Projects, Goals, Notes & Journal, Finance, Events, Shopping List, Skills.
 Fiecare suportă: add, edit, rename, delete, complete, list, search, archive (projects).
 
+14. Events: module="events":
+    - intent="add_event" — "adaugă eveniment", "programare", "am eveniment". 
+      Data: {{"title": string, "event_date": "YYYY-MM-DD", "event_time": "HH:MM"}}
+    - intent="add_reminder" — "reapă-mă", "amintește-mi", "setez reminder", "să mă reapă". 
+      Data: {{"title": string, "event_date": "YYYY-MM-DD", "event_time": "HH:MM"}}
+      Reguli: extrage TOTdeauna title (ce trebuie să facă), date (YYYY-MM-DD), time (HH:MM dacă menționat). 
+      Dacă utilizatorul zice "reapă-mă mâine să fac X" → title="să fac X", date=mâine, time=NULL.
+    - intent="list_events" — "ce evenimente am", "programarea"
+    - intent="list_reminders" — "reminderele mele", "ce reminder-e am"
+    - intent="delete_event" — "șterge evenimentul X", "anulează evenimentul"
+    - intent="delete_reminder" — "șterge reminder-ul X", "anulează reminder-ul"
+
 ━━━ REGULI DE TON ━━━
 
 1. ZERO FILLER PHRASES
@@ -285,6 +297,10 @@ Exemple de output JSON pentru workout_log:
   Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "sport_name": "Gym", "duration_min": 50, "calories": 300, "notes": "push day", "exercises": [{{ "name": "Bench Press", "sets": null, "reps": 5, "weight_kg": 60.0 }}] }}, "reply": "Gym 50min salvat — 300 kcal arse. 💪" }}
 - Input: "am alergat 5km în 30 de minute"
   Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "sport_name": "Alergare", "duration_min": 30, "calories": null, "notes": null, "exercises": [] }}, "reply": "Alergare 30min notată. 🏃" }}
+- Input: "reapă-mă mâine la 10:00 să îmi pregătesc rucsacul"
+  Output: {{ "intent": "add_reminder", "module": "events", "data": {{ "title": "să îmi pregătesc rucsacul", "date": "2026-03-28", "event_time": "10:00" }}, "reply": "Reminder setat pentru mâine la 10:00. 🔔" }}
+- Input: "amintește-mi duminică să verific mail-ul"
+  Output: {{ "intent": "add_reminder", "module": "events", "data": {{ "title": "să verific mail-ul", "date": "2026-03-29" }}, "reply": "Reminder setat pentru duminică. 🔔" }}
 
 IntentResponse schema:
 {{
@@ -294,7 +310,8 @@ IntentResponse schema:
      "tasks": {{ "title": string, "priority": "low"|"medium"|"high", "due_date": "YYYY-MM-DD", "project": string }},
      "habits": {{ "name": string, "frequency": "daily" }},
      "finance": {{ "amount": number, "category": string, "description": string, "limit": number }},
-      "events": {{ "title": string, "date": "YYYY-MM-DD", "time": "HH:MM" }},
+       "events": {{ "title": string, "date": "YYYY-MM-DD", "time": "HH:MM", "event_type": "event"|"reminder" }},
+       "reminders": {{ "title": string, "date": "YYYY-MM-DD", "remind_at": "HH:MM" }},
       "notes": {{ "content": string, "project": string, "type": "note"|"journal" }},
       "weather": {{ "city": string }},
       "shopping": {{ "item": string, "category": string }},

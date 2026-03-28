@@ -1,13 +1,13 @@
 # AGENTS.md — Lora Development Guide
 
-> For AI coding agents. Read before making any changes.
+> For AI coding agents. Read before making changes.
 
 ## Project Overview
 
-**Lora** is a personal Telegram bot (single-user) acting as a "second brain":
+Personal Telegram bot ("second brain") for one user:
 - **Python** 3.11+ with required type hints
 - **Telegram**: `python-telegram-bot==22.6` (async, long polling)
-- **LLM**: `google-genai` SDK with `gemini-2.5-flash`
+- **LLM**: `google-genai` SDK with `gemini-2.0-flash`
 - **Database**: Neon PostgreSQL via `asyncpg` — **no ORM**
 - **Scheduler**: `apscheduler==3.10.4`
 
@@ -16,10 +16,10 @@
 ## Commands
 
 ```bash
-# Install
+# Install dependencies
 pip install -r requirements.txt
 
-# Run
+# Run the bot
 python main.py
 
 # Lint (required before commit)
@@ -28,7 +28,7 @@ ruff check .
 # Database init
 psql $DATABASE_URL -f db/schema.sql
 
-# Tests (if added)
+# Tests
 pytest tests/                    # All tests
 pytest tests/test_tasks.py -v    # Single file
 ```
@@ -53,7 +53,7 @@ from datetime import datetime
 # third-party
 import asyncpg
 
-# local (absolute, no relative)
+# local (absolute imports, no relative)
 from db.queries.tasks import add_task
 from bot.formatter import escape_md
 ```
@@ -92,7 +92,7 @@ async def get_user(pool, user_id: int) -> Optional[Dict[str, Any]]:
 ```
 
 **Rules**:
-- Use `$1, $2` placeholders — never f-strings
+- Use `$1, $2` placeholders — never f-strings or string interpolation
 - Keep queries in `db/queries/{module}.py`
 - Use `json.loads()` for JSON columns
 
@@ -123,39 +123,9 @@ Use `bot/formatter.py`:
 | `safe_markdown(text)` | Gemini output, formatted strings |
 | `split_message(text)` | Messages over 4096 chars |
 
-```python
-# Bad
-f"Book: *{title}*"
+**Characters to escape**: `_` `*` `[` `]` `(` `)` `~` `` ` `` `>` `#` `+` `-` `=` `|` `{` `}` `.` `!`
 
-# Good
-f"Book: *{escape_md(title)}*"
-```
-
-**Escape**: `_` `*` `[` `]` `(` `)` `~` `` ` `` `>` `#` `+` `-` `=` `|` `{` `}` `.` `!`
-
-## Gemini Response Contract
-
-```json
-{
-  "intent": "add_task",
-  "data": {"title": "Buy milk", "project": "Home"},
-  "reply": "Task adăugat ✅ *Buy milk*"
-}
-```
-
-- `data` contains extracted values, `reply` is confirmation only
-- Parse with `json.loads()`, handle `\\"` escape sequences
-
-## Regex Parser for Tasks
-
-Simple `add task` patterns bypass Gemini via regex in `modules/tasks.py`:
-
-```python
-from modules.tasks import parse_add_task_text
-
-parsed = parse_add_task_text("adauga task proiectul freelancing: crează site")
-# Returns: {"title": "crează site", "project": "freelancing"}
-```
+**Date strings should NOT be escape_md'd** — `escape_md("2026-03-26")` produces `2026\\-03\\-26` which breaks MarkdownV2.
 
 ## State Machine (`core/state.py`)
 
@@ -166,23 +136,6 @@ await clear_state(pool)
 ```
 
 **States**: `awaiting_confirmation`, `awaiting_edit_field`, `awaiting_focus_result`, `null`
-
-## Scheduler Jobs (`scheduler/jobs.py`)
-
-```python
-async def send_morning_briefing(app: Application):
-    try:
-        pool = app.bot_data["pool"]
-        if last == today:
-            return  # idempotent
-        # ... logic ...
-    except Exception as e:
-        print(f"ERROR in send_morning_briefing: {e}")
-```
-
-- Wrap in try/except
-- Check `last_*_date` for idempotency
-- Use `misfire_grace_time=3600`
 
 ## Folder Structure
 

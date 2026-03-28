@@ -6,6 +6,7 @@ from core.config import (
     TIMEZONE,
     MORNING_BRIEFING_TIME,
     EOD_REFLECTION_TIME,
+    HABIT_REMINDER_TIME,
 )
 from bot.formatter import escape_md, safe_markdown
 from telegram.constants import ParseMode
@@ -110,12 +111,14 @@ async def send_morning_briefing(application, pool):
         (
             all_tasks,
             events,
+            reminders,
             skills,
             weather_info,
             shopping_items,
         ) = await asyncio.gather(
             task_queries.list_tasks(pool),
             event_queries.list_events(pool, today, today),
+            event_queries.list_reminders(pool),
             skill_queries.get_all_skills(pool),
             get_weather_summary(),
             list_shopping_items(pool),
@@ -151,6 +154,14 @@ async def send_morning_briefing(application, pool):
             or "Niciun eveniment."
         )
 
+        reminder_text = (
+            "\n".join(
+                f"{r['title']} ({r['event_date'].strftime('%d %b')})"
+                for r in reminders[:5]
+            )
+            or "Niciun reminder."
+        )
+
         skill_text = "\n".join(s["name"] for s in pending_skills) or "Totul e la zi."
 
         gemini_context = f"""USER: {name}
@@ -163,6 +174,9 @@ TASKS PRIORITARE:
 
 EVENIMENTE AZI:
 {event_text}
+
+REMINDERE URMĂTOARE:
+{reminder_text}
 
 SKILLS PENDING AZI:
 {skill_text}
@@ -970,16 +984,21 @@ async def check_event_reminders(application, pool):
         )
 
         for e in events:
-            remind_min = e.get("remind_before_minutes", 30)
-            time_str = (
-                e["event_time"].strftime("%H:%M")
-                if e.get("event_time")
-                else "toată ziua"
-            )
+            event_type = e.get("event_type", "event")
+            is_reminder = event_type == "reminder"
 
-            msg = f"🔔 *{escape_md(e['title'])}* în {remind_min} minute\n⏰ {time_str}"
-            if e.get("description"):
-                msg += f"\n📝 {escape_md(e['description'])}"
+            if is_reminder:
+                msg = f"🔔 *Reminder:* {escape_md(e['title'])}"
+            else:
+                remind_min = e.get("remind_before_minutes", 30)
+                time_str = (
+                    e["event_time"].strftime("%H:%M")
+                    if e.get("event_time")
+                    else "toată ziua"
+                )
+                msg = f"🔔 *{escape_md(e['title'])}* în {remind_min} minute\n⏰ {time_str}"
+                if e.get("description"):
+                    msg += f"\n📝 {escape_md(e['description'])}"
 
             keyboard = InlineKeyboardMarkup(
                 [
@@ -1018,25 +1037,95 @@ async def check_event_day_reminders(application, pool):
         tomorrow = (datetime.now().date()) + timedelta(days=1)
         events = await event_queries.get_events_for_day_reminder(pool, tomorrow)
 
-        if not events:
+        for e in events:
+            time_str = (
+                e["event_time"].strftime("%H:%M")
+                if e.get("event_time")
+                else "toată ziua"
+            )
+            msg = f"📅 *Mâine:* {escape_md(e['title'])}\n⏰ {time_str}"
+            if e.get("description"):
+                msg += f"\n📝 {escape_md(e['description'])}"
+
+            keyboard = InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "👍 Ok", callback_data=f"event_day_ack:{e['id']}"
+                        ),
+                    ]
+                ]
+            )
+
+            await application.bot.send_message(
+                chat_id=TELEGRAM_USER_ID,
+                text=msg,
+                parse_mode=ParseMode.MARKDOWN_V2,
+                reply_markup=keyboard,
+            )
+
+            await event_queries.mark_day_reminder_sent(pool, e["id"], tomorrow)
+            print(f"Day reminder sent for: {e['title']}", flush=True)
+
+        print(f"Day reminder sent for {len(events)} events tomorrow", flush=True)
+
+    except Exception as e:
+        print(f"Error in check_event_day_reminders: {e}", flush=True)
+        import traceback
+
+        traceback.print_exc()
+
+
+async def check_habit_reminders(application, pool) -> None:
+    """Checks habits due today that haven't been logged and sends reminders."""
+    try:
+        from telegram.constants import ParseMode
+
+        today = datetime.now().weekday()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT h.id, h.name, h.streak_count
+                FROM habits h
+                WHERE h.is_active = TRUE
+                  AND $1 = ANY(h.target_days)
+                  AND NOT EXISTS (
+                    SELECT 1 FROM habit_logs hl
+                    WHERE hl.habit_id = h.id AND hl.log_date = CURRENT_DATE
+                  )
+                ORDER BY h.streak_count ASC, h.name ASC
+                """,
+                today,
+            )
+
+        if not rows:
             return
 
-        lines = ["📅 *Evenimente mâine:*\n"]
-        for e in events:
-            time_str = e["event_time"].strftime("%H:%M") if e.get("event_time") else "—"
-            lines.append(f"• `{time_str}` — *{escape_md(e['title'])}*")
-
-        lines.append("\nNu uita să te pregătești!")
-
-        keyboard = InlineKeyboardMarkup(
-            [
-                [
-                    InlineKeyboardButton("👍 Ok", callback_data="event_day_ack"),
-                ]
-            ]
+        habit_list = "\n".join(f"• {escape_md(h['name'])}" for h in rows)
+        msg = (
+            f"🔔 *Habite de făcut azi:*\n{habit_list}\n\n"
+            f"Fă click pe ce ai realizat sau sări peste."
         )
 
-        msg = "\n".join(lines)
+        from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+
+        keyboard_buttons = [
+            [
+                InlineKeyboardButton(
+                    f"✅ {h['name'][:15]}",
+                    callback_data=f"habit_done:{h['id']}",
+                )
+            ]
+            for h in rows[:5]
+        ]
+
+        if len(rows) > 5:
+            keyboard_buttons.append(
+                [InlineKeyboardButton("📋 Vezi toate", callback_data="list_habits")]
+            )
+
+        keyboard = InlineKeyboardMarkup(keyboard_buttons)
+
         await application.bot.send_message(
             chat_id=TELEGRAM_USER_ID,
             text=msg,
@@ -1044,182 +1133,95 @@ async def check_event_day_reminders(application, pool):
             reply_markup=keyboard,
         )
 
-        for e in events:
-            await event_queries.mark_day_reminder_sent(pool, e["id"], tomorrow)
-
-        print(f"Day reminder sent for {len(events)} events tomorrow", flush=True)
+        print(f"Habit reminder sent for {len(rows)} habits", flush=True)
 
     except Exception as e:
-        print(f"Error in check_event_day_reminders: {e}", flush=True)
-
-
-async def send_monthly_review(bot, pool) -> None:
-    """Aggregates monthly data and sends a reflective review on the 1st of each month."""
-    from bot.formatter import safe_markdown
-    from datetime import timedelta
-    import asyncio
-
-    try:
-        user_tz = pytz.timezone(TIMEZONE)
-        today = datetime.now(user_tz).date()
-
-        # 1. Idempotency Check
-        from db.queries.profile import get_user_profile, update_user_profile
-
-        profile = await get_user_profile(pool, TELEGRAM_USER_ID)
-
-        if (
-            profile.get("last_monthly_review_date")
-            and profile.get("last_monthly_review_date").month == today.month
-            and profile.get("last_monthly_review_date").year == today.year
-        ):
-            print(
-                f"Monthly review already sent for {today.month}/{today.year} — skipping.",
-                flush=True,
-            )
-            return
-
-        print(f"Starting monthly review for {today}...", flush=True)
-
-        # 2. Date Range (Last 30 days)
-        start_date = today - timedelta(days=30)
-        end_date = today
-
-        # 3. Aggregated Data Collection (LUNARE - NU morning briefing)
-        # Using task_queries.get_monthly_task_stats instead of morning list_tasks
-        from db.queries.tasks import get_monthly_task_stats
-        from db.queries.goals import get_goals_progress_delta
-        from db.queries.finance import get_monthly_comparison
-        from db.queries.health import get_monthly_health_avg
-        from db.queries.notes import get_monthly_mood_distribution
-
-        (
-            task_stats,
-            goals_data,
-            finance_comparison,
-            health_avg,
-            mood_distribution,
-        ) = await asyncio.gather(
-            get_monthly_task_stats(pool, start_date, end_date),
-            get_goals_progress_delta(pool),
-            get_monthly_comparison(pool),
-            get_monthly_health_avg(pool, start_date, end_date),
-            get_monthly_mood_distribution(pool, start_date, end_date),
-        )
-
-        # Set last_monthly_review_date AT START of sending logic
-        await update_user_profile(
-            pool, TELEGRAM_USER_ID, last_monthly_review_date=today
-        )
-
-        # 4. Gemini Review Generation
-        from core.gemini import get_proactive_response
-
-        month_names = [
-            "",
-            "Ianuarie",
-            "Februarie",
-            "Martie",
-            "Aprilie",
-            "Mai",
-            "Iunie",
-            "Iulie",
-            "August",
-            "Septembrie",
-            "Octombrie",
-            "Noiembrie",
-            "Decembrie",
-        ]
-        month_name = month_names[today.month]
-        user_name = profile.get("name", "Robu")
-
-        data_ctx = f"""
-        Months Review Context (Last 30 days):
-        Tasks: {task_stats}
-        Goals: {goals_data}
-        Finance (vs last month): {finance_comparison}
-        Health (monthly averages): {health_avg}
-        Mood (monthly distribution): {mood_distribution}
-        """
-
-        system_instruction = f"""
-        Generează un raport MONTHLY REVIEW pentru {user_name}. Datele sunt din ultimele 30 zile.
-        
-        {data_ctx}
-        
-        Format EXACT:
-        📊 Review lunar — {month_name} {today.year}
-        ━━━━━━━━━━━━━━━━━
-        
-        ✅ Tasks: [X] completate din [Y] create ([Z]%)
-        🎯 Goals: [care a avansat] / [care e blocat sau omite dacă toate active]
-        💰 Finance: [total] RON — [comparație față de luna trecută]
-        😴 Health: somn mediu [X]h · apă [X]L · greutate [stabil/+X/-X kg]
-        😊 Mood: [dominant] — [distribuție scurtă ex: 8 bune, 3 neutre, 1 proastă]
-        
-        🔍 Pattern: [1-2 observații concrete bazate pe corelații reale, omite dacă nu există]
-        💡 Luna viitoare: [1 singur lucru specific bazat pe date]
-        
-        Reguli STRICTE:
-        - MAX 200 cuvinte
-        - Fără laudă, fără fluff, fără "Felicitări"
-        - Dacă date insuficiente pentru o secțiune: omite complet
-        - "Luna viitoare" bazat exclusiv pe date, nu pe presupuneri
-        - Limba: română
-        - Telegram MarkdownV2 raw
-        """
-
-        review_text = await get_proactive_response(system_instruction, data_ctx)
-
-        if not review_text:
-            review_text = f"📊 Review lunar — {month_name} {today.year}\n\nNu am putut genera review-ul complet, dar continuă să evoluezi! 🚀"
-
-        # 5. Send Text Message
-        await bot.send_message(
-            chat_id=TELEGRAM_USER_ID,
-            text=safe_markdown(review_text),
-            parse_mode=ParseMode.MARKDOWN_V2,
-        )
-
-        # 6. Send Voice Version (TTS)
-        try:
-            from bot.tts import text_to_speech
-            import os
-
-            # Clean text for TTS
-            tts_clean = (
-                review_text.replace("*", "")
-                .replace("📊", "")
-                .replace("✅", "")
-                .replace("🔁", "")
-                .replace("🎯", "")
-                .replace("💰", "")
-                .replace("😴", "")
-                .replace("😊", "")
-                .replace("🔍", "")
-                .replace("💡", "")
-                .replace("━━━━━━━━━━━━━━━━━", "")
-                .strip()
-            )
-            voice_file = await text_to_speech(tts_clean, podcast_mode=True)
-            with open(voice_file, "rb") as f:
-                await bot.send_voice(
-                    chat_id=TELEGRAM_USER_ID,
-                    voice=f,
-                    caption=f"🎙️ *Lora: Monthly Review - {month_name}*",
-                    parse_mode=ParseMode.MARKDOWN_V2,
-                )
-            if os.path.exists(voice_file):
-                os.remove(voice_file)
-        except Exception as ve:
-            print(f"Monthly review voice error: {ve}", flush=True)
-
-        print(f"Monthly review sent successfully for {today}.", flush=True)
-
-    except Exception as e:
+        print(f"Error in check_habit_reminders: {e}", flush=True)
         import traceback
 
-        print(f"CRITICAL error in send_monthly_review: {e}", flush=True)
+        traceback.print_exc()
+
+
+async def check_task_deadline_reminders(application, pool) -> None:
+    """Checks for tasks due today or overdue and sends reminders."""
+    try:
+        from telegram.constants import ParseMode
+
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT t.id, t.title, t.due_date, t.priority, p.name as project_name
+                FROM tasks t
+                LEFT JOIN projects p ON t.project_id = p.id
+                WHERE t.status = 'pending'
+                  AND t.due_date IS NOT NULL
+                  AND t.due_date <= CURRENT_DATE + INTERVAL '1 day'
+                ORDER BY 
+                    CASE t.priority 
+                        WHEN 'high' THEN 1 
+                        WHEN 'medium' THEN 2 
+                        ELSE 3 
+                    END,
+                    t.due_date ASC
+                LIMIT 10
+                """
+            )
+
+        if not rows:
+            return
+
+        overdue = [t for t in rows if t["due_date"] < datetime.now().date()]
+        due_today = [t for t in rows if t["due_date"] == datetime.now().date()]
+
+        from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+
+        if overdue:
+            overdue_list = "\n".join(
+                f"• [{p}] {escape_md(t['title'])}"
+                for t, p in [
+                    (t, t.get("project_name") or "fără proiect") for t in overdue
+                ]
+            )
+            msg = f"🚨 *Task-uri peste termen ({len(overdue)}):*\n{overdue_list}\n"
+        else:
+            msg = ""
+
+        if due_today:
+            due_list = "\n".join(
+                f"• [{p}] {escape_md(t['title'])}"
+                for t, p in [
+                    (t, t.get("project_name") or "fără proiect") for t in due_today
+                ]
+            )
+            msg += f"📋 *Task-uri pentru azi ({len(due_today)}):*\n{due_list}"
+
+        keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "✅ Mark done", callback_data="task_reminder_dismiss"
+                    ),
+                    InlineKeyboardButton("📝 Note", callback_data="view_pending_tasks"),
+                ]
+            ]
+        )
+
+        await application.bot.send_message(
+            chat_id=TELEGRAM_USER_ID,
+            text=msg,
+            parse_mode=ParseMode.MARKDOWN_V2,
+            reply_markup=keyboard,
+        )
+
+        print(
+            f"Task deadline reminder sent: {len(overdue)} overdue, {len(due_today)} due today",
+            flush=True,
+        )
+
+    except Exception as e:
+        print(f"Error in check_task_deadline_reminders: {e}", flush=True)
+        import traceback
+
         traceback.print_exc()
 
 
@@ -1310,15 +1312,16 @@ def setup_scheduler(application, pool):
         args=[application, pool],
     )
 
-    scheduler.add_job(
-        send_monthly_review,
-        "cron",
-        day=1,
-        hour=20,
-        minute=0,
-        misfire_grace_time=3600,
-        args=[application.bot, pool],
-    )
+    # Monthly Review - disabled until implemented
+    # scheduler.add_job(
+    #     send_monthly_review,
+    #     "cron",
+    #     day=1,
+    #     hour=20,
+    #     minute=0,
+    #     misfire_grace_time=3600,
+    #     args=[application.bot, pool],
+    # )
 
     # Weekly Finance Summary: Monday, 5 mins before Morning Briefing
     f_h, f_m = m_h, (m_m - 5) % 60
@@ -1373,6 +1376,31 @@ def setup_scheduler(application, pool):
         check_event_day_reminders,
         "cron",
         hour=20,
+        minute=0,
+        misfire_grace_time=3600,
+        args=[application, pool],
+    )
+
+    # Habit reminder - Daily at configured time (default 18:00)
+    h_h, h_m = (
+        map(int, HABIT_REMINDER_TIME.split(":"))
+        if "HABIT_REMINDER_TIME" in dir()
+        else (18, 0)
+    )
+    scheduler.add_job(
+        check_habit_reminders,
+        "cron",
+        hour=h_h,
+        minute=h_m,
+        misfire_grace_time=3600,
+        args=[application, pool],
+    )
+
+    # Task deadline reminder - Daily at 09:00
+    scheduler.add_job(
+        check_task_deadline_reminders,
+        "cron",
+        hour=9,
         minute=0,
         misfire_grace_time=3600,
         args=[application, pool],

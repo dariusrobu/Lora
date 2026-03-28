@@ -22,6 +22,15 @@ def parse_add_task_text(text: str) -> Dict[str, Any] | None:
     if m:
         return {"project": m.group(1), "title": m.group(2).strip()}
 
+    # Pattern 1b: "add task project X: title" (flexible, handles typos like "tasj")
+    m = re.match(
+        r"(?:adaug[ăa]|add|creat[ăe])\s+ta?s?k?\w*\s+project\s+(\S+?)\s*:\s*(.+)$",
+        original,
+        re.IGNORECASE,
+    )
+    if m:
+        return {"project": m.group(1), "title": m.group(2).strip()}
+
     # Pattern 2: "adauga/add task prioritate/priority X: title"
     m = re.match(
         r"(?:adaug[ăa]|add|create)\s+(?:task|task-ul|taskul)\s+(?:prioritate[tă]?|priority)\s+(\S+)\s*:\s*(.+)$",
@@ -42,6 +51,20 @@ def parse_add_task_text(text: str) -> Dict[str, Any] | None:
     )
     if m:
         return {"title": m.group(1).strip()}
+
+    # Pattern 4: Just extract everything after "add task" as title
+    m = re.match(
+        r"(?:adaug[ăa]|add|creat[ăe])\s+ta?s?k?\w*\s+(.+)$",
+        original,
+        re.IGNORECASE,
+    )
+    if m:
+        rest = m.group(1).strip()
+        # Try to split by colon for project: title
+        parts = rest.split(":", 1)
+        if len(parts) == 2:
+            return {"project": parts[0].strip(), "title": parts[1].strip()}
+        return {"title": rest}
 
     return None
 
@@ -249,9 +272,23 @@ async def handle_task_intent(
             or data.get("name")
             or data.get("text")
         )
+        priority: str | None = data.get("priority")
+        project_name: str | None = data.get("project") or data.get("project_name")
         if not title:
-            # Fallback: if Gemini put the title in the reply or data is empty
-            return "What task should I add? (I didn't catch the title)", None
+            # Fallback: try to parse from original user message
+            user_msg = data.get("_user_message", "")
+            if user_msg:
+                parsed = parse_add_task_text(user_msg)
+                if parsed:
+                    title = parsed.get("title")
+                    if not title:
+                        title = parsed.get("name")
+                    if not project_name and parsed.get("project"):
+                        project_name = parsed.get("project")
+                    if not priority and parsed.get("priority"):
+                        priority = parsed.get("priority")
+            if not title:
+                return "What task should I add? (I didn't catch the title)", None
 
         due_date_str = data.get("due_date")
         due_date = None
@@ -261,8 +298,9 @@ async def handle_task_intent(
             except Exception:
                 pass
 
+        priority = priority or "medium"
         project_id = data.get("project_id") or data.get("id")
-        project_name = data.get("project") or data.get("project_name")
+        project_name = project_name or data.get("project") or data.get("project_name")
 
         if not project_id and project_name:
             import db.queries.projects as project_queries

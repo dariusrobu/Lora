@@ -60,6 +60,31 @@ CREATE TABLE IF NOT EXISTS projects (
     updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ── Habits ──────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS habits (
+    id              SERIAL PRIMARY KEY,
+    name            TEXT NOT NULL,
+    description     TEXT,
+    frequency       TEXT DEFAULT 'daily'
+                    CHECK (frequency IN ('daily', 'weekly')),
+    target_days     INT[] DEFAULT ARRAY[0,1,2,3,4,5,6],  -- 0=Monday
+    streak_count    INT DEFAULT 0,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    is_active       BOOLEAN DEFAULT TRUE
+);
+CREATE INDEX IF NOT EXISTS idx_habits_active ON habits(is_active);
+
+CREATE TABLE IF NOT EXISTS habit_logs (
+    id          SERIAL PRIMARY KEY,
+    habit_id    INTEGER REFERENCES habits(id) ON DELETE CASCADE,
+    log_date    DATE NOT NULL DEFAULT CURRENT_DATE,
+    status      TEXT DEFAULT 'done'
+                CHECK (status IN ('done', 'skipped', 'missed')),
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(habit_id, log_date)
+);
+CREATE INDEX IF NOT EXISTS idx_habit_logs_date ON habit_logs(log_date DESC);
+
 -- ── Tasks ─────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS tasks (
     id            SERIAL PRIMARY KEY,
@@ -129,16 +154,22 @@ CREATE TABLE IF NOT EXISTS events (
     description            TEXT,
     event_date             DATE NOT NULL,
     event_time             TIME,
+    event_type             TEXT DEFAULT 'event' CHECK (event_type IN ('event', 'reminder')),
     project_id             INT REFERENCES projects(id) ON DELETE SET NULL,
     is_recurring           BOOLEAN DEFAULT FALSE,
     recurrence             TEXT CHECK (recurrence IN ('daily','weekly','monthly','yearly', NULL)),
-    remind_before_minutes  INT DEFAULT 30,           -- custom reminder (30 = 30 min before)
-    reminded_at            TIMESTAMPTZ,              -- when time-based reminder was sent
-    remind_1day            BOOLEAN DEFAULT FALSE,   -- separate 1-day reminder flag
+    remind_before_minutes  INT DEFAULT 30,
+    reminded_at            TIMESTAMPTZ,
+    remind_1day            BOOLEAN DEFAULT FALSE,
     created_at             TIMESTAMPTZ DEFAULT NOW(),
     updated_at             TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX idx_events_date ON events(event_date);
+CREATE INDEX idx_events_type ON events(event_type);
+
+-- Migration: Ensure event_type is not null for existing rows
+UPDATE events SET event_type = 'event' WHERE event_type IS NULL;
+ALTER TABLE events ALTER COLUMN event_type SET NOT NULL;
 
 -- ── Event Day Reminders (separate table for 1-day reminders) ───
 CREATE TABLE IF NOT EXISTS event_day_reminders (
@@ -353,3 +384,59 @@ ON CONFLICT (id) DO NOTHING;
 -- ── Health Settings ─────────────────────────────────────────────────
 -- Water target per day (ml)
 ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS water_target_ml INT DEFAULT 2500;
+
+-- ── University Schedule ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS subjects (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT NOT NULL,
+    teacher     TEXT,
+    location    TEXT,
+    avg_grade   NUMERIC(4, 2),
+    target_grade NUMERIC(4, 2),
+    created_at  TIMESTAMP DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subjects_name ON subjects (name);
+
+CREATE TABLE IF NOT EXISTS schedule (
+    id              SERIAL PRIMARY KEY,
+    subject_id      INTEGER REFERENCES subjects(id) ON DELETE CASCADE,
+    subject_name    TEXT NOT NULL,
+    day_of_week     INT NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+    start_time      TIME NOT NULL,
+    end_time        TIME NOT NULL,
+    room            TEXT,
+    class_type      TEXT CHECK (class_type IN ('curs', 'seminar', 'laborator', 'curs+seminars')),
+    week_type       TEXT CHECK (week_type IN ('par', 'impar', 'both')),
+    is_active       BOOLEAN DEFAULT TRUE,
+    created_at      TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_schedule_day ON schedule(day_of_week);
+CREATE INDEX IF NOT EXISTS idx_schedule_active ON schedule(is_active, day_of_week, week_type);
+
+CREATE TABLE IF NOT EXISTS schedule_reminders_sent (
+    schedule_id     INTEGER REFERENCES schedule(id) ON DELETE CASCADE,
+    reminder_date   DATE NOT NULL,
+    sent_at         TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (schedule_id, reminder_date)
+);
+
+CREATE TABLE IF NOT EXISTS attendance (
+    id              SERIAL PRIMARY KEY,
+    schedule_id     INTEGER REFERENCES schedule(id) ON DELETE CASCADE,
+    attendance_date DATE NOT NULL,
+    status          TEXT CHECK (status IN ('present', 'absent', 'excused')),
+    created_at      TIMESTAMP DEFAULT NOW(),
+    UNIQUE(schedule_id, attendance_date)
+);
+CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(attendance_date);
+
+CREATE TABLE IF NOT EXISTS exams (
+    id              SERIAL PRIMARY KEY,
+    subject_id      INTEGER REFERENCES subjects(id) ON DELETE CASCADE,
+    exam_date       DATE NOT NULL,
+    exam_type       TEXT CHECK (exam_type IN ('partial', 'final', 're-exam')),
+    room            TEXT,
+    notes           TEXT,
+    created_at      TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_exams_date ON exams(exam_date);
