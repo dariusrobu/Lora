@@ -7,6 +7,7 @@ from core.config import GEMINI_API_KEY
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
+
 async def transcribe_voice(update, context) -> str:
     """
     Download voice file from Telegram, transcribe with Gemini multimodal,
@@ -23,26 +24,28 @@ async def transcribe_voice(update, context) -> str:
     # 1. Get file from Telegram
     print(f"🎙 VOICE: Downloading file_id {voice.file_id}...", flush=True)
     voice_file = await context.bot.get_file(voice.file_id)
-    
+
     # 2. Download to temp file
     with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp_file:
         tmp_path = tmp_file.name
-    
+
     try:
         await voice_file.download_to_drive(tmp_path)
-        print(f"🎙 VOICE: Downloaded to {tmp_path}, size={os.path.getsize(tmp_path)} bytes", flush=True)
-        
+        print(
+            f"🎙 VOICE: Downloaded to {tmp_path}, size={os.path.getsize(tmp_path)} bytes",
+            flush=True,
+        )
+
         # 3. Upload to Gemini
         print(f"🎙 VOICE: Uploading to Gemini...", flush=True)
         myfile = client.files.upload(
-            file=tmp_path,
-            config=types.UploadFileConfig(mime_type="audio/ogg")
+            file=tmp_path, config=types.UploadFileConfig(mime_type="audio/ogg")
         )
         print(f"🎙 VOICE: Uploaded, URI: {myfile.uri}", flush=True)
-        
+
         # 4. Call Gemini for transcription
-        prompt = "Transcribe this voice message exactly as spoken. Return only the transcribed text, nothing else."
-        
+        prompt = "Transcribe this voice message in ROMANIAN. The user speaks Romanian. Return only the transcribed text, nothing else."
+
         print(f"🎙 VOICE: Requesting transcription...", flush=True)
         response = client.models.generate_content(
             model="gemini-2.5-flash",
@@ -50,13 +53,15 @@ async def transcribe_voice(update, context) -> str:
                 types.Content(
                     role="user",
                     parts=[
-                        types.Part.from_uri(file_uri=myfile.uri, mime_type=myfile.mime_type),
-                        types.Part.from_text(text=prompt)
-                    ]
+                        types.Part.from_uri(
+                            file_uri=myfile.uri, mime_type=myfile.mime_type
+                        ),
+                        types.Part.from_text(text=prompt),
+                    ],
                 )
-            ]
+            ],
         )
-        
+
         transcription = response.text.strip()
         print(f"🎙 VOICE: Transcription result: {repr(transcription)}", flush=True)
         return transcription

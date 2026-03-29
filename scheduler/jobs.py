@@ -478,9 +478,23 @@ SKILLS PENDING AZI:
 
     except Exception as e:
         import traceback
+        import logging
 
+        logger = logging.getLogger(__name__)
+        logger.error(
+            f"CRITICAL error in send_morning_briefing: {e}\n{traceback.format_exc()}"
+        )
         print(f"CRITICAL error in send_morning_briefing: {e}", flush=True)
         traceback.print_exc()
+        # Try to notify user if possible
+        try:
+            if "application" in dir() and hasattr(application, "bot"):
+                await application.bot.send_message(
+                    chat_id=TELEGRAM_USER_ID,
+                    text=f"❌ Eroare la briefing: {str(e)[:200]}",
+                )
+        except Exception as notify_error:
+            print(f"Could not notify user of error: {notify_error}", flush=True)
 
 
 async def send_evening_flow(application, pool):

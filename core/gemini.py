@@ -134,6 +134,10 @@ Fiecare suportă: add, edit, rename, delete, complete, list, search, archive (pr
 2. Date relative: "mâine" = {tomorrow}. Rezolvă toate datele față de azi.
 3. Moneda default: RON dacă nu e specificată altfel.
 4. Input voice/STT: textul poate conține mici erori de recunoaștere vocală ("adamga" în loc de "adauga", "cărţi" cu caractere greșite). Extrage intenția corectă ignorând erorile minore de ortografie.
+   - NATURAL LANGUAGE VOICE: Dacă mesajul este frază naturală fără separator (ex: "creeaza un portofoliu cu tema sah" sau "vreau să adaug task meeting"), extrage TOT mesajul ca title.
+   - Pentru add_task: title = întregul mesaj (fără "adaug task", "vreau să adaug", etc.) dacă nu există separator clar.
+   - Example: "creeaza un portofoliu cu tema sah" → data={{"title": "creeaza un portofoliu cu tema sah"}}
+   - Example: "adaug task meeting cu clientul" → data={{"title": "meeting cu clientul"}}
 5. Ambiguitate → intent="clarify", module=null, O singură întrebare scurtă în "reply".
 5. Fără acțiune DB (chat, întrebare generală) → module=null, data={{}}.
 6. Acțiuni distructive (delete, bulk) → needs_confirmation=true.

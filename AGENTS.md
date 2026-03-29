@@ -25,12 +25,16 @@ python main.py
 # Lint (required before commit)
 ruff check .
 
+# Format code
+ruff format .
+
 # Database init
 psql $DATABASE_URL -f db/schema.sql
 
 # Tests
-pytest tests/                    # All tests
-pytest tests/test_tasks.py -v    # Single file
+pytest tests/                         # All tests
+pytest tests/test_tasks.py -v         # Single file
+pytest tests/test_tasks.py::test_foo  # Single test function
 ```
 
 ## Code Style
@@ -65,6 +69,20 @@ from bot.formatter import escape_md
 | Functions | `snake_case` | `async def get_user_profile` |
 | Classes | `PascalCase` | `MyValidator` |
 | Constants | `UPPER_SNAKE_CASE` | `TELEGRAM_BOT_TOKEN` |
+
+### Docstrings (Google Style)
+```python
+async def get_user(pool, user_id: int) -> Optional[Dict[str, Any]]:
+    """Fetch user by ID from database.
+    
+    Args:
+        pool: Database connection pool.
+        user_id: The user's Telegram ID.
+    
+    Returns:
+        User dict or None if not found.
+    """
+```
 
 ## Error Handling
 

@@ -44,8 +44,9 @@ def parse_add_task_text(text: str) -> Dict[str, Any] | None:
         }
 
     # Pattern 3: "adauga/add task: title" or "adaug/add task title"
+    # Simplified pattern that handles "adaug task:" as a unit
     m = re.match(
-        r"(?:adaug[ăa]|add|create)\s+(?:task|task-ul|taskul)\s*[:\-]?\s*(.+)$",
+        r"(?:adaug|add|create)\s*task\s*[:\-]?\s*(.+)$",
         original,
         re.IGNORECASE,
     )
@@ -54,7 +55,7 @@ def parse_add_task_text(text: str) -> Dict[str, Any] | None:
 
     # Pattern 4: Just extract everything after "add task" as title
     m = re.match(
-        r"(?:adaug[ăa]|add|creat[ăe])\s+ta?s?k?\w*\s+(.+)$",
+        r"(?:adaug|add|create)\s*task\s+(.+)$",
         original,
         re.IGNORECASE,
     )

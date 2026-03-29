@@ -148,25 +148,20 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
                 None,
             )
 
-        # We need the application object to call send_morning_briefing
-        # But wait, send_morning_briefing needs 'application'
-        # In handler.py, we have context.application.
-        # router.py takes 'bot' as an optional argument.
-        # Let's check if we can get application from somewhere or if we need to pass it.
-
-        # Actually, send_morning_briefing uses application.bot.
-        # If we have 'bot', we can wrap it or modify send_morning_briefing.
-        # Better: let's see how morning briefing is normally called.
-
-        # The user's request says: "apelează send_morning_briefing() imediat"
-        # I should probably pass a mock application if I only have the bot.
-
+        # Create a proper mock application that has what send_morning_briefing needs
         class MockApp:
-            def __init__(self, bot):
-                self.bot = bot
+            def __init__(self, bot_instance):
+                self.bot = bot_instance
 
         if bot:
-            await send_morning_briefing(MockApp(bot), pool)
+            try:
+                await send_morning_briefing(MockApp(bot), pool)
+            except Exception as e:
+                import traceback
+
+                print(f"Error in trigger_morning_briefing: {e}", flush=True)
+                traceback.print_exc()
+                return f"❌ Eroare: {str(e)[:100]}", None
             return None, None  # The job sends its own messages
         else:
             return "Nu am putut iniția briefing-ul manual (lipsă bot context).", None

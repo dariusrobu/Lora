@@ -131,8 +131,9 @@ async def get_events_needing_reminder(
                   AND e.reminded_at IS NULL
                   AND e.event_date = CURRENT_DATE
                   AND e.remind_before_minutes > 0
-                  AND (e.event_time::timestamp - INTERVAL '1 minute' * e.remind_before_minutes)
-                      BETWEEN (NOW() - INTERVAL '5 minutes') AND (NOW() + INTERVAL '5 minutes'))
+                  AND (e.event_time - INTERVAL '1 minute' * e.remind_before_minutes)
+                      BETWEEN (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time - INTERVAL '5 minutes' 
+                              AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time + INTERVAL '5 minutes')
                 OR
                 -- Reminders: send at their scheduled time
                 (e.event_type = 'reminder' AND e.event_time IS NOT NULL

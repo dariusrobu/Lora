@@ -141,8 +141,6 @@ async def message_handler(
         text_lower = text_lower.replace("cărţi", "carti")
         text_lower = text_lower.replace("şt", "st")
         text_lower = text_lower.replace("ţ", "t")
-        text_lower = text_lower.replace("ă", "a")
-        text_lower = text_lower.replace("ş", "s")
 
         # Handle duplicate text from STT (e.g., "text.text")
         if text_lower.count(".") > 1:
@@ -1304,6 +1302,37 @@ Reguli:
         print(
             f"🧠 GEMINI: Intent={intent_response.get('intent')}, Module={intent_response.get('module')}, Data={intent_response.get('data')}"
         )
+
+        # Special handling for morning briefing - call directly with application
+        if intent_response.get("intent") == "trigger_morning_briefing":
+            from scheduler.jobs import send_morning_briefing
+            from core.config import TELEGRAM_USER_ID as TG_UID
+            import db.queries.profile as profile_queries
+            from datetime import date as _date
+
+            today = _date.today()
+            profile = await profile_queries.get_user_profile(pool, TG_UID)
+            if profile.get("last_briefing_date") == today:
+                await update.message.reply_text(
+                    "Deja ți-am trimis briefing-ul de dimineață. O zi productivă! ☀️",
+                    parse_mode="MarkdownV2",
+                )
+                return
+
+            await update.message.reply_text(
+                "Pregătesc briefing-ul de dimineață. ☕", parse_mode="MarkdownV2"
+            )
+            try:
+                await send_morning_briefing(context.application, pool)
+            except Exception as e:
+                import traceback
+
+                print(f"ERROR in morning briefing: {e}", flush=True)
+                traceback.print_exc()
+                await update.message.reply_text(
+                    f"❌ Eroare la briefing: {str(e)[:200]}", parse_mode="MarkdownV2"
+                )
+            return
 
         # 5. Route intent and get final reply + keyboard
         intent_response["_user_message"] = text
