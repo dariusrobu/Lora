@@ -12,3 +12,4 @@ edge-tts
 matplotlib
 numpy
 aiohttp>=3.9.0
+gunicorn
