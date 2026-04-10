@@ -63,9 +63,9 @@ async def get_skill_detail_view(
     lines = [
         f"📊 *{title}* \\({escape_md(skill['category'])}\\)\n",
         f"• *Streak*: {streak} 🔥" if streak > 0 else "• *Streak*: 0 ❄️",
-        f"• *Medie*: {escape_md(f'{stats['avg']:.2f}')} {unit}",
-        f"• *Best/Max*: {escape_md(f'{stats['max']:.2f}')} {unit}",
-        f"• *Trend*: {'📈' if stats['trend'] > 0 else '📉' if stats['trend'] < 0 else '➡️'} {escape_md(f'{abs(stats['trend']):.2f}')} {unit}\n",
+        f"• *Medie*: {escape_md(f'{stats[\"avg\"]:.2f}')} {unit}",
+        f"• *Best/Max*: {escape_md(f'{stats[\"max\"]:.2f}')} {unit}",
+        f"• *Trend*: {'📈' if stats['trend'] > 0 else '📉' if stats['trend'] < 0 else '➡️'} {escape_md(f'{abs(stats[\"trend\"]):.2f}')} {unit}\n",
         "*Istoric Recent:*",
     ]
 
