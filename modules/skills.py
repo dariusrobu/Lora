@@ -60,12 +60,17 @@ async def get_skill_detail_view(
 
     streak = await skill_queries.get_skill_streak(pool, skill_id)
 
+    avg_str = f"{stats['avg']:.2f}"
+    max_str = f"{stats['max']:.2f}"
+    trend_val = f"{abs(stats['trend']):.2f}"
+    trend_icon = '📈' if stats['trend'] > 0 else '📉' if stats['trend'] < 0 else '➡️'
+
     lines = [
         f"📊 *{title}* \\({escape_md(skill['category'])}\\)\n",
         f"• *Streak*: {streak} 🔥" if streak > 0 else "• *Streak*: 0 ❄️",
-        f"• *Medie*: {escape_md(f'{stats[\"avg\"]:.2f}')} {unit}",
-        f"• *Best/Max*: {escape_md(f'{stats[\"max\"]:.2f}')} {unit}",
-        f"• *Trend*: {'📈' if stats['trend'] > 0 else '📉' if stats['trend'] < 0 else '➡️'} {escape_md(f'{abs(stats[\"trend\"]):.2f}')} {unit}\n",
+        f"• *Medie*: {escape_md(avg_str)} {unit}",
+        f"• *Best/Max*: {escape_md(max_str)} {unit}",
+        f"• *Trend*: {trend_icon} {escape_md(trend_val)} {unit}\n",
         "*Istoric Recent:*",
     ]
 
