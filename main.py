@@ -88,12 +88,27 @@ async def start_bot():
 
     print("Lora is ready. Starting polling... 🤖")
 
-    # Use run_polling for a more robust event loop management
-    application.run_polling(
+    # Manual async startup to avoid event loop conflicts
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling(
         drop_pending_updates=True,
         allowed_updates=["message", "callback_query"],
-        close_loop=False
     )
+
+    # Keep the bot running until interrupted
+    try:
+        # Use a long sleep or wait for a specific signal
+        while True:
+            await asyncio.sleep(3600)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        print("Stopping...")
+    finally:
+        await application.updater.stop()
+        await application.stop()
+        await application.shutdown()
+        await close_pool()
+        print("Database pool closed. Shutdown complete.")
 
 
 if __name__ == "__main__":
