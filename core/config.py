@@ -31,6 +31,8 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_USER_ID = int(os.getenv("TELEGRAM_USER_ID"))
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 TIMEZONE = os.getenv("TIMEZONE", "Europe/Bucharest")
 MORNING_BRIEFING_TIME = os.getenv("MORNING_BRIEFING_TIME", "08:00")
 EOD_REFLECTION_TIME = os.getenv("EOD_REFLECTION_TIME", "21:00")
