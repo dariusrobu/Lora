@@ -120,6 +120,9 @@ async def workout_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def message_handler(
     update: Update, context: ContextTypes.DEFAULT_TYPE, pool, text=None
 ):
+    # Log EVERYTHING first
+    print(f"DEBUG: message_handler triggered for update {update.update_id}", flush=True)
+    
     # Log EVERY message before the security check
     user_id = update.effective_user.id if update.effective_user else "Unknown"
 

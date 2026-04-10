@@ -98,7 +98,7 @@ async def start_bot():
 
     # Keep the bot running until interrupted
     try:
-        # Use a long sleep or wait for a specific signal
+        print("Loop principal activ. Lora ascultă... 🚀", flush=True)
         while True:
             await asyncio.sleep(3600)
     except (KeyboardInterrupt, asyncio.CancelledError):
