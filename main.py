@@ -88,43 +88,12 @@ async def start_bot():
 
     print("Lora is ready. Starting polling... 🤖")
 
-    await asyncio.sleep(5)
-
-    async with application:
-        await application.initialize()
-        await application.start()
-
-        print("Polling active.")
-        for attempt in range(1, 11):
-            try:
-                await application.updater.start_polling(
-                    drop_pending_updates=True,
-                    allowed_updates=["message", "callback_query"],
-                )
-                break
-            except Exception as e:
-                from telegram.error import Conflict
-
-                if isinstance(e, Conflict):
-                    print(
-                        f"Conflict detected (attempt {attempt}/10). Waiting for old instance to stop...",
-                        flush=True,
-                    )
-                    await asyncio.sleep(10)
-                else:
-                    raise
-
-        try:
-            while True:
-                await asyncio.sleep(3600)
-        except (KeyboardInterrupt, asyncio.CancelledError):
-            print("Stopping...")
-        finally:
-            await application.updater.stop()
-            await application.stop()
-            await application.shutdown()
-            await close_pool()
-            print("Database pool closed. Shutdown complete.")
+    # Use run_polling for a more robust event loop management
+    application.run_polling(
+        drop_pending_updates=True,
+        allowed_updates=["message", "callback_query"],
+        close_loop=False
+    )
 
 
 if __name__ == "__main__":
