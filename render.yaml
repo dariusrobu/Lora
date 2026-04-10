@@ -21,3 +21,15 @@ services:
         value: "08:00"
       - key: EOD_REFLECTION_TIME
         value: "21:00"
+      - key: WEEKLY_REVIEW_DAY
+        value: "sunday"
+      - key: HABIT_REMINDER_TIME
+        value: "18:00"
+      - key: OPENWEATHER_API_KEY
+        sync: false
+      - key: WEATHER_CITY
+        value: "Bucharest"
+      - key: NUTRITIONIX_APP_ID
+        sync: false
+      - key: NUTRITIONIX_API_KEY
+        sync: false
