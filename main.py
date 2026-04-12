@@ -87,7 +87,7 @@ async def start_web_server(pool):
     return runner # Return runner to close it later
 
 async def start_bot():
-    print("Starting Lora initialization...", flush=True)
+    print("Starting Lora initialization (WEBHOOK MODE)...", flush=True)
 
     # 1. Database Pool
     pool = await get_pool()
@@ -107,7 +107,7 @@ async def start_bot():
             EOD_REFLECTION_TIME,
         )
         
-        # Ensure semester_config exists and has at least one entry
+        # Ensure semester_config exists
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS semester_config (
                 id SERIAL PRIMARY KEY,
@@ -119,18 +119,12 @@ async def start_bot():
         if not exists:
             await conn.execute("INSERT INTO semester_config (semester_start) VALUES ($1)", date(2026, 2, 23))
 
-    print(f"User profile and semester config ensured.")
-
-    # Start Web Server for WebCal
-    await start_web_server(pool)
-
     # 3. Build the Application
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     application.bot_data["pool"] = pool
 
     # 4. Initialize Scheduler
     from scheduler.jobs import setup_scheduler
-
     setup_scheduler(application, pool)
 
     # 5. Register handlers
@@ -138,6 +132,7 @@ async def start_bot():
     cb_handler_with_pool = partial(callback_handler, pool=pool)
     voice_handler_with_pool = partial(voice_handler, pool=pool)
 
+    application.add_handler(CommandHandler("calendar", calendar_command))
     application.add_handler(CommandHandler("focus", focus_command))
     application.add_handler(CommandHandler("stopfocus", stopfocus_command))
     application.add_handler(CommandHandler("timeblock", timeblock_command))
@@ -150,39 +145,58 @@ async def start_bot():
     application.add_handler(CommandHandler("tasks", tasks_command))
     application.add_handler(CommandHandler("projects", projects_command))
     application.add_handler(CommandHandler("reading", reading_command))
-    application.add_handler(CommandHandler("calendar", calendar_command))
     application.add_handler(MessageHandler(filters.VOICE, voice_handler_with_pool))
     application.add_handler(MessageHandler(filters.ALL, msg_handler_with_pool))
     application.add_handler(CallbackQueryHandler(cb_handler_with_pool))
 
-    print("Lora is ready. Starting polling... 🤖")
+    # 6. Webhook & Web Server Setup
+    domain = os.environ.get("WEB_DOMAIN", "lora-bot.onrender.com")
+    port = int(os.environ.get("PORT", 8080))
+    token_part = TELEGRAM_BOT_TOKEN.split(':')[0]
 
-    # Manual async startup to avoid event loop conflicts
+    # Initialize the PTB application
     await application.initialize()
     await application.start()
-    
-    # Wait a bit to allow previous instance to disconnect (important for Render zero-downtime)
-    print("⏳ Aștept 15 secunde pentru a asigura deconectarea instanțelor vechi...", flush=True)
-    await asyncio.sleep(15)
-    
-    await application.updater.start_polling(
-        drop_pending_updates=True,
-        allowed_updates=["message", "callback_query"],
-    )
 
-    # Keep the bot running until interrupted
+    # Create aiohttp app
+    app = web.Application()
+    app['pool'] = pool
+
+    # Routes
+    async def telegram_webhook(request):
+        """Handle incoming updates from Telegram."""
+        update = Update.de_json(await request.json(), application.bot)
+        await application.process_update(update)
+        return web.Response(text="OK")
+
+    app.router.add_get('/', handle_health_check)
+    app.router.add_get('/calendar/{token}', handle_calendar_request)
+    app.router.add_post(f'/{TELEGRAM_BOT_TOKEN}', telegram_webhook)
+
+    # Set Webhook
+    webhook_url = f"https://{domain}/{TELEGRAM_BOT_TOKEN}"
+    print(f"Setting webhook to: {webhook_url}")
+    await application.bot.set_webhook(url=webhook_url, allowed_updates=["message", "callback_query"])
+
+    # Run Server
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    
+    print(f"Lora is LIVE on port {port} via Webhook 🚀", flush=True)
+
     try:
-        print("Loop principal activ. Lora ascultă... 🚀", flush=True)
+        # Keep running
         while True:
             await asyncio.sleep(3600)
     except (KeyboardInterrupt, asyncio.CancelledError):
         print("Stopping...")
     finally:
-        await application.updater.stop()
         await application.stop()
         await application.shutdown()
+        await runner.cleanup()
         await close_pool()
-        print("Database pool closed. Shutdown complete.")
 
 
 if __name__ == "__main__":
