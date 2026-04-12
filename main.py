@@ -43,17 +43,20 @@ async def handle_health_check(request):
 
 async def handle_calendar_request(request):
     """HTTP endpoint to serve the .ics calendar."""
+    print(f"DEBUG: Received calendar request for token: {request.match_info.get('token')}")
     # Simple security check: token in URL
     token = request.match_info.get('token')
     # Use the first 8 characters of the Telegram Bot Token as a simple secret
     expected_token = TELEGRAM_BOT_TOKEN.split(':')[0]
     
     if token != expected_token:
+        print(f"DEBUG: Unauthorized request. Expected {expected_token}, got {token}")
         return web.Response(text="Unauthorized", status=403)
 
     pool = request.app['pool']
     try:
         ics_bytes = await generate_user_calendar(pool)
+        print(f"DEBUG: Successfully generated calendar ({len(ics_bytes)} bytes)")
         return web.Response(
             body=ics_bytes,
             content_type='text/calendar',
@@ -62,8 +65,10 @@ async def handle_calendar_request(request):
             }
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Error serving calendar: {e}")
-        return web.Response(text="Error generating calendar", status=500)
+        return web.Response(text=f"Error generating calendar: {e}", status=500)
 
 async def start_web_server(pool):
     """Starts the web server for WebCal subscription."""

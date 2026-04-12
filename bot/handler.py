@@ -132,11 +132,11 @@ async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await update.message.reply_chat_action("upload_document")
         
-        # Link for automatic synchronization (WebCal)
+        # Link for automatic synchronization (HTTPS/WebCal)
         token = TELEGRAM_BOT_TOKEN.split(':')[0]
         # Assume domain from environment or fallback
         domain = os.environ.get("WEB_DOMAIN", "lora-bot.onrender.com")
-        webcal_url = f"webcal://{domain}/calendar/{token}"
+        webcal_url = f"https://{domain}/calendar/{token}"
         
         ics_bytes = await generate_user_calendar(pool)
         
