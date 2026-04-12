@@ -136,6 +136,8 @@ async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         token = TELEGRAM_BOT_TOKEN.split(':')[0]
         # Assume domain from environment or fallback
         domain = os.environ.get("WEB_DOMAIN", "lora-bot.onrender.com")
+        # Ensure we have a clean domain without protocol
+        domain = domain.replace("https://", "").replace("http://", "").rstrip("/")
         webcal_url = f"https://{domain}/calendar/{token}"
         
         ics_bytes = await generate_user_calendar(pool)
