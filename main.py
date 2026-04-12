@@ -83,7 +83,8 @@ async def start_web_server(pool):
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
-    print(f"Web server started on port {port} (WebCal enabled)")
+    print(f"Web server started on port {port} (WebCal enabled)", flush=True)
+    return runner # Return runner to close it later
 
 async def start_bot():
     print("Starting Lora initialization...", flush=True)
