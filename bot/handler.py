@@ -147,8 +147,8 @@ async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📅 *Calendarul tău Lora*\n\n"
             "Pentru sincronizare automată în iPhone/Mac:\n"
             f"1\\. Copiază acest link: `{escape_md(webcal_url)}`\n"
-            "2\\. Deschide aplicația *Calendar* -> *Add Calendar* -> *Add Subscription Calendar*\n"
-            "3\\. Introdu link-ul de mai sus\\.\n\n"
+            "2\\. Deschide aplicația *Calendar* \\-\\> *Add Calendar* \\-\\> *Add Subscription Calendar*\n"
+            "3\\. Introdu link\\-ul de mai sus\\.\n\n"
             "Orice modificare făcută în bot va apărea automat și în calendarul tău Apple\\!"
         )
         
