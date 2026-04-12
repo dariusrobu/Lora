@@ -88,7 +88,7 @@ async def start_web_server(pool):
     return runner # Return runner to close it later
 
 async def start_bot():
-    print("Starting Lora initialization (WEBHOOK MODE)...", flush=True)
+    print("Starting Lora initialization (HYBRID MODE)...", flush=True)
 
     # 1. Database Pool
     pool = await get_pool()
@@ -150,43 +150,32 @@ async def start_bot():
     application.add_handler(MessageHandler(filters.ALL, msg_handler_with_pool))
     application.add_handler(CallbackQueryHandler(cb_handler_with_pool))
 
-    # 6. Webhook & Web Server Setup
-    domain = os.environ.get("WEB_DOMAIN", "lora-bot.onrender.com")
-    port = int(os.environ.get("PORT", 8080))
-    token_part = TELEGRAM_BOT_TOKEN.split(':')[0]
-
-    # Initialize the PTB application
-    await application.initialize()
-    await application.start()
-
-    # Create aiohttp app
+    # 6. Web Server for Health Check & Calendar (runs in background)
     app = web.Application()
     app['pool'] = pool
-
-    # Routes
-    async def telegram_webhook(request):
-        """Handle incoming updates from Telegram."""
-        update = Update.de_json(await request.json(), application.bot)
-        await application.process_update(update)
-        return web.Response(text="OK")
-
     app.router.add_get('/', handle_health_check)
     app.router.add_get('/calendar/{token}', handle_calendar_request)
-    app.router.add_post(f'/{TELEGRAM_BOT_TOKEN}', telegram_webhook)
-
-    # Run Server
+    
+    port = int(os.environ.get("PORT", 8080))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
-    print(f"Web server listening on port {port}", flush=True)
+    print(f"Web server active on port {port} (Health check OK)", flush=True)
 
-    # Set Webhook AFTER server is up
-    webhook_url = f"https://{domain}/{TELEGRAM_BOT_TOKEN}"
-    print(f"Setting webhook to: {webhook_url}")
-    await application.bot.set_webhook(url=webhook_url, allowed_updates=["message", "callback_query"])
+    # 7. Start Telegram Bot (Polling mode)
+    # Remove any existing webhook first
+    await application.bot.delete_webhook()
     
-    print(f"Lora is LIVE via Webhook 🚀", flush=True)
+    await application.initialize()
+    await application.start()
+    
+    # Small delay to avoid conflict with old instances
+    print("⏳ Waiting 10s for old instances to clear...", flush=True)
+    await asyncio.sleep(10)
+    
+    await application.updater.start_polling(drop_pending_updates=True)
+    print(f"Lora is LIVE via Polling 🚀", flush=True)
 
     try:
         # Keep running
@@ -195,6 +184,7 @@ async def start_bot():
     except (KeyboardInterrupt, asyncio.CancelledError):
         print("Stopping...")
     finally:
+        await application.updater.stop()
         await application.stop()
         await application.shutdown()
         await runner.cleanup()
