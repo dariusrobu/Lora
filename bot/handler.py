@@ -134,10 +134,8 @@ async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Link for automatic synchronization (HTTPS/WebCal)
         token = TELEGRAM_BOT_TOKEN.split(':')[0]
-        # Assume domain from environment or fallback
-        domain = os.environ.get("WEB_DOMAIN", "lora-bot.onrender.com")
-        # Ensure we have a clean domain without protocol
-        domain = domain.replace("https://", "").replace("http://", "").rstrip("/")
+        # Robust domain detection
+        domain = os.environ.get("WEB_DOMAIN", "lora-bot.onrender.com").replace("https://", "").replace("http://", "").rstrip("/")
         webcal_url = f"https://{domain}/calendar/{token}"
         
         ics_bytes = await generate_user_calendar(pool)
@@ -145,13 +143,14 @@ async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bio = io.BytesIO(ics_bytes)
         bio.name = "lora_calendar.ics"
         
+        # New text to verify deploy
         text = (
-            "📅 *Calendarul tău Lora*\n\n"
-            "Pentru sincronizare automată în iPhone/Mac:\n"
-            f"1\\. Copiază acest link: `{escape_md(webcal_url)}`\n"
-            "2\\. Deschide aplicația *Calendar* \\-\\> *Add Calendar* \\-\\> *Add Subscription Calendar*\n"
-            "3\\. Introdu link\\-ul de mai sus\\.\n\n"
-            "Orice modificare făcută în bot va apărea automat și în calendarul tău Apple\\!"
+            "✨ *Sincronizare Calendar Lora* ✨\n\n"
+            "Pentru a vedea evenimentele pe iPhone/Mac:\n"
+            "1️⃣ Copiază link-ul: `{escape_md(webcal_url)}`\n"
+            "2️⃣ În aplicația *Calendar* mergi la *Add Subscription Calendar*\n"
+            "3️⃣ Lipeste link-ul și salvează\\.\n\n"
+            "🔄 _Sincronizarea este automată la orice modificare!_"
         )
         
         await update.message.reply_document(
