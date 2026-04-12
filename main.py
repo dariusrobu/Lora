@@ -38,6 +38,9 @@ import os
 from aiohttp import web
 from core.ical import generate_user_calendar
 
+async def handle_health_check(request):
+    return web.Response(text="OK", status=200)
+
 async def handle_calendar_request(request):
     """HTTP endpoint to serve the .ics calendar."""
     # Simple security check: token in URL
@@ -66,6 +69,7 @@ async def start_web_server(pool):
     """Starts the web server for WebCal subscription."""
     app = web.Application()
     app['pool'] = pool
+    app.router.add_get('/', handle_health_check)
     app.router.add_get('/calendar/{token}', handle_calendar_request)
     
     port = int(os.environ.get("PORT", 8080))
