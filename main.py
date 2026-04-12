@@ -1,6 +1,7 @@
 import asyncio
 import sys
 from datetime import date
+from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
     MessageHandler,
@@ -173,18 +174,19 @@ async def start_bot():
     app.router.add_get('/calendar/{token}', handle_calendar_request)
     app.router.add_post(f'/{TELEGRAM_BOT_TOKEN}', telegram_webhook)
 
-    # Set Webhook
-    webhook_url = f"https://{domain}/{TELEGRAM_BOT_TOKEN}"
-    print(f"Setting webhook to: {webhook_url}")
-    await application.bot.set_webhook(url=webhook_url, allowed_updates=["message", "callback_query"])
-
     # Run Server
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
+    print(f"Web server listening on port {port}", flush=True)
+
+    # Set Webhook AFTER server is up
+    webhook_url = f"https://{domain}/{TELEGRAM_BOT_TOKEN}"
+    print(f"Setting webhook to: {webhook_url}")
+    await application.bot.set_webhook(url=webhook_url, allowed_updates=["message", "callback_query"])
     
-    print(f"Lora is LIVE on port {port} via Webhook 🚀", flush=True)
+    print(f"Lora is LIVE via Webhook 🚀", flush=True)
 
     try:
         # Keep running
