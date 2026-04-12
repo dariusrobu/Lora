@@ -117,6 +117,34 @@ async def workout_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode="MarkdownV2", reply_markup=markup)
 
 
+async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Generates and sends the .ics calendar file."""
+    pool = context.application.bot_data.get("pool")
+    if not pool:
+        await update.message.reply_text("Database pool not found.")
+        return
+
+    from core.ical import generate_user_calendar
+    import io
+
+    try:
+        await update.message.reply_chat_action("upload_document")
+        ics_bytes = await generate_user_calendar(pool)
+        
+        bio = io.BytesIO(ics_bytes)
+        bio.name = "lora_calendar.ics"
+        
+        await update.message.reply_document(
+            document=bio,
+            filename="lora_calendar.ics",
+            caption="📅 Iată calendarul tău actualizat! Îl poți importa în Google Calendar sau Apple Calendar."
+        )
+    except Exception as e:
+        await update.message.reply_text(f"Eroare la generarea calendarului: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 async def message_handler(
     update: Update, context: ContextTypes.DEFAULT_TYPE, pool, text=None
 ):
