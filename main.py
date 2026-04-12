@@ -161,8 +161,8 @@ async def start_bot():
     await application.start()
     
     # Wait a bit to allow previous instance to disconnect (important for Render zero-downtime)
-    print("⏳ Aștept 10 secunde pentru a asigura deconectarea instanțelor vechi...", flush=True)
-    await asyncio.sleep(10)
+    print("⏳ Aștept 15 secunde pentru a asigura deconectarea instanțelor vechi...", flush=True)
+    await asyncio.sleep(15)
     
     await application.updater.start_polling(
         drop_pending_updates=True,
