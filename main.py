@@ -1,5 +1,6 @@
 import asyncio
 import sys
+from datetime import date
 from telegram.ext import (
     ApplicationBuilder,
     MessageHandler,
@@ -91,19 +92,33 @@ async def start_bot():
     pool = await get_pool()
     print("Connected to database pool.")
 
-    # 2. Ensure user_profile
-    await pool.execute(
-        """
-        INSERT INTO user_profile (telegram_id, timezone, morning_time, eod_time)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (telegram_id) DO NOTHING
-        """,
-        TELEGRAM_USER_ID,
-        TIMEZONE,
-        MORNING_BRIEFING_TIME,
-        EOD_REFLECTION_TIME,
-    )
-    print(f"User profile ensured for ID: {TELEGRAM_USER_ID}")
+    # 2. Ensure user_profile and semester_config
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO user_profile (telegram_id, timezone, morning_time, eod_time)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (telegram_id) DO NOTHING
+            """,
+            TELEGRAM_USER_ID,
+            TIMEZONE,
+            MORNING_BRIEFING_TIME,
+            EOD_REFLECTION_TIME,
+        )
+        
+        # Ensure semester_config exists and has at least one entry
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS semester_config (
+                id SERIAL PRIMARY KEY,
+                semester_start DATE NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        exists = await conn.fetchval("SELECT EXISTS (SELECT 1 FROM semester_config)")
+        if not exists:
+            await conn.execute("INSERT INTO semester_config (semester_start) VALUES ($1)", date(2026, 2, 23))
+
+    print(f"User profile and semester config ensured.")
 
     # Start Web Server for WebCal
     await start_web_server(pool)

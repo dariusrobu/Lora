@@ -385,6 +385,15 @@ ON CONFLICT (id) DO NOTHING;
 -- Water target per day (ml)
 ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS water_target_ml INT DEFAULT 2500;
 
+-- ── Semester Configuration ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS semester_config (
+    id SERIAL PRIMARY KEY,
+    semester_start DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+-- Default seed if empty
+INSERT INTO semester_config (semester_start) VALUES ('2026-02-23') ON CONFLICT DO NOTHING;
+
 -- ── University Schedule ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS subjects (
     id          SERIAL PRIMARY KEY,
