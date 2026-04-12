@@ -18,6 +18,8 @@ async def generate_user_calendar(pool) -> bytes:
     cal.add('version', '2.0')
     cal.add('x-wr-calname', 'Lora Assistant Calendar')
     cal.add('x-wr-timezone', TIMEZONE)
+    # Hint for calendar clients to refresh every hour
+    cal.add('x-published-ttl', 'PT1H')
 
     tz = get_tz()
 
@@ -134,8 +136,8 @@ async def generate_user_calendar(pool) -> bytes:
                 if row['week_type'] in ('par', 'impar'):
                     rrule['INTERVAL'] = 2
                 
-                # Limităm recurența la 14 săptămâni (un semestru tipic)
-                rrule['COUNT'] = 14 if row['week_type'] == 'both' else 7
+                # Limităm recurența la 20 săptămâni (să acopere tot semestrul plus sesiune)
+                rrule['COUNT'] = 20 if row['week_type'] == 'both' else 10
                 
                 e.add('rrule', rrule)
                 cal.add_component(e)

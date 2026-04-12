@@ -125,19 +125,38 @@ async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     from core.ical import generate_user_calendar
+    from core.config import TELEGRAM_BOT_TOKEN
     import io
+    import os
 
     try:
         await update.message.reply_chat_action("upload_document")
+        
+        # Link for automatic synchronization (WebCal)
+        token = TELEGRAM_BOT_TOKEN.split(':')[0]
+        # Assume domain from environment or fallback
+        domain = os.environ.get("WEB_DOMAIN", "lora-bot.onrender.com")
+        webcal_url = f"webcal://{domain}/calendar/{token}"
+        
         ics_bytes = await generate_user_calendar(pool)
         
         bio = io.BytesIO(ics_bytes)
         bio.name = "lora_calendar.ics"
         
+        text = (
+            "📅 *Calendarul tău Lora*\n\n"
+            "Pentru sincronizare automată în iPhone/Mac:\n"
+            f"1\\. Copiază acest link: `{escape_md(webcal_url)}`\n"
+            "2\\. Deschide aplicația *Calendar* -> *Add Calendar* -> *Add Subscription Calendar*\n"
+            "3\\. Introdu link-ul de mai sus\\.\n\n"
+            "Orice modificare făcută în bot va apărea automat și în calendarul tău Apple\\!"
+        )
+        
         await update.message.reply_document(
             document=bio,
             filename="lora_calendar.ics",
-            caption="📅 Iată calendarul tău actualizat! Îl poți importa în Google Calendar sau Apple Calendar."
+            caption=text,
+            parse_mode="MarkdownV2"
         )
     except Exception as e:
         await update.message.reply_text(f"Eroare la generarea calendarului: {e}")

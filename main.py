@@ -34,7 +34,46 @@ from bot.handler import (
 )
 from modules.skills import skills_command
 from functools import partial
+import os
+from aiohttp import web
+from core.ical import generate_user_calendar
 
+async def handle_calendar_request(request):
+    """HTTP endpoint to serve the .ics calendar."""
+    # Simple security check: token in URL
+    token = request.match_info.get('token')
+    # Use the first 8 characters of the Telegram Bot Token as a simple secret
+    expected_token = TELEGRAM_BOT_TOKEN.split(':')[0]
+    
+    if token != expected_token:
+        return web.Response(text="Unauthorized", status=403)
+
+    pool = request.app['pool']
+    try:
+        ics_bytes = await generate_user_calendar(pool)
+        return web.Response(
+            body=ics_bytes,
+            content_type='text/calendar',
+            headers={
+                'Content-Disposition': 'attachment; filename="lora_calendar.ics"'
+            }
+        )
+    except Exception as e:
+        print(f"Error serving calendar: {e}")
+        return web.Response(text="Error generating calendar", status=500)
+
+async def start_web_server(pool):
+    """Starts the web server for WebCal subscription."""
+    app = web.Application()
+    app['pool'] = pool
+    app.router.add_get('/calendar/{token}', handle_calendar_request)
+    
+    port = int(os.environ.get("PORT", 8080))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    print(f"Web server started on port {port} (WebCal enabled)")
 
 async def start_bot():
     print("Starting Lora initialization...", flush=True)
@@ -56,6 +95,9 @@ async def start_bot():
         EOD_REFLECTION_TIME,
     )
     print(f"User profile ensured for ID: {TELEGRAM_USER_ID}")
+
+    # Start Web Server for WebCal
+    await start_web_server(pool)
 
     # 3. Build the Application
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
