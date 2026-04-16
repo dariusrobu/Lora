@@ -37,6 +37,14 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
         if user_message:
             data["_user_message"] = user_message
 
+    # Let's check for Agentic Mode FIRST
+    if intent_response.get("needs_agent"):
+        from core.agent import run_agent
+        from core.gemini import client
+        print(f"DEBUG ROUTER: Diverting to Agentic Mode for query -> {user_message}")
+        agent_reply = await run_agent(pool, client, user_message)
+        return agent_reply, None
+
     # If no module, just return the chat reply from Gemini
     if not module:
         return reply, None
@@ -124,6 +132,10 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
         from modules.schedule import handle_schedule_intent
 
         return await handle_schedule_intent(pool, intent, data, bot)
+    elif module == "memory":
+        from modules.memory import handle_memory_intent
+
+        return await handle_memory_intent(pool, intent, data)
     elif module == "weather":
         from modules.weather import get_weather_summary
 

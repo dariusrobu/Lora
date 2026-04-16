@@ -128,29 +128,53 @@ async def check_attendance_warning(pool, recent_types: set) -> Optional[tuple]:
 
 
 async def generate_insights(pool) -> str:
-    """Generează insights pentru weekly review (text simplu)."""
+    """Generează insights (standard + correlations) la cerere."""
+    from core.correlations import compute_correlations
+    from bot.formatter import safe_markdown
+
     recent_types = await get_recent_insight_types(pool, days=7)
 
-    checks = await asyncio.gather(
+    # 1. Run standard checks and correlations in parallel
+    results = await asyncio.gather(
         check_sleep_alert(pool, recent_types),
         check_water_low(pool, recent_types),
         check_overdue_tasks(pool, recent_types),
+        compute_correlations(pool)
     )
 
-    insights = [c[1] for c in checks if c]
+    standard_checks = [c[1] for c in results[:3] if c]
+    correlations = results[3]
 
-    if not insights:
+    final_lines = []
+    
+    # Process standard checks
+    for i in standard_checks[:2]:
+        final_lines.append(f"• {i}")
+        
+    # Process correlations
+    for corr in correlations[:2]:
+        msg = (
+            f"🔍 *Pattern detectat:* {corr['correlation']}\n"
+            f"📊 *Dovadă:* {corr['data_evidence']}\n"
+            f"💡 *Recomandare:* {corr['recommendation']}"
+        )
+        final_lines.append(msg)
+
+    if not final_lines:
         return "Nu am suficiente date pentru patterns semnificative."
 
-    return "\n".join(f"• {i}" for i in insights[:2])
+    return safe_markdown("\n\n".join(final_lines))
 
 
 async def run_proactive_insights(pool, bot) -> None:
     """Rulează toate check-urile și trimite max 2 insights per zi."""
     from core.config import TELEGRAM_USER_ID
+    from core.correlations import compute_correlations, get_unseen_correlations, save_correlation_as_fact
+    from bot.formatter import safe_markdown
 
     recent_types = await get_recent_insight_types(pool, days=5)
 
+    # 1. Run standard checks
     checks = await asyncio.gather(
         check_sleep_alert(pool, recent_types),
         check_goal_stale(pool, recent_types),
@@ -160,19 +184,46 @@ async def run_proactive_insights(pool, bot) -> None:
         check_attendance_warning(pool, recent_types),
     )
 
-    insights = [c for c in checks if c]
+    insights = [(c[0], c[1]) for c in checks if c]
+
+    # 2. Run Correlation Engine (if enough data)
+    try:
+        raw_correlations = await compute_correlations(pool)
+        new_correlations = await get_unseen_correlations(pool, raw_correlations)
+        
+        for corr in new_correlations:
+            # We treat correlations as a special type of insight
+            msg = (
+                f"🔍 *Pattern detectat:* {corr['correlation']}\n"
+                f"📊 *Dovadă:* {corr['data_evidence']}\n"
+                f"💡 *Recomandare:* {corr['recommendation']}"
+            )
+            # Use 'correlation' as type prefix + first 10 chars of correlation text to avoid duplicates
+            corr_type = f"correlation_{corr['correlation'][:20]}"
+            insights.append((corr_type, msg))
+            # Also save to memory_facts as a persistent fact
+            await save_correlation_as_fact(pool, corr)
+    except Exception as e:
+        print(f"Error in proactive correlations: {e}", flush=True)
 
     if not insights:
         return
 
-    # Max 2 insights per zi
+    # Max 2 insights per zi total
+    # Prioritize correlations if present? Or just first 2. 
+    # Let's pick at most 1 correlation and 1 standard insight, or first 2.
     to_send = insights[:2]
 
     lines = []
     for insight_type, message in to_send:
-        lines.append(f"• {message}")
+        # Standard insights start with bullet, correlations already have emojis
+        if not message.startswith("🔍"):
+            lines.append(f"• {message}")
+        else:
+            lines.append(message)
+        
         await log_insight(pool, insight_type)
 
-    text = "💡 *Câteva observații:*\n\n" + "\n".join(lines)
+    text = "💡 *Câteva observații:*\n\n" + "\n\n".join(lines)
 
-    await bot.send_message(chat_id=TELEGRAM_USER_ID, text=text, parse_mode="MarkdownV2")
+    await bot.send_message(chat_id=TELEGRAM_USER_ID, text=safe_markdown(text), parse_mode="MarkdownV2")

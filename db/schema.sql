@@ -446,6 +446,16 @@ CREATE TABLE IF NOT EXISTS exams (
     exam_type       TEXT CHECK (exam_type IN ('partial', 'final', 're-exam')),
     room            TEXT,
     notes           TEXT,
-    created_at      TIMESTAMP DEFAULT NOW()
+-- ── Memory Engine (Long-Term Facts) ───────────────────────────
+CREATE TABLE IF NOT EXISTS memory_facts (
+    id SERIAL PRIMARY KEY,
+    category VARCHAR(50) NOT NULL,  -- 'preference', 'pattern', 'personal', 'achievement'
+    fact TEXT NOT NULL,
+    source VARCHAR(100),            -- 'user_stated', 'inferred', 'observed'
+    confidence NUMERIC(3,2) DEFAULT 1.0,
+    last_seen TIMESTAMP DEFAULT NOW(),
+    times_referenced INTEGER DEFAULT 1,
+    created_at TIMESTAMP DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_exams_date ON exams(exam_date);
+CREATE INDEX idx_memory_category ON memory_facts(category);
+CREATE INDEX idx_memory_fact_search ON memory_facts USING GIN(to_tsvector('english', fact));

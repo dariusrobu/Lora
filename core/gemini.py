@@ -7,11 +7,13 @@ import pytz
 import asyncio
 import json
 import re
+from core.memory import extract_and_save_facts
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 async def get_gemini_response(
+    pool,
     user_message: str,
     user_name: str,
     tone: str,
@@ -153,8 +155,16 @@ Fiecare suportă: add, edit, rename, delete, complete, list, search, archive (pr
     module="shopping", intent="add_item"/"list_items"/"delete_item".
 12. News: "ce mai e nou", "știri tech", "ce s-a întâmplat" →
     module="news", intent="fetch_news".
-13. Projects: module="projects", intent= "add_project"/"list_projects"/"archive_project"/"delete_project".
-14. Finance: module="finance":
+13. Complex Agentic Queries:
+    Dacă mesajul este o analiză complexă care necesită pași logici, comparare, prioritizare sau extragerea a multiple date.
+    Setează `needs_agent=true` OBLIGATORIU pentru expresii ca:
+    - "ce ar trebui să fac azi"
+    - "prioritizează-mi..."
+    - "analizează..." sau "compară..."
+    - "cum stau cu..." când implică mai multe module (tasks, gym, health).
+    Când needs_agent=true, restul câmpurilor (module, etc.) sunt opționale/ignorate, exceptând `agent_tools_needed` unde poți anticipa sculele necesare ("tool_get_tasks", "tool_get_events_today", "tool_get_habit_status", "tool_get_finance_summary", "tool_get_health_today", "tool_get_goals_progress").
+14. Projects: module="projects", intent= "add_project"/"list_projects"/"archive_project"/"delete_project".
+15. Finance: module="finance":
     - intent="finance_log" pentru înregistrare (cheltuieli, venituri). 
       Data: {{amount: număr, type: "expense"|"income", category: text, description: text}}
     - intent="finance_summary" pentru dashboard/rezumat (cheltuieli azi, tranzacții, buget).
@@ -189,6 +199,11 @@ Fiecare suportă: add, edit, rename, delete, complete, list, search, archive (pr
     - intent="complete_subtask" — "am făcut sub-task-ul X"
     - intent="view_goals" — "ce goals am", "arată-mi obiectivele"
     - intent="delete_goal" — "șterge goal-ul X" 
+28. Memory Management: module="memory":
+    - intent="memory_view" — "ce știi despre mine", "ce amintiri ai", "vezi memoria". 
+      Returnează dashboard-ul cu faptele salvate.
+    - intent="memory_delete" — "șterge amintirea X", "uită că fumez", "anulează faptul că...". 
+      Extrage ID-ul amintirii sau textul relevant în data.
 
 ━━━ EXEMPLE NLP LOGGING ━━━
 - "Am mâncat 2 ouă și 50g brânză" -> intent="meal_log", module="nutrition", data={{"meal_type": "masa", "description": "...", "items": [...], "calories": ..., "protein": ...}}
@@ -438,6 +453,12 @@ IntentResponse schema:
                         "data": types.Schema(type=types.Type.OBJECT),
                         "reply": types.Schema(type=types.Type.STRING),
                         "needs_confirmation": types.Schema(type=types.Type.BOOLEAN),
+                        "needs_agent": types.Schema(type=types.Type.BOOLEAN),
+                        "agent_tools_needed": types.Schema(
+                            type=types.Type.ARRAY, 
+                            items=types.Schema(type=types.Type.STRING), 
+                            nullable=True
+                        ),
                     },
                     required=[
                         "intent",
@@ -445,6 +466,7 @@ IntentResponse schema:
                         "data",
                         "reply",
                         "needs_confirmation",
+                        "needs_agent",
                     ],
                 )
                 response = await asyncio.to_thread(
@@ -488,6 +510,12 @@ IntentResponse schema:
 
         if isinstance(parsed, list) and len(parsed) > 0:
             parsed = parsed[0]
+            
+        # Trigger background fact extraction (fire-and-forget)
+        asyncio.create_task(
+            extract_and_save_facts(pool, client, user_message, parsed.get("reply", ""))
+        )
+        
         return parsed
     except Exception as e:
         print(f"Gemini error: {e}", flush=True)

@@ -165,6 +165,57 @@ async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         traceback.print_exc()
 
 
+async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
+    """Handles incoming photos, sending them to the Vision Module."""
+    if not await security_check(update):
+        return
+
+    try:
+        from core.vision import analyze_image, process_vision_result
+        from core.gemini import client
+
+        # Send loading message
+        loading_msg = await update.message.reply_text("Analizând imaginea... 👁️")
+        
+        # Get highest resolution photo
+        photo_file = await update.message.photo[-1].get_file()
+        photo_bytes = await photo_file.download_as_bytearray()
+        
+        caption = update.message.caption
+        
+        # Analyze using Vision Module
+        result = await analyze_image(client, bytes(photo_bytes), caption)
+        
+        if result.get("type") == "error":
+            await loading_msg.edit_text(result.get("reply", "Eroare la procesarea imaginii."))
+            return
+            
+        profile = await get_user_profile(pool, TELEGRAM_USER_ID)
+        
+        # Process result and get formatting
+        reply_text, keyboard = await process_vision_result(pool, result, profile, client)
+        
+        # Edit loading message with real reply
+        try:
+            await loading_msg.edit_text(
+                reply_text, 
+                parse_mode="MarkdownV2", 
+                reply_markup=keyboard
+            )
+        except Exception as edit_err:
+            print(f"Error editing loading msg with MarkdownV2: {edit_err}")
+            await loading_msg.edit_text(reply_text, reply_markup=keyboard)
+
+    except Exception as e:
+        import traceback
+        print(f"Error handling photo: {e}")
+        traceback.print_exc()
+        try:
+            await update.message.reply_text("A apărut o eroare la procesarea pozei.")
+        except:
+            pass
+
+
 async def message_handler(
     update: Update, context: ContextTypes.DEFAULT_TYPE, pool, text=None
 ):
@@ -209,6 +260,30 @@ async def message_handler(
 
     if not await security_check(update):
         return
+
+    # ── GROUP ROUTING ──
+    # If in a group, only respond if explicitly mentioned
+    if update.effective_chat and update.effective_chat.type in ("group", "supergroup"):
+        # Lazy-get bot username
+        bot_username = context.application.bot_data.get("bot_username")
+        if not bot_username:
+            me = await context.bot.get_me()
+            bot_username = me.username
+            context.application.bot_data["bot_username"] = bot_username
+        
+        # Check for mention in entities or text
+        is_mentioned = False
+        if update.message and update.message.entities:
+            for ent in update.message.entities:
+                if ent.type == "mention":
+                    mentioned_text = update.message.text[ent.offset:ent.offset + ent.length].lower()
+                    if f"@{bot_username.lower()}" == mentioned_text:
+                        is_mentioned = True
+                        break
+        
+        if not is_mentioned and f"@{bot_username.lower()}" not in (text or "").lower():
+            print(f"🔇 LORA SILENT: Message in group {update.effective_chat.id} doesn't mention @{bot_username}")
+            return
 
     try:
         telegram_id = update.effective_user.id
@@ -965,11 +1040,12 @@ Returnează EXCLUSIV JSON valid:
                     return
 
             elif state["state_type"] == "awaiting_edit_field":
-                context_snapshot = await build_context(pool)
+                context_snapshot = await build_context(pool, text)
                 profile = await get_user_profile(pool, telegram_id)
                 edit_prompt = f"The user wants to edit an item. Module: {state['module']}, Item ID: {state['item_id']}. User input: {text}"
 
                 intent_response = await get_gemini_response(
+                    pool,
                     user_message=edit_prompt,
                     user_name=profile.get("name", "User"),
                     tone=profile.get("tone", "warm"),
@@ -999,7 +1075,7 @@ Returnează EXCLUSIV JSON valid:
 
                         today = _date.today()
                         profile = await get_user_profile(pool, telegram_id)
-                        context_snapshot = await build_context(pool)
+                        context_snapshot = await build_context(pool, text)
 
                         itinerary_instruction = """
 Userul a descris cum vrea să-i arate ziua. Pe baza preferințelor lui și a tasks/events/habits din context, generează un itinerar structurat pe ore. 
@@ -1108,7 +1184,7 @@ Reguli:
                 )
 
                 # 3. Generate Tomorrow's Itinerary
-                context_snapshot = await build_context(pool)
+                context_snapshot = await build_context(pool, text)
 
                 itinerary_instruction = """
                     Generează un itinerar structurat pe ore pentru MÂINE.
@@ -1265,7 +1341,7 @@ Reguli:
                 # Fall through to Gemini
 
         # 3. Build context snapshot
-        context_snapshot = await build_context(pool)
+        context_snapshot = await build_context(pool, text)
         profile = await get_user_profile(pool, telegram_id)
 
         # 4. Try regex parser first for simple add_task / add_event patterns
@@ -1343,6 +1419,7 @@ Reguli:
         # 5. Fall back to Gemini if regex didn't match
         if not intent_response:
             intent_response = await get_gemini_response(
+                pool,
                 user_message=text,
                 user_name=profile.get("name", "User"),
                 tone=profile.get("tone", "warm"),
@@ -1421,6 +1498,7 @@ Reguli:
 
     except Exception as e:
         import logging
+        import traceback
 
         logger = logging.getLogger(__name__)
         logger.error(f"ERROR in message_handler: {e}\n{traceback.format_exc()}")
@@ -1440,6 +1518,19 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     try:
         query = update.callback_query
         data = query.data
+        print(f"DEBUG: CALLBACK RECEIVED: data={data} from user={update.effective_user.id}", flush=True)
+
+        if data.startswith("memory:"):
+            from modules.memory import handle_memory_callback
+
+            await handle_memory_callback(query, pool, data)
+            return
+
+        if data.startswith("vision:"):
+            from core.vision import handle_vision_callback
+
+            await handle_vision_callback(query, pool, data)
+            return
 
         if data.startswith("goals_"):
             from modules.goals import handle_goals_callback

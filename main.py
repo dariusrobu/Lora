@@ -21,6 +21,7 @@ from bot.handler import (
     message_handler,
     callback_handler,
     voice_handler,
+    photo_handler,
     focus_command,
     stopfocus_command,
     timeblock_command,
@@ -39,6 +40,7 @@ from functools import partial
 import os
 from aiohttp import web
 from core.ical import generate_user_calendar
+from api.routes import setup_api_routes
 
 async def handle_health_check(request):
     return web.Response(text="OK", status=200)
@@ -78,6 +80,7 @@ async def start_web_server(pool):
     app['pool'] = pool
     app.router.add_get('/', handle_health_check)
     app.router.add_get('/calendar/{token}', handle_calendar_request)
+    setup_api_routes(app)
     
     port = int(os.environ.get("PORT", 8080))
     runner = web.AppRunner(app)
@@ -132,6 +135,7 @@ async def start_bot():
     msg_handler_with_pool = partial(message_handler, pool=pool)
     cb_handler_with_pool = partial(callback_handler, pool=pool)
     voice_handler_with_pool = partial(voice_handler, pool=pool)
+    photo_handler_with_pool = partial(photo_handler, pool=pool)
 
     application.add_handler(CommandHandler("calendar", calendar_command))
     application.add_handler(CommandHandler("focus", focus_command))
@@ -147,6 +151,7 @@ async def start_bot():
     application.add_handler(CommandHandler("projects", projects_command))
     application.add_handler(CommandHandler("reading", reading_command))
     application.add_handler(MessageHandler(filters.VOICE, voice_handler_with_pool))
+    application.add_handler(MessageHandler(filters.PHOTO, photo_handler_with_pool))
     application.add_handler(MessageHandler(filters.ALL, msg_handler_with_pool))
     application.add_handler(CallbackQueryHandler(cb_handler_with_pool))
 
@@ -155,6 +160,7 @@ async def start_bot():
     app['pool'] = pool
     app.router.add_get('/', handle_health_check)
     app.router.add_get('/calendar/{token}', handle_calendar_request)
+    setup_api_routes(app)
     
     port = int(os.environ.get("PORT", 8080))
     runner = web.AppRunner(app)

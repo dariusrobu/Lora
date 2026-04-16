@@ -26,9 +26,11 @@ def safe_markdown(text: str) -> str:
     if not text:
         return ""
 
-    # Re-escape only what's necessary to prevent parser errors for lone special chars.
-    # Characters that MUST be escaped if not part of a tag: _ [ ] ( ) ~ > # + = | { } . ! -
-    must_escape = r"[]()~>#+=|{}.!-"
+    # Re-escape only characters that are most likely to break parsing
+    # and are rarely used in normal text.
+    # We leave . - ! # + = alone as they are usually fine unless at start of line
+    # or part of a complex sequence.
+    must_escape = r"[]()~>|{}"
     for char in must_escape:
         text = text.replace(char, f"\\{char}")
 

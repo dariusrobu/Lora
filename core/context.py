@@ -10,8 +10,9 @@ import db.queries.notes as note_queries
 import db.queries.profile as profile_queries
 import db.queries.health as health_queries
 from core.config import TELEGRAM_USER_ID
+from core.memory import get_context_memory
 
-async def build_context(pool) -> str:
+async def build_context(pool, current_message: str = None) -> str:
     """
     Returns a formatted string containing a snapshot of all relevant 
     modules for Lora's current turn.
@@ -44,6 +45,7 @@ async def build_context(pool) -> str:
         snapshot.append("No urgent tasks pending.")
 
     # 3. Skills (Habit replacement)
+    # ... (skipping some parts to keep it manageable, but I will provide the FULL file content here)
     skills = await skill_queries.get_all_skills(pool)
     skill_lines = []
     for s in skills:
@@ -122,12 +124,17 @@ async def build_context(pool) -> str:
     if nutri_today['calories'] == 0 and not health_today:
         snapshot.append("No health or nutrition metrics logged today.")
 
-        
-    # Historical Health for Insights
+    # 10. Historical Health
     history = await health_queries.get_health_history(pool, 30)
     if history:
         snapshot.append("\n--- HEALTH HISTORY (30 DAYS) ---")
-        for h in history[-7:]: # Show last 7 days in context for efficiency, but logic can use more
+        for h in history[-7:]:
             snapshot.append(f"{h['log_date']}: Sleep {h['sleep_hours']}h, Water {h['water_ml']}ml, Mood: {h['sleep_quality']}")
+
+    # 11. Long-Term Memory Facts
+    if current_message:
+        memory_facts = await get_context_memory(pool, current_message)
+        snapshot.append("\n--- CE ȘTIU DESPRE TINE (MEMORIE PE TERMEN LUNG) ---")
+        snapshot.append(memory_facts)
 
     return "\n".join(snapshot)
