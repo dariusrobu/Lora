@@ -71,8 +71,8 @@ FAPTE DESPRE {user_name}:
 {personal_notes}
 
 CAPABILITIES:
-Tasks, Habits, Projects, Goals, Notes & Journal, Finance, Events, Shopping List, Skills.
-Fiecare suportă: add, edit, rename, delete, complete, list, search, archive (projects).
+Skills (fost Habits), Tasks, Projects, Goals, Notes & Journal, Finance, Events, Shopping List.
+Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → skills equivalent.
 
 14. Events: module="events":
     - intent="add_event" — "adaugă eveniment", "programare", "am eveniment". 
@@ -85,6 +85,7 @@ Fiecare suportă: add, edit, rename, delete, complete, list, search, archive (pr
     - intent="list_reminders" — "reminderele mele", "ce reminder-e am"
     - intent="delete_event" — "șterge evenimentul X", "anulează evenimentul"
     - intent="delete_reminder" — "șterge reminder-ul X", "anulează reminder-ul"
+    - intent="edit_event_reminder" — "schimbă reminder-ul la X minute", "editează reminder"
 
 ━━━ REGULI DE TON ━━━
 
@@ -163,7 +164,7 @@ Fiecare suportă: add, edit, rename, delete, complete, list, search, archive (pr
     - "analizează..." sau "compară..."
     - "cum stau cu..." când implică mai multe module (tasks, gym, health).
     Când needs_agent=true, restul câmpurilor (module, etc.) sunt opționale/ignorate, exceptând `agent_tools_needed` unde poți anticipa sculele necesare ("tool_get_tasks", "tool_get_events_today", "tool_get_habit_status", "tool_get_finance_summary", "tool_get_health_today", "tool_get_goals_progress").
-14. Projects: module="projects", intent= "add_project"/"list_projects"/"archive_project"/"delete_project".
+ 14. Projects: module="projects", intent= "add_project"/"list_projects"/"archive_project"/"delete_project"/"delete_project_confirmed".
 15. Finance: module="finance":
     - intent="finance_log" pentru înregistrare (cheltuieli, venituri). 
       Data: {{amount: număr, type: "expense"|"income", category: text, description: text}}
@@ -277,7 +278,11 @@ Fiecare suportă: add, edit, rename, delete, complete, list, search, archive (pr
         * Skills va înlocui Habits progresiv. Orice activitate recurentă trebuie tratată ca un skill cu o valoare numerică.
         * data={{"skill_name": string, "value": float, "weight": float | null}}
     - intent="view_skills" pentru a vedea dashboard-ul ("dashboard skills", "cum stau cu skill-urile", "skills").
-22. Focus: module="focus":
+    - intent="add_habit" — "adaug habit X", "vreau să trackuiesc Y". Creează skill nou.
+    - intent="log_habit" — "am făcut habit X", "bifează Y". Loghează valoare la skill existent (sau îl creează).
+    - intent="list_habits" — "ce habits am", "arată-mi habits". Redirect → view_skills.
+    - intent="delete_habit" — "șterge habit X". Șterge skill-ul.
+27. Focus: module="focus":
     - intent="focus_start" pentru a porni ("intru în focus 30 minute", "pornește pomodoro").
     - intent="focus_stop" pentru a opri manual ("oprește focus", "/stopfocus").
     - intent="focus_list" pentru afișarea sesiunilor ("sesiunile mele de focus", "câte pomodoro").
@@ -455,9 +460,9 @@ IntentResponse schema:
                         "needs_confirmation": types.Schema(type=types.Type.BOOLEAN),
                         "needs_agent": types.Schema(type=types.Type.BOOLEAN),
                         "agent_tools_needed": types.Schema(
-                            type=types.Type.ARRAY, 
-                            items=types.Schema(type=types.Type.STRING), 
-                            nullable=True
+                            type=types.Type.ARRAY,
+                            items=types.Schema(type=types.Type.STRING),
+                            nullable=True,
                         ),
                     },
                     required=[
@@ -510,12 +515,12 @@ IntentResponse schema:
 
         if isinstance(parsed, list) and len(parsed) > 0:
             parsed = parsed[0]
-            
+
         # Trigger background fact extraction (fire-and-forget)
         asyncio.create_task(
             extract_and_save_facts(pool, client, user_message, parsed.get("reply", ""))
         )
-        
+
         return parsed
     except Exception as e:
         print(f"Gemini error: {e}", flush=True)

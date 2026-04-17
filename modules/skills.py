@@ -63,7 +63,7 @@ async def get_skill_detail_view(
     avg_str = f"{stats['avg']:.2f}"
     max_str = f"{stats['max']:.2f}"
     trend_val = f"{abs(stats['trend']):.2f}"
-    trend_icon = '📈' if stats['trend'] > 0 else '📉' if stats['trend'] < 0 else '➡️'
+    trend_icon = "📈" if stats["trend"] > 0 else "📉" if stats["trend"] < 0 else "➡️"
 
     lines = [
         f"📊 *{title}* \\({escape_md(skill['category'])}\\)\n",
@@ -119,6 +119,51 @@ async def handle_skill_intent(
 
     elif intent == "view_skills":
         return await get_skills_dashboard(pool)
+
+    elif intent == "add_habit":
+        name = data.get("name") or data.get("skill_name")
+        frequency = data.get("frequency", "daily")
+        if not name:
+            return "Cum se numește habit-ul?", None
+        existing = await skill_queries.get_skill_by_name(pool, name)
+        if existing:
+            return f"Habit-ul *{escape_md(name)}* există deja\\.", None
+        unit = data.get("unit", "zile" if frequency == "daily" else "ori")
+        await skill_queries.add_skill(pool, name, unit)
+        return (
+            f"✅ Habit *{escape_md(name)}* adăugat \\(tracking: {frequency}, unit: {unit}\\)\\.",
+            None,
+        )
+
+    elif intent == "log_habit":
+        name = data.get("name") or data.get("skill_name")
+        value = data.get("value", 1)
+        if not name:
+            return "Pentru ce habit vrei să loghezi?", None
+        skill = await skill_queries.get_skill_by_name(pool, name)
+        if not skill:
+            unit = data.get("unit", "zile")
+            await skill_queries.add_skill(pool, name, unit)
+            skill = await skill_queries.get_skill_by_name(pool, name)
+        await skill_queries.log_skill_value(
+            pool, skill["id"], float(value), metric=skill.get("unit")
+        )
+        streak = await skill_queries.get_skill_streak(pool, skill["id"])
+        streak_str = f" 🔥{streak}" if streak > 0 else ""
+        return f"✅ {escape_md(name)} bifat\\. Streak: *{streak}* {streak_str}", None
+
+    elif intent == "list_habits":
+        return await get_skills_dashboard(pool)
+
+    elif intent == "delete_habit":
+        name = data.get("name") or data.get("skill_name")
+        if not name:
+            return "Ce habit vrei să ștergi?", None
+        skill = await skill_queries.get_skill_by_name(pool, name)
+        if not skill:
+            return f"Nu am găsit habit-ul *{escape_md(name)}*\\.", None
+        await skill_queries.delete_skill(pool, skill["id"])
+        return f"✅ Habit *{escape_md(name)}* șters\\.", None
 
     return "Intent necunoscut pentru Skills\\.", None
 

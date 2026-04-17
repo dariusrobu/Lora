@@ -289,6 +289,11 @@ Lora speaks **Romglish** — Romanian as the base language with natural English 
 
 Run schema once: `psql $DATABASE_URL -f db/schema.sql`
 
+For existing databases, run migrations:
+```bash
+psql $DATABASE_URL -f db/migrations/001_schema_fixes.sql
+```
+
 ---
 
 ## Special Commands (in Telegram)

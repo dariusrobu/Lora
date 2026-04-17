@@ -7,6 +7,7 @@ from core.config import (
     MORNING_BRIEFING_TIME,
     EOD_REFLECTION_TIME,
     HABIT_REMINDER_TIME,
+    JOURNAL_NIGHT_TIME,
 )
 from bot.formatter import escape_md, safe_markdown
 from telegram.constants import ParseMode
@@ -497,66 +498,51 @@ SKILLS PENDING AZI:
             print(f"Could not notify user of error: {notify_error}", flush=True)
 
 
-async def send_evening_flow(application, pool):
-    """Unified evening flow: Summary + Reflection Questions + Tomorrow Planning."""
+async def send_eod_reflection(application, pool):
+    """EOD Reflection: Short daily summary + one reflective question. No state."""
     try:
         user_tz = pytz.timezone(TIMEZONE)
         now = datetime.now(user_tz)
         today = now.date()
 
-        # 1. Idempotency check
         profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
-        if profile.get("last_evening_date") == today:
-            print(f"Evening flow already sent for {today} — skipping.", flush=True)
+        if profile.get("last_eod_date") == today:
+            print(f"EOD reflection already sent for {today} — skipping.", flush=True)
             return
 
         name = profile.get("name", "User")
-        print(f"Starting evening flow for {today}...", flush=True)
+        print(f"Starting EOD reflection for {today}...", flush=True)
 
-        # 2. Gather achievements
         from db.queries.tasks import get_completed_tasks_today
 
         v_tasks = await get_completed_tasks_today(pool)
-
-        # 3. Build message
         task_count = len(v_tasks)
+
         task_status = (
             f"{task_count} tasks completate"
             if task_count > 0
             else "niciun task completat"
         )
 
-        intro_text = f"🌙 *Bună seara, {escape_md(name)}.*\n\n"
-        summary_text = f"Azi ai {task_status}."
-
-        questions_text = (
-            "\n\nRăspunde la cele 3 întrebări ca să închidem ziua:\n"
-            "*1.* Ce a mers bine azi?\n"
-            "*2.* Ce ai vrea să faci diferit?\n"
-            "*3.* Cum vrei să arate ziua de mâine? _(tasks, program, priorități)_\n\n"
-            "📌 *La ce oră te trezești mâine?* _(ex: la 7, pe la 8:30)_"
+        message = (
+            f"🌙 *Bună seara, {escape_md(name)}.*\n\n"
+            f"Azi ai {task_status}.\n\n"
+            "_Ce a mers bine azi?_\n\n"
+            "Seară liniștită\\. 🌙"
         )
 
-        full_message = intro_text + summary_text + questions_text
-
-        # 4. Send text message (must use safe_markdown to escape raw characters)
         await application.bot.send_message(
             chat_id=TELEGRAM_USER_ID,
-            text=safe_markdown(full_message),
+            text=safe_markdown(message),
             parse_mode=ParseMode.MARKDOWN_V2,
         )
 
-        # 5. Send voice TTS (AlinaNeural) - ONLY for first 2 sentences
         try:
             from bot.tts import text_to_speech
             import os
 
-            # First 2 sentences: Intro + Summary
-            tts_text = f"Bună seara, {name}. {summary_text}"
-            voice_file = await text_to_speech(
-                tts_text
-            )  # Uses ro-RO-AlinaNeural by default in tts.py
-
+            tts_text = f"Bună seara, {name}. {task_status}. Seară liniștită."
+            voice_file = await text_to_speech(tts_text)
             with open(voice_file, "rb") as f:
                 await application.bot.send_voice(
                     chat_id=TELEGRAM_USER_ID,
@@ -567,21 +553,91 @@ async def send_evening_flow(application, pool):
             if os.path.exists(voice_file):
                 os.remove(voice_file)
         except Exception as e:
-            print(f"Evening flow TTS failed: {e}", flush=True)
+            print(f"EOD TTS failed: {e}", flush=True)
 
-        # 6. Set state + mark as prompted
-        from core.state import set_state
-
-        await set_state(pool, "awaiting_evening_response", "journal", "save", None)
         await profile_queries.update_user_profile(
-            pool, TELEGRAM_USER_ID, last_evening_date=today
+            pool, TELEGRAM_USER_ID, last_eod_date=today
         )
-        print(f"Evening flow initiated for {today}.", flush=True)
+        print(f"EOD reflection sent for {today}.", flush=True)
 
     except Exception as e:
         import traceback
 
-        print(f"CRITICAL error in send_evening_flow: {e}", flush=True)
+        print(f"CRITICAL error in send_eod_reflection: {e}", flush=True)
+        traceback.print_exc()
+
+
+async def send_journal_night(application, pool):
+    """Journal Night: 3 reflection questions + mood + tomorrow planning."""
+    try:
+        user_tz = pytz.timezone(TIMEZONE)
+        now = datetime.now(user_tz)
+        today = now.date()
+
+        profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
+        if profile.get("last_journal_date") == today:
+            print(f"Journal night already sent for {today} — skipping.", flush=True)
+            return
+
+        name = profile.get("name", "User")
+        print(f"Starting journal night for {today}...", flush=True)
+
+        from db.queries.tasks import get_completed_tasks_today
+
+        v_tasks = await get_completed_tasks_today(pool)
+        task_count = len(v_tasks)
+        task_status = (
+            f"{task_count} tasks completate"
+            if task_count > 0
+            else "niciun task completat"
+        )
+
+        message = (
+            f"🌙 *Bună seara, {escape_md(name)}.*\n\n"
+            f"Azi ai {task_status}.\n\n"
+            "Răspunde la cele 3 întrebări ca să închidem ziua:\n"
+            "*1.* Ce a mers bine azi?\n"
+            "*2.* Ce ai vrea să faci diferit?\n"
+            "*3.* Cum vrei să arate ziua de mâine? \\(tasks, program, priorități\\)\n\n"
+            "📌 *La ce oră te trezești mâine?* \\(ex: la 7, pe la 8:30\\)"
+        )
+
+        await application.bot.send_message(
+            chat_id=TELEGRAM_USER_ID,
+            text=safe_markdown(message),
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+
+        try:
+            from bot.tts import text_to_speech
+            import os
+
+            tts_text = f"Bună seara, {name}. {task_status}. Răspunde la cele 3 întrebări ca să închidem ziua."
+            voice_file = await text_to_speech(tts_text)
+            with open(voice_file, "rb") as f:
+                await application.bot.send_voice(
+                    chat_id=TELEGRAM_USER_ID,
+                    voice=f,
+                    caption="🎙️ *Lora: Journal Night*",
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                )
+            if os.path.exists(voice_file):
+                os.remove(voice_file)
+        except Exception as e:
+            print(f"Journal night TTS failed: {e}", flush=True)
+
+        from core.state import set_state
+
+        await set_state(pool, "awaiting_evening_response", "journal", "save", None)
+        await profile_queries.update_user_profile(
+            pool, TELEGRAM_USER_ID, last_journal_date=today
+        )
+        print(f"Journal night initiated for {today}.", flush=True)
+
+    except Exception as e:
+        import traceback
+
+        print(f"CRITICAL error in send_journal_night: {e}", flush=True)
         traceback.print_exc()
 
 
@@ -901,6 +957,246 @@ DOAR textul review-ului, fără introducere/concluzie extra.
         import traceback
 
         print(f"CRITICAL error in send_weekly_review: {e}", flush=True)
+        traceback.print_exc()
+
+
+async def send_monthly_review(application, pool) -> None:
+    """Aggregates monthly data and sends a reflective review on the 1st of each month."""
+    from datetime import datetime, date
+    import calendar
+    import pytz
+    from core.config import TIMEZONE, TELEGRAM_USER_ID
+    from telegram.constants import ParseMode
+
+    try:
+        user_tz = pytz.timezone(TIMEZONE)
+        today = datetime.now(user_tz).date()
+
+        # 1. Idempotency Check
+        profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
+        if profile.get("last_monthly_review_date") == today:
+            print(f"Monthly review already sent for {today} — skipping.", flush=True)
+            return
+
+        # 2. Date Range (entire previous month)
+        prev_month = today.month - 1 if today.month > 1 else 12
+        prev_year = today.year if today.month > 1 else today.year - 1
+        _, last_day = calendar.monthrange(prev_year, prev_month)
+        start_date = date(prev_year, prev_month, 1)
+        end_date = date(prev_year, prev_month, last_day)
+
+        month_name_ro = {
+            1: "Ianuarie",
+            2: "Februarie",
+            3: "Martie",
+            4: "Aprilie",
+            5: "Mai",
+            6: "Iunie",
+            7: "Iulie",
+            8: "August",
+            9: "Septembrie",
+            10: "Octombrie",
+            11: "Noiembrie",
+            12: "Decembrie",
+        }.get(prev_month, str(prev_month))
+
+        print(f"Starting monthly review for {month_name_ro} {prev_year}...", flush=True)
+
+        # 3. Aggregated Data Collection
+        task_stats = await task_queries.get_monthly_task_stats(
+            pool, start_date, end_date
+        )
+
+        async with pool.acquire() as conn:
+            finance_rows = await conn.fetch(
+                """
+                SELECT type, SUM(amount) as total
+                FROM finances
+                WHERE tx_date BETWEEN $1 AND $2
+                GROUP BY type
+                """,
+                start_date,
+                end_date,
+            )
+        finance_by_type = {r["type"]: float(r["total"]) for r in finance_rows}
+        total_expense = finance_by_type.get("expense", 0)
+
+        prev_month_stats = await finance_queries.get_monthly_summary(
+            pool, prev_month, prev_year
+        )
+
+        import db.queries.mood as mood_queries
+
+        monthly_moods = await mood_queries.get_monthly_mood_distribution(
+            pool, start_date, end_date
+        )
+        mood_labels = {
+            "great": "super",
+            "good": "bine",
+            "neutral": "ok",
+            "okay": "ok",
+            "bad": "slab",
+            "terrible": "rău",
+        }
+        mood_parts = [
+            f"{count} zile {mood_labels.get(m.lower(), m)}"
+            for m, count in monthly_moods.items()
+            if count > 0
+        ]
+        mood_summary = (
+            f"😊 Mood: {', '.join(mood_parts)}"
+            if mood_parts
+            else "😊 Mood: date insuficiente"
+        )
+
+        health_month = await health_queries.get_health_history(pool, 31)
+        health_month = [
+            h
+            for h in health_month
+            if start_date <= h.get("log_date", date(2000, 1, 1)) <= end_date
+        ]
+        avg_sleep = sum(
+            h["sleep_hours"] for h in health_month if h.get("sleep_hours")
+        ) / max(len([h for h in health_month if h.get("sleep_hours")]), 1)
+        avg_water = sum(h["water_ml"] for h in health_month if h.get("water_ml")) / max(
+            len([h for h in health_month if h.get("water_ml")]), 1
+        )
+        weights = [h["weight_kg"] for h in health_month if h.get("weight_kg")]
+        weight_trend = ""
+        if len(weights) >= 2:
+            weight_trend = (
+                "↑"
+                if weights[-1] > weights[0]
+                else "↓"
+                if weights[-1] < weights[0]
+                else "→"
+            )
+
+        from modules.insights import generate_insights
+
+        patterns = await generate_insights(pool)
+        patterns_section = ""
+        if "nu am suficiente date" not in patterns.lower():
+            patterns_section = f"\n🧠 *Patterns observate*\n{patterns}"
+
+        from db.queries.goals import get_all_goals
+
+        goals = await get_all_goals(pool)
+        active_goals = [g for g in goals if g.get("status") == "active"]
+        goals_summary = (
+            f"🎯 {len(active_goals)} goals active"
+            if active_goals
+            else "🎯 Niciun goal activ"
+        )
+
+        finance_vs_prev = ""
+        if prev_month_stats.get("expense", 0) > 0:
+            diff = total_expense - prev_month_stats["expense"]
+            sign = "+" if diff > 0 else ""
+            finance_vs_prev = f" (vs luna trecută: {sign}{int(diff)} RON)"
+
+        async with pool.acquire() as conn:
+            event_count = await conn.fetchval(
+                "SELECT COUNT(*) FROM events WHERE event_date BETWEEN $1 AND $2",
+                start_date,
+                end_date,
+            )
+
+        data_summary = f"""
+LUNA: {month_name_ro} {prev_year}
+📊 Tasks: {task_stats["completed"]} completate din {task_stats["created"]} create ({int(task_stats["completed"] / max(task_stats["created"], 1) * 100)}%)
+💰 Finanțe: {int(total_expense)} RON cheltuiți{finance_vs_prev}
+😊 Mood: {mood_summary}
+😴 Sănătate: somn mediu {avg_sleep:.1f}h, apă medie {avg_water / 1000:.1f}L{", greutate " + weight_trend if weight_trend else ""}
+🎯 Goals active: {len(active_goals)}
+📅 Evenimente luna aceasta: {event_count}
+PATTERNS: {patterns_section}
+"""
+        from core.gemini import get_proactive_response
+
+        system_instruction = f"""
+Ești Lora, asistenta personală a lui {profile.get("name", "User")}.
+Generează un monthly review structurat în română.
+Tone: reflectiv, direct, calm, fără hype.
+Interzis: bravos, vibes, wins, achievements.
+
+Structură FIXĂ (MarkdownV2):
+📊 *Review Lunar — {month_name_ro} {prev_year}*
+
+✅ *Tasks*: {task_stats["completed"]} completate din {task_stats["created"]} ({int(task_stats["completed"] / max(task_stats["created"], 1) * 100)}%)
+
+🔁 *Habits*: [top 2 consistente] / [cel mai ratat — vezi din date dacă ai destule]
+
+💰 *Finanțe*
+{int(total_expense)} RON cheltuiți{finance_vs_prev}
+
+😊 *Mood*: {mood_summary}
+
+😴 *Sănătate*: somn mediu {avg_sleep:.1f}h · apă medie {avg_water / 1000:.1f}L{", greutate " + weight_trend if weight_trend else ""}
+
+🎯 *Goals*: {goals_summary}
+
+📅 *Evenimente*: {event_count}
+
+{patterns_section}
+
+🔍 *Pattern observat*: [Dacă există corelații semnificative — somn < 6.5h × productivitate, zile cu apă < 1.5L × mood, etc. Max 2 propoziții factuale.]
+
+💡 *Luna viitoare*: [1 lucru specific și concret — ales din date, nu generic]
+
+MAX 200 cuvinte. DOAR textul review-ului, fără introducere/concluzie extra.
+"""
+        review_text = await get_proactive_response(system_instruction, data_summary)
+
+        if not review_text:
+            review_text = f"📊 *Review Lunar — {month_name_ro} {prev_year}*\n\nLuna aceasta ai completat {task_stats['completed']} tasks din {task_stats['created']} create."
+
+        await application.bot.send_message(
+            chat_id=TELEGRAM_USER_ID,
+            text=safe_markdown(review_text),
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+
+        try:
+            from bot.tts import text_to_speech
+            import os
+
+            tts_clean = (
+                review_text.replace("*", "")
+                .replace("📊", "")
+                .replace("✅", "")
+                .replace("🔁", "")
+                .replace("💰", "")
+                .replace("📈", "")
+                .replace("🔍", "")
+                .replace("😊", "")
+                .replace("😴", "")
+                .replace("🎯", "")
+                .replace("📅", "")
+                .strip()
+            )
+            voice_file = await text_to_speech(tts_clean, podcast_mode=True)
+            with open(voice_file, "rb") as f:
+                await application.bot.send_voice(
+                    chat_id=TELEGRAM_USER_ID,
+                    voice=f,
+                    caption="🎙️ *Lora: Monthly Review*",
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                )
+            if os.path.exists(voice_file):
+                os.remove(voice_file)
+        except Exception as ve:
+            print(f"Monthly review voice error: {ve}", flush=True)
+
+        await profile_queries.update_user_profile(
+            pool, TELEGRAM_USER_ID, last_monthly_review_date=today
+        )
+        print(f"Monthly review sent and logged for {today}.", flush=True)
+
+    except Exception as e:
+        import traceback
+
+        print(f"CRITICAL error in send_monthly_review: {e}", flush=True)
         traceback.print_exc()
 
 
@@ -1323,12 +1619,23 @@ def setup_scheduler(application, pool):
         args=[application, pool],
     )
 
-    # 3. Evening flow
+    # 3. EOD Reflection - short daily summary at configured EOD time
     scheduler.add_job(
-        send_evening_flow,
+        send_eod_reflection,
         "cron",
         hour=e_h,
         minute=e_m,
+        misfire_grace_time=3600,
+        args=[application, pool],
+    )
+
+    # 4. Journal Night - 3 reflection questions at 22:00
+    j_h, j_m = map(int, JOURNAL_NIGHT_TIME.split(":"))
+    scheduler.add_job(
+        send_journal_night,
+        "cron",
+        hour=j_h,
+        minute=j_m,
         misfire_grace_time=3600,
         args=[application, pool],
     )
@@ -1343,16 +1650,16 @@ def setup_scheduler(application, pool):
         args=[application, pool],
     )
 
-    # Monthly Review - disabled until implemented
-    # scheduler.add_job(
-    #     send_monthly_review,
-    #     "cron",
-    #     day=1,
-    #     hour=20,
-    #     minute=0,
-    #     misfire_grace_time=3600,
-    #     args=[application.bot, pool],
-    # )
+    # Monthly Review - 1st of each month at 20:00
+    scheduler.add_job(
+        send_monthly_review,
+        "cron",
+        day=1,
+        hour=20,
+        minute=0,
+        misfire_grace_time=3600,
+        args=[application, pool],
+    )
 
     # Weekly Finance Summary: Monday, 5 mins before Morning Briefing
     f_h, f_m = m_h, (m_m - 5) % 60

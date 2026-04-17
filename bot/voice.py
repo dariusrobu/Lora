@@ -1,6 +1,5 @@
 import os
 import tempfile
-import asyncio
 from google import genai
 from google.genai import types
 from core.config import GEMINI_API_KEY
@@ -37,7 +36,7 @@ async def transcribe_voice(update, context) -> str:
         )
 
         # 3. Upload to Gemini
-        print(f"🎙 VOICE: Uploading to Gemini...", flush=True)
+        print("🎙 VOICE: Uploading to Gemini...", flush=True)
         myfile = client.files.upload(
             file=tmp_path, config=types.UploadFileConfig(mime_type="audio/ogg")
         )
@@ -46,7 +45,7 @@ async def transcribe_voice(update, context) -> str:
         # 4. Call Gemini for transcription
         prompt = "Transcribe this voice message in ROMANIAN. The user speaks Romanian. Return only the transcribed text, nothing else."
 
-        print(f"🎙 VOICE: Requesting transcription...", flush=True)
+        print("🎙 VOICE: Requesting transcription...", flush=True)
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=[

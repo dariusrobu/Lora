@@ -131,37 +131,41 @@ async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         await update.message.reply_chat_action("upload_document")
-        
+
         # Link for automatic synchronization (HTTPS/WebCal)
-        token = TELEGRAM_BOT_TOKEN.split(':')[0]
-        # Robust domain detection
-        domain = os.environ.get("WEB_DOMAIN", "lora-bot.onrender.com").replace("https://", "").replace("http://", "").rstrip("/")
+        token = TELEGRAM_BOT_TOKEN.split(":")[0]
+        domain = (
+            os.environ.get("WEB_DOMAIN", "lora-bot.onrender.com")
+            .replace("https://", "")
+            .replace("http://", "")
+            .rstrip("/")
+        )
         webcal_url = f"https://{domain}/calendar/{token}"
-        
+
         ics_bytes = await generate_user_calendar(pool)
-        
+
         bio = io.BytesIO(ics_bytes)
         bio.name = "lora_calendar.ics"
-        
-        # New text to verify deploy
+
         text = (
             "✨ *Sincronizare Calendar Lora* ✨\n\n"
             "Pentru a vedea evenimentele pe iPhone/Mac:\n"
-            "1️⃣ Copiază link-ul: `{escape_md(webcal_url)}`\n"
+            "1️⃣ Copiază link-ul: `" + webcal_url + "`\n"
             "2️⃣ În aplicația *Calendar* mergi la *Add Subscription Calendar*\n"
             "3️⃣ Lipeste link-ul și salvează\\.\n\n"
             "🔄 _Sincronizarea este automată la orice modificare!_"
         )
-        
+
         await update.message.reply_document(
             document=bio,
             filename="lora_calendar.ics",
             caption=text,
-            parse_mode="MarkdownV2"
+            parse_mode="MarkdownV2",
         )
     except Exception as e:
         await update.message.reply_text(f"Eroare la generarea calendarului: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -176,31 +180,33 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
 
         # Send loading message
         loading_msg = await update.message.reply_text("Analizând imaginea... 👁️")
-        
+
         # Get highest resolution photo
         photo_file = await update.message.photo[-1].get_file()
         photo_bytes = await photo_file.download_as_bytearray()
-        
+
         caption = update.message.caption
-        
+
         # Analyze using Vision Module
         result = await analyze_image(client, bytes(photo_bytes), caption)
-        
+
         if result.get("type") == "error":
-            await loading_msg.edit_text(result.get("reply", "Eroare la procesarea imaginii."))
+            await loading_msg.edit_text(
+                result.get("reply", "Eroare la procesarea imaginii.")
+            )
             return
-            
+
         profile = await get_user_profile(pool, TELEGRAM_USER_ID)
-        
+
         # Process result and get formatting
-        reply_text, keyboard = await process_vision_result(pool, result, profile, client)
-        
+        reply_text, keyboard = await process_vision_result(
+            pool, result, profile, client
+        )
+
         # Edit loading message with real reply
         try:
             await loading_msg.edit_text(
-                reply_text, 
-                parse_mode="MarkdownV2", 
-                reply_markup=keyboard
+                reply_text, parse_mode="MarkdownV2", reply_markup=keyboard
             )
         except Exception as edit_err:
             print(f"Error editing loading msg with MarkdownV2: {edit_err}")
@@ -208,11 +214,12 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
 
     except Exception as e:
         import traceback
+
         print(f"Error handling photo: {e}")
         traceback.print_exc()
         try:
             await update.message.reply_text("A apărut o eroare la procesarea pozei.")
-        except:
+        except Exception:
             pass
 
 
@@ -221,7 +228,7 @@ async def message_handler(
 ):
     # Log EVERYTHING first
     print(f"DEBUG: message_handler triggered for update {update.update_id}", flush=True)
-    
+
     # Log EVERY message before the security check
     user_id = update.effective_user.id if update.effective_user else "Unknown"
 
@@ -270,19 +277,23 @@ async def message_handler(
             me = await context.bot.get_me()
             bot_username = me.username
             context.application.bot_data["bot_username"] = bot_username
-        
+
         # Check for mention in entities or text
         is_mentioned = False
         if update.message and update.message.entities:
             for ent in update.message.entities:
                 if ent.type == "mention":
-                    mentioned_text = update.message.text[ent.offset:ent.offset + ent.length].lower()
+                    mentioned_text = update.message.text[
+                        ent.offset : ent.offset + ent.length
+                    ].lower()
                     if f"@{bot_username.lower()}" == mentioned_text:
                         is_mentioned = True
                         break
-        
+
         if not is_mentioned and f"@{bot_username.lower()}" not in (text or "").lower():
-            print(f"🔇 LORA SILENT: Message in group {update.effective_chat.id} doesn't mention @{bot_username}")
+            print(
+                f"🔇 LORA SILENT: Message in group {update.effective_chat.id} doesn't mention @{bot_username}"
+            )
             return
 
     try:
@@ -386,18 +397,33 @@ async def message_handler(
         # Handle /habitstreaks command
 
         # Handle /journal and /eod commands
-        if text in ["/journal", "/eod"]:
+        if text == "/journal":
             from db.queries.profile import update_user_profile
             from core.config import TELEGRAM_USER_ID as TG_UID
-            from scheduler.jobs import send_evening_flow
+            from scheduler.jobs import send_journal_night
 
             try:
-                await update_user_profile(pool, TG_UID, last_evening_date=None)
-                await send_evening_flow(context.application, pool)
+                await update_user_profile(pool, TG_UID, last_journal_date=None)
+                await send_journal_night(context.application, pool)
             except Exception as e:
-                print(f"Evening flow manual trigger error: {e}", flush=True)
+                print(f"Journal night manual trigger error: {e}", flush=True)
                 await update.message.reply_text(
-                    f"❌ Eroare la inițierea flow-ului de seară: {e}"
+                    f"❌ Eroare la inițierea journal-ului: {e}"
+                )
+            return
+
+        if text == "/eod":
+            from db.queries.profile import update_user_profile
+            from core.config import TELEGRAM_USER_ID as TG_UID
+            from scheduler.jobs import send_eod_reflection
+
+            try:
+                await update_user_profile(pool, TG_UID, last_eod_date=None)
+                await send_eod_reflection(context.application, pool)
+            except Exception as e:
+                print(f"EOD reflection manual trigger error: {e}", flush=True)
+                await update.message.reply_text(
+                    f"❌ Eroare la inițierea EOD reflection: {e}"
                 )
             return
         # Handle /plan command
@@ -1217,7 +1243,7 @@ Reguli:
                     )
 
                 await clear_state(pool)
-                await update_user_profile(pool, TG_UID, last_evening_date=today)
+                await update_user_profile(pool, TG_UID, last_journal_date=today)
 
                 reply = f"✅ Jurnal salvat\\.\n\n{safe_markdown(itinerary or 'Noapte bună!')}\n\nNoapte bună\\. 🌙"
                 await update.message.reply_text(reply, parse_mode="MarkdownV2")
@@ -1518,7 +1544,10 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     try:
         query = update.callback_query
         data = query.data
-        print(f"DEBUG: CALLBACK RECEIVED: data={data} from user={update.effective_user.id}", flush=True)
+        print(
+            f"DEBUG: CALLBACK RECEIVED: data={data} from user={update.effective_user.id}",
+            flush=True,
+        )
 
         if data.startswith("memory:"):
             from modules.memory import handle_memory_callback

@@ -28,13 +28,11 @@ ruff check .
 # Format code
 ruff format .
 
-# Database init
+# Database init (fresh)
 psql $DATABASE_URL -f db/schema.sql
 
-# Tests
-pytest tests/                         # All tests
-pytest tests/test_tasks.py -v         # Single file
-pytest tests/test_tasks.py::test_foo  # Single test function
+# Apply migrations (existing DB)
+psql $DATABASE_URL -f db/migrations/001_schema_fixes.sql
 ```
 
 ## Code Style
@@ -153,30 +151,53 @@ state = await get_state(pool)
 await clear_state(pool)
 ```
 
-**States**: `awaiting_confirmation`, `awaiting_edit_field`, `awaiting_focus_result`, `null`
+**States**: `awaiting_confirmation`, `awaiting_edit_field`, `null`
 
 ## Folder Structure
 
 ```
 lora/
-├── main.py                    # Entry point
+├── main.py                    # Entry point — asyncio loop, handlers, scheduler, web server
+├── requirements.txt
+├── railway.json               # Railway deployment (numReplicas: 1)
+├── api/routes.py              # HTTP API routes
+│
 ├── bot/
-│   ├── handler.py             # Main router, dispatch
+│   ├── handler.py             # Message routing, security, dispatch
 │   ├── keyboards.py           # InlineKeyboardMarkup builders
 │   ├── formatter.py           # MarkdownV2 utilities
 │   ├── voice.py               # STT transcription
-│   └── tts.py                # edge-tts wrapper
+│   ├── tts.py                # edge-tts wrapper
+│   └── onboarding.py          # First-run wizard
+│
 ├── core/
-│   ├── gemini.py              # LLM integration
+│   ├── gemini.py              # LLM calls, system prompt, IntentResponse
 │   ├── router.py              # Intent → module routing
 │   ├── context.py             # build_context() for prompts
-│   └── state.py               # State machine
-├── modules/                   # Business logic
-├── scheduler/jobs.py          # APScheduler jobs
-└── db/
-    ├── connection.py          # asyncpg pool
-    ├── schema.sql             # Table definitions
-    └── queries/               # Raw SQL per module
+│   ├── state.py               # State machine
+│   ├── config.py              # Env var loading + startup validation
+│   ├── memory.py              # Long-term fact extraction
+│   └── ical.py               # Calendar generation
+│
+├── modules/                   # Business logic (no Telegram calls)
+│   ├── tasks.py              ├── habits.py             ├── projects.py
+│   ├── notes.py              ├── finance.py            ├── events.py
+│   ├── shopping.py           ├── goals.py              ├── skills.py
+│   ├── health.py             ├── nutrition.py          ├── workout.py
+│   ├── university.py         ├── schedule.py           ├── reading.py
+│   ├── focus.py              ├── planner.py            ├── mood.py
+│   ├── insights.py           ├── memory.py             ├── news.py
+│   └── weather.py
+│
+├── scheduler/
+│   └── jobs.py               # APScheduler jobs (morning briefing, EOD, etc.)
+│
+├── db/
+│   ├── connection.py         # asyncpg pool
+│   ├── schema.sql            # Table definitions
+│   └── queries/              # Raw SQL per module
+└── api/
+    └── routes.py             # HTTP endpoints
 ```
 
 ## Key Files
@@ -202,6 +223,7 @@ lora/
 - `/reload` uses `os.execl()` — hard restart
 - Railway: `numReplicas: 1` for long polling
 - `bot.log` not rotated
+- No test suite exists
 
 ## Deploy
 

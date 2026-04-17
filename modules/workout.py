@@ -1,67 +1,87 @@
 # modules/workout.py
 
 from typing import Any, Tuple
-import db.queries.workout as workout_queries
-from bot.formatter import escape_md
 from datetime import date
+import db.queries.workout as workout_queries
+import db.queries.sport_types as sport_queries
+from bot.formatter import escape_md
+from bot.keyboards import (
+    workout_main_keyboard,
+    workout_stats_period_keyboard,
+    sports_list_keyboard,
+    exercises_list_keyboard,
+)
+from core.state import set_state, clear_state
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+import traceback
+
 
 async def handle_workout_intent(pool, intent: str, data: dict, bot=None):
-    import db.queries.sport_types as sport_queries
-    from bot.keyboards import workout_main_keyboard
-    
     if intent == "workout_log":
         date_str = data.get("date")
         if date_str:
             try:
-                from datetime import date
                 workout_date = date.fromisoformat(date_str)
             except ValueError:
-                from datetime import date
                 workout_date = date.today()
         else:
-            from datetime import date
             workout_date = date.today()
-            
+
         sport_name = data.get("sport_name", "Gym")
         if sport_name.lower() in ("sală", "sala"):
             sport_name = "Gym"
-            
+
         duration = data.get("duration_min") or 0
         calories = data.get("calories")
         notes = data.get("notes") or ""
         exercises = data.get("exercises", [])
-        
+
         sports = await sport_queries.get_all_sports(pool)
-        matched_sport = next((s for s in sports if s['name'].lower() == sport_name.lower()), None)
-        
+        matched_sport = next(
+            (s for s in sports if s["name"].lower() == sport_name.lower()), None
+        )
+
         if matched_sport:
-            sport_id = matched_sport['id']
-            icon = matched_sport.get('icon', '🏅')
+            sport_id = matched_sport["id"]
+            icon = matched_sport.get("icon", "🏅")
         else:
             try:
-                await sport_queries.add_sport(pool, sport_name, "Forță", False, True, True, "🏃")
+                await sport_queries.add_sport(
+                    pool, sport_name, "Forță", False, True, True, "🏃"
+                )
                 sports = await sport_queries.get_all_sports(pool)
-                sport_id = next((s['id'] for s in sports if s['name'].lower() == sport_name.lower()), 1)
+                sport_id = next(
+                    (
+                        s["id"]
+                        for s in sports
+                        if s["name"].lower() == sport_name.lower()
+                    ),
+                    1,
+                )
                 icon = "🏃"
             except Exception:
-                sport_id = sports[0]['id'] if sports else 1
+                sport_id = sports[0]["id"] if sports else 1
                 icon = "🏅"
-        
+
         workout_id = await workout_queries.log_workout(
             pool, workout_date, sport_id, duration, notes, calories
         )
-        
+
         ex_summary = []
         for ex in exercises:
             name = ex.get("name", "")
             if name:
                 await workout_queries.log_exercise(
-                    pool, workout_id, name,
-                    ex.get("sets"), ex.get("reps"), ex.get("weight_kg")
+                    pool,
+                    workout_id,
+                    name,
+                    ex.get("sets"),
+                    ex.get("reps"),
+                    ex.get("weight_kg"),
                 )
-                
-                reps_w = ex.get('reps')
-                sets_w = ex.get('sets')
+
+                reps_w = ex.get("reps")
+                sets_w = ex.get("sets")
                 vol_str = ""
                 if sets_w and reps_w:
                     vol_str = f"{sets_w}x{reps_w}"
@@ -69,63 +89,69 @@ async def handle_workout_intent(pool, intent: str, data: dict, bot=None):
                     vol_str = f"{reps_w} reps"
                 elif sets_w:
                     vol_str = f"{sets_w} sets"
-                    
-                weight_str = f" · {escape_md(str(ex.get('weight_kg')))}kg" if ex.get("weight_kg") else ""
+
+                weight_str = (
+                    f" · {escape_md(str(ex.get('weight_kg')))}kg"
+                    if ex.get("weight_kg")
+                    else ""
+                )
                 vol_md = f" — {escape_md(vol_str)}" if vol_str else ""
                 ex_summary.append(f"• {escape_md(name)}{vol_md}{weight_str}")
-        
+
         cal_str = f" · {calories} kcal" if calories else ""
         dur_str = f" · {duration} min" if duration else ""
-        
+
         lines = [
             "✅ *Antrenament salvat!*",
-            f"{icon} *{escape_md(sport_name)}*{dur_str}{cal_str}"
+            f"{icon} *{escape_md(sport_name)}*{dur_str}{cal_str}",
         ]
-        
+
         if ex_summary:
             lines.append("")
             lines.append("🏋️ *Exerciții:*")
             lines.extend(ex_summary)
-            
+
         return "\n".join(lines), workout_main_keyboard()
 
     elif intent == "workout_list":
         return await get_workout_dashboard(pool)
-        
+
     elif intent == "workout_week":
         return await get_week_summary(pool)
-        
+
     elif intent == "workout_stats":
         days = data.get("period_days", 30)
         return await get_stats(pool, days)
-        
+
     elif intent == "workout_prs":
         return await get_personal_records(pool)
-        
+
     elif intent == "workout_add_sport":
         name = data.get("name")
         cat = data.get("category", "Sport")
         if name:
             await sport_queries.add_sport(pool, name, cat, False, True, True, "🏅")
-            return f"✅ Sportul *{escape_md(name)}* a fost adăugat\\.", workout_main_keyboard()
-            
+            return (
+                f"✅ Sportul *{escape_md(name)}* a fost adăugat\\.",
+                workout_main_keyboard(),
+            )
+
     elif intent == "workout_add_exercise":
         name = data.get("name")
         cat = data.get("category", "Forță")
         muscle = data.get("muscle_group", "Full Body")
         if name:
             await workout_queries.add_exercise(pool, name, cat, muscle)
-            return f"✅ Exercițiul *{escape_md(name)}* a fost adăugat\\.", workout_main_keyboard()
+            return (
+                f"✅ Exercițiul *{escape_md(name)}* a fost adăugat\\.",
+                workout_main_keyboard(),
+            )
 
     return "Nu am înțeles cererea legată de antrenamente.", None
 
+
 # ── Workout Dashboard UI Functions ─────────────────────────────
 
-from bot.keyboards import (
-    workout_main_keyboard, workout_stats_period_keyboard,
-    sports_list_keyboard, exercises_list_keyboard
-)
-import db.queries.sport_types as sport_queries
 
 async def get_workout_dashboard(pool) -> Tuple[str, Any]:
     stats = await workout_queries.get_week_stats(pool)
@@ -133,23 +159,28 @@ async def get_workout_dashboard(pool) -> Tuple[str, Any]:
         "🏋️‍♂️ *Workout Dashboard* 🏋️‍♂️\n",
         f"📅 Sesiuni săptămâna asta: *{stats['sessions']}*",
         f"⏱️ Volum total: *{stats['total_min']} min*",
-        f"🔥 Zile active: *{stats['active_days']}/7*\n"
+        f"🔥 Zile active: *{stats['active_days']}/7*\n",
     ]
-    
-    if stats.get('split'):
+
+    if stats.get("split"):
         lines.append("📊 *Split sporturi:*")
-        for sp in stats['split']:
-            lines.append(f"• {sp.get('icon', '')} {escape_md(sp['name'])}: {sp['sessions']}x")
-            
+        for sp in stats["split"]:
+            lines.append(
+                f"• {sp.get('icon', '')} {escape_md(sp['name'])}: {sp['sessions']}x"
+            )
+
     recent = await workout_queries.get_recent_workouts(pool, days=3)
     if recent:
         lines.append("\n🕐 *Ultimul antrenament:*")
         last = recent[0]
-        date_str = escape_md(str(last['workout_date']))
-        type_str = escape_md(last['type'])
-        lines.append(f"{last.get('icon', '')} *{type_str}* pe {date_str} \\({last['duration_min']}m\\)")
-        
+        date_str = escape_md(str(last["workout_date"]))
+        type_str = escape_md(last["type"])
+        lines.append(
+            f"{last.get('icon', '')} *{type_str}* pe {date_str} \\({last['duration_min']}m\\)"
+        )
+
     return "\n".join(lines), workout_main_keyboard()
+
 
 async def get_week_summary(pool) -> Tuple[str, Any]:
     stats = await workout_queries.get_week_stats(pool)
@@ -157,33 +188,45 @@ async def get_week_summary(pool) -> Tuple[str, Any]:
         "📅 *Săptămâna Curentă*\n",
         f"Antrenamente: *{stats['sessions']}*",
         f"Timp total: *{stats['total_min']} min*",
-        f"Zile bifate: *{stats['active_days']} / 7*\n"
+        f"Zile bifate: *{stats['active_days']} / 7*\n",
     ]
-    if stats.get('split'):
+    if stats.get("split"):
         lines.append("📈 *Repartiție*")
-        for sp in stats['split']:
-            lines.append(f"• {sp.get('icon', '')} {escape_md(sp['name'])}: {sp['sessions']} sesiuni")
+        for sp in stats["split"]:
+            lines.append(
+                f"• {sp.get('icon', '')} {escape_md(sp['name'])}: {sp['sessions']} sesiuni"
+            )
     else:
         lines.append("Niciun antrenament înregistrat săptămâna asta\\.")
-        
+
     return "\n".join(lines), None
+
 
 async def get_personal_records(pool) -> Tuple[str, Any]:
     prs = await workout_queries.get_personal_records(pool)
     if not prs:
-        return "🏆 *Personal Records*\n\nÎncă nu ai înregistrat greutăți la exerciții\\.", None
-        
+        return (
+            "🏆 *Personal Records*\n\nÎncă nu ai înregistrat greutăți la exerciții\\.",
+            None,
+        )
+
     lines = ["🏆 *Personal Records*\n"]
     for pr in prs:
-        lines.append(f"• {escape_md(pr['exercise_name'])}: *{escape_md(str(pr['max_weight']))}kg*")
-        
+        lines.append(
+            f"• {escape_md(pr['exercise_name'])}: *{escape_md(str(pr['max_weight']))}kg*"
+        )
+
     return "\n".join(lines), None
+
 
 async def get_stats(pool, period_days: int) -> Tuple[str, Any]:
     stats = await workout_queries.get_long_term_stats(pool, days=period_days)
-    if not stats or not stats.get('total_sessions'):
-        return f"📊 *Statistici \\({period_days} zile\\)*\n\nFără date suficiente\\.", workout_stats_period_keyboard()
-        
+    if not stats or not stats.get("total_sessions"):
+        return (
+            f"📊 *Statistici \\({period_days} zile\\)*\n\nFără date suficiente\\.",
+            workout_stats_period_keyboard(),
+        )
+
     lines = [
         f"📊 *Statistici \\({period_days} zile\\)*\n",
         f"• Sesiuni: *{stats['total_sessions']}*",
@@ -192,86 +235,149 @@ async def get_stats(pool, period_days: int) -> Tuple[str, Any]:
         f"• Media/sesiune: *{stats['avg_duration'] or 0} min*",
         f"• Sport preferat: *{escape_md(stats['most_common_type'] or '-')}*\n",
     ]
-    
-    if stats.get('by_type'):
+
+    if stats.get("by_type"):
         lines.append("🏋️ *Top sporturi*")
-        for t in stats['by_type'][:3]:
-            lines.append(f"• {t.get('icon', '')} {escape_md(t['type'])}: {t['count']}x \\({t['total_min']}m\\)")
-            
+        for t in stats["by_type"][:3]:
+            lines.append(
+                f"• {t.get('icon', '')} {escape_md(t['type'])}: {t['count']}x \\({t['total_min']}m\\)"
+            )
+
     return "\n".join(lines), workout_stats_period_keyboard()
+
 
 async def get_sports_manager(pool) -> Tuple[str, Any]:
     sports = await sport_queries.get_all_sports(pool)
     msg = "⚙️ *Management Sporturi*\n\nAlege un sport pentru a\\-l edita/șterge, sau adaugă unul nou\\."
     return msg, sports_list_keyboard(sports)
 
+
 async def get_exercises_manager(pool) -> Tuple[str, Any]:
     exercises = await workout_queries.get_all_exercises(pool)
     msg = "🏋️ *Management Exerciții*\n\nAlege un exercițiu pentru a\\-l edita/șterge, sau adaugă unul nou\\."
     return msg, exercises_list_keyboard(exercises)
 
+
 # ── Telegram Handlers Integration ──────────────────────────────
 
-from core.state import set_state, clear_state
-from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-import traceback
 
 async def handle_workout_callback(query, pool, data: str):
     await query.answer()
     parts = data.split("_")
-    action = "_".join(parts[1:3]) if len(parts) >= 3 else parts[1] if len(parts) >= 2 else ""
+    action = (
+        "_".join(parts[1:3]) if len(parts) >= 3 else parts[1] if len(parts) >= 2 else ""
+    )
 
     if data == "workout_main":
         text, markup = await get_workout_dashboard(pool)
-        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
-        
+        await query.edit_message_text(
+            text, parse_mode="MarkdownV2", reply_markup=markup
+        )
+
     elif data == "workout_log":
         sports = await sport_queries.get_all_sports(pool)
         keyboard = []
         for i in range(0, len(sports), 2):
-            row = [InlineKeyboardButton(f"{sports[i].get('icon', '')} {sports[i]['name']}", callback_data=f"workout_log_sport_{sports[i]['id']}")]
+            row = [
+                InlineKeyboardButton(
+                    f"{sports[i].get('icon', '')} {sports[i]['name']}",
+                    callback_data=f"workout_log_sport_{sports[i]['id']}",
+                )
+            ]
             if i + 1 < len(sports):
-                row.append(InlineKeyboardButton(f"{sports[i+1].get('icon', '')} {sports[i+1]['name']}", callback_data=f"workout_log_sport_{sports[i+1]['id']}"))
+                row.append(
+                    InlineKeyboardButton(
+                        f"{sports[i + 1].get('icon', '')} {sports[i + 1]['name']}",
+                        callback_data=f"workout_log_sport_{sports[i + 1]['id']}",
+                    )
+                )
             keyboard.append(row)
-        keyboard.append([InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")])
-        await query.edit_message_text("📝 *Log Antrenament*\n\nAlege sportul:", parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup(keyboard))
+        keyboard.append(
+            [InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")]
+        )
+        await query.edit_message_text(
+            "📝 *Log Antrenament*\n\nAlege sportul:",
+            parse_mode="MarkdownV2",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
 
     elif data.startswith("workout_log_sport_"):
         sport_id = int(parts[-1])
-        await set_state(pool, "awaiting_workout_input", "workout", "log_duration", sport_id)
-        await query.edit_message_text("⏱ Câte minute a durat antrenamentul?\n_Scrie doar numărul_\\.", parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Anulează", callback_data="workout_main")]]))
+        await set_state(
+            pool, "awaiting_workout_input", "workout", "log_duration", sport_id
+        )
+        await query.edit_message_text(
+            "⏱ Câte minute a durat antrenamentul?\n_Scrie doar numărul_\\.",
+            parse_mode="MarkdownV2",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("❌ Anulează", callback_data="workout_main")]]
+            ),
+        )
 
     elif data == "workout_stats_menu":
-        await query.edit_message_text("📊 Alege perioada pentru statistici:", reply_markup=workout_stats_period_keyboard())
+        await query.edit_message_text(
+            "📊 Alege perioada pentru statistici:",
+            reply_markup=workout_stats_period_keyboard(),
+        )
 
     elif data.startswith("workout_stats_") and parts[-1].isdigit():
         days = int(parts[-1])
         text, markup = await get_stats(pool, days)
-        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+        await query.edit_message_text(
+            text, parse_mode="MarkdownV2", reply_markup=markup
+        )
 
     elif data == "workout_prs":
         text, markup = await get_personal_records(pool)
-        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")]]))
+        await query.edit_message_text(
+            text,
+            parse_mode="MarkdownV2",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")]]
+            ),
+        )
 
     elif data == "workout_week":
         text, markup = await get_week_summary(pool)
-        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")]]))
+        await query.edit_message_text(
+            text,
+            parse_mode="MarkdownV2",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")]]
+            ),
+        )
 
     elif data == "workout_sports":
         text, markup = await get_sports_manager(pool)
-        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+        await query.edit_message_text(
+            text, parse_mode="MarkdownV2", reply_markup=markup
+        )
 
     elif data == "workout_exercises":
         text, markup = await get_exercises_manager(pool)
-        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+        await query.edit_message_text(
+            text, parse_mode="MarkdownV2", reply_markup=markup
+        )
 
     elif data == "workout_add_sport":
         await set_state(pool, "awaiting_workout_input", "workout", "add_sport", None)
-        await query.edit_message_text("➕ *Adaugă sport*\n\nScrie în format: `Nume, Categorie, distance/weight/reps, icon`\n_Categorii: Forță / Cardio / Sport / Mobilitate_", parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Anulează", callback_data="workout_main")]]))
+        await query.edit_message_text(
+            "➕ *Adaugă sport*\n\nScrie în format: `Nume, Categorie, distance/weight/reps, icon`\n_Categorii: Forță / Cardio / Sport / Mobilitate_",
+            parse_mode="MarkdownV2",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("❌ Anulează", callback_data="workout_main")]]
+            ),
+        )
 
     elif data == "workout_add_exercise":
         await set_state(pool, "awaiting_workout_input", "workout", "add_exercise", None)
-        await query.edit_message_text("➕ *Adaugă exercițiu*\n\nScrie în format: `Nume, Categorie, Grupa Musculară`", parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Anulează", callback_data="workout_main")]]))
+        await query.edit_message_text(
+            "➕ *Adaugă exercițiu*\n\nScrie în format: `Nume, Categorie, Grupa Musculară`",
+            parse_mode="MarkdownV2",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("❌ Anulează", callback_data="workout_main")]]
+            ),
+        )
 
     elif action == "delete_sport":
         sport_id = int(parts[-1])
@@ -279,25 +385,39 @@ async def handle_workout_callback(query, pool, data: str):
         if success:
             await query.answer("Sport șters!")
         else:
-            await query.answer("Nu se poate șterge — are antrenamente asociate!", show_alert=True)
+            await query.answer(
+                "Nu se poate șterge — are antrenamente asociate!", show_alert=True
+            )
         text, markup = await get_sports_manager(pool)
-        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+        await query.edit_message_text(
+            text, parse_mode="MarkdownV2", reply_markup=markup
+        )
 
     elif action == "delete_exercise":
         ex_id = int(parts[-1])
         await workout_queries.delete_exercise(pool, ex_id)
         await query.answer("Exercițiu șters!")
         text, markup = await get_exercises_manager(pool)
-        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+        await query.edit_message_text(
+            text, parse_mode="MarkdownV2", reply_markup=markup
+        )
 
     elif data == "workout_delete":
         recent = await workout_queries.get_recent_workouts(pool, days=30)
         keyboard = []
         for w in recent[:10]:
             label = f"{w['workout_date']} - {w['type']} ({w['duration_min']}m)"
-            keyboard.append([InlineKeyboardButton(label, callback_data=f"workout_delete_{w['id']}")])
-        keyboard.append([InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")])
-        await query.edit_message_text("🗑 *Șterge antrenament*\n\nAlege antrenamentul:", parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup(keyboard))
+            keyboard.append(
+                [InlineKeyboardButton(label, callback_data=f"workout_delete_{w['id']}")]
+            )
+        keyboard.append(
+            [InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")]
+        )
+        await query.edit_message_text(
+            "🗑 *Șterge antrenament*\n\nAlege antrenamentul:",
+            parse_mode="MarkdownV2",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
 
     elif data.startswith("workout_delete_"):
         try:
@@ -305,7 +425,9 @@ async def handle_workout_callback(query, pool, data: str):
             await workout_queries.delete_workout(pool, workout_id)
             await query.answer("Antrenament șters!")
             text, markup = await get_workout_dashboard(pool)
-            await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+            await query.edit_message_text(
+                text, parse_mode="MarkdownV2", reply_markup=markup
+            )
         except Exception:
             await query.answer("Eroare la ștergere.")
 
@@ -314,9 +436,21 @@ async def handle_workout_callback(query, pool, data: str):
         keyboard = []
         for w in recent[:10]:
             label = f"✏️ {w['workout_date']} - {w['type']} ({w['duration_min']}m)"
-            keyboard.append([InlineKeyboardButton(label, callback_data=f"workout_edit_sel_{w['id']}")])
-        keyboard.append([InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")])
-        await query.edit_message_text("✏️ *Editează antrenament*\n\nAlege antrenamentul pe care vrei să\\-l modifici:", parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup(keyboard))
+            keyboard.append(
+                [
+                    InlineKeyboardButton(
+                        label, callback_data=f"workout_edit_sel_{w['id']}"
+                    )
+                ]
+            )
+        keyboard.append(
+            [InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")]
+        )
+        await query.edit_message_text(
+            "✏️ *Editează antrenament*\n\nAlege antrenamentul pe care vrei să\\-l modifici:",
+            parse_mode="MarkdownV2",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
 
     elif data.startswith("workout_edit_sel_"):
         workout_id = int(parts[-1])
@@ -324,30 +458,71 @@ async def handle_workout_callback(query, pool, data: str):
         if not w:
             await query.answer("Antrenament negăsit.")
             return
-            
+
         text = f"✏️ *Editează {escape_md(w['sport_name'])}* \\({escape_md(str(w['workout_date']))}\\)\n\n"
         text += f"⏱ Durată: {w['duration_min']} min\n"
         text += f"📝 Note: {escape_md(w['notes'] or 'fără note')}\n\n"
         text += "Ce dorești să modifici?"
-        
+
         keyboard = [
-            [InlineKeyboardButton("⏱ Durată", callback_data=f"workout_edit_f_dur_{workout_id}")],
-            [InlineKeyboardButton("📝 Note", callback_data=f"workout_edit_f_notes_{workout_id}")],
-            [InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_edit")]
+            [
+                InlineKeyboardButton(
+                    "⏱ Durată", callback_data=f"workout_edit_f_dur_{workout_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "📝 Note", callback_data=f"workout_edit_f_notes_{workout_id}"
+                )
+            ],
+            [InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_edit")],
         ]
-        await query.edit_message_text(text, parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.edit_message_text(
+            text, parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
     elif data.startswith("workout_edit_f_"):
         # workout_edit_f_dur_ID or workout_edit_f_notes_ID
         field = parts[3]
         workout_id = int(parts[-1])
-        
+
         if field == "dur":
-            await set_state(pool, "awaiting_workout_input", "workout", "edit_duration", workout_id)
-            await query.edit_message_text("⏱ *Editează Durată*\n\nIntrodu noua durată în minute:", parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Anulează", callback_data=f"workout_edit_sel_{workout_id}")]]))
+            await set_state(
+                pool, "awaiting_workout_input", "workout", "edit_duration", workout_id
+            )
+            await query.edit_message_text(
+                "⏱ *Editează Durată*\n\nIntrodu noua durată în minute:",
+                parse_mode="MarkdownV2",
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [
+                            InlineKeyboardButton(
+                                "❌ Anulează",
+                                callback_data=f"workout_edit_sel_{workout_id}",
+                            )
+                        ]
+                    ]
+                ),
+            )
         elif field == "notes":
-            await set_state(pool, "awaiting_workout_input", "workout", "edit_notes", workout_id)
-            await query.edit_message_text("📝 *Editează Note*\n\nIntrodu noile note pentru acest antrenament:", parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Anulează", callback_data=f"workout_edit_sel_{workout_id}")]]))
+            await set_state(
+                pool, "awaiting_workout_input", "workout", "edit_notes", workout_id
+            )
+            await query.edit_message_text(
+                "📝 *Editează Note*\n\nIntrodu noile note pentru acest antrenament:",
+                parse_mode="MarkdownV2",
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [
+                            InlineKeyboardButton(
+                                "❌ Anulează",
+                                callback_data=f"workout_edit_sel_{workout_id}",
+                            )
+                        ]
+                    ]
+                ),
+            )
+
 
 async def handle_workout_message(update, pool, state: dict, text: str):
     action = state.get("action")
@@ -355,7 +530,7 @@ async def handle_workout_message(update, pool, state: dict, text: str):
 
     try:
         if action == "add_sport":
-            parts = [p.strip() for p in text.split(',')]
+            parts = [p.strip() for p in text.split(",")]
             name = parts[0]
             category = parts[1] if len(parts) > 1 else "Sport"
             flags = parts[2].lower() if len(parts) > 2 else ""
@@ -363,41 +538,60 @@ async def handle_workout_message(update, pool, state: dict, text: str):
             has_wt = "weight" in flags
             has_reps = "reps" in flags
             icon = parts[3] if len(parts) > 3 else "🏅"
-            await sport_queries.add_sport(pool, name, category, has_dist, has_wt, has_reps, icon)
-            await update.message.reply_text(f"✅ Sportul *{escape_md(name)}* a fost adăugat\\.", parse_mode="MarkdownV2")
-            
+            await sport_queries.add_sport(
+                pool, name, category, has_dist, has_wt, has_reps, icon
+            )
+            await update.message.reply_text(
+                f"✅ Sportul *{escape_md(name)}* a fost adăugat\\.",
+                parse_mode="MarkdownV2",
+            )
+
         elif action == "add_exercise":
-            parts = [p.strip() for p in text.split(',')]
+            parts = [p.strip() for p in text.split(",")]
             name = parts[0]
             category = parts[1] if len(parts) > 1 else "Forță"
             muscle = parts[2] if len(parts) > 2 else "Full Body"
             await workout_queries.add_exercise(pool, name, category, muscle)
-            await update.message.reply_text(f"✅ Exercițiul *{escape_md(name)}* a fost adăugat\\.", parse_mode="MarkdownV2")
-            
+            await update.message.reply_text(
+                f"✅ Exercițiul *{escape_md(name)}* a fost adăugat\\.",
+                parse_mode="MarkdownV2",
+            )
+
         elif action == "log_duration":
             duration = int(text.strip())
-            from datetime import date
-            workout_id = await workout_queries.log_workout(pool, date.today(), item_id, duration, "")
-            await update.message.reply_text(f"✅ Antrenament salvat: {duration} min\\. Poți folosi integrarea vocală pentru detalii extra\\.", parse_mode="MarkdownV2")
-            
+            await workout_queries.log_workout(pool, date.today(), item_id, duration, "")
+            await update.message.reply_text(
+                f"✅ Antrenament salvat: {duration} min\\. Poți folosi integrarea vocală pentru detalii extra\\.",
+                parse_mode="MarkdownV2",
+            )
+
         elif action == "edit_duration":
             duration = int(text.strip())
             w = await workout_queries.get_workout_by_id(pool, item_id)
             if w:
-                await workout_queries.update_workout(pool, item_id, w['sport_id'], duration, w['notes'])
-                await update.message.reply_text(f"✅ Durată actualizată la *{duration} min*\\.", parse_mode="MarkdownV2")
-            
+                await workout_queries.update_workout(
+                    pool, item_id, w["sport_id"], duration, w["notes"]
+                )
+                await update.message.reply_text(
+                    f"✅ Durată actualizată la *{duration} min*\\.",
+                    parse_mode="MarkdownV2",
+                )
+
         elif action == "edit_notes":
             notes = text.strip()
             w = await workout_queries.get_workout_by_id(pool, item_id)
             if w:
-                await workout_queries.update_workout(pool, item_id, w['sport_id'], w['duration_min'], notes)
-                await update.message.reply_text(f"✅ Note actualizate\\.", parse_mode="MarkdownV2")
-            
+                await workout_queries.update_workout(
+                    pool, item_id, w["sport_id"], w["duration_min"], notes
+                )
+                await update.message.reply_text(
+                    "✅ Note actualizate\\.", parse_mode="MarkdownV2"
+                )
+
     except Exception as e:
         print(f"Error in workout state handler: {e}")
         traceback.print_exc()
         await update.message.reply_text(f"❌ Format incorect: {e}")
-        
+
     finally:
         await clear_state(pool)

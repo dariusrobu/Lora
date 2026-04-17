@@ -1,5 +1,4 @@
 from typing import Dict, Any
-from bot.formatter import escape_md
 
 
 async def route_intent(pool, intent_response: Any, bot=None):
@@ -41,6 +40,7 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
     if intent_response.get("needs_agent"):
         from core.agent import run_agent
         from core.gemini import client
+
         print(f"DEBUG ROUTER: Diverting to Agentic Mode for query -> {user_message}")
         agent_reply = await run_agent(pool, client, user_message)
         return agent_reply, None
@@ -55,9 +55,9 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
 
         return await handle_task_intent(pool, intent, data)
     elif module == "habits":
-        from modules.habits import handle_habit_intent
+        from modules.skills import handle_skill_intent
 
-        return await handle_habit_intent(pool, intent, data, bot)
+        return await handle_skill_intent(pool, intent, data)
     elif module == "projects":
         from modules.projects import handle_project_intent
 

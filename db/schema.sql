@@ -217,6 +217,7 @@ CREATE TABLE IF NOT EXISTS goals (
     id SERIAL PRIMARY KEY,
     title TEXT NOT NULL,
     description TEXT,
+    category VARCHAR(50),  -- Academice, Sport, Skills, Financiare, Lectură, Personal, Sănătate
     deadline DATE,
     progress INT DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
     status VARCHAR(20) DEFAULT 'active',  -- active, completed, paused, abandoned
@@ -396,13 +397,17 @@ INSERT INTO semester_config (semester_start) VALUES ('2026-02-23') ON CONFLICT D
 
 -- ── University Schedule ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS subjects (
-    id          SERIAL PRIMARY KEY,
-    name        TEXT NOT NULL,
-    teacher     TEXT,
-    location    TEXT,
-    avg_grade   NUMERIC(4, 2),
-    target_grade NUMERIC(4, 2),
-    created_at  TIMESTAMP DEFAULT NOW()
+    id              SERIAL PRIMARY KEY,
+    name            TEXT NOT NULL,
+    professor       TEXT,
+    credits         INT,
+    total_classes   INT DEFAULT 0,
+    total_seminars  INT DEFAULT 0,
+    is_active       BOOLEAN DEFAULT TRUE,
+    min_attendance_pct INT DEFAULT 70,
+    avg_grade       NUMERIC(4, 2),
+    target_grade    NUMERIC(4, 2),
+    created_at      TIMESTAMP DEFAULT NOW()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_subjects_name ON subjects (name);
 
@@ -429,23 +434,50 @@ CREATE TABLE IF NOT EXISTS schedule_reminders_sent (
     PRIMARY KEY (schedule_id, reminder_date)
 );
 
-CREATE TABLE IF NOT EXISTS attendance (
+CREATE TABLE IF NOT EXISTS attendances (
     id              SERIAL PRIMARY KEY,
     schedule_id     INTEGER REFERENCES schedule(id) ON DELETE CASCADE,
-    attendance_date DATE NOT NULL,
-    status          TEXT CHECK (status IN ('present', 'absent', 'excused')),
+    subject_id      INTEGER REFERENCES subjects(id) ON DELETE CASCADE,
+    class_date      DATE NOT NULL,
+    attended        BOOLEAN NOT NULL,  -- TRUE = present, FALSE = absent
     created_at      TIMESTAMP DEFAULT NOW(),
-    UNIQUE(schedule_id, attendance_date)
+    UNIQUE(schedule_id, class_date)
 );
-CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(attendance_date);
+CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendances(class_date);
 
 CREATE TABLE IF NOT EXISTS exams (
     id              SERIAL PRIMARY KEY,
     subject_id      INTEGER REFERENCES subjects(id) ON DELETE CASCADE,
+    subject_name    TEXT NOT NULL,
     exam_date       DATE NOT NULL,
-    exam_type       TEXT CHECK (exam_type IN ('partial', 'final', 're-exam')),
+    exam_type       TEXT CHECK (exam_type IN ('partial', 'final', 're-exam', 'colocviu', 'restanta')),
     room            TEXT,
     notes           TEXT,
+    created_at      TIMESTAMP DEFAULT NOW()
+);
+
+-- ── Grades ────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS grades (
+    id              SERIAL PRIMARY KEY,
+    subject_id      INTEGER REFERENCES subjects(id) ON DELETE CASCADE,
+    grade           NUMERIC(4,2) NOT NULL,
+    grade_type      TEXT CHECK (grade_type IN ('partial', 'exam', 'laborator', 'proiect', 'colocviu')),
+    notes           TEXT,
+    graded_at       TIMESTAMP DEFAULT NOW(),
+    created_at      TIMESTAMP DEFAULT NOW()
+);
+
+-- ── Focus Sessions ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS focus_sessions (
+    id                  SERIAL PRIMARY KEY,
+    session_date        DATE NOT NULL DEFAULT CURRENT_DATE,
+    duration_min         INTEGER NOT NULL,
+    task_description     TEXT,
+    completed           BOOLEAN DEFAULT FALSE,
+    interrupted_at      INTEGER,
+    created_at          TIMESTAMP DEFAULT NOW()
+);
+
 -- ── Memory Engine (Long-Term Facts) ───────────────────────────
 CREATE TABLE IF NOT EXISTS memory_facts (
     id SERIAL PRIMARY KEY,
