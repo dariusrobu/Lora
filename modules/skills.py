@@ -142,15 +142,31 @@ async def handle_skill_intent(
             return "Pentru ce habit vrei să loghezi?", None
         skill = await skill_queries.get_skill_by_name(pool, name)
         if not skill:
-            unit = data.get("unit", "zile")
-            await skill_queries.add_skill(pool, name, unit)
-            skill = await skill_queries.get_skill_by_name(pool, name)
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+            keyboard = InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "✅ Creează și bifează",
+                            callback_data=f"skill_create_confirm:{name}:{value}",
+                        ),
+                        InlineKeyboardButton(
+                            "❌ Anulează", callback_data="skills_cancel"
+                        ),
+                    ]
+                ]
+            )
+            return (
+                f"❓ Nu am găsit habit\\-ul '*{escape_md(name)}*'\. Vrei să îl creezi?",
+                keyboard,
+            )
         await skill_queries.log_skill_value(
             pool, skill["id"], float(value), metric=skill.get("unit")
         )
         streak = await skill_queries.get_skill_streak(pool, skill["id"])
         streak_str = f" 🔥{streak}" if streak > 0 else ""
-        return f"✅ {escape_md(name)} bifat\\. Streak: *{streak}* {streak_str}", None
+        return f"✅ {escape_md(name)} bifat\. Streak: *{streak}* {streak_str}", None
 
     elif intent == "list_habits":
         return await get_skills_dashboard(pool)
@@ -277,6 +293,22 @@ async def handle_skills_callback(update, context, pool) -> None:
             text, markup = await get_skills_dashboard(pool)
             await query.edit_message_text(
                 text, reply_markup=markup, parse_mode="MarkdownV2"
+            )
+
+        elif data.startswith("skill_create_confirm:"):
+            parts = data.split(":")
+            name = parts[1]
+            value = float(parts[2]) if len(parts) > 2 and parts[2] else 1
+            unit = "zile"
+            await skill_queries.add_skill(pool, name, unit)
+            skill = await skill_queries.get_skill_by_name(pool, name)
+            await skill_queries.log_skill_value(pool, skill["id"], value, metric=unit)
+            streak = await skill_queries.get_skill_streak(pool, skill["id"])
+            streak_str = f" 🔥{streak}" if streak > 0 else ""
+            await query.answer("✅ Creat și bifat!")
+            await query.edit_message_text(
+                f"✅ Habit *{escape_md(name)}* creat și bifat\. Streak: *{streak}* {streak_str}",
+                parse_mode="MarkdownV2",
             )
 
         await query.answer()

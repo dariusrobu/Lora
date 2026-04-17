@@ -18,6 +18,7 @@ import db.queries.events as event_queries
 import db.queries.finance as finance_queries
 import db.queries.notes as note_queries
 import db.queries.health as health_queries
+import db.queries.journal as journal_queries
 
 # NOTE: This bot uses long polling and should NOT be run in multiple instances simultaneously.
 # A PID lock file (lora.pid) in main.py prevents duplicate polling instances.
@@ -104,6 +105,7 @@ async def send_morning_briefing(application, pool):
         # 2. Gather data in PARALLEL
         from modules.weather import get_weather_summary
         from db.queries.shopping import list_shopping_items
+        from db.queries import workout as workout_queries
         import asyncio
         import os
         from core.gemini import get_proactive_response
@@ -117,6 +119,7 @@ async def send_morning_briefing(application, pool):
             weather_info,
             shopping_items,
             health_log,
+            workouts_yesterday,
         ) = await asyncio.gather(
             task_queries.list_tasks(pool),
             event_queries.list_events(pool, today, today),
@@ -125,6 +128,7 @@ async def send_morning_briefing(application, pool):
             get_weather_summary(),
             list_shopping_items(pool),
             health_queries.get_health_log(pool, today),
+            workout_queries.get_recent_workouts(pool, days=1),
         )
 
         weather_info = weather_info or "Vremea nu este disponibilă acum."
@@ -408,6 +412,33 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
                 nudges.append(f"Apa e la {int(water / 1000 * 10) / 10:.1f}L\.")
             if nudges:
                 lines += ["", "⚠️ " + " ".join(nudges)]
+
+        # 🏋️ Antrenament ieri
+        if workouts_yesterday:
+            workout_lines = ["", "🏋️ *Antrenament ieri*"]
+            for w in workouts_yesterday:
+                icon = w.get("icon", "🏋️")
+                sport_name = escape_md(w.get("type", "Sport"))
+                duration = w.get("duration_min", "?")
+                workout_lines.append(f"• {icon} {sport_name}: {duration} min")
+            lines += workout_lines
+
+        # 📊 Corelații - predicții bazate pe date
+        try:
+            from core.correlations import compute_correlations
+
+            recent = await compute_correlations(pool)
+            if recent:
+                strong = [c for c in recent if c.get("strength") == "puternică"]
+                if strong:
+                    corr = strong[0]
+                    if corr.get("recommendation"):
+                        lines += [
+                            "",
+                            f"📊 *Din date:* {escape_md(corr['recommendation'])}",
+                        ]
+        except Exception:
+            pass
 
         briefing_text = "\n".join(lines)
 
@@ -819,16 +850,34 @@ async def send_weekly_review(application, pool) -> None:
             ]
             mood_summary = f"😊 Mood săptămâna asta: {', '.join(mood_parts)}"
 
-        # 3.5 Automated Insights Patterns
+        # 3.5 Automated Insights Patterns (corelații)
         from modules.insights import generate_insights
 
         patterns = await generate_insights(pool)
-        # Omit if not enough data
         patterns_section = ""
-        if "nu am suficiente date" not in patterns.lower():
+        if patterns and "nu am suficiente date" not in patterns.lower():
             patterns_section = f"\n🧠 *Patterns observate*\n{patterns}\n"
 
-        journals = await note_queries.get_weekly_journals(pool, start_date, end_date)
+        try:
+            from core.correlations import compute_correlations
+
+            raw_correlations = await compute_correlations(pool)
+            if raw_correlations:
+                corr_lines = ["", "🧬 *Corelații detectate:*"]
+                for c in raw_correlations[:3]:
+                    icon = "🔴" if c.get("strength") == "puternică" else "🟡"
+                    corr_text = c.get("correlation", "")
+                    rec = c.get("recommendation", "")
+                    if corr_text and rec:
+                        corr_lines.append(
+                            f"{icon} *{escape_md(corr_text)}* → {escape_md(rec)}"
+                        )
+                if len(corr_lines) > 1:
+                    patterns_section += "\n".join(corr_lines) + "\n"
+        except Exception:
+            pass
+
+        journals = await journal_queries.get_recent_journal_entries(pool, limit=7)
 
         # 3.8 Nutrition Weekly Stats
         async with pool.acquire() as conn:
@@ -1113,8 +1162,20 @@ async def send_monthly_review(application, pool) -> None:
 
         patterns = await generate_insights(pool)
         patterns_section = ""
-        if "nu am suficiente date" not in patterns.lower():
+        if patterns and "nu am suficiente date" not in patterns.lower():
             patterns_section = f"\n🧠 *Patterns observate*\n{patterns}"
+
+        try:
+            from core.correlations import compute_correlations
+
+            raw_correlations = await compute_correlations(pool)
+            if raw_correlations:
+                strong_count = sum(
+                    1 for c in raw_correlations if c.get("strength") == "puternică"
+                )
+                patterns_section += f"\n🧬 *Corelații:* {len(raw_correlations)} pattern-uri, {strong_count} puternice"
+        except Exception:
+            pass
 
         from db.queries.goals import get_all_goals
 

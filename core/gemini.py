@@ -142,6 +142,17 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
    - Example: "creeaza un portofoliu cu tema sah" → data={{"title": "creeaza un portofoliu cu tema sah"}}
    - Example: "adaug task meeting cu clientul" → data={{"title": "meeting cu clientul"}}
 5. Ambiguitate → intent="clarify", module=null, O singură întrebare scurtă în "reply".
+   
+   CRITICAL AMBIGUITY RULES:
+   - If ANY critical information is missing → MUST use intent="clarify"
+   - NEVER guess: project name, category, date, amount, or which item
+   - Better to ask than guess wrong
+   - Missing info types → specific questions:
+     * title → "Ce vrei să adaugi?"
+     * category → "Pe ce ai cheltuit X?"  
+     * which item → "Care dintre ele? Spune-mi numele."
+     * date → "Pentru ce dată?"
+     * project → "La ce proiect vrei să-l adaugi?"
 5. Fără acțiune DB (chat, întrebare generală) → module=null, data={{}}.
 6. Acțiuni distructive (delete, bulk) → needs_confirmation=true.
 7. Câmpul "reply" = ce spune Lora, în Telegram MarkdownV2.

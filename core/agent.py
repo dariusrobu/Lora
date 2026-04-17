@@ -1,7 +1,7 @@
 # core/agent.py
 import json
 import asyncio
-from datetime import date
+from datetime import date, timedelta
 from typing import Dict, Any
 import pytz
 from google.genai import types
@@ -12,6 +12,12 @@ from db.queries.finance import get_daily_transactions
 from db.queries.goals import get_all_goals
 from db.queries.schedule import get_today_schedule
 from db.queries.university import list_subjects
+from db.queries.notes import search_notes
+from db.queries.shopping import list_shopping_items
+from db.queries.focus import get_weekly_focus_stats
+from db.queries.mood import get_monthly_mood_data
+from db.queries.projects import list_projects
+from db.queries.workout import get_recent_workouts
 from core.config import TIMEZONE
 
 # Tools definition for Gemini
@@ -55,6 +61,57 @@ agent_tools = types.Tool(
             name="tool_get_university_attendance",
             description="Returns subjects and current attendance stats.",
         ),
+        types.FunctionDeclaration(
+            name="tool_search_notes",
+            description="Searches user's notes using full-text search. Returns matching notes with content, tags, and timestamps.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "query": types.Schema(
+                        type=types.Type.STRING,
+                        description="Search query for notes content or tags",
+                    )
+                },
+            ),
+        ),
+        types.FunctionDeclaration(
+            name="tool_get_shopping_list",
+            description="Returns all unbought items from the shopping list with categories.",
+        ),
+        types.FunctionDeclaration(
+            name="tool_get_focus_stats",
+            description="Returns focus session statistics for the current week including completed sessions, interrupted sessions, total minutes, and average duration.",
+        ),
+        types.FunctionDeclaration(
+            name="tool_get_mood_trend",
+            description="Returns mood tracking data for the current month showing daily mood values.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "days": types.Schema(
+                        type=types.Type.INTEGER,
+                        description="Number of days to look back (default 30)",
+                    )
+                },
+            ),
+        ),
+        types.FunctionDeclaration(
+            name="tool_get_projects",
+            description="Returns all projects with their status, description, and creation date.",
+        ),
+        types.FunctionDeclaration(
+            name="tool_get_workouts",
+            description="Returns recent workouts with exercise details, duration, and sport type.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "days": types.Schema(
+                        type=types.Type.INTEGER,
+                        description="Number of days to look back (default 7)",
+                    )
+                },
+            ),
+        ),
     ]
 )
 
@@ -94,6 +151,37 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any]) -> str:
         elif call_name == "tool_get_university_attendance":
             subs = await list_subjects(pool)
             return json.dumps(subs, default=str)
+
+        elif call_name == "tool_search_notes":
+            query = args.get("query", "")
+            notes = await search_notes(pool, query)
+            return json.dumps(notes, default=str)
+
+        elif call_name == "tool_get_shopping_list":
+            items = await list_shopping_items(pool)
+            return json.dumps(items, default=str)
+
+        elif call_name == "tool_get_focus_stats":
+            today = datetime.now(pytz.timezone(TIMEZONE)).date()
+            start = today - timedelta(days=today.weekday())
+            stats = await get_weekly_focus_stats(pool, start, today)
+            return json.dumps(stats, default=str)
+
+        elif call_name == "tool_get_mood_trend":
+            days = args.get("days", 30)
+            today = datetime.now(pytz.timezone(TIMEZONE)).date()
+            start = today - timedelta(days=days)
+            mood = await get_monthly_mood_data(pool, start, today)
+            return json.dumps(mood, default=str)
+
+        elif call_name == "tool_get_projects":
+            projects = await list_projects(pool)
+            return json.dumps(projects, default=str)
+
+        elif call_name == "tool_get_workouts":
+            days = args.get("days", 7)
+            workouts = await get_recent_workouts(pool, days)
+            return json.dumps(workouts, default=str)
 
         return json.dumps({"error": f"Unknown tool: {call_name}"})
     except Exception as e:
