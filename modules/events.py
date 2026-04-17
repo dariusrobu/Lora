@@ -65,6 +65,37 @@ def parse_reminder_text(text: str) -> Dict[str, Any] | None:
     if time_match:
         time_str = f"{time_match.group(1)}:{time_match.group(2)}"
 
+    # Handle relative time: "în 2 ore", "peste 30 minute", "peste 1 oră"
+    relative_time_match = re.search(
+        r"în\s+(\d+)\s+(ore|oră|ore|minute|min)|"
+        r"peste\s+(\d+)\s+(ore|oră|minute|min)|"
+        r"după\s+(\d+)\s+(ore|oră|minute|min)",
+        text,
+        re.IGNORECASE,
+    )
+    if relative_time_match:
+        now = datetime.now()
+        # Extract number and unit
+        for i in range(1, 6, 2):
+            num = relative_time_match.group(i)
+            unit = relative_time_match.group(i + 1)
+            if num:
+                num = int(num)
+                if "or" in unit.lower():
+                    target = datetime.now().replace(
+                        second=0, microsecond=0
+                    ) + timedelta(minutes=num * 60)
+                else:
+                    target = datetime.now().replace(
+                        second=0, microsecond=0
+                    ) + timedelta(minutes=num)
+                time_str = target.strftime("%H:%M")
+                # If target is in the past, add one day
+                if target.date() == today and target.time() < now.time():
+                    target = target + timedelta(days=1)
+                date_str = target.strftime("%Y-%m-%d")
+                break
+
     # Find date keywords and convert to date
     date_str = None
 

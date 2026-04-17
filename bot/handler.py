@@ -1505,6 +1505,33 @@ Reguli:
                 }
                 print(f"🔧 MEAL REGEX: {parsed}")
 
+        # Try reminder patterns (remintește-mi, uită-mă, etc.)
+        elif any(
+            w in low_text
+            for w in [
+                "remintește-mi",
+                "uită-mă",
+                "uitamă",
+                "amintește-mi",
+                "reapă-mă",
+                "reapămă",
+                "să mă reapă",
+                "setează reminder",
+            ]
+        ):
+            from modules.events import parse_reminder_text
+
+            parsed = parse_reminder_text(text)
+            if parsed and parsed.get("title"):
+                intent_response = {
+                    "intent": "add_reminder",
+                    "module": "events",
+                    "data": parsed,
+                    "reply": "",
+                    "needs_confirmation": False,
+                }
+                print(f"🔧 REMINDER REGEX: {parsed}")
+
         # 5. Fall back to Gemini if regex didn't match
         if not intent_response:
             intent_response = await get_gemini_response(
