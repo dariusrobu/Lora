@@ -618,5 +618,5 @@ async def get_project_tasks_view(pool, project_id: int) -> Tuple[str, Any]:
             )
         ],
     ]
-    combined_keyboard = markup.inline_keyboard + project_keyboard
+    combined_keyboard = list(markup.inline_keyboard) + project_keyboard
     return "\n".join(lines), InlineKeyboardMarkup(combined_keyboard)
