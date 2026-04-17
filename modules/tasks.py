@@ -249,6 +249,22 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
                 text, parse_mode="MarkdownV2", reply_markup=markup
             )
 
+        elif action == "edit":
+            project_id = int(parts[2])
+            project = await get_project(pool, project_id)
+            if not project:
+                await query.answer("Proiect negăsit.")
+                return
+            await set_state(
+                pool, "awaiting_project_edit", "projects", "edit", project_id
+            )
+            await query.edit_message_text(
+                f"✏️ *Editează proiect: {escape_md(project['name'])}*\n\n"
+                f"Scrie noua descriere sau cuvântul *delete* pentru a șterge proiectul\\.\n\n"
+                f"_Descriere curentă:_ {escape_md(project.get('description') or '—')}_",
+                parse_mode="MarkdownV2",
+            )
+
         elif action == "complete":
             project_id = int(parts[2])
             await update_project_status(pool, project_id, "done")
@@ -581,7 +597,26 @@ async def get_project_tasks_view(pool, project_id: int) -> Tuple[str, Any]:
             lines.append(f"{prefix}{escape_md(t['title'])}")
 
     from bot.keyboards import task_list_keyboard
+    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 
-    return "\n".join(lines), task_list_keyboard(
-        tasks, back_callback="tasks:projects_list"
-    )
+    markup = task_list_keyboard(tasks, back_callback="tasks:projects_list")
+
+    project_keyboard = [
+        [
+            InlineKeyboardButton(
+                "✏️ Editează", callback_data=f"projects:edit:{project_id}"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🗑️ Șterge", callback_data=f"projects:delete:{project_id}"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "◀️ Înapoi la proiecte", callback_data="tasks:projects_list"
+            )
+        ],
+    ]
+    combined_keyboard = markup.inline_keyboard + project_keyboard
+    return "\n".join(lines), InlineKeyboardMarkup(combined_keyboard)

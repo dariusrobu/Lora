@@ -1334,6 +1334,39 @@ Reguli:
                     )
                     return
 
+            elif state["state_type"] == "awaiting_project_edit":
+                from modules.tasks import get_project_tasks_view
+                from db.queries.projects import update_project
+
+                project_id = state.get("item_id")
+                if not project_id:
+                    await clear_state(pool)
+                    await update.message.reply_text("Eroare: nu am găsit proiectul.")
+                    return
+
+                if text.lower() == "delete":
+                    from db.queries.projects import delete_project
+
+                    await delete_project(pool, project_id)
+                    await clear_state(pool)
+                    text_out, markup = await get_projects_list_view(pool)
+                    await update.message.reply_text(
+                        f"🗑️ Proiect șters\\.\n\n{text_out}",
+                        parse_mode="MarkdownV2",
+                        reply_markup=markup,
+                    )
+                    return
+
+                await update_project(pool, project_id, description=text)
+                await clear_state(pool)
+                text_out, markup = await get_project_tasks_view(pool, project_id)
+                await update.message.reply_text(
+                    f"✅ Descriere actualizată\\.\n\n{text_out}",
+                    parse_mode="MarkdownV2",
+                    reply_markup=markup,
+                )
+                return
+
             elif state["state_type"] == "awaiting_event_note":
                 from datetime import datetime
 
@@ -1468,13 +1501,13 @@ Reguli:
             profile = await profile_queries.get_user_profile(pool, TG_UID)
             if profile.get("last_briefing_date") == today:
                 await update.message.reply_text(
-                    "Deja ți-am trimis briefing-ul de dimineață. O zi productivă! ☀️",
+                    "Deja ți\\-am trimis briefing\\-ul de dimineață\\. O zi productivă\\! ☀️",
                     parse_mode="MarkdownV2",
                 )
                 return
 
             await update.message.reply_text(
-                "Pregătesc briefing-ul de dimineață. ☕", parse_mode="MarkdownV2"
+                "Preg\\ătesc briefing\\-ul de dimineață\\. ☕", parse_mode="MarkdownV2"
             )
             try:
                 await send_morning_briefing(context.application, pool)
@@ -1484,7 +1517,7 @@ Reguli:
                 print(f"ERROR in morning briefing: {e}", flush=True)
                 traceback.print_exc()
                 await update.message.reply_text(
-                    f"❌ Eroare la briefing: {str(e)[:200]}", parse_mode="MarkdownV2"
+                    f"❌ Eroare la briefing\\: {str(e)[:200]}", parse_mode="MarkdownV2"
                 )
             return
 

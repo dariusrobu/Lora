@@ -66,6 +66,13 @@ async def handle_project_intent(
 
     elif intent == "delete_project":
         project_id = data.get("id")
+        project_name = data.get("name")
+
+        if not project_id and project_name:
+            project = await project_queries.get_project_by_name(pool, project_name)
+            if project:
+                project_id = project["id"]
+
         if not project_id:
             return "Which project should I delete?", None
 
