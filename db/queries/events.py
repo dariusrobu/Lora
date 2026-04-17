@@ -135,14 +135,21 @@ async def get_events_needing_reminder(
                       BETWEEN (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time - INTERVAL '5 minutes' 
                               AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time + INTERVAL '5 minutes')
                 OR
-                -- Reminders: send at their scheduled time
+                -- Reminders with specific time: send at their scheduled time
                 (e.event_type = 'reminder' AND e.event_time IS NOT NULL
                   AND e.reminded_at IS NULL
                   AND e.event_date = CURRENT_DATE
                   AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time 
                       BETWEEN e.event_time - INTERVAL '5 minutes' AND e.event_time + INTERVAL '5 minutes')
+                OR
+                -- Reminders without specific time: send on event date at 09:00
+                (e.event_type = 'reminder' AND e.event_time IS NULL
+                  AND e.reminded_at IS NULL
+                  AND e.event_date = CURRENT_DATE
+                  AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time 
+                      BETWEEN '08:55'::time AND '09:05'::time)
             )
-            ORDER BY e.event_time
+            ORDER BY e.event_time NULLS LAST
             """
         )
         return [dict(r) for r in rows]

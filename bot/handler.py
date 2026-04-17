@@ -1532,6 +1532,68 @@ Reguli:
                 }
                 print(f"🔧 REMINDER REGEX: {parsed}")
 
+        # Try finance logging patterns
+        elif any(
+            w in low_text
+            for w in [
+                "ron",
+                "lei",
+                "cheltuit",
+                "am dat",
+                "platit",
+                "pe ",
+                "expense",
+                "ban",
+            ]
+        ):
+            import re
+
+            amount_match = re.search(r"(\d+(?:[.,]\d+)?)", text.replace(",", "."))
+            if amount_match:
+                amount = float(amount_match.group(1).replace(",", "."))
+
+                category = "altele"
+                if any(
+                    w in low_text
+                    for w in ["mancare", "mâncare", "restaurant", "pizza", "shaorma"]
+                ):
+                    category = "mâncare"
+                elif any(
+                    w in low_text for w in ["uber", "taxi", "benzin", "metrou", "bus"]
+                ):
+                    category = "transport"
+                elif any(
+                    w in low_text
+                    for w in ["chirie", "internet", "curent", "gaz", "utilitat"]
+                ):
+                    category = "utilități"
+                elif any(w in low_text for w in ["medicament", "doctor", "farmacie"]):
+                    category = "sănătate"
+                elif any(w in low_text for w in ["haine", "magazin", "amazon"]):
+                    category = "shopping"
+                elif any(w in low_text for w in ["cinema", "bar", "concert"]):
+                    category = "distracție"
+
+                tx_type = (
+                    "income"
+                    if any(w in low_text for w in ["venit", "salariu", "am primit"])
+                    else "expense"
+                )
+
+                intent_response = {
+                    "intent": "finance_log",
+                    "module": "finance",
+                    "data": {
+                        "amount": amount,
+                        "category": category,
+                        "type": tx_type,
+                        "description": text,
+                    },
+                    "reply": "",
+                    "needs_confirmation": False,
+                }
+                print(f"🔧 FINANCE REGEX: amount={amount}, category={category}")
+
         # 5. Fall back to Gemini if regex didn't match
         if not intent_response:
             intent_response = await get_gemini_response(
