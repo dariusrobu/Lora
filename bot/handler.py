@@ -1446,6 +1446,36 @@ Reguli:
                 }
                 print(f"🔧 EVENT REGEX: {parsed}")
 
+        # Try habit shortcut patterns (bifat X, done X, check X)
+        elif any(
+            low_text.startswith(p)
+            for p in ["bifat ", "done ", "check ", "facut ", "făcut ", "gata "]
+        ):
+            from modules.skills import handle_skill_intent
+
+            habit_name = None
+            for prefix in [
+                "bifat ",
+                "bifat:",
+                "done ",
+                "done:",
+                "check ",
+                "check:",
+                "facut ",
+                "făcut ",
+                "gata ",
+            ]:
+                if low_text.startswith(prefix):
+                    habit_name = text[len(prefix) :].strip()
+                    break
+
+            if habit_name:
+                reply, _ = await handle_skill_intent(
+                    pool, "log_habit", {"name": habit_name, "value": 1}
+                )
+                await update.message.reply_text(reply, parse_mode="MarkdownV2")
+                return
+
         # Try meal logging patterns
         elif any(
             w in low_text
