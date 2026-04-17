@@ -386,6 +386,24 @@ ON CONFLICT (id) DO NOTHING;
 -- Water target per day (ml)
 ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS water_target_ml INT DEFAULT 2500;
 
+-- ── Academic Profile ─────────────────────────────────────────────────
+ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS university_name TEXT;
+ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS faculty TEXT;
+ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS specialization TEXT;
+ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS study_year INT;
+ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS study_group TEXT;
+
+-- ── Vacation Periods ─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS vacation_periods (
+    id              SERIAL PRIMARY KEY,
+    name            TEXT NOT NULL,
+    start_date      DATE NOT NULL,
+    end_date        DATE NOT NULL,
+    is_active       BOOLEAN DEFAULT TRUE,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_vacation_dates ON vacation_periods(start_date, end_date);
+
 -- ── Semester Configuration ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS semester_config (
     id SERIAL PRIMARY KEY,

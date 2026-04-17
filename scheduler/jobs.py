@@ -658,9 +658,13 @@ async def send_journal_night(application, pool):
 async def check_class_reminders(application, pool) -> None:
     """Verifică cursurile care încep în 15 minute și trimite reminder."""
     try:
-        from db.queries.schedule import get_upcoming_classes
+        from db.queries.schedule import get_upcoming_classes, is_vacation
         from bot.formatter import escape_md
         from telegram.constants import ParseMode
+
+        # Skip reminders during vacation
+        if await is_vacation(pool):
+            return
 
         # We check slightly ahead (16m) to ensure we don't miss it between 5m intervals
         classes = await get_upcoming_classes(pool, minutes_ahead=16)
