@@ -116,6 +116,7 @@ async def send_morning_briefing(application, pool):
             skills,
             weather_info,
             shopping_items,
+            health_log,
         ) = await asyncio.gather(
             task_queries.list_tasks(pool),
             event_queries.list_events(pool, today, today),
@@ -123,6 +124,7 @@ async def send_morning_briefing(application, pool):
             skill_queries.get_all_skills(pool),
             get_weather_summary(),
             list_shopping_items(pool),
+            health_queries.get_health_log(pool, today),
         )
 
         weather_info = weather_info or "Vremea nu este disponibilă acum."
@@ -374,7 +376,19 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
         elif priority_tasks:
             lines.append(escape_md(priority_tasks[0]["title"]))
         else:
-            lines.append("O zi la un moment dat\\.")
+            lines.append("O zi la un moment dat\.")
+
+        # Health nudges (subtle, only if needed)
+        if health_log:
+            nudges = []
+            sleep = health_log.get("sleep_hours")
+            water = health_log.get("water_ml")
+            if sleep and sleep < 6:
+                nudges.append(f"Ai dormit doar {sleep:.0f}h\.")
+            if water and water < 1500:
+                nudges.append(f"Apa e la {int(water / 1000 * 10) / 10:.1f}L\.")
+            if nudges:
+                lines += ["", "⚠️ " + " ".join(nudges)]
 
         briefing_text = "\n".join(lines)
 
