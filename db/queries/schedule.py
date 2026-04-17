@@ -5,7 +5,10 @@ import pytz
 
 
 async def get_current_week_type(pool) -> str:
-    """Returnează 'odd' sau 'even' bazat pe săptămâna curentă din semestru."""
+    """Returnează 'odd' sau 'even' bazat pe săptămâna curentă din semestru.
+
+    Ține cont de vacanțe — zilele de vacanță nu sunt numărate în calculul săptămânii.
+    """
     async with pool.acquire() as conn:
         config = await conn.fetchrow(
             "SELECT semester_start FROM semester_config ORDER BY id DESC LIMIT 1"
@@ -17,9 +20,30 @@ async def get_current_week_type(pool) -> str:
     today = date.today()
     semester_start = config["semester_start"]
 
-    # Calculează numărul săptămânii din semestru
-    delta = (today - semester_start).days
-    week_number = delta // 7 + 1  # Săptămâna 1, 2, 3...
+    if today < semester_start:
+        return "odd"
+
+    # Calculează zilele totale din semestru
+    total_days = (today - semester_start).days + 1
+
+    # Scade zilele de vacanță care au trecut
+    vacations = await get_all_vacations(pool)
+    vacation_days = 0
+    for v in vacations:
+        if v["end_date"] < semester_start:
+            continue
+        if v["start_date"] > today:
+            continue
+
+        # Perioada se suprapune cu semestru până azi
+        v_start = max(v["start_date"], semester_start)
+        v_end = min(v["end_date"], today)
+        if v_end >= v_start:
+            vacation_days += (v_end - v_start).days + 1
+
+    # Săptămâna efectivă de curs
+    effective_days = total_days - vacation_days
+    week_number = effective_days // 7 + 1
 
     return "odd" if week_number % 2 == 1 else "even"
 
