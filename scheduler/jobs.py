@@ -259,13 +259,51 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
 
         lines: list[str] = [
             "━━━━━━━━━━━━━━━",
-            f"☀️ *Bună dimineața, {escape_md(name)}\\!*",
+            f"☀️ *Bună dimineața, {escape_md(name)}!*",
             f"_{date_str}_",
             "━━━━━━━━━━━━━━━",
             "",
             f"🌤 *Vremea* — {escape_md(weather_info)}",
-            "",
         ]
+
+        # 📚 UNIVERSITATE
+        from db.queries.schedule import (
+            get_today_schedule,
+            get_current_week_type,
+            get_active_vacation,
+        )
+
+        week_type = await get_current_week_type(pool)
+        week_label = "impară" if week_type == "odd" else "pară"
+
+        study_year = profile.get("study_year") or "?"
+        specialization = profile.get("specialization") or "?"
+        university = profile.get("university_name") or "UBB"
+
+        lines += [
+            "",
+            f"📚 *{escape_md(university)} · Anul {study_year} · {escape_md(specialization)} · Săptămâna {week_label}*",
+        ]
+
+        vacation = await get_active_vacation(pool)
+        if vacation:
+            return_date = (vacation["end_date"] + timedelta(days=1)).strftime("%d %B")
+            lines.append(
+                f"🌴 *{escape_md(vacation['name'])}* — revii pe {escape_md(return_date)}"
+            )
+
+        today_classes = await get_today_schedule(pool)
+        if today_classes:
+            lines.append(
+                f"🎓 *{len(today_classes)} {'curs' if len(today_classes) == 1 else 'cursuri'} azi:*"
+            )
+            for c in today_classes:
+                start = c["start_time"].strftime("%H:%M")
+                room = f" · sala {escape_md(c['room'])}" if c.get("room") else ""
+                lines.append(f"• `{start}` — {escape_md(c['subject_name'])}{room}")
+        else:
+            if not vacation:
+                lines.append("📭 Nicio activitate didactică azi.")
 
         # Group tasks by project
         from collections import defaultdict
@@ -319,25 +357,6 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
                 lines.append(f"• `{time_str}` — {escape_md(e['title'])}")
         else:
             lines.append("Nimic în calendar azi\\.")
-
-        # 🎓 Facultate Integration
-        from db.queries.schedule import get_today_schedule, get_current_week_type
-
-        today_classes = await get_today_schedule(pool)
-        week_type = await get_current_week_type(pool)
-        week_label = "impară" if week_type == "odd" else "pară"
-
-        lines += ["", f"🎓 *Facultate azi* — săptămână {week_label}"]
-        if today_classes:
-            for c in today_classes:
-                start = c["start_time"].strftime("%H:%M")
-                room = f" · sala {escape_md(c['room'])}" if c.get("room") else ""
-                type_str = "curs" if c["class_type"] == "curs" else "seminar"
-                lines.append(
-                    f"• `{start}` — {escape_md(c['subject_name'])} \\({type_str}\\){room}"
-                )
-        else:
-            lines.append("Nu ai cursuri azi\\.")
 
         from db.queries.university import get_upcoming_exams
 
