@@ -1,6 +1,7 @@
 import httpx
-from typing import Optional, Dict, Any
+from typing import Optional
 from core.config import OPENWEATHER_API_KEY, WEATHER_CITY
+
 
 async def get_weather_summary(city: str = WEATHER_CITY) -> Optional[str]:
     """
@@ -8,21 +9,23 @@ async def get_weather_summary(city: str = WEATHER_CITY) -> Optional[str]:
     """
     if not OPENWEATHER_API_KEY:
         return None
-        
-    url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={OPENWEATHER_API_KEY}&units=metric&lang=ro"
-    
+
+    url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={OPENWEATHER_API_KEY}&units=metric&lang=ro"
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(url, timeout=10.0)
             if response.status_code == 200:
                 data = response.json()
-                main = data.get('main', {})
-                weather = data.get('weather', [{}])[0]
-                temp = main.get('temp')
-                feels_like = main.get('feels_like')
-                desc = weather.get('description', 'cer variabil')
-                
-                return f"Vremea în {city}: {desc}, {temp}°C (se simte ca {feels_like}°C)."
+                main = data.get("main", {})
+                weather = data.get("weather", [{}])[0]
+                temp = main.get("temp")
+                feels_like = main.get("feels_like")
+                desc = weather.get("description", "cer variabil")
+
+                return (
+                    f"Vremea în {city}: {desc}, {temp}°C (se simte ca {feels_like}°C)."
+                )
             else:
                 print(f"Weather API error: {response.status_code} - {response.text}")
                 return None
