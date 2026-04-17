@@ -1,5 +1,5 @@
 from typing import Dict, Any, Tuple
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import re
 import db.queries.tasks as task_queries
 from bot.formatter import escape_md
@@ -515,22 +515,56 @@ async def handle_task_intent(
             return "I couldn't find that task.", None
 
 
+def _build_urgency_suggestion(tasks: list, today: date) -> str | None:
+    """Build a contextual suggestion for the most urgent task."""
+    if not tasks:
+        return None
+
+    overdue = [t for t in tasks if t.get("due_date") and t["due_date"] < today]
+    due_today = [t for t in tasks if t.get("due_date") and t["due_date"] == today]
+    due_tomorrow = [
+        t
+        for t in tasks
+        if t.get("due_date")
+        and t["due_date"] == today + timedelta(days=1)
+        and t.get("priority") == "high"
+    ]
+    high_priority = [
+        t for t in tasks if t.get("priority") == "high" and not t.get("due_date")
+    ]
+
+    if overdue:
+        t = overdue[0]
+        return f"🔴 *Task restant:* {escape_md(t['title'])}"
+    if due_today:
+        t = due_today[0]
+        return f"⚠️ *Scadent azi:* {escape_md(t['title'])}"
+    if due_tomorrow:
+        t = due_tomorrow[0]
+        return f"⚡ *Prioritate înaltă — mâine:* {escape_md(t['title'])}"
+    if high_priority:
+        t = high_priority[0]
+        return f"📌 *Prioritate mare:* {escape_md(t['title'])}"
+
+    return None
+
+
 async def get_tasks_dashboard(pool) -> Tuple[str, Any]:
     """Returns a high-level overview of pending tasks grouped by project."""
     tasks = await task_queries.list_tasks(pool, status="pending")
+    today = datetime.now().date()
+
     if not tasks:
         from bot.keyboards import tasks_main_keyboard
 
         return (
-            "Nu ai niciun task activ în acest moment\\! 🎉\nPoți adăuga unul nou prin limbaj natural sau folosind butonul de mai jos\\.",
+            "Nu ai niciun task activ în acest moment\! 🎉\nPoți adăuga unul nou prin limbaj natural sau folosind butonul de mai jos\.",
             tasks_main_keyboard(),
         )
 
     # Simple count
     total = len(tasks)
-    overdue = sum(
-        1 for t in tasks if t.get("due_date") and t["due_date"] < datetime.now().date()
-    )
+    overdue = sum(1 for t in tasks if t.get("due_date") and t["due_date"] < today)
 
     # Grouping for the summary
     from collections import Counter
@@ -538,9 +572,14 @@ async def get_tasks_dashboard(pool) -> Tuple[str, Any]:
     projects = Counter(t.get("project_name") or "Fără proiect" for t in tasks)
 
     lines = ["📋 *Tasks Overview*\n"]
-    lines.append(f"✅ *{total}* task\\-uri active pe *{len(projects)}* proiecte\\.")
+
+    suggestion = _build_urgency_suggestion(tasks, today)
+    if suggestion:
+        lines.append(f"{suggestion}\n")
+
+    lines.append(f"✅ *{total}* task\-uri active pe *{len(projects)}* proiecte\.")
     if overdue > 0:
-        lines.append(f"🔴 *{overdue}* sunt restante\\!")
+        lines.append(f"🔴 *{overdue}* sunt restante\!")
 
     lines.append("\n*Repartiție pe proiecte:*")
     for proj, count in projects.items():
