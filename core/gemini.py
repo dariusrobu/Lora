@@ -165,12 +165,26 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - "cum stau cu..." când implică mai multe module (tasks, gym, health).
     Când needs_agent=true, restul câmpurilor (module, etc.) sunt opționale/ignorate, exceptând `agent_tools_needed` unde poți anticipa sculele necesare ("tool_get_tasks", "tool_get_events_today", "tool_get_habit_status", "tool_get_finance_summary", "tool_get_health_today", "tool_get_goals_progress").
  14. Projects: module="projects", intent= "add_project"/"list_projects"/"archive_project"/"delete_project"/"delete_project_confirmed".
-15. Finance: module="finance":
-    - intent="finance_log" pentru înregistrare (cheltuieli, venituri). 
-      Data: {{amount: număr, type: "expense"|"income", category: text, description: text}}
-    - intent="finance_summary" pentru dashboard/rezumat (cheltuieli azi, tranzacții, buget).
-    - intent="finance_chart" pentru grafic trend (ultimele 30 zile).
-    - Categorii sugerate: mâncare, transport, utilități, chirie, sănătate, shopping, distracție, altele.
+ 15. Finance: module="finance":
+     - intent="finance_log" pentru înregistrare (cheltuieli, venituri).
+       Data: {{amount: număr, type: "expense"|"income", category: text, description: text}}
+     - intent="finance_summary" pentru dashboard/rezumat (cheltuieli azi, tranzacții, buget).
+     - intent="finance_chart" pentru grafic trend (ultimele 30 zile).
+     - Categorii sugerate: mâncare, transport, utilități, chirie, sănătate, shopping, distracție, altele.
+     - REGULI EXTRAGERE CHELTUIELI (ROMÂNĂ):
+       * "am dat X pe Y" / "am dat Y X" → amount=X, category=Y (din context)
+       * "plătit X Y" / "plătit Y X" → amount=X, category=Y
+       * "cheltuit X pe Y" → amount=X, category=Y
+       * "am cheltuit X" → amount=X, category=altele
+       * "X ron/lei/€ pe Y" → amount=X, category=Y
+       * Cuvinte mâncare: "prânz", "cina", "mic dejun", "restaurant", "pizza", "shaorma", "mâncare" → category="mâncare"
+       * Cuvinte transport: "uber", "taxi", "benzină", "metrou", "bus" → category="transport"
+       * Cuvinte utilități: "chirie", "internet", "curent", "gaz", "factură" → category="utilități"
+       * Cuvinte sănătate: "medicament", "doctor", "farmacie", "analize" → category="sănătate"
+       * Cuvinte shopping: "haine", "magazin", "amazon" → category="shopping"
+       * Cuvinte distracție: "cinema", "bar", "concert", "ieșire" → category="distracție"
+       * Dacă nu poți determina categoria, setează category="altele"
+       * type=expense implicit, type=income doar dacă este venit/salariu/bani primiți
 16. Mood: module="mood":
     - intent="get_mood_chart" sau "mood_chart" pentru afișarea evoluției lunare sub formă de grafic.
 17. Insights: module="insights":
