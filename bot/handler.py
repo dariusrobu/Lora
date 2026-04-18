@@ -1093,6 +1093,21 @@ Returnează EXCLUSIV JSON valid:
                 # If command, clear state and proceed
                 if text.startswith("/"):
                     await clear_state(pool)
+                elif any(
+                    w in text.lower()
+                    for w in [
+                        "remintește-mi",
+                        "uită-mă",
+                        "amintește-mi",
+                        "reapă-mă",
+                        "setează reminder",
+                        "adu-mi aminte",
+                        "adumă aminte",
+                        "aminteste-mi",
+                    ]
+                ):
+                    # It's a reminder intent - clear state and let normal flow handle it
+                    await clear_state(pool)
                 else:
                     try:
                         from db.queries.day_plans import save_day_plan
@@ -1150,9 +1165,8 @@ Reguli:
                     except Exception as e:
                         print(f"Error handling day plan input: {e}")
                         traceback.print_exc()
-                        await update.message.reply_text(
-                            f"❌ Eroare la generarea planului: {e}"
-                        )
+                        err_msg = "Eroare la generarea planului"
+                        await update.message.reply_text(err_msg)
                         await clear_state(pool)
                         return
 
@@ -1517,6 +1531,9 @@ Reguli:
                 "reapămă",
                 "să mă reapă",
                 "setează reminder",
+                "adu-mi aminte",
+                "adumă aminte",
+                "aminteste-mi",
             ]
         ):
             from modules.events import parse_reminder_text
@@ -1531,6 +1548,9 @@ Reguli:
                     "needs_confirmation": False,
                 }
                 print(f"🔧 REMINDER REGEX: {parsed}")
+
+            # escape special markdown chars in reply to avoid BadRequest
+            # (moved to final handler)
 
         # Try finance logging patterns
         elif any(
