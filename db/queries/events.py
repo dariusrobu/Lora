@@ -126,28 +126,28 @@ async def get_events_needing_reminder(
             """
             SELECT e.* FROM events e
             WHERE (
-                -- Events with time-based reminders
+                -- Events with time-based reminders (widened window ±15 min)
                 (e.event_type = 'event' AND e.event_time IS NOT NULL
                   AND e.reminded_at IS NULL
                   AND e.event_date = CURRENT_DATE
                   AND e.remind_before_minutes > 0
                   AND (e.event_time - INTERVAL '1 minute' * e.remind_before_minutes)
-                      BETWEEN (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time - INTERVAL '5 minutes' 
-                              AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time + INTERVAL '5 minutes')
+                      BETWEEN (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time - INTERVAL '15 minutes'
+                              AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time + INTERVAL '15 minutes')
                 OR
-                -- Reminders with specific time: send at their scheduled time
+                -- Reminders with specific time: send at their scheduled time (widened window ±15 min)
                 (e.event_type = 'reminder' AND e.event_time IS NOT NULL
                   AND e.reminded_at IS NULL
                   AND e.event_date = CURRENT_DATE
-                  AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time 
-                      BETWEEN e.event_time - INTERVAL '5 minutes' AND e.event_time + INTERVAL '5 minutes')
+                  AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time
+                      BETWEEN e.event_time - INTERVAL '15 minutes' AND e.event_time + INTERVAL '15 minutes')
                 OR
-                -- Reminders without specific time: send on event date at 09:00
+                -- Reminders without specific time: send on event date at 08:55-09:15 (widened window)
                 (e.event_type = 'reminder' AND e.event_time IS NULL
                   AND e.reminded_at IS NULL
                   AND e.event_date = CURRENT_DATE
-                  AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time 
-                      BETWEEN '08:55'::time AND '09:05'::time)
+                  AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time
+                      BETWEEN '08:55'::time AND '09:15'::time)
             )
             ORDER BY e.event_time NULLS LAST
             """

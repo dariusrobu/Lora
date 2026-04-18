@@ -89,6 +89,7 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - intent="delete_event" — "șterge evenimentul X", "anulează evenimentul"
     - intent="delete_reminder" — "șterge reminder-ul X", "anulează reminder-ul"
     - intent="edit_event_reminder" — "schimbă reminder-ul la X minute", "editează reminder"
+    - intent="resend_reminder" — "retrimite reminder-ul X", "reușită reminder" (pentru a forța retrimiterea)
 
 ━━━ REGULI DE TON ━━━
 

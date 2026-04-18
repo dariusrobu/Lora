@@ -1804,7 +1804,7 @@ def setup_scheduler(application, pool):
     )
 
     scheduler.add_job(
-        check_event_reminders, "interval", minutes=15, args=[application, pool]
+        check_event_reminders, "interval", minutes=5, args=[application, pool]
     )
 
     # Day reminder - Every day at 20:00

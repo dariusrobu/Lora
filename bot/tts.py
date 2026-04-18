@@ -7,18 +7,19 @@ from typing import Optional
 
 # ─── Text Cleanup ─────────────────────────────────────────────────────────────
 
+
 def _strip_markdown(text: str) -> str:
     """Remove Telegram MarkdownV2 markers."""
     text = text.replace("*", "").replace("`", "").replace("\\", "")
-    text = re.sub(r'_+', '', text)          # italic/underline
-    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)  # [label](url) → label
+    text = re.sub(r"_+", "", text)  # italic/underline
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)  # [label](url) → label
     return text
 
 
 def _strip_urls(text: str) -> str:
     """Remove URLs that would sound terrible when read aloud."""
-    text = re.sub(r'https?://\S+', '', text)
-    text = re.sub(r'www\.\S+', '', text)
+    text = re.sub(r"https?://\S+", "", text)
+    text = re.sub(r"www\.\S+", "", text)
     return text
 
 
@@ -27,94 +28,94 @@ def _strip_emojis(text: str) -> str:
     # Covers most Unicode emoji ranges
     emoji_pattern = re.compile(
         "["
-        "\U0001F600-\U0001F64F"  # emoticons
-        "\U0001F300-\U0001F5FF"  # symbols & pictographs
-        "\U0001F680-\U0001F6FF"  # transport & map
-        "\U0001F1E0-\U0001F1FF"  # flags
-        "\U00002700-\U000027BF"  # dingbats
-        "\U0001F900-\U0001F9FF"  # supplemental symbols
-        "\U00002600-\U000026FF"  # misc symbols
-        "\U0000200D"             # zero-width joiner
-        "\U0000FE0F"             # variation selector
+        "\U0001f600-\U0001f64f"  # emoticons
+        "\U0001f300-\U0001f5ff"  # symbols & pictographs
+        "\U0001f680-\U0001f6ff"  # transport & map
+        "\U0001f1e0-\U0001f1ff"  # flags
+        "\U00002700-\U000027bf"  # dingbats
+        "\U0001f900-\U0001f9ff"  # supplemental symbols
+        "\U00002600-\U000026ff"  # misc symbols
+        "\U0000200d"  # zero-width joiner
+        "\U0000fe0f"  # variation selector
         "⚠️✅❌💡💸💰📋📅✅⬜🔥☀️🌙🎙️📊📜🌦️"
         "]+",
-        flags=re.UNICODE
+        flags=re.UNICODE,
     )
-    return emoji_pattern.sub('', text)
+    return emoji_pattern.sub("", text)
 
 
 def _strip_special_chars(text: str) -> str:
     """Remove characters that produce odd TTS artefacts."""
     # Remove bullet-like chars and Markdown heading markers
-    text = re.sub(r'[•·#►▶–—]', ' ', text)
+    text = re.sub(r"[•·#►▶–—]", " ", text)
     # Remove lines that are pure separators (---  ===  ***)
-    text = re.sub(r'^[-=*_]{3,}$', '', text, flags=re.MULTILINE)
+    text = re.sub(r"^[-=*_]{3,}$", "", text, flags=re.MULTILINE)
     # Collapse multiple spaces / blank lines
-    text = re.sub(r'  +', ' ', text)
-    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r"  +", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
     return text
 
 
 def _expand_abbreviations(text: str) -> str:
     """Expand temperatures, currencies, times for natural Romanian TTS."""
-    text = re.sub(r'(\d+)°C', r'\1 de grade Celsius', text)
-    text = re.sub(r'(\d+)°', r'\1 de grade', text)
-    text = re.sub(r'(\d+)\s*RON', r'\1 de lei', text)
-    text = re.sub(r'(\d{1,2}):(\d{2})', r'ora \1 și \2', text)
+    text = re.sub(r"(\d+)°C", r"\1 de grade Celsius", text)
+    text = re.sub(r"(\d+)°", r"\1 de grade", text)
+    text = re.sub(r"(\d+)\s*RON", r"\1 de lei", text)
+    text = re.sub(r"(\d{1,2}):(\d{2})", r"ora \1 și \2", text)
     return text
 
 
 def _phonetic_romglish(text: str) -> str:
     """Transliterate English tech terms for the Romanian TTS voice."""
     replacements: dict[str, str] = {
-        r'\bdeadline-ul\b': 'dedlain-ul',
-        r'\bdeadline\b': 'dedlain',
-        r'\btask-ul\b': 'tasc-ul',
-        r'\btask-urile\b': 'tasc-urile',
-        r'\btasks\b': 'tăscuri',
-        r'\btask\b': 'tasc',
-        r'\bmeeting\b': 'miting',
-        r'\bsetup\b': 'setap',
-        r'\bfocus\b': 'focăs',
-        r'\bbriefing\b': 'brifing',
-        r'\bpodcast\b': 'podcast',
-        r'\bfeedback\b': 'fidbec',
-        r'\banyway\b': 'eniuei',
-        r'\bcool\b': 'cul',
-        r'\bby the way\b': 'bai dă uei',
-        r'\bnews\b': 'niuz',
-        r'\bupdate\b': 'apdeit',
-        r'\bjournal\b': 'jurnal',
-        r'\bscheduling\b': 'scediuling',
-        r'\bAI\b': 'A I',
-        r'\bA\.?I\.?\b': 'A I',
-        r'\bChatGPT\b': 'Ceat Ge Pe Te',
-        r'\bGemini\b': 'Gemenai',
-        r'\bGoogle\b': 'Gugăl',
-        r'\bworkflow-ul\b': 'uorcflău-ul',
-        r'\bworkflow\b': 'uorcflău',
-        r'\bdeep work\b': 'dip uorc',
-        r'\bpriority\b': 'praioriti',
-        r'\boverdue\b': 'overdiu',
-        r'\bcash flow\b': 'caș flău',
-        r'\bbudget\b': 'baget',
-        r'\btool\b': 'tul',
-        r'\bhacking\b': 'heching',
-        r'\bhacker\b': 'hecher',
-        r'\bcontent\b': 'contant',
-        r'\bmarketing\b': 'marketing',
-        r'\bperformance\b': 'performans',
-        r'\bdeveloper\b': 'develăpăr',
-        r'\bmanagement\b': 'manajment',
-        r'\bsync\b': 'sinc',
-        r'\bgym\b': 'gim',
-        r'\bheadlines\b': 'hedlains',
-        r'\befficiency\b': 'efișăn-si',
-        r'\bautomate\b': 'otomeit',
-        r'\bprivacy\b': 'praivasi',
-        r'\bproject\b': 'proiect',
-        r'\bcheck-in\b': 'cec-in',
-        r'\bcheck in\b': 'cec in',
+        r"\bdeadline-ul\b": "dedlain-ul",
+        r"\bdeadline\b": "dedlain",
+        r"\btask-ul\b": "tasc-ul",
+        r"\btask-urile\b": "tasc-urile",
+        r"\btasks\b": "tăscuri",
+        r"\btask\b": "tasc",
+        r"\bmeeting\b": "miting",
+        r"\bsetup\b": "setap",
+        r"\bfocus\b": "focăs",
+        r"\bbriefing\b": "brifing",
+        r"\bpodcast\b": "podcast",
+        r"\bfeedback\b": "fidbec",
+        r"\banyway\b": "eniuei",
+        r"\bcool\b": "cul",
+        r"\bby the way\b": "bai dă uei",
+        r"\bnews\b": "niuz",
+        r"\bupdate\b": "apdeit",
+        r"\bjournal\b": "jurnal",
+        r"\bscheduling\b": "scediuling",
+        r"\bAI\b": "A I",
+        r"\bA\.?I\.?\b": "A I",
+        r"\bChatGPT\b": "Ceat Ge Pe Te",
+        r"\bGemini\b": "Gemenai",
+        r"\bGoogle\b": "Gugăl",
+        r"\bworkflow-ul\b": "uorcflău-ul",
+        r"\bworkflow\b": "uorcflău",
+        r"\bdeep work\b": "dip uorc",
+        r"\bpriority\b": "praioriti",
+        r"\boverdue\b": "overdiu",
+        r"\bcash flow\b": "caș flău",
+        r"\bbudget\b": "baget",
+        r"\btool\b": "tul",
+        r"\bhacking\b": "heching",
+        r"\bhacker\b": "hecher",
+        r"\bcontent\b": "contant",
+        r"\bmarketing\b": "marketing",
+        r"\bperformance\b": "performans",
+        r"\bdeveloper\b": "develăpăr",
+        r"\bmanagement\b": "manajment",
+        r"\bsync\b": "sinc",
+        r"\bgym\b": "gim",
+        r"\bheadlines\b": "hedlains",
+        r"\befficiency\b": "efișăn-si",
+        r"\bautomate\b": "otomeit",
+        r"\bprivacy\b": "praivasi",
+        r"\bproject\b": "proiect",
+        r"\bcheck-in\b": "cec-in",
+        r"\bcheck in\b": "cec in",
     }
     for pattern, replacement in replacements.items():
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
@@ -128,13 +129,13 @@ def _add_natural_pauses(text: str) -> str:
     Longer pauses ('... ... ') are added after paragraph breaks.
     """
     # Sentence-level pauses
-    text = re.sub(r'([.!?])\s+', r'\1 ... ', text)
+    text = re.sub(r"([.!?])\s+", r"\1 ... ", text)
     # Paragraph-level pauses (double newline → longer breath)
-    text = re.sub(r'\n\n+', ' ... ... \n', text)
+    text = re.sub(r"\n\n+", " ... ... \n", text)
     # Single newlines → short pause
-    text = re.sub(r'\n', ' ... ', text)
+    text = re.sub(r"\n", " ... ", text)
     # Clean up multiple consecutive pauses
-    text = re.sub(r'(\.\.\. ){3,}', '... ... ', text)
+    text = re.sub(r"(\.\.\. ){3,}", "... ... ", text)
     return text.strip()
 
 
@@ -177,23 +178,24 @@ def prepare_podcast_text(text: str) -> str:
     for line in lines:
         stripped = line.strip()
         if not stripped:
-            processed_lines.append('... ...')
+            processed_lines.append("... ...")
             continue
         # Short lines (likely section titles) get a longer breath after them
-        if len(stripped) < 60 and stripped.endswith(':'):
-            processed_lines.append(stripped + ' ...')
+        if len(stripped) < 60 and stripped.endswith(":"):
+            processed_lines.append(stripped + " ...")
         else:
             processed_lines.append(stripped)
-    text = ' '.join(processed_lines)
+    text = " ".join(processed_lines)
 
     # Sentence-level pauses
-    text = re.sub(r'([.!?])\s+', r'\1 ... ', text)
+    text = re.sub(r"([.!?])\s+", r"\1 ... ", text)
     # Clean up excessive pauses
-    text = re.sub(r'(\.\.\. ){3,}', '... ... ', text)
+    text = re.sub(r"(\.\.\. ){3,}", "... ... ", text)
     return text.strip()
 
 
 # ─── TTS Engine ───────────────────────────────────────────────────────────────
+
 
 async def text_to_speech(
     text: str,
@@ -215,7 +217,7 @@ async def text_to_speech(
     """
     if podcast_mode:
         processed_text = prepare_podcast_text(text)
-        rate = "-15%"   # slightly slower for narration
+        rate = "-15%"  # slightly slower for narration
         pitch = "+1Hz"
     else:
         processed_text = preprocess_text_for_tts(text)
@@ -231,11 +233,19 @@ async def text_to_speech(
         filename = temp_file.name
         temp_file.close()
 
-    print(f"DEBUG: edge_tts.Communicate starting | mode={'podcast' if podcast_mode else 'normal'} | voice={voice} | chars={len(processed_text)}", flush=True)
+    print(
+        f"DEBUG: edge_tts.Communicate starting | mode={'podcast' if podcast_mode else 'normal'} | voice={voice} | chars={len(processed_text)}",
+        flush=True,
+    )
     try:
-        communicate = edge_tts.Communicate(processed_text, voice, rate=rate, pitch=pitch)
+        communicate = edge_tts.Communicate(
+            processed_text, voice, rate=rate, pitch=pitch
+        )
         await communicate.save(filename)
-        print(f"DEBUG: edge_tts saved → {filename} (exists={os.path.exists(filename)})", flush=True)
+        print(
+            f"DEBUG: edge_tts saved → {filename} (exists={os.path.exists(filename)})",
+            flush=True,
+        )
     except Exception as e:
         print(f"DEBUG: edge_tts FAILED: {e}", flush=True)
         raise

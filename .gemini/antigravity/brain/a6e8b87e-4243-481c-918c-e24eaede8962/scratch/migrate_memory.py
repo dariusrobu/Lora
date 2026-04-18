@@ -1,6 +1,7 @@
 import asyncio
 from db.connection import get_pool, close_pool
 
+
 async def run_migration():
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -21,6 +22,7 @@ async def run_migration():
         """)
         print("Migration complete!")
     await close_pool()
+
 
 if __name__ == "__main__":
     asyncio.run(run_migration())

@@ -317,9 +317,28 @@ async def handle_event_intent(
                 status = "activat" if remind_1day else "dezactivat"
                 return f"Reminder 1 zi {status}\\.", None
 
-        return "Trebuie să specifici reminder-ul\\.", None
+        return "Trebuie să specifici reminder-ul.", None
 
-    return "Event module is ready\\!", None
+    elif intent == "resend_reminder":
+        title = data.get("title") or data.get("name")
+        if not title:
+            return "Care reminder vrei sa retrimiti?", None
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM events WHERE LOWER(title) = LOWER($1) AND event_type = 'reminder' ORDER BY id DESC LIMIT 1",
+                title,
+            )
+            if not row:
+                return f"Nu am gasit reminder '{escape_md(title)}'.", None
+            await conn.execute(
+                "UPDATE events SET reminded_at = NULL WHERE id = $1", row["id"]
+            )
+        return (
+            f"✅ Retrimis reminder '{escape_md(title)}' - va fi trimis in urmatorul ciclu (5 min).",
+            None,
+        )
+
+    return "Event module is ready!", None
 
 
 def get_reminder_keyboard(

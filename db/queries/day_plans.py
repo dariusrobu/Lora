@@ -1,7 +1,14 @@
 from typing import Optional, Dict, Any
 from datetime import date
 
-async def save_day_plan(pool, plan_date: date, user_input: Optional[str], itinerary: str, wake_time: Optional[str] = None) -> None:
+
+async def save_day_plan(
+    pool,
+    plan_date: date,
+    user_input: Optional[str],
+    itinerary: str,
+    wake_time: Optional[str] = None,
+) -> None:
     """Saves or updates a day plan for a specific date."""
     async with pool.acquire() as conn:
         await conn.execute(
@@ -14,14 +21,17 @@ async def save_day_plan(pool, plan_date: date, user_input: Optional[str], itiner
                           wake_time = COALESCE(EXCLUDED.wake_time, day_plans.wake_time),
                           created_at = NOW()
             """,
-            plan_date, user_input, itinerary, wake_time
+            plan_date,
+            user_input,
+            itinerary,
+            wake_time,
         )
+
 
 async def get_day_plan(pool, plan_date: date) -> Optional[Dict[str, Any]]:
     """Retrieves the day plan for a specific date."""
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT * FROM day_plans WHERE plan_date = $1",
-            plan_date
+            "SELECT * FROM day_plans WHERE plan_date = $1", plan_date
         )
         return dict(row) if row else None

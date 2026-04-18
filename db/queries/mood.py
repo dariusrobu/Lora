@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from datetime import date
 
 MOOD_MAP = {
@@ -8,8 +8,9 @@ MOOD_MAP = {
     "okay": 3,
     "bad": 2,
     "terrible": 1,
-    "awful": 1
+    "awful": 1,
 }
+
 
 async def get_monthly_mood_data(pool, year: int, month: int) -> List[Dict[str, Any]]:
     """Fetches and maps mood data from journal_entries and notes for a specific month."""
@@ -22,9 +23,10 @@ async def get_monthly_mood_data(pool, year: int, month: int) -> List[Dict[str, A
             WHERE EXTRACT(YEAR FROM entry_date) = $1 AND EXTRACT(MONTH FROM entry_date) = $2
             AND mood IS NOT NULL
             """,
-            year, month
+            year,
+            month,
         )
-        
+
         # Fetch from notes (type='journal')
         notes = await conn.fetch(
             """
@@ -34,25 +36,29 @@ async def get_monthly_mood_data(pool, year: int, month: int) -> List[Dict[str, A
             AND EXTRACT(YEAR FROM created_at) = $1 AND EXTRACT(MONTH FROM created_at) = $2
             AND mood IS NOT NULL
             """,
-            year, month
+            year,
+            month,
         )
-        
+
         # Merge data (day as key)
         merged = {}
         for r in list(journals) + list(notes):
-            d = r['log_date']
-            m_val = MOOD_MAP.get(r['mood'].lower(), 3)
+            d = r["log_date"]
+            m_val = MOOD_MAP.get(r["mood"].lower(), 3)
             # If multiple for a day, take the max (most positive) or average? Let's take latest (by merging)
             merged[d] = m_val
-            
+
         # Convert to sorted list of dicts
         result = []
         for d in sorted(merged.keys()):
             result.append({"date": d, "value": merged[d]})
-            
+
         return result
 
-async def get_weekly_mood_summary(pool, start_date: date, end_date: date) -> Dict[str, int]:
+
+async def get_weekly_mood_summary(
+    pool, start_date: date, end_date: date
+) -> Dict[str, int]:
     """Returns counts of each mood label for the weekly summary."""
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -65,6 +71,7 @@ async def get_weekly_mood_summary(pool, start_date: date, end_date: date) -> Dic
             ) combined
             GROUP BY mood
             """,
-            start_date, end_date
+            start_date,
+            end_date,
         )
-        return {r['mood']: r['count'] for r in rows}
+        return {r["mood"]: r["count"] for r in rows}

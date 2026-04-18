@@ -139,18 +139,18 @@ async def generate_insights(pool) -> str:
         check_sleep_alert(pool, recent_types),
         check_water_low(pool, recent_types),
         check_overdue_tasks(pool, recent_types),
-        compute_correlations(pool)
+        compute_correlations(pool),
     )
 
     standard_checks = [c[1] for c in results[:3] if c]
     correlations = results[3]
 
     final_lines = []
-    
+
     # Process standard checks
     for i in standard_checks[:2]:
         final_lines.append(f"• {i}")
-        
+
     # Process correlations
     for corr in correlations[:2]:
         msg = (
@@ -169,7 +169,11 @@ async def generate_insights(pool) -> str:
 async def run_proactive_insights(pool, bot) -> None:
     """Rulează toate check-urile și trimite max 2 insights per zi."""
     from core.config import TELEGRAM_USER_ID
-    from core.correlations import compute_correlations, get_unseen_correlations, save_correlation_as_fact
+    from core.correlations import (
+        compute_correlations,
+        get_unseen_correlations,
+        save_correlation_as_fact,
+    )
     from bot.formatter import safe_markdown
 
     recent_types = await get_recent_insight_types(pool, days=5)
@@ -190,7 +194,7 @@ async def run_proactive_insights(pool, bot) -> None:
     try:
         raw_correlations = await compute_correlations(pool)
         new_correlations = await get_unseen_correlations(pool, raw_correlations)
-        
+
         for corr in new_correlations:
             # We treat correlations as a special type of insight
             msg = (
@@ -210,7 +214,7 @@ async def run_proactive_insights(pool, bot) -> None:
         return
 
     # Max 2 insights per zi total
-    # Prioritize correlations if present? Or just first 2. 
+    # Prioritize correlations if present? Or just first 2.
     # Let's pick at most 1 correlation and 1 standard insight, or first 2.
     to_send = insights[:2]
 
@@ -221,9 +225,11 @@ async def run_proactive_insights(pool, bot) -> None:
             lines.append(f"• {message}")
         else:
             lines.append(message)
-        
+
         await log_insight(pool, insight_type)
 
     text = "💡 *Câteva observații:*\n\n" + "\n\n".join(lines)
 
-    await bot.send_message(chat_id=TELEGRAM_USER_ID, text=safe_markdown(text), parse_mode="MarkdownV2")
+    await bot.send_message(
+        chat_id=TELEGRAM_USER_ID, text=safe_markdown(text), parse_mode="MarkdownV2"
+    )

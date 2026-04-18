@@ -1,15 +1,16 @@
 from typing import Optional, List, Dict, Any
-from datetime import date, timedelta
+from datetime import date
+
 
 async def upsert_health_log(
-    pool, 
-    log_date: date, 
+    pool,
+    log_date: date,
     sleep_hours: Optional[float] = None,
     sleep_quality: Optional[str] = None,
     water_ml: Optional[int] = None,
     nutrition: Optional[str] = None,
     weight_kg: Optional[float] = None,
-    notes: Optional[str] = None
+    notes: Optional[str] = None,
 ) -> None:
     """
     Upserts a health log entry for a specific date.
@@ -32,8 +33,15 @@ async def upsert_health_log(
                 notes         = COALESCE($7, health_logs.notes),
                 updated_at    = NOW()
             """,
-            log_date, sleep_hours, sleep_quality, water_ml, nutrition, weight_kg, notes
+            log_date,
+            sleep_hours,
+            sleep_quality,
+            water_ml,
+            nutrition,
+            weight_kg,
+            notes,
         )
+
 
 async def add_water(pool, log_date: date, ml_to_add: int) -> int:
     """
@@ -50,9 +58,11 @@ async def add_water(pool, log_date: date, ml_to_add: int) -> int:
                 updated_at = NOW()
             RETURNING water_ml
             """,
-            log_date, ml_to_add
+            log_date,
+            ml_to_add,
         )
         return new_total
+
 
 async def get_health_history(pool, days: int = 30) -> List[Dict[str, Any]]:
     """
@@ -65,9 +75,10 @@ async def get_health_history(pool, days: int = 30) -> List[Dict[str, Any]]:
             WHERE log_date > CURRENT_DATE - $1::integer
             ORDER BY log_date ASC
             """,
-            int(days)
+            int(days),
         )
         return [dict(r) for r in rows]
+
 
 async def get_health_summary(pool, days: int = 7) -> Dict[str, Any]:
     """
@@ -88,9 +99,9 @@ async def get_health_summary(pool, days: int = 7) -> Dict[str, Any]:
             FROM health_logs
             WHERE log_date > CURRENT_DATE - $1::integer
             """,
-            int(days)
+            int(days),
         )
-        
+
         # Trend calculation for weight
         recent_weights = await conn.fetch(
             """
@@ -99,20 +110,27 @@ async def get_health_summary(pool, days: int = 7) -> Dict[str, Any]:
             ORDER BY log_date DESC LIMIT 2
             """
         )
-        
+
         trend = "stable"
         if len(recent_weights) >= 2:
-            w1 = recent_weights[0]['weight_kg'] # newest
-            w2 = recent_weights[1]['weight_kg'] # second newest
-            if w1 < w2: trend = "down"
-            elif w1 > w2: trend = "up"
-            
+            w1 = recent_weights[0]["weight_kg"]  # newest
+            w2 = recent_weights[1]["weight_kg"]  # second newest
+            if w1 < w2:
+                trend = "down"
+            elif w1 > w2:
+                trend = "up"
+
         summary = dict(row) if row else {}
-        summary['weight_trend'] = trend
-        summary['recent_weight'] = recent_weights[0]['weight_kg'] if recent_weights else None
-        summary['prev_weight'] = recent_weights[1]['weight_kg'] if len(recent_weights) >= 2 else None
-        
+        summary["weight_trend"] = trend
+        summary["recent_weight"] = (
+            recent_weights[0]["weight_kg"] if recent_weights else None
+        )
+        summary["prev_weight"] = (
+            recent_weights[1]["weight_kg"] if len(recent_weights) >= 2 else None
+        )
+
         return summary
+
 
 async def get_health_log(pool, log_date: date) -> Optional[Dict[str, Any]]:
     """
@@ -120,7 +138,6 @@ async def get_health_log(pool, log_date: date) -> Optional[Dict[str, Any]]:
     """
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT * FROM health_logs WHERE log_date = $1",
-            log_date
+            "SELECT * FROM health_logs WHERE log_date = $1", log_date
         )
         return dict(row) if row else None

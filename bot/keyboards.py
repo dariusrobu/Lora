@@ -638,17 +638,23 @@ def health_back_keyboard() -> InlineKeyboardMarkup:
         ]
     )
 
+
 # ── Memory Module Keyboards ──────────────────────────────────────────────
+
 
 def memory_main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton("🗑️ Șterge ultima", callback_data="memory:delete_last"),
+                InlineKeyboardButton(
+                    "🗑️ Șterge ultima", callback_data="memory:delete_last"
+                ),
                 InlineKeyboardButton("🧹 Șterge tot", callback_data="memory:clear_all"),
             ],
             [
-                InlineKeyboardButton("📊 Categorii", callback_data="memory:view_categories"),
+                InlineKeyboardButton(
+                    "📊 Categorii", callback_data="memory:view_categories"
+                ),
                 InlineKeyboardButton("◀️ Înapoi", callback_data="chat:main"),
             ],
         ]

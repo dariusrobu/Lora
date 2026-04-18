@@ -1,40 +1,58 @@
-from typing import List, Dict, Any, Optional
-from datetime import date, datetime
+from typing import List, Dict, Any
+from datetime import date
 import decimal
 
-async def log_transaction(pool, tx_type: str, amount: float, category: str, description: str = None, tx_date: date = None):
+
+async def log_transaction(
+    pool,
+    tx_type: str,
+    amount: float,
+    category: str,
+    description: str = None,
+    tx_date: date = None,
+):
     """Logs a new finance transaction."""
     if tx_date is None:
         tx_date = date.today()
-        
+
     async with pool.acquire() as conn:
         await conn.execute(
             """
             INSERT INTO finances (type, amount, category, description, tx_date)
             VALUES ($1, $2, $3, $4, $5)
             """,
-            tx_type, decimal.Decimal(str(amount)), category, description, tx_date
+            tx_type,
+            decimal.Decimal(str(amount)),
+            category,
+            description,
+            tx_date,
         )
 
-async def get_daily_total(pool, log_date: date, tx_type: str = 'expense') -> float:
+
+async def get_daily_total(pool, log_date: date, tx_type: str = "expense") -> float:
     """Gets total for a specific type on a specific date."""
     async with pool.acquire() as conn:
         val = await conn.fetchval(
             "SELECT SUM(amount) FROM finances WHERE tx_date = $1 AND type = $2",
-            log_date, tx_type
+            log_date,
+            tx_type,
         )
         return float(val or 0)
+
 
 async def get_daily_transactions(pool, log_date: date) -> List[Dict[str, Any]]:
     """Gets all transactions for a specific date."""
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT * FROM finances WHERE tx_date = $1 ORDER BY created_at ASC",
-            log_date
+            log_date,
         )
         return [dict(r) for r in rows]
 
-async def get_monthly_category_totals(pool, month: int, year: int) -> List[Dict[str, Any]]:
+
+async def get_monthly_category_totals(
+    pool, month: int, year: int
+) -> List[Dict[str, Any]]:
     """Gets category totals for a specific month."""
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -47,9 +65,11 @@ async def get_monthly_category_totals(pool, month: int, year: int) -> List[Dict[
             GROUP BY category
             ORDER BY total DESC
             """,
-            month, year
+            month,
+            year,
         )
         return [dict(r) for r in rows]
+
 
 async def get_budget_status(pool) -> List[Dict[str, Any]]:
     """Gets current month spending vs limits for all categories with limits."""
@@ -70,6 +90,7 @@ async def get_budget_status(pool) -> List[Dict[str, Any]]:
         )
         return [dict(r) for r in rows]
 
+
 async def get_monthly_summary(pool, month: int, year: int) -> Dict[str, float]:
     """Gets total income and total expenses for a specific month."""
     async with pool.acquire() as conn:
@@ -82,12 +103,11 @@ async def get_monthly_summary(pool, month: int, year: int) -> Dict[str, float]:
             WHERE EXTRACT(MONTH FROM tx_date) = $1 
               AND EXTRACT(YEAR FROM tx_date) = $2
             """,
-            month, year
+            month,
+            year,
         )
-        return {
-            'income': float(row['income']),
-            'expense': float(row['expense'])
-        }
+        return {"income": float(row["income"]), "expense": float(row["expense"])}
+
 
 async def get_finance_history(pool, days: int = 30) -> List[Dict[str, Any]]:
     """Retrieves daily spending history."""
@@ -101,6 +121,6 @@ async def get_finance_history(pool, days: int = 30) -> List[Dict[str, Any]]:
             GROUP BY tx_date
             ORDER BY tx_date ASC
             """,
-            int(days)
+            int(days),
         )
         return [dict(r) for r in rows]

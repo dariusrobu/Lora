@@ -1,7 +1,7 @@
 # db/queries/correlations.py
 
 from typing import Dict, Any, List
-from datetime import date
+
 
 async def get_30day_snapshot(pool) -> List[Dict[str, Any]]:
     """Fetch metrics for the last 30 days for correlation analysis."""
@@ -66,6 +66,7 @@ async def get_30day_snapshot(pool) -> List[Dict[str, Any]]:
             ORDER BY dr.d ASC
         """)
         return [dict(r) for r in rows]
+
 
 async def get_weekly_patterns(pool) -> List[Dict[str, Any]]:
     """Fetch metrics aggregated by day of week (0=Sunday to 6=Saturday)."""
