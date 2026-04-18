@@ -79,8 +79,11 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
       Data: {{"title": string, "event_date": "YYYY-MM-DD", "event_time": "HH:MM"}}
     - intent="add_reminder" — "reapă-mă", "amintește-mi", "setez reminder", "să mă reapă". 
       Data: {{"title": string, "event_date": "YYYY-MM-DD", "event_time": "HH:MM"}}
-      Reguli: extrage TOTdeauna title (ce trebuie să facă), date (YYYY-MM-DD), time (HH:MM dacă menționat). 
-      Dacă utilizatorul zice "reapă-mă mâine să fac X" → title="să fac X", date=mâine, time=NULL.
+      Reguli: extrage TOTdeauna title, date, time.
+      - "la X" / "de la X" / "ora X" / "azi la X" → include event_time=X, date=ASTĂZI dacă nu e specificat
+      - "mâine la X" / "poimâine la X" → include date și time corecte
+      - "în X ore" → calculează time = now + X ore, date = azi
+      - EXEMPLU: "reapă-mă să ies cu Raluca de la 17:15" → title="să ies cu Raluca", date=NOW(), event_time="17:15"
     - intent="list_events" — "ce evenimente am", "programarea"
     - intent="list_reminders" — "reminderele mele", "ce reminder-e am"
     - intent="delete_event" — "șterge evenimentul X", "anulează evenimentul"

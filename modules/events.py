@@ -198,6 +198,10 @@ async def handle_event_intent(
                 date_str = parsed.get("date")
                 time_str = parsed.get("time")
 
+        # Option A: If time exists but NO date → use TODAY (implicit)
+        if time_str and not date_str:
+            date_str = datetime.now().strftime("%Y-%m-%d")
+
         remind_minutes = data.get("remind_before_minutes", 30) if not is_reminder else 0
 
         if not title or not date_str:
