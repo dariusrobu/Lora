@@ -183,8 +183,12 @@ async def start_bot():
     print(f"Web server active on port {port} (Health check OK)", flush=True)
 
     # 7. Start Telegram Bot (Polling mode)
-    # Remove any existing webhook first
-    await application.bot.delete_webhook()
+    # Remove any existing webhook and ensure clean state
+    try:
+        await application.bot.delete_webhook(drop_pending_updates=True)
+        print("Webhook deleted.", flush=True)
+    except Exception as e:
+        print(f"Warning: webhook delete failed: {e}", flush=True)
 
     await application.initialize()
     await application.start()
