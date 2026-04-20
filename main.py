@@ -77,6 +77,28 @@ async def handle_calendar_request(request):
         return web.Response(text=f"Error generating calendar: {e}", status=500)
 
 
+PID_FILE = "lora.pid"
+
+
+def check_pid_lock():
+    """Prevents multiple bot instances from running."""
+    if os.path.exists(PID_FILE):
+        with open(PID_FILE, "r") as f:
+            old_pid = f.read().strip()
+        try:
+            old_pid_int = int(old_pid)
+            if old_pid_int != os.getpid():
+                if os.path.exists(f"/proc/{old_pid_int}"):
+                    print(f"ERROR: Another bot instance (PID {old_pid}) is already running!")
+                    print("Delete lora.pid if the old instance crashed.")
+                    exit(1)
+        except (ValueError, ProcessLookupError):
+            pass
+    
+    with open(PID_FILE, "w") as f:
+        f.write(str(os.getpid()))
+
+
 async def start_bot():
     print("Starting Lora initialization (HYBRID MODE)...", flush=True)
 
@@ -186,6 +208,9 @@ async def start_bot():
         await application.shutdown()
         await runner.cleanup()
         await close_pool()
+        if os.path.exists(PID_FILE):
+            os.remove(PID_FILE)
+            print("PID lock removed.", flush=True)
 
 
 if __name__ == "__main__":

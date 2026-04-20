@@ -10,3 +10,5 @@ venv/
 .idea/
 *.mp3
 *.ogg
+lora.pid
+bot.log
