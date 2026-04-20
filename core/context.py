@@ -99,10 +99,21 @@ async def build_context(pool, current_message: str = None) -> str:
     )
 
     # 6. Projects
-    projects = await project_queries.list_projects(pool)
+    projects = await project_queries.get_projects_with_counts(pool)
     snapshot.append("\n--- ACTIVE PROJECTS ---")
     if projects:
-        snapshot.append(", ".join([p["name"] for p in projects]))
+        for p in projects[:5]:
+            pending = p.get("pending_tasks", 0)
+            overdue = p.get("overdue_tasks", 0)
+            progress = p.get("progress_pct", 0)
+            deadline = f" (due: {p['deadline']})" if p.get("deadline") else ""
+            priority = " 🔥" if p.get("priority") == "high" else ""
+            task_info = (
+                f": {pending} tasks, {progress}%{deadline}{priority}"
+                if pending > 0 or deadline or priority
+                else ""
+            )
+            snapshot.append(f"• {p['name']}{task_info}")
     else:
         snapshot.append("No active projects.")
 

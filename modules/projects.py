@@ -1,4 +1,5 @@
 from typing import Dict, Any, Tuple
+from datetime import date
 import db.queries.projects as project_queries
 from bot.formatter import escape_md
 
@@ -11,17 +12,104 @@ async def handle_project_intent(
         if not name:
             return "What should I call the project?", None
 
+        deadline = None
+        if data.get("deadline"):
+            try:
+                deadline = date.fromisoformat(data["deadline"])
+            except (ValueError, TypeError):
+                pass
+
         project_id = await project_queries.add_project(
             pool,
             name=name,
             description=data.get("description"),
             status=data.get("status", "active"),
+            deadline=deadline,
+            priority=data.get("priority", "medium"),
+            category=data.get("category"),
         )
-        return f"Done ✅ Created project *{escape_md(name)}*\\.", None
+
+        meta_parts = []
+        if deadline:
+            meta_parts.append(f"📅 deadline: {data['deadline']}")
+        if data.get("priority") == "high":
+            meta_parts.append("🔥 prioritate mare")
+        if data.get("category"):
+            meta_parts.append(f"📁 {data['category']}")
+
+        meta_str = f" ({', '.join(meta_parts)})" if meta_parts else ""
+        return f"Done ✅ Created project *{escape_md(name)}*{meta_str}\\.", None
+
+    elif intent == "view_project":
+        name = data.get("name")
+        project = None
+
+        if name:
+            project = await project_queries.get_project_by_name(pool, name)
+        elif data.get("id"):
+            project = await project_queries.get_project(pool, data["id"])
+
+        if not project:
+            return "Which project do you want to view?", None
+
+        detail = await project_queries.get_project_detail(pool, project["id"])
+        if not detail:
+            return f"Project *{escape_md(project['name'])}* not found\\.", None
+
+        lines = [f"📂 *{escape_md(detail['name'])}*"]
+        if detail.get("description"):
+            lines.append(f"_{escape_md(detail['description'])}_")
+
+        meta = []
+        if detail.get("deadline"):
+            meta.append(f"📅 {detail['deadline']}")
+        if detail.get("priority"):
+            priority_emoji = (
+                "🔴"
+                if detail["priority"] == "high"
+                else "🟡"
+                if detail["priority"] == "medium"
+                else "🟢"
+            )
+            meta.append(f"{priority_emoji} {detail['priority']}")
+        if detail.get("category"):
+            meta.append(f"📁 {detail['category']}")
+        if detail.get("progress_pct", 0) > 0:
+            meta.append(f"📊 {detail['progress_pct']}%")
+
+        if meta:
+            lines.append(" | ".join(meta))
+
+        pending = detail.get("pending_count", 0)
+        total = detail.get("task_count", 0)
+        if total > 0:
+            lines.append(f"\n📋 Tasks: *{pending}* pending / *{total}* total")
+
+            for task in detail.get("tasks", [])[:5]:
+                status_icon = "✅" if task["status"] == "done" else "⏳"
+                due = f" (due: {task['due_date']})" if task.get("due_date") else ""
+                lines.append(f"{status_icon} {escape_md(task['title'])}{due}")
+            if len(detail["tasks"]) > 5:
+                lines.append(f"... and *{len(detail['tasks']) - 5}* more")
+
+        if detail.get("notes"):
+            lines.append(f"\n📝 *{len(detail['notes'])}* linked notes")
+            for note in detail["notes"][:2]:
+                content = (
+                    note["content"][:50] + "..."
+                    if len(note["content"]) > 50
+                    else note["content"]
+                )
+                lines.append(f"• {content}")
+
+        return "\n".join(lines), None
 
     elif intent == "list_projects":
         status_filter = data.get("status")
-        projects = await project_queries.list_projects(pool, status=status_filter)
+        projects = await project_queries.get_projects_with_counts(pool)
+
+        if status_filter:
+            projects = [p for p in projects if p.get("status") == status_filter]
 
         if not projects:
             msg = (
@@ -32,15 +120,86 @@ async def handle_project_intent(
             return msg, None
 
         header = (
-            "🏗 *Upcoming/Active Projects:*"
+            "🏗 *All Projects:*"
             if not status_filter
             else f"🏗 *{status_filter.title()} Projects:*"
         )
         lines = [header]
         for p in projects:
             status_str = f" ({p['status']})" if p["status"] != "active" else ""
-            lines.append(f"• *{escape_md(p['name'])}*{status_str}")
+            pending = p.get("pending_tasks", 0)
+            overdue = p.get("overdue_tasks", 0)
+            progress = p.get("progress_pct", 0)
+            task_info = f" 📋{pending}" if pending else ""
+            if overdue > 0:
+                task_info += f" ⚠️{overdue}"
+            if progress > 0:
+                task_info += f" 📊{progress}%"
+            lines.append(f"• *{escape_md(p['name'])}*{status_str}{task_info}")
         return "\n".join(lines), None
+
+    elif intent == "update_project":
+        project_id = data.get("id")
+        name = data.get("name")
+
+        if not project_id and name:
+            project = await project_queries.get_project_by_name(pool, name)
+            if project:
+                project_id = project["id"]
+
+        if not project_id:
+            return "Which project should I update?", None
+
+        update_data = {}
+        if data.get("name"):
+            update_data["name"] = data["name"]
+        if data.get("description"):
+            update_data["description"] = data["description"]
+        if data.get("status"):
+            update_data["status"] = data["status"]
+        if data.get("priority"):
+            update_data["priority"] = data["priority"]
+        if data.get("category"):
+            update_data["category"] = data["category"]
+        if data.get("deadline"):
+            try:
+                update_data["deadline"] = date.fromisoformat(data["deadline"])
+            except (ValueError, TypeError):
+                pass
+
+        if update_data:
+            await project_queries.update_project(pool, project_id, **update_data)
+            return f"Updated project *{escape_md(name or str(project_id))}* ✅", None
+        return "No changes to apply.", None
+
+    elif intent == "update_progress":
+        project_id = data.get("id")
+        name = data.get("name")
+        progress = data.get("progress_pct")
+
+        if not project_id and name:
+            project = await project_queries.get_project_by_name(pool, name)
+            if project:
+                project_id = project["id"]
+
+        if not project_id:
+            return "Which project?", None
+
+        if progress is not None:
+            progress = max(0, min(100, int(progress)))
+            await project_queries.update_project(
+                pool, project_id, progress_pct=progress
+            )
+            return f"Progress updated to *{progress}%* ✅", None
+
+        current = await project_queries.get_project(pool, project_id)
+        if current:
+            auto_progress = current.get("progress_pct", 0)
+            return (
+                f"Current progress: *{auto_progress}%* (auto\\-calculated from tasks)",
+                None,
+            )
+        return "Project not found.", None
 
     elif intent == "archive_project":
         project_id = data.get("id")
@@ -107,30 +266,31 @@ async def handle_project_intent(
 
 async def get_projects_dashboard(pool) -> Tuple[str, Any]:
     """Returns a high-level overview of projects and their activity."""
-    projects = await project_queries.list_projects(pool, exclude_status="archived")
+    projects = await project_queries.get_projects_with_counts(pool)
 
     total_active = len(projects)
-
-    # Fetch projects with pending tasks
-    from db.queries.tasks import list_tasks
-
-    active_with_tasks = []
-
-    for p in projects:
-        tasks = await list_tasks(pool, project_id=p["id"], status="pending")
-        if tasks:
-            active_with_tasks.append(
-                {"id": p["id"], "name": p["name"], "count": len(tasks)}
-            )
+    total_pending = sum(p.get("pending_tasks", 0) for p in projects)
+    total_overdue = sum(p.get("overdue_tasks", 0) for p in projects)
 
     lines = ["🏗 *Dashboard Proiecte*\n"]
     lines.append(f"📊 Total proiecte active: *{total_active}*")
-    lines.append(f"🔥 Proiecte cu task\\-uri: *{len(active_with_tasks)}*")
+    lines.append(f"📋 Total task\\-uri active: *{total_pending}*")
+    if total_overdue > 0:
+        lines.append(f"⚠️ Task\\-uri overdue: *{total_overdue}*")
 
-    if active_with_tasks:
-        lines.append("\n*Activitate curentă:*")
-        for ap in active_with_tasks:
-            lines.append(f"• {escape_md(ap['name'])}: {ap['count']} task\\-uri")
+    priority_high = [p for p in projects if p.get("priority") == "high"]
+    if priority_high:
+        lines.append("\n🔥 *High Priority:*")
+        for p in priority_high[:3]:
+            pending = p.get("pending_tasks", 0)
+            progress = p.get("progress_pct", 0)
+            lines.append(f"• {escape_md(p['name'])}: {pending} tasks, {progress}%")
+
+    deadline_soon = [p for p in projects if p.get("deadline")]
+    if deadline_soon:
+        lines.append("\n📅 *Cu deadline:*")
+        for p in deadline_soon[:3]:
+            lines.append(f"• {escape_md(p['name'])}: {p['deadline']}")
 
     from bot.keyboards import projects_main_keyboard
 

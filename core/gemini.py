@@ -179,7 +179,14 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - "analizează..." sau "compară..."
     - "cum stau cu..." când implică mai multe module (tasks, gym, health).
     Când needs_agent=true, restul câmpurilor (module, etc.) sunt opționale/ignorate, exceptând `agent_tools_needed` unde poți anticipa sculele necesare ("tool_get_tasks", "tool_get_events_today", "tool_get_habit_status", "tool_get_finance_summary", "tool_get_health_today", "tool_get_goals_progress").
- 14. Projects: module="projects", intent= "add_project"/"list_projects"/"archive_project"/"delete_project"/"delete_project_confirmed".
+ 14. Projects: module="projects":
+     - intent="add_project" — "creează proiect", "proiect nou: X". Data: {{"name": string, "description": string, "deadline": "YYYY-MM-DD", "priority": "high"|"medium"|"low", "category": string}}
+     - intent="list_projects" — "ce proiecte am", "dashboard proiecte", "toate proiectele".
+     - intent="view_project" — "arată-mi proiectul X", "detalii proiect Y", "ce stă cu proiectul Z".
+     - intent="update_project" — "schimbă deadline la proiectul X", "setează prioritate high la Y", "adaugă descriere la Z".
+     - intent="update_progress" — "progress X%", "am progresat Y%" pentru un proiect.
+     - intent="archive_project" — "archive project X".
+     - intent="delete_project" — "șterge proiectul X".
  15. Finance: module="finance":
      - intent="finance_log" pentru înregistrare (cheltuieli, venituri).
        Data: {{amount: număr, type: "expense"|"income", category: text, description: text}}
