@@ -1,107 +1,150 @@
-# Lora Project Context
+# Lora System Prompt Reference
 
-Lora is a private, intelligent Telegram bot that acts as a personal "second brain" for a single user. It is built using Python and leverages the Gemini 2.0 Flash model (via `google-genai` SDK) for natural language understanding and task management.
+> This document contains the system prompt and intent schema used by Lora's Gemini integration.
 
-## Project Overview
+---
 
-- **Purpose:** A personal assistant to manage tasks, skills, projects, notes, finances, shopping lists, university schedules, workouts, goals, and health metrics.
-- **Key Features:** Persistent memory, multi-module support, proactive scheduled interactions (morning briefings, EOD reflections), voice interface (TTS & STT), and a custom conversation state machine.
-- **Architecture:** Modular Python application with a PostgreSQL database (Neon) and Telegram interface.
-- **Security:** Single-user whitelist based on Telegram User ID. No multi-tenancy or public registration.
+## System Prompt Overview
 
-## Tech Stack
+The system prompt in `core/gemini.py` defines:
+- Lora's personality (Romglish, warm but direct)
+- Supported intents and their data schemas
+- Tone modes: warm, direct, brief
+- Special instructions for data extraction
+- Module-specific capabilities
 
-- **Language:** Python 3.11+ (Type hints required)
-- **Telegram Framework:** `python-telegram-bot==22.6` (Async, Long Polling)
-- **LLM:** `google-genai` (Gemini 2.0 Flash) — **SDK: `from google import genai`**
-- **Database:** Neon (Serverless PostgreSQL)
-- **Database Driver:** `asyncpg` (Raw SQL, no ORM)
-- **Scheduler:** `apscheduler==3.10.4` (AsyncIOScheduler)
-- **TTS/Voice:** `edge-tts` for podcast generation, Telegram voice for interactions.
-- **Hosting:** Railway
-- **Linting/Formatting:** `ruff`
+---
 
-## Directory Structure
+## Key Intents
 
-```text
-lora/
-├── main.py                  # Entry point (ApplicationBuilder + Polling)
-├── bot/                     # Telegram bot logic
-│   ├── handler.py           # ★ Main router (Message, Callback, Voice)
-│   ├── keyboards.py         # Custom Inline/Reply keyboards
-│   ├── formatter.py         # MarkdownV2 utility (escape_md, safe_markdown)
-│   ├── onboarding.py        # First-run setup wizard
-│   ├── tts.py               # Edge-TTS integration
-│   └── voice.py             # STT via OpenAI Whisper or Telegram voice
-├── core/                    # Core logic
-│   ├── gemini.py            # ★ Gemini integration (Prompt, Schema, Proactive)
-│   ├── config.py            # Environment configuration & validation
-│   ├── router.py            # Maps IntentResponse → Module logic
-│   ├── context.py           # Builds the dynamic prompt context from DB
-│   └── state.py             # Conversation state machine
-├── modules/                 # Functional logic (returns text + keyboard)
-│   ├── tasks.py             # Task management (Priority, Recurrence)
-│   ├── projects.py          # Project organization (Statuses)
-│   ├── finance.py           # Expense/Income tracking & Reports
-│   ├── notes.py             # Notes, Search, and Journaling
-│   ├── events.py            # Calendar & Appointments
-│   ├── shopping.py          # Groceries & Shopping lists
-│   ├── university.py        # ★ Schedule, Attendance, Exams, Week Parity
-│   ├── workout.py           # ★ Sports CRUD, Exercises, PRs, Calories
-│   ├── goals.py             # ★ Main Goals, Categories, Sub-tasks, Progress
-│   ├── health.py            # Sleep, Water, Weight tracking
-│   ├── nutrition.py         # Calorie & Macro tracking
-│   ├── focus.py             # Productivity timer (Focus mode)
-│   ├── mood.py              # Mood tracking & Analysis
-│   ├── insights.py          # AI-driven pattern recognition
-│   ├── weather.py           # OpenWeather integration
-│   ├── news.py              # RSS Tech & Local news
-│   └── skills.py            # ★ Skill tracking with custom metrics
-├── scheduler/               # Cron jobs
-│   └── jobs.py              # Briefings, Reflections, Nudges, Reminders
-└── db/                      # Database layer
-    ├── connection.py        # pool.acquire() management
-    ├── schema.sql           # Database schema (Source of Truth)
-    └── queries/             # SQL per module (Raw SQL, no ORM)
+### Tasks (`module="tasks"`)
+- `add_task` — Add new task with optional project, priority, due date
+- `list_tasks` — List tasks, optionally filtered by project
+- `complete_task` — Mark task as done
+- `edit_task` — Edit task title, priority, due date, project
+- `delete_task` — Delete a task
+
+### Projects (`module="projects"`)
+- `add_project` — Create project with name, description, deadline, priority, category
+- `list_projects` — List all projects with task counts
+- `view_project` — View project details with tasks and notes
+- `update_project` — Update project metadata
+- `update_progress` — Set progress percentage (auto-calculated from tasks)
+- `archive_project` — Archive a project
+- `delete_project` — Delete a project
+
+### Finance (`module="finance"`)
+- `finance_log` — Log expense or income
+- `finance_summary` — Show dashboard
+- `finance_chart` — Show spending trend
+- `list_categories` — List expense categories
+- `add_category` — Add custom category
+- `delete_category` — Remove category
+- `set_budget` — Set budget limit for category
+
+### Skills (`module="skills"`)
+- `log_skill` — Log skill progress (e.g., "am făcut 20 min sah")
+- `view_skills` — Show skills dashboard
+- `add_habit` — Create new habit
+- `log_habit` — Mark habit done
+- `list_habits` — List habits
+- `delete_habit` — Remove habit
+
+### University (`module="university"`)
+- `uni_add_subject` — Add new subject
+- `uni_list` — Show academic status
+- `uni_log_attendance` — Log presence/absence
+- `uni_add_grade` — Add grade
+- `uni_add_exam` — Add exam
+- `uni_exams` — List upcoming exams
+- `uni_attendance_warning` — Check attendance
+
+### Health (`module="health"`)
+- `health_log` — Log sleep, water, weight
+- `log_water` — Add water intake
+- `health_summary` — Show health stats
+- `health_chart` — Show trends
+
+### Workout (`module="workout"`)
+- `workout_log` — Log workout with exercises
+- `workout_list` — List workouts
+- `workout_stats` — Show statistics
+- `workout_prs` — Show personal records
+- `workout_add_sport` — Add new sport
+- `workout_add_exercise` — Add new exercise
+
+### Other Modules
+- `notes` — Notes and journaling
+- `events` — Calendar events and reminders
+- `shopping` — Shopping list
+- `goals` — Goal tracking with sub-tasks
+- `focus` — Focus sessions (Pomodoro)
+- `planner` — Time blocking
+- `mood` — Mood tracking
+- `insights` — AI-powered pattern analysis
+- `memory` — Long-term memory facts
+- `weather` — Weather info
+- `news` — Tech news
+
+---
+
+## Council Integration Intents
+
+When connected to the Business Council system:
+
+- **Task completion** triggers feedback loop asking difficulty (1-10)
+- **Morning briefing** includes executive summary from Council
+- **Jargon translation** available for Council bot messages
+
+---
+
+## Response Schema
+
+```json
+{
+  "intent": "add_task",
+  "module": "tasks",
+  "data": {
+    "title": "string",
+    "priority": "high|medium|low",
+    "due_date": "YYYY-MM-DD",
+    "project": "string"
+  },
+  "reply": "Lora's response in MarkdownV2",
+  "needs_confirmation": false,
+  "needs_agent": false
+}
 ```
 
-## Feature Deep-Dive (Technical)
+---
 
-### 1. Goals Dashboard (`modules/goals.py`)
-- **Logic**: Hierarchical goals with sub-tasks. Progress is auto-recalculated on task completion.
-- **DB**: `goals`, `goal_tasks`.
-- **Intents**: `add_goal`, `add_subtask`, `complete_subtask`, `view_goals`.
+## Tone Guidelines
 
-### 2. Workout (`modules/workout.py`)
-- **Logic**: Sports dictionary (`sport_types`) + Exercises (`exercises`) + Logs (`workouts`). Supports PRs.
-- **DB**: `sport_types`, `exercises`, `workouts`.
-- **Intents**: `workout_log` (NLP enabled), `view_prs`, `add_sport`.
+| Tone | Description |
+|------|-------------|
+| `warm` | Friendly, supportive, slightly longer |
+| `direct` | Concise, actionable, minimal fluff |
+| `brief` | Shortest possible responses |
 
-### 3. University (`modules/university.py`)
-- **Logic**: Week parity (impară/pară) calculation from `semester_start`. Automatic attendance logging.
-- **DB**: `subjects`, `university_schedule`, `attendance`, `exams`.
-- **Intents**: `list_schedule`, `log_attendance`, `add_exam`.
+---
 
-### 4. Scheduler (`scheduler/jobs.py`)
-- **Logic**: Proactive "Morning Briefing" (08:00) and "EOD Reflection" (21:00). Synthetic podcast generation (Voice).
-- **Idempotency**: Checked via `last_briefing_date` in `user_profile`.
+## Data Extraction Rules
 
-### 5. Skills Tracking (`modules/skills.py`)
-- **Logic**: Track custom skills (chess, language, gym) with custom units (elo, min, reps).
-- **DB**: `skills`, `skill_logs`.
-- **Intents**: `log_skill` (NLP enabled), `view_skills`.
+### Tasks
+- title = text after separator (:) or full message
+- project = value after "proiectul" or "project"
+- priority = high/medium/low
 
-## Building and Running
+### Finance
+- Extract amount and category from keywords
+- Default: category="altele" if unclear
+- Type: expense (default) or income
 
-1. **Install**: `pip install -r requirements.txt`
-2. **Env**: Set `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `GEMINI_API_KEY`, `TELEGRAM_USER_ID`.
-3. **DB Init**: `psql $DATABASE_URL -f db/schema.sql`
-4. **Run**: `python main.py`
+### Dates
+- "mâine" = tomorrow
+- "poimâine" = day after tomorrow
+- ISO format: YYYY-MM-DD
 
-## Development Conventions
+---
 
-- **Type Safety**: Use type hints for ALL function signatures.
-- **Raw SQL**: Use `asyncpg`. Use `$1, $2` placeholders. NICIODATĂ string interpolation.
-- **Formatting**: ALWAYS use `bot/formatter.py` (`escape_md`) for MarkdownV2.
-- **Response Format**: Gemini MUST return `IntentResponse` JSON schema defined in `core/gemini.py`.
-- **State**: Clear state after every multi-step interaction via `clear_state(pool)`.
+*For full system prompt, see `core/gemini.py`*

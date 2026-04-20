@@ -236,6 +236,37 @@ All jobs have `misfire_grace_time=3600` — if bot restarts late, it still fires
 
 ---
 
+## Council Integration
+
+Lora integrates with the **Business Council** multi-agent system (5 Telegram bots: CEO, CFO, CTO, CMO, COO).
+
+### Environment Variables
+```
+COUNCIL_API_URL=https://business-council.onrender.com
+COUNCIL_API_SECRET=<secret>
+COUNCIL_GROUP_CHAT_ID=-100xxxxx
+CTO_BOT_USERNAME=@cto_bot
+```
+
+### Council API Functions (`core/council.py`)
+| Function | Endpoint | Purpose |
+|----------|----------|---------|
+| `get_projects()` | `GET /projects` | Fetch strategic projects |
+| `get_summary()` | `GET /summary/me` | Fetch executive summary |
+| `get_decisions(id)` | `GET /decisions/{id}` | Fetch project decisions |
+| `send_feedback_to_cto()` | `POST /feedback` | Send task difficulty to CTO |
+| `send_report_to_council()` | `POST /report/{id}` | Send daily report |
+
+### Council-Powered Features
+1. **Task Linking**: When completing a task, shows linked Council decision context
+2. **Executive Summary**: Morning briefing includes strategic priorities from Council
+3. **Feedback Loop**: After task completion, asks difficulty (1-10) → sends to CTO
+4. **Daily Report**: At EOD time, sends completed tasks to Council via `POST /report/{id}`
+5. **Group Posting**: Optionally posts `[REPORT]` to Council group chat
+6. **Jargon Translation**: `core/translator.py` translates terms like burn rate, LTV, CAC to plain Romanian
+
+---
+
 ## Conversation State Machine (`core/state.py`)
 
 One row in `conversation_state` table (key = `'current'`). When idle, `state_type = NULL`.

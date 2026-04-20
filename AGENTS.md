@@ -4,7 +4,8 @@
 
 ## Project Overview
 
-Personal Telegram bot ("second brain") for one user:
+Personal Telegram bot ("second brain") for one user, integrated with the Council multi-agent system.
+
 - **Python** 3.11+ with required type hints
 - **Telegram**: `python-telegram-bot==22.6` (async, long polling)
 - **LLM**: `google-genai` SDK with `gemini-2.5-flash`
@@ -12,6 +13,34 @@ Personal Telegram bot ("second brain") for one user:
 - **Scheduler**: `apscheduler==3.10.4`
 
 **Flow**: `message → core/gemini.py → core/router.py → modules/{module}.py → db/queries/{module}.py`
+
+## Council Integration
+
+Lora integrates with the Business Council multi-agent system (5 bots: CEO, CFO, CTO, CMO, COO).
+
+### Configuration
+```bash
+COUNCIL_API_URL=https://business-council.onrender.com
+COUNCIL_API_SECRET=your-secret
+COUNCIL_GROUP_CHAT_ID=-100xxxxx
+CTO_BOT_USERNAME=@cto_bot
+```
+
+### Core Council Functions (`core/council.py`)
+| Function | Purpose |
+|----------|---------|
+| `get_projects()` | Fetch strategic projects from Council |
+| `get_summary()` | Fetch executive summary (`/summary/me`) |
+| `get_decisions(id)` | Fetch decisions for project |
+| `send_feedback_to_cto()` | Send task difficulty feedback |
+| `send_report_to_council()` | Send daily completed tasks report |
+
+### Council-Powered Features
+1. **Task Linking**: When completing a task, Lora shows linked Council decision context
+2. **Executive Summary**: Morning briefing shows strategic priorities from Council
+3. **Feedback Loop**: After task completion → asks difficulty (1-10) → sends to CTO
+4. **Daily Report**: At EOD → sends completed tasks to Council via `POST /report/{id}`
+5. **Group Posting**: Optionally posts `[REPORT]` to Council group chat
 
 ## Commands
 
@@ -31,8 +60,10 @@ ruff format .
 # Database init (fresh)
 psql $DATABASE_URL -f db/schema.sql
 
-# Apply migrations (existing DB)
+# Apply migrations
 psql $DATABASE_URL -f db/migrations/001_schema_fixes.sql
+psql $DATABASE_URL -f db/migrations/003_projects_enhanced.sql
+psql $DATABASE_URL -f db/migrations/004_finance_categories.sql
 ```
 
 ## Code Style
@@ -173,30 +204,33 @@ lora/
 ├── core/
 │   ├── gemini.py              # LLM calls, system prompt, IntentResponse
 │   ├── router.py              # Intent → module routing
-│   ├── context.py             # build_context() for prompts
-│   ├── state.py               # State machine
-│   ├── config.py              # Env var loading + startup validation
-│   ├── memory.py              # Long-term fact extraction
-│   └── ical.py               # Calendar generation
+│   ├── context.py            # build_context() for prompts
+│   ├── state.py             # State machine
+│   ├── config.py            # Env var loading + startup validation
+│   ├── memory.py            # Long-term fact extraction
+│   ├── ical.py            # Calendar generation
+│   ├── council.py            # Council API integration ★
+│   └── translator.py         # Council jargon translation ★
 │
 ├── modules/                   # Business logic (no Telegram calls)
-│   ├── tasks.py              ├── projects.py           ├── notes.py
-│   ├── finance.py            ├── events.py            ├── shopping.py
-│   ├── goals.py             ├── skills.py            ├── mood.py
-│   ├── health.py            ├── nutrition.py         ├── workout.py
-│   ├── university.py        ├── schedule.py         ├── reading.py
-│   ├── focus.py             ├── planner.py          ├── insights.py
-│   ├── memory.py            ├── news.py            ├── weather.py
+│   ├── tasks.py             ├── projects.py       ├── notes.py
+│   ├── finance.py           ├── events.py       ├── shopping.py
+│   ├── goals.py             ├── skills.py        ├── mood.py
+│   ├── health.py            ├── nutrition.py      ├── workout.py
+│   ├── university.py        ├── schedule.py     ├── reading.py
+│   ├── focus.py            ├── planner.py       ├── insights.py
+│   ├── memory.py            ├── news.py         ├── weather.py
 │
 ├── scheduler/
-│   └── jobs.py               # APScheduler jobs (morning briefing, EOD, etc.)
+│   └── jobs.py               # APScheduler jobs (morning briefing, EOD, daily report ★)
 │
 ├── db/
-│   ├── connection.py         # asyncpg pool
+��   ├── connection.py         # asyncpg pool
 │   ├── schema.sql            # Table definitions
+│   ├── migrations/           # Schema migrations
 │   └── queries/              # Raw SQL per module
 └── api/
-    └── routes.py             # HTTP endpoints
+    └── routes.py            # HTTP endpoints
 ```
 
 ## Key Files
@@ -205,9 +239,11 @@ lora/
 |------|---------|
 | `core/gemini.py` | LLM calls, system prompt, IntentResponse |
 | `core/router.py` | Routes intents to modules |
+| `core/council.py` | Council API integration ★ |
 | `bot/handler.py` | Message routing, security, dispatch |
 | `bot/formatter.py` | MarkdownV2 escaping |
 | `db/schema.sql` | All table definitions |
+| `scheduler/jobs.py` | Scheduled jobs including Council report ★ |
 
 ## Language
 
@@ -223,7 +259,7 @@ lora/
 - Railway: `numReplicas: 1` for long polling
 - `bot.log` not rotated
 - Startup: 10s delay to clear old polling instances (main.py:172)
-- Required env vars: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_USER_ID`, `GEMINI_API_KEY`, `DATABASE_URL`, `TIMEZONE`, `MORNING_BRIEFING_TIME`, `EOD_REFLECTION_TIME`, `LORA_API_SECRET`
+- Required env vars: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_USER_ID`, `GEMINI_API_KEY`, `DATABASE_URL`, `TIMEZONE`, `MORNING_BRIEFING_TIME`, `EOD_REFLECTION_TIME`, `LORA_API_SECRET`, `COUNCIL_API_SECRET` ★
 - No test suite exists
 
 ## Deploy
