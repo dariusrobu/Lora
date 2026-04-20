@@ -8,6 +8,7 @@ from core.config import (
     EOD_REFLECTION_TIME,
     HABIT_REMINDER_TIME,
     JOURNAL_NIGHT_TIME,
+    COUNCIL_GROUP_CHAT_ID,
 )
 from bot.formatter import escape_md, safe_markdown
 from telegram.constants import ParseMode
@@ -19,6 +20,56 @@ import db.queries.finance as finance_queries
 import db.queries.notes as note_queries
 import db.queries.health as health_queries
 import db.queries.journal as journal_queries
+
+
+async def send_daily_report(application, pool):
+    """Collects and sends daily report to Council API."""
+    try:
+        from core.council import send_report_to_council
+        from core.config import TELEGRAM_USER_ID as TG_ID
+        from datetime import date
+
+        today = date.today()
+
+        completed = await task_queries.get_completed_tasks_today(pool)
+        task_titles = [t["title"] for t in completed if t.get("title")]
+
+        if not task_titles:
+            print(f"No tasks completed today ({today}) — skipping report.", flush=True)
+            return
+
+        project_id = str(TG_ID)
+
+        result = await send_report_to_council(
+            project_id=project_id,
+            tasks_completed=completed,
+            summary=f"Completed {len(task_titles)} tasks today",
+        )
+
+        if result:
+            print(f"Report sent to Council for {today}.", flush=True)
+
+        if COUNCIL_GROUP_CHAT_ID and COUNCIL_GROUP_CHAT_ID != "":
+            report_text = (
+                f"[REPORT] {today.strftime('%Y-%m-%d')}\n"
+                f"Tasks completed: {len(task_titles)}\n"
+                + "\n".join(f"• {t}" for t in task_titles[:5])
+            )
+            if len(task_titles) > 5:
+                report_text += f"\n... and {len(task_titles) - 5} more"
+
+            await application.bot.send_message(
+                chat_id=COUNCIL_GROUP_CHAT_ID,
+                text=report_text,
+            )
+            print("Report posted to Council group.", flush=True)
+
+    except Exception as e:
+        import traceback
+
+        print(f"CRITICAL error in send_daily_report: {e}", flush=True)
+        traceback.print_exc()
+
 
 # NOTE: This bot uses long polling and should NOT be run in multiple instances simultaneously.
 # A PID lock file (lora.pid) in main.py prevents duplicate polling instances.
@@ -1743,6 +1794,16 @@ def setup_scheduler(application, pool):
     # 3. EOD Reflection - short daily summary at configured EOD time
     scheduler.add_job(
         send_eod_reflection,
+        "cron",
+        hour=e_h,
+        minute=e_m,
+        misfire_grace_time=3600,
+        args=[application, pool],
+    )
+
+    # 3b. Daily Report to Council - at EOD time
+    scheduler.add_job(
+        send_daily_report,
         "cron",
         hour=e_h,
         minute=e_m,
