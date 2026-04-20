@@ -30,7 +30,7 @@ def safe_markdown(text: str) -> str:
     # and are rarely used in normal text.
     # We leave . - ! # + = alone as they are usually fine unless at start of line
     # or part of a complex sequence.
-    must_escape = r"[]()~>|{}"
+    must_escape = r"[]()~>|{}.!"
     for char in must_escape:
         text = text.replace(char, f"\\{char}")
 
