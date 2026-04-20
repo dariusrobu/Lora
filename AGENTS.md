@@ -7,7 +7,7 @@
 Personal Telegram bot ("second brain") for one user:
 - **Python** 3.11+ with required type hints
 - **Telegram**: `python-telegram-bot==22.6` (async, long polling)
-- **LLM**: `google-genai` SDK with `gemini-2.0-flash`
+- **LLM**: `google-genai` SDK with `gemini-2.5-flash`
 - **Database**: Neon PostgreSQL via `asyncpg` — **no ORM**
 - **Scheduler**: `apscheduler==3.10.4`
 
@@ -109,7 +109,7 @@ async def get_user(pool, user_id: int) -> Optional[Dict[str, Any]]:
 
 **Rules**:
 - Use `$1, $2` placeholders — never f-strings or string interpolation
-- Keep queries in `db/queries/{module}.py`
+- Keep queries in `db/queries/{module}.py` for shared queries
 - Use `json.loads()` for JSON columns
 
 ## Modules Pattern
@@ -180,14 +180,13 @@ lora/
 │   └── ical.py               # Calendar generation
 │
 ├── modules/                   # Business logic (no Telegram calls)
-│   ├── tasks.py              ├── habits.py             ├── projects.py
-│   ├── notes.py              ├── finance.py            ├── events.py
-│   ├── shopping.py           ├── goals.py              ├── skills.py
-│   ├── health.py             ├── nutrition.py          ├── workout.py
-│   ├── university.py         ├── schedule.py           ├── reading.py
-│   ├── focus.py              ├── planner.py            ├── mood.py
-│   ├── insights.py           ├── memory.py             ├── news.py
-│   └── weather.py
+│   ├── tasks.py              ├── projects.py           ├── notes.py
+│   ├── finance.py            ├── events.py            ├── shopping.py
+│   ├── goals.py             ├── skills.py            ├── mood.py
+│   ├── health.py            ├── nutrition.py         ├── workout.py
+│   ├── university.py        ├── schedule.py         ├── reading.py
+│   ├── focus.py             ├── planner.py          ├── insights.py
+│   ├── memory.py            ├── news.py            ├── weather.py
 │
 ├── scheduler/
 │   └── jobs.py               # APScheduler jobs (morning briefing, EOD, etc.)
@@ -223,6 +222,8 @@ lora/
 - `/reload` uses `os.execl()` — hard restart
 - Railway: `numReplicas: 1` for long polling
 - `bot.log` not rotated
+- Startup: 10s delay to clear old polling instances (main.py:172)
+- Required env vars: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_USER_ID`, `GEMINI_API_KEY`, `DATABASE_URL`, `TIMEZONE`, `MORNING_BRIEFING_TIME`, `EOD_REFLECTION_TIME`, `LORA_API_SECRET`
 - No test suite exists
 
 ## Deploy
