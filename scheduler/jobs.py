@@ -442,11 +442,24 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
 
         # 🏛️ Executive Summary from Council
         try:
-            from core.council import get_strategy_summary
+            from core.council import get_summary, get_strategy_summary
 
-            strategy_summary = await get_strategy_summary()
-            if strategy_summary:
-                lines += ["", "🏛️ *Consiliu — Strategic:*", strategy_summary]
+            summary_data = await get_summary()
+            if summary_data:
+                lines += ["", "🏛️ *Consiliu — Rezumat Executiv:*"]
+                if summary_data.get("current_focus"):
+                    lines.append(f"🎯 *Focus:* {summary_data['current_focus']}")
+                if summary_data.get("key_decisions"):
+                    lines.append("📝 *Decizii cheie:*")
+                    for d in summary_data["key_decisions"][:3]:
+                        lines.append(f"• {d}")
+                if summary_data.get("warnings"):
+                    for w in summary_data["warnings"]:
+                        lines.append(f"⚠️ {w}")
+            else:
+                strategy_summary = await get_strategy_summary()
+                if strategy_summary:
+                    lines += ["", "🏛️ *Consiliu — Strategic:*", strategy_summary]
         except Exception:
             pass
 

@@ -30,12 +30,11 @@ WEATHER_CITY = os.getenv("WEATHER_CITY", "Bucharest")
 NUTRITIONIX_APP_ID = os.getenv("NUTRITIONIX_APP_ID")
 NUTRITIONIX_API_KEY = os.getenv("NUTRITIONIX_API_KEY")
 
-# Council Multi-Agent System (optional)
-COUNCIL_API_URL = os.getenv("COUNCIL_API_URL")  # e.g. http://localhost:8081
-COUNCIL_GROUP_CHAT_ID = os.getenv(
-    "COUNCIL_GROUP_CHAT_ID"
-)  # Telegram group for Council bots
-CTO_BOT_USERNAME = os.getenv("CTO_BOT_USERNAME", "@cto_bot")  # For feedback loop
+# Council Multi-Agent System
+COUNCIL_API_URL = os.getenv("COUNCIL_API_URL", "https://business-council.onrender.com")
+COUNCIL_API_SECRET = os.getenv("COUNCIL_API_SECRET")
+COUNCIL_GROUP_CHAT_ID = os.getenv("COUNCIL_GROUP_CHAT_ID")
+CTO_BOT_USERNAME = os.getenv("CTO_BOT_USERNAME", "@cto_bot")
 
 
 for var in REQUIRED_VARS:

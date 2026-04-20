@@ -5,7 +5,14 @@ Fetches decisions, projects, and translations from the Council multi-agent syste
 
 import httpx
 from typing import Any, Dict, List
-from core.config import COUNCIL_API_URL
+from core.config import COUNCIL_API_URL, COUNCIL_API_SECRET
+
+
+def _get_headers() -> Dict[str, str]:
+    """Returns auth headers for Council API."""
+    if COUNCIL_API_SECRET:
+        return {"X-Internal-Secret": COUNCIL_API_SECRET}
+    return {}
 
 
 async def get_projects() -> List[Dict[str, Any]]:
@@ -15,13 +22,33 @@ async def get_projects() -> List[Dict[str, Any]]:
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(f"{COUNCIL_API_URL}/projects")
+            response = await client.get(
+                f"{COUNCIL_API_URL}/projects", headers=_get_headers()
+            )
             if response.status_code == 200:
                 return response.json()
     except Exception as e:
         print(f"Council API error: {e}")
 
     return []
+
+
+async def get_summary() -> Dict[str, Any]:
+    """Fetches executive summary from Council API."""
+    if not COUNCIL_API_URL:
+        return {}
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                f"{COUNCIL_API_URL}/summary/me", headers=_get_headers()
+            )
+            if response.status_code == 200:
+                return response.json()
+    except Exception as e:
+        print(f"Council summary API error: {e}")
+
+    return {}
 
 
 async def get_decisions(project_id: int) -> List[Dict[str, Any]]:
@@ -31,7 +58,9 @@ async def get_decisions(project_id: int) -> List[Dict[str, Any]]:
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(f"{COUNCIL_API_URL}/decisions/{project_id}")
+            response = await client.get(
+                f"{COUNCIL_API_URL}/decisions/{project_id}", headers=_get_headers()
+            )
             if response.status_code == 200:
                 return response.json()
     except Exception as e:
@@ -47,7 +76,9 @@ async def get_recent_decisions(limit: int = 5) -> List[Dict[str, Any]]:
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(f"{COUNCIL_API_URL}/decisions?limit={limit}")
+            response = await client.get(
+                f"{COUNCIL_API_URL}/decisions?limit={limit}", headers=_get_headers()
+            )
             if response.status_code == 200:
                 return response.json()
     except Exception as e:
@@ -97,6 +128,7 @@ async def send_feedback_to_cto(
                     "context": context,
                     "source": "lora",
                 },
+                headers=_get_headers(),
             )
             return response.status_code == 200
     except Exception as e:
