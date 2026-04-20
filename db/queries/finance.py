@@ -1,6 +1,68 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import date
 import decimal
+
+
+# ── Categories CRUD ───────────────────────────────────────────
+
+
+async def add_category(
+    pool, name: str, icon: str = "💰", keywords: Optional[List[str]] = None
+) -> int:
+    """Adds a new finance category."""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO finance_categories (name, icon, keywords)
+            VALUES ($1, $2, $3) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+            RETURNING id""",
+            name,
+            icon,
+            keywords or [name.lower()],
+        )
+        return row["id"]
+
+
+async def list_categories(pool) -> List[Dict[str, Any]]:
+    """Lists all active finance categories."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT * FROM finance_categories WHERE is_active = TRUE ORDER BY name"""
+        )
+        return [dict(r) for r in rows]
+
+
+async def delete_category(pool, name: str) -> bool:
+    """Soft-deletes a finance category."""
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            """UPDATE finance_categories SET is_active = FALSE WHERE name ILIKE $1""",
+            name,
+        )
+        return result != "UPDATE 0"
+
+
+async def get_category_by_name(pool, name: str) -> Optional[Dict[str, Any]]:
+    """Gets a category by name."""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """SELECT * FROM finance_categories WHERE name ILIKE $1 AND is_active = TRUE""",
+            name,
+        )
+        return dict(row) if row else None
+
+
+async def detect_category_from_text(pool, text: str) -> Optional[str]:
+    """Detects a category from text using keywords."""
+    text_lower = text.lower()
+    categories = await list_categories(pool)
+    for cat in categories:
+        keywords = cat.get("keywords") or []
+        if any(kw in text_lower for kw in keywords):
+            return cat["name"]
+    return "altele"
+
+
+# ── Transactions ─────────────────────────────────────────────
 
 
 async def log_transaction(
@@ -124,3 +186,17 @@ async def get_finance_history(pool, days: int = 30) -> List[Dict[str, Any]]:
             int(days),
         )
         return [dict(r) for r in rows]
+
+
+async def set_budget_limit(pool, category: str, limit: float):
+    """Sets or updates a budget limit for a category."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO budget_limits (category, monthly_limit)
+            VALUES ($1, $2)
+            ON CONFLICT (LOWER(category)) DO UPDATE SET monthly_limit = EXCLUDED.monthly_limit
+            """,
+            category,
+            limit,
+        )

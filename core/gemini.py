@@ -190,9 +190,13 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
  15. Finance: module="finance":
      - intent="finance_log" pentru înregistrare (cheltuieli, venituri).
        Data: {{amount: număr, type: "expense"|"income", category: text, description: text}}
-     - intent="finance_summary" pentru dashboard/rezumat (cheltuieli azi, tranzacții, buget).
+     - intent="finance_summary" pentru dashboard/rezumat.
      - intent="finance_chart" pentru grafic trend (ultimele 30 zile).
-     - Categorii sugerate: mâncare, transport, utilități, chirie, sănătate, shopping, distracție, altele.
+     - intent="list_categories" — "categorii", "ce categorii am", "arată-mi categoriile".
+     - intent="add_category" — "adaugă categorie X", "creează categorie Y". Data: {{"name": text, "icon": text}}
+     - intent="delete_category" — "șterge categorie X".
+     - intent="set_budget" — "setează buget X lei pentru categoria Y", "buget Y la Z". Data: {{"category": text, "limit": număr}}
+     - Categorii existente: mâncare, transport, utilități, sănătate, shopping, distracție, educație, altele.
      - REGULI EXTRAGERE CHELTUIELI (ROMÂNĂ):
        * "am dat X pe Y" / "am dat Y X" → amount=X, category=Y (din context)
        * "plătit X Y" / "plătit Y X" → amount=X, category=Y

@@ -1833,6 +1833,29 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 )
                 return
 
+            elif data == "finance_categories":
+                text, markup = await handle_finance_intent(pool, "list_categories", {})
+                await query.edit_message_text(
+                    text, parse_mode="MarkdownV2", reply_markup=markup
+                )
+                await query.answer()
+                return
+
+            elif data == "finance_add_category":
+                from core.state import set_state
+
+                await set_state(
+                    pool,
+                    "awaiting_finance_input",
+                    "finance",
+                    "add_category",
+                    None,
+                )
+                prompt = "💰 *Nume pentru categorie nouă:*\n_(ex: cafea, combustibil, abonamente)_"
+                await query.edit_message_text(prompt, parse_mode="MarkdownV2")
+                await query.answer()
+                return
+
             return
 
         # Event Reminders

@@ -23,6 +23,18 @@ async def handle_finance_intent(
     elif intent == "finance_chart":
         return await _generate_finance_chart(pool)
 
+    elif intent == "list_categories":
+        return await _list_categories(pool)
+
+    elif intent == "add_category":
+        return await _add_category(pool, data)
+
+    elif intent == "delete_category":
+        return await _delete_category(pool, data)
+
+    elif intent == "set_budget":
+        return await _set_budget(pool, data)
+
     return escape_md(
         "Nu sunt sigură cum să procesez această cerere pentru finanțe. 💸"
     ), None
@@ -49,6 +61,81 @@ async def _handle_log_expense(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
     msg += f"\n💸 *Cheltuieli azi:* {daily_total:.2f} RON"
 
     return msg, None
+
+
+async def _list_categories(pool) -> Tuple[str, Any]:
+    """Lists all finance categories."""
+    categories = await finance_queries.list_categories(pool)
+    if not categories:
+        return "Nu ai nicio categorie. 💸", None
+
+    lines = ["📁 *Categorii de cheltuieli:*\n"]
+    for cat in categories:
+        icon = cat.get("icon", "💰")
+        lines.append(f"{icon} {cat['name']}")
+
+    text = "\n".join(lines)
+    keyboard = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "➕ Categorie Nouă", callback_data="finance_add_category"
+                )
+            ],
+            [InlineKeyboardButton("◀️ Înapoi", callback_data="finance_summary")],
+        ]
+    )
+    return safe_markdown(text), keyboard
+
+
+async def _add_category(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
+    """Adds a new finance category."""
+    name = data.get("name")
+    icon = data.get("icon", "💰")
+    keywords = data.get("keywords", [])
+
+    if not name:
+        return "Ce nume pentru categorie?", None
+
+    try:
+        await finance_queries.add_category(pool, name, icon, keywords)
+        return f"✅ Categorie *{escape_md(name)}* adăugată!", None
+    except Exception as e:
+        return f"Eroare: {str(e)}", None
+
+
+async def _delete_category(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
+    """Deletes a finance category."""
+    name = data.get("name")
+    if not name:
+        return "Ce categorie să șterg?", None
+
+    success = await finance_queries.delete_category(pool, name)
+    if success:
+        return f"✅ Categorie *{escape_md(name)}* ștearsă!", None
+    return f"Nu am găsit categoria *{escape_md(name)}*.", None
+
+
+async def _set_budget(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
+    """Sets a budget for a category."""
+    category = data.get("category")
+    limit = data.get("limit") or data.get("amount")
+
+    if not category or not limit:
+        return (
+            "Specifică categoria și limita (ex: 'setează buget 500 RON pentru mâncare').",
+            None,
+        )
+
+    try:
+        limit = float(limit)
+    except (ValueError, TypeError):
+        return "Suma trebuie să fie un număr.", None
+
+    from db.queries.finance import set_budget_limit
+
+    await set_budget_limit(pool, category, limit)
+    return f"✅ Buget de *{limit} RON* setat pentru *{escape_md(category)}*.", None
 
 
 async def _generate_finance_summary_text(pool) -> Tuple[str, Any]:
@@ -98,6 +185,7 @@ async def _generate_finance_summary_text(pool) -> Tuple[str, Any]:
                     "📊 Statistici DETALIATE", callback_data="finance_stats"
                 )
             ],
+            [InlineKeyboardButton("⚙️ Categorii", callback_data="finance_categories")],
         ]
     )
 
