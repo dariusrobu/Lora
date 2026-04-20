@@ -3,6 +3,7 @@ from datetime import datetime, date, timedelta
 import re
 import db.queries.tasks as task_queries
 from bot.formatter import escape_md
+from core.council import get_decisions, send_feedback_to_cto
 
 
 def parse_add_task_text(text: str) -> Dict[str, Any] | None:
@@ -418,14 +419,57 @@ async def handle_task_intent(
         return "\n".join(lines), task_list_keyboard(tasks, back_callback="tasks:main")
 
     elif intent == "complete_task":
-        # Usually Gemini finds the ID or we get it from a button
         task_id = data.get("id")
         if not task_id:
             return "Which task would you like to complete?", None
 
-        await task_queries.complete_task(pool, task_id)
         task = await task_queries.get_task(pool, task_id)
-        return f"Completed ✅ *{escape_md(task['title'])}*", None
+        task_title = task["title"] if task else "Unknown task"
+
+        await task_queries.complete_task(pool, task_id)
+
+        if task and task.get("project_id"):
+            decisions = await get_decisions(task["project_id"])
+            if decisions:
+                linked_decision = decisions[0]
+                decision_text = linked_decision.get("title", "")[:50]
+                context_msg = f"\n\n💡 Aligned with Council decision: *{decision_text}*"
+            else:
+                context_msg = ""
+        else:
+            context_msg = ""
+
+        await task_queries.complete_task(pool, task_id)
+
+        feedback_msg = (
+            f"✅ Completed *{escape_md(task_title)}*{context_msg}\n\n"
+            f"_How hard was this? (1-10)_ 🤔\n"
+            f"Reply with a number or '/done [number]'"
+        )
+        return feedback_msg, None
+
+    elif intent == "submit_task_feedback":
+        difficulty = data.get("difficulty") or data.get("rating")
+        task_id = data.get("task_id")
+        task_title = data.get("task_title", "Completed task")
+        context = data.get("context", "")
+
+        if not difficulty:
+            return "Ce dificultate? (1-10)", None
+
+        try:
+            difficulty = int(difficulty)
+            difficulty = max(1, min(10, difficulty))
+        except (ValueError, TypeError):
+            return "Te rog un număr între 1-10.", None
+
+        sent = await send_feedback_to_cto(difficulty, task_title, context)
+        if sent:
+            return (
+                f"Feedback salvat! 📊 Difficultate: *{difficulty}/10*\nMulțumesc! 💙",
+                None,
+            )
+        return "⚠️ Nu am putut trimite feedback la CTO.", None
 
     elif intent == "edit_task":
         task_id = data.get("id")

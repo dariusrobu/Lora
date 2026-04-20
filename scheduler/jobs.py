@@ -440,6 +440,16 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
         except Exception:
             pass
 
+        # 🏛️ Executive Summary from Council
+        try:
+            from core.council import get_strategy_summary
+
+            strategy_summary = await get_strategy_summary()
+            if strategy_summary:
+                lines += ["", "🏛️ *Consiliu — Strategic:*", strategy_summary]
+        except Exception:
+            pass
+
         briefing_text = "\n".join(lines)
 
         # 5b. Send Telegram text message
