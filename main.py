@@ -158,6 +158,8 @@ async def start_bot():
     photo_handler_with_pool = partial(photo_handler, pool=pool)
 
     application.add_handler(CommandHandler("calendar", calendar_command))
+    application.add_handler(CommandHandler("test_calendar", partial(message_handler, pool=pool, text="/test_calendar")))
+    application.add_handler(CommandHandler("sync_calendar", partial(message_handler, pool=pool, text="/sync_calendar")))
     application.add_handler(CommandHandler("focus", focus_command))
     application.add_handler(CommandHandler("stopfocus", stopfocus_command))
     application.add_handler(CommandHandler("timeblock", timeblock_command))
