@@ -269,6 +269,25 @@ async def message_handler(
     if not await security_check(update):
         return
 
+    # --- COMANDĂ CALENDAR (DETECTION) ---
+    if text:
+        clean_text = text.strip().lower()
+        if clean_text.startswith("/test_calendar"):
+            from core.calendar import test_connection
+            res = await test_connection()
+            status = "✅" if res["success"] else "❌"
+            msg = f"{status} *iCloud Status*\n\n{escape_md(res['message'])}\n\n"
+            if res.get("calendars"):
+                msg += "Calendare găsite:\n" + "\n".join(f"• {escape_md(c)}" for c in res["calendars"])
+            await update.message.reply_text(msg, parse_mode="MarkdownV2")
+            return
+
+        if clean_text.startswith("/sync_calendar"):
+            from modules.calendar_module import handle_calendar_intent
+            reply, _ = await handle_calendar_intent(pool, "calendar_sync", {})
+            await update.message.reply_text(reply, parse_mode="MarkdownV2")
+            return
+
     # ── GROUP ROUTING ──
     # If in a group, only respond if explicitly mentioned
     if update.effective_chat and update.effective_chat.type in ("group", "supergroup"):
