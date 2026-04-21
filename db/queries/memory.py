@@ -1,3 +1,4 @@
+import re
 from typing import List, Dict, Any
 
 
@@ -43,7 +44,7 @@ async def get_relevant_facts(pool, query_keywords: List[str]) -> List[Dict[str, 
     if not valid_keywords:
         return []
 
-    search_query = " | ".join(valid_keywords)
+    search_query = " | ".join(re.escape(k) for k in valid_keywords)
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
