@@ -450,7 +450,7 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
         elif priority_tasks:
             lines.append(escape_md(priority_tasks[0]["title"]))
         else:
-            lines.append("O zi la un moment dat\.")
+            lines.append(r"O zi la un moment dat\.")
 
         # Health nudges (subtle, only if needed)
         if health_log:
@@ -458,9 +458,9 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
             sleep = health_log.get("sleep_hours")
             water = health_log.get("water_ml")
             if sleep and sleep < 6:
-                nudges.append(f"Ai dormit doar {sleep:.0f}h\.")
+                nudges.append(rf"Ai dormit doar {sleep:.0f}h\.")
             if water and water < 1500:
-                nudges.append(f"Apa e la {int(water / 1000 * 10) / 10:.1f}L\.")
+                nudges.append(rf"Apa e la {int(water / 1000 * 10) / 10:.1f}L\.")
             if nudges:
                 lines += ["", "⚠️ " + " ".join(nudges)]
 

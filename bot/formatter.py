@@ -26,11 +26,7 @@ def safe_markdown(text: str) -> str:
     if not text:
         return ""
 
-    # Re-escape only characters that are most likely to break parsing
-    # and are rarely used in normal text.
-    # We leave . - ! # + = alone as they are usually fine unless at start of line
-    # or part of a complex sequence.
-    must_escape = r"[]()~>|{}.!"
+    must_escape = "[]()~>`#{}+-|{}.!_"
     for char in must_escape:
         text = text.replace(char, f"\\{char}")
 
