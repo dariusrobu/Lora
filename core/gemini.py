@@ -471,11 +471,37 @@ IntentResponse schema:
 """
 
     contents = []
+    last_role = None
     for m in history:
         role = "user" if m["role"] == "user" else "model"
+        # Strictly enforce alternating roles for Gemini API
+        if role == last_role:
+            if role == "user":
+                # Merge consecutive user messages
+                if contents:
+                    contents[-1].parts[0].text += f"\n\n{m['content']}"
+                else:
+                    contents.append(types.Content(role=role, parts=[types.Part(text=m["content"])]))
+            else:
+                # Merge consecutive model messages
+                if contents:
+                    contents[-1].parts[0].text += f"\n\n{m['content']}"
+                else:
+                    contents.append(types.Content(role=role, parts=[types.Part(text=m["content"])]))
+            continue
+            
         contents.append(types.Content(role=role, parts=[types.Part(text=m["content"])]))
+        last_role = role
 
-    contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
+    # Add current user message
+    if last_role == "user":
+        # Merge if last was also user
+        if contents:
+            contents[-1].parts[0].text += f"\n\n{user_message}"
+        else:
+            contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
+    else:
+        contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
 
     print(
         f"🚀 GEMINI CALL: contents count={len(contents)} | last turn: {repr(user_message)}",

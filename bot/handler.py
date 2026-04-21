@@ -239,27 +239,28 @@ async def message_handler(
     # Fix common STT (speech-to-text) typos before processing
     if text:
         original_text = text
-        text_lower = text.lower()
+        low_text = text.lower()
 
         # Fix typos in lowercase version
-        text_lower = text_lower.replace("adamga", "adauga")
-        text_lower = text_lower.replace("adamg", "adaug")
-        text_lower = text_lower.replace("adăuga", "adauga")
-        text_lower = text_lower.replace("adaugă", "adaug")
-        text_lower = text_lower.replace("cărții", "carti")
-        text_lower = text_lower.replace("cărţi", "carti")
-        text_lower = text_lower.replace("şt", "st")
-        text_lower = text_lower.replace("ţ", "t")
+        low_text = low_text.replace("adamga", "adauga")
+        low_text = low_text.replace("adamg", "adaug")
+        low_text = low_text.replace("adăuga", "adauga")
+        low_text = low_text.replace("adaugă", "adaug")
+        low_text = low_text.replace("cărții", "carti")
+        low_text = low_text.replace("cărţi", "carti")
+        low_text = low_text.replace("şt", "st")
+        low_text = low_text.replace("ţ", "t")
 
         # Handle duplicate text from STT (e.g., "text.text")
-        if text_lower.count(".") > 1:
-            parts = text_lower.split(".")
-            # Keep first non-empty part before second occurrence
-            text_lower = parts[0]
+        if low_text.count(".") > 1:
+            parts = low_text.split(".")
+            # Keep first non-empty part
+            low_text = next((p.strip() for p in parts if p.strip()), parts[0])
+            # For STT consistency, we update text too if it was likely a duplicate voice result
+            text = low_text
 
-        text = text_lower
-        if text != original_text.lower():
-            print(f"🔧 STT FIX: '{original_text}' -> '{text}'")
+        if low_text != original_text.lower():
+            print(f"🔧 STT FIX: '{original_text}' -> '{low_text}'")
 
     print(
         f"📥 RECEIVED: Update ID {update.update_id} from user_id {user_id} - Text: {repr(text)}"
@@ -491,10 +492,11 @@ async def message_handler(
 
         # Phase 3: Gemini Brain integration
         async with pool.acquire() as conn:
-            # 1. Get history (last 3 USER turns only) BEFORE saving current message
+            # 1. Get history (last 10 turns, BOTH roles) BEFORE saving current message
             history_rows = await conn.fetch(
-                "SELECT role, content FROM conversations WHERE role = 'user' ORDER BY created_at DESC LIMIT 3"
+                "SELECT role, content FROM conversations ORDER BY created_at DESC LIMIT 10"
             )
+            # Reverse to get chronological order
             history = [
                 {"role": r["role"], "content": r["content"]}
                 for r in reversed(history_rows)
@@ -1405,13 +1407,11 @@ Reguli:
                     await handle_finance_message(update, pool, state, text)
                 elif state["module"] == "workout":
                     from modules.workout import handle_workout_message
-
                     await handle_workout_message(update, pool, state, text)
-                return
-                from core.state import clear_state
 
+                # Fall through to Gemini if not returned by handlers
                 await clear_state(pool)
-                # Fall through to Gemini
+
 
         # 3. Build context snapshot
         context_snapshot = await build_context(pool, text)
@@ -1683,7 +1683,7 @@ Reguli:
         for i, chunk in enumerate(chunks):
             current_markup = reply_markup if i == len(chunks) - 1 else None
             try:
-                print(f"📤 SENDING: {repr(chunk[:50])}...")
+                print(f"📤 SENDING chunk {i+1}/{len(chunks)}: {repr(chunk[:50])}...", flush=True)
                 await update.message.reply_text(
                     safe_markdown(chunk),
                     parse_mode="MarkdownV2",
@@ -1691,8 +1691,12 @@ Reguli:
                 )
 
             except Exception as e:
-                print(f"⚠️ MarkdownV2 FAILED, falling back to plain text: {e}")
-                await update.message.reply_text(chunk, reply_markup=current_markup)
+                print(f"⚠️ MarkdownV2 FAILED for chunk {i+1}, falling back to plain text: {e}", flush=True)
+                try:
+                    await update.message.reply_text(chunk, reply_markup=current_markup)
+                except Exception as e2:
+                    print(f"🚨 Plain text fallback ALSO FAILED: {e2}", flush=True)
+                    raise e2
 
     except Exception as e:
         import logging

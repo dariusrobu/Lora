@@ -1,6 +1,10 @@
 import asyncio
 import sys
+import logging
+import os
 from datetime import date
+from functools import partial
+from aiohttp import web
 from telegram.ext import (
     ApplicationBuilder,
     MessageHandler,
@@ -8,6 +12,8 @@ from telegram.ext import (
     CommandHandler,
     filters,
 )
+
+# 1. Internal Modules
 from core.config import (
     TELEGRAM_BOT_TOKEN,
     TELEGRAM_USER_ID,
@@ -35,11 +41,16 @@ from bot.handler import (
     calendar_command,
 )
 from modules.skills import skills_command
-from functools import partial
-import os
-from aiohttp import web
 from core.ical import generate_user_calendar
 from api.routes import setup_api_routes
+
+# 2. Setup Logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger(__name__)
 
 
 async def handle_health_check(request):

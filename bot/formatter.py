@@ -1,20 +1,16 @@
 import re
+from datetime import date, datetime
 
 # MarkdownV2 requires escaping these characters outside of pre/code/bold/italic
 # _ * [ ] ( ) ~ ` > # + - = | { } . !
-# However, escaping . ! - and = everywhere makes text look like "Hello\. How are you\!" which is ugly.
-# We will use a more surgical approach.
 ESCAPE_CHARS = r"_*[]()~`>#+-=|{}.!"
 
 
 def escape_md(text: str) -> str:
-    """Escapes MarkdownV2 special characters. Only use for user-generated strings."""
+    """Escapes all MarkdownV2 special characters."""
     if not text:
         return ""
-    # Surgery: escape characters that are MOST likely to break parsing if unescaped.
-    # We focus on characters that form blocks.
-    # We will keep . ! - as they are mostly fine in many contexts, but if the bot crashes,
-    # we might need to be more aggressive.
+    # We use a set of characters that strictly must be escaped in MarkdownV2
     return re.sub(f"([{re.escape(ESCAPE_CHARS)}])", r"\\\1", str(text))
 
 
@@ -26,15 +22,23 @@ def safe_markdown(text: str) -> str:
     if not text:
         return ""
 
-    must_escape = "[]()~>`#{}+-|{}.!_"
+    # Characters that MUST be escaped in MarkdownV2 (excluding * and ` for formatting)
+    # Note: hyphen '-' is critical and often missed.
+    must_escape = r"[]()~>#+-=|{}.!_"
+    
+    # We use regex to avoid double-escaping if a backslash is already there
     for char in must_escape:
-        text = text.replace(char, f"\\{char}")
+        # Match char NOT preceded by a backslash
+        pattern = f"(?<!\\\\){re.escape(char)}"
+        text = re.sub(pattern, f"\\{char}", text)
 
     return text
 
 
-def split_message(text: str, limit: int = 4096):
-    """Splits a message into chunks within the Telegram limit."""
+def split_message(text: str, limit: int = 4000):
+    """Splits a message into chunks within the Telegram limit (default 4096, but we use 4000 for safety)."""
+    if not text:
+        return [""]
     if len(text) <= limit:
         return [text]
 
@@ -44,23 +48,22 @@ def split_message(text: str, limit: int = 4096):
             chunks.append(text)
             break
 
-        # Find nearest newline before limit
+        # Find nearest newline before limit to split cleanly
         idx = text.rfind("\n", 0, limit)
-        if idx == -1:
-            idx = limit
+        if idx <= 0:
+            # If no newline, find nearest space
+            idx = text.rfind(" ", 0, limit)
+            if idx <= 0:
+                idx = limit
 
-        chunks.append(text[:idx])
+        chunks.append(text[:idx].strip())
         text = text[idx:].lstrip()
-
+    
     return chunks
 
 
-def format_date_short(dt) -> str:
-    """Returns a short formatted date or 'Azi'/'Mâine' for readability."""
-    if not dt:
-        return ""
-    from datetime import date, datetime
-
+def format_date_ro(dt: date | datetime) -> str:
+    """Returns a Romanian-friendly date string."""
     if isinstance(dt, datetime):
         dt = dt.date()
 
