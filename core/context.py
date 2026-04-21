@@ -22,10 +22,10 @@ async def build_context(pool, current_message: str = None) -> str:
     today = now.date()
 
     # 1. Prepare tasks to be executed in parallel
-    # We call the functions to get the coroutine objects
     t_tasks = task_queries.list_tasks(pool)
     t_events = event_queries.list_events(pool, today, today)
-    t_reminders = event_queries.list_reminders(pool)
+    # Filter for upcoming events/reminders
+    t_reminders = event_queries.list_events(pool, today) 
     t_skills = skill_queries.get_all_skills(pool)
     t_health = health_queries.get_health_log(pool, today)
     t_finance = finance_queries.get_monthly_summary(pool, today.month, today.year)
@@ -54,7 +54,7 @@ async def build_context(pool, current_message: str = None) -> str:
     (
         tasks,
         events,
-        reminders,
+        reminders_all,
         skills,
         health,
         finance,
@@ -81,6 +81,7 @@ async def build_context(pool, current_message: str = None) -> str:
             snapshot.append(f"• {e['title']} la {time_str}")
 
     # Reminders
+    reminders = [r for r in reminders_all if r["event_type"] == "reminder"]
     if reminders:
         snapshot.append("\n--- REMINDERE VIITOARE ---")
         for r in reminders[:3]:
