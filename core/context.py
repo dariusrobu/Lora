@@ -22,26 +22,34 @@ async def build_context(pool, current_message: str = None) -> str:
     today = now.date()
 
     # 1. Prepare tasks to be executed in parallel
-    tasks_to_run = [
-        task_queries.list_tasks(pool),
-        event_queries.list_events(pool, today, today),
-        event_queries.list_reminders(pool),
-        skill_queries.get_all_skills(pool),
-        health_queries.get_health_log(pool, today),
-        finance_queries.get_monthly_summary(pool, today.month, today.year),
-        note_queries.get_recent_notes(pool, limit=3),
-        journal_queries.get_recent_journal_entries(pool, limit=1),
-    ]
+    # We call the functions to get the coroutine objects
+    t_tasks = task_queries.list_tasks(pool)
+    t_events = event_queries.list_events(pool, today, today)
+    t_reminders = event_queries.list_reminders(pool)
+    t_skills = skill_queries.get_all_skills(pool)
+    t_health = health_queries.get_health_log(pool, today)
+    t_finance = finance_queries.get_monthly_summary(pool, today.month, today.year)
+    t_notes = note_queries.list_notes(pool, limit=3)
+    t_journal = journal_queries.get_recent_journal_entries(pool, limit=1)
     
     if current_message:
-        tasks_to_run.append(get_context_memory(pool, current_message))
+        t_memory = get_context_memory(pool, current_message)
     else:
-        # Dummy coroutine to keep indices consistent
-        async def dummy(): return ""
-        tasks_to_run.append(dummy())
+        async def empty_str(): return ""
+        t_memory = empty_str()
 
     # 2. Parallel Data Fetching
-    results = await asyncio.gather(*tasks_to_run)
+    results = await asyncio.gather(
+        t_tasks,
+        t_events,
+        t_reminders,
+        t_skills,
+        t_health,
+        t_finance,
+        t_notes,
+        t_journal,
+        t_memory
+    )
 
     (
         tasks,
@@ -82,7 +90,6 @@ async def build_context(pool, current_message: str = None) -> str:
     if skills:
         snapshot.append("\n--- SKILLS (EX-HABITS) ---")
         for s in skills[:5]:
-            # Streak calculation is separate but we can show last values
             snapshot.append(f"• {s['name']}: {s['last_value'] or 0} {s['unit']}")
 
     # Health
