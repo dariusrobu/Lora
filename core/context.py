@@ -14,25 +14,34 @@ from core.memory import get_context_memory
 
 async def build_context(pool, current_message: str = None) -> str:
     """
-    Builds a massive text snapshot of the user's current status for Gemini.
+    Builds a text snapshot of the user's current status for Gemini.
     OPTIMIZED: Uses asyncio.gather to fetch data in parallel.
     """
     user_tz = pytz.timezone(TIMEZONE)
     now = datetime.now(user_tz)
     today = now.date()
 
-    # 1. Parallel Data Fetching
-    results = await asyncio.gather(
+    # 1. Prepare tasks to be executed in parallel
+    tasks_to_run = [
         task_queries.list_tasks(pool),
         event_queries.list_events(pool, today, today),
         event_queries.list_reminders(pool),
         skill_queries.get_all_skills(pool),
         health_queries.get_health_log(pool, today),
-        finance_queries.get_daily_summary(pool, today.month, today.year),
+        finance_queries.get_monthly_summary(pool, today.month, today.year),
         note_queries.get_recent_notes(pool, limit=3),
         journal_queries.get_recent_journal_entries(pool, limit=1),
-        get_context_memory(pool, current_message) if current_message else asyncio.sleep(0, ""),
-    )
+    ]
+    
+    if current_message:
+        tasks_to_run.append(get_context_memory(pool, current_message))
+    else:
+        # Dummy coroutine to keep indices consistent
+        async def dummy(): return ""
+        tasks_to_run.append(dummy())
+
+    # 2. Parallel Data Fetching
+    results = await asyncio.gather(*tasks_to_run)
 
     (
         tasks,
@@ -73,8 +82,8 @@ async def build_context(pool, current_message: str = None) -> str:
     if skills:
         snapshot.append("\n--- SKILLS (EX-HABITS) ---")
         for s in skills[:5]:
-            streak = await skill_queries.get_skill_streak(pool, s["id"])
-            snapshot.append(f"• {s['name']}: {s['last_value'] or 0} {s['unit']} (streak: {streak})")
+            # Streak calculation is separate but we can show last values
+            snapshot.append(f"• {s['name']}: {s['last_value'] or 0} {s['unit']}")
 
     # Health
     if health:
