@@ -33,25 +33,25 @@ async def save_memory_fact(
 
 async def get_relevant_facts(pool, query_keywords: List[str]) -> List[Dict[str, Any]]:
     """Retrieves facts relevant to the given keywords using full-text search.
-
-    Args:
-        pool: Database connection pool.
-        query_keywords: List of keywords to search for.
-
-    Returns:
-        A list of relevant facts.
+    OPTIMIZED: Uses rank-based ordering.
     """
     if not query_keywords:
         return []
 
-    search_query = " | ".join(query_keywords)
+    # Filter out very short words and join with OR
+    valid_keywords = [k for k in query_keywords if len(k) >= 3]
+    if not valid_keywords:
+        return []
+
+    search_query = " | ".join(valid_keywords)
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT * FROM memory_facts
+            SELECT *, ts_rank(to_tsvector('simple', fact), to_tsquery('simple', $1)) as rank
+            FROM memory_facts
             WHERE to_tsvector('simple', fact) @@ to_tsquery('simple', $1)
-            ORDER BY times_referenced DESC, last_seen DESC
-            LIMIT 10
+            ORDER BY rank DESC, times_referenced DESC
+            LIMIT 5
             """,
             search_query,
         )

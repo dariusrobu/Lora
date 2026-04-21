@@ -1413,10 +1413,6 @@ Reguli:
                 await clear_state(pool)
 
 
-        # 3. Build context snapshot
-        context_snapshot = await build_context(pool, text)
-        profile = await get_user_profile(pool, telegram_id)
-
         # 4. Try regex parser first for simple add_task / add_event patterns
         intent_response = None
         low_text = text.lower()
@@ -1616,6 +1612,10 @@ Reguli:
 
         # 5. Fall back to Gemini if regex didn't match
         if not intent_response:
+            print("⏳ BUILDING CONTEXT (Lazy Load)...", flush=True)
+            context_snapshot = await build_context(pool, text)
+            profile = await get_user_profile(pool, telegram_id)
+
             intent_response = await get_gemini_response(
                 pool,
                 user_message=text,
@@ -1625,6 +1625,11 @@ Reguli:
                 history=history,
                 personal_notes=profile.get("personal_notes") or "",
             )
+        else:
+            # For regex matches, we might still need the profile for trigger_morning_briefing
+            # but we can load it only if that specific intent is found later.
+            # For now, let's keep it minimal.
+            pass
         print(
             f"🧠 GEMINI: Intent={intent_response.get('intent')}, Module={intent_response.get('module')}, Data={intent_response.get('data')}"
         )
