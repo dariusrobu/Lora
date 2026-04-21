@@ -89,14 +89,20 @@ def check_pid_lock():
             old_pid_int = int(old_pid)
             if old_pid_int != os.getpid():
                 if os.path.exists(f"/proc/{old_pid_int}"):
-                    print(f"ERROR: Another bot instance (PID {old_pid}) is already running!")
+                    print(
+                        f"ERROR: Another bot instance (PID {old_pid}) is already running!"
+                    )
                     print("Delete lora.pid if the old instance crashed.")
                     exit(1)
         except (ValueError, ProcessLookupError):
             pass
-    
+
     with open(PID_FILE, "w") as f:
         f.write(str(os.getpid()))
+
+
+# Prevent multiple bot instances from running
+check_pid_lock()
 
 
 async def start_bot():
