@@ -82,20 +82,10 @@ PID_FILE = "lora.pid"
 
 def check_pid_lock():
     """Prevents multiple bot instances from running."""
+    # First, remove any stale PID file from previous crash/restart
     if os.path.exists(PID_FILE):
-        with open(PID_FILE, "r") as f:
-            old_pid = f.read().strip()
-        try:
-            old_pid_int = int(old_pid)
-            if old_pid_int != os.getpid():
-                if os.path.exists(f"/proc/{old_pid_int}"):
-                    print(
-                        f"ERROR: Another bot instance (PID {old_pid}) is already running!"
-                    )
-                    print("Delete lora.pid if the old instance crashed.")
-                    exit(1)
-        except (ValueError, ProcessLookupError):
-            pass
+        os.remove(PID_FILE)
+        print("Removed stale PID file.")
 
     with open(PID_FILE, "w") as f:
         f.write(str(os.getpid()))
