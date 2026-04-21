@@ -509,3 +509,16 @@ CREATE TABLE IF NOT EXISTS memory_facts (
 );
 CREATE INDEX idx_memory_category ON memory_facts(category);
 CREATE INDEX idx_memory_fact_search ON memory_facts USING GIN(to_tsvector('english', fact));
+
+-- --- CALENDAR SYNC ---
+CREATE TABLE IF NOT EXISTS calendar_sync (
+    id              SERIAL PRIMARY KEY,
+    lora_type       TEXT NOT NULL,  -- 'schedule', 'event', 'task', 'manual'
+    lora_id         INTEGER,        -- ID-ul din tabela sursă din Lora
+    ical_uid        TEXT UNIQUE,    -- UID-ul evenimentului în iCloud
+    summary         TEXT,
+    synced_at       TIMESTAMP DEFAULT NOW(),
+    last_modified   TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX idx_calendar_sync_uid ON calendar_sync(ical_uid);
+CREATE INDEX idx_calendar_sync_lora ON calendar_sync(lora_type, lora_id);

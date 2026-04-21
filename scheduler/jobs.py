@@ -1,4 +1,4 @@
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from core.icloud import sync_events_table_to_calendar, sync_tasks_with_deadlines, fetch_all_calendars_events
 from datetime import datetime, timedelta
 import pytz
 from core.config import (
@@ -137,6 +137,23 @@ async def check_wake_time_and_schedule(application, pool):
         import traceback
 
         traceback.print_exc()
+
+
+async def sync_calendar_job(pool):
+    \"\"\"Background job to keep Apple Calendar in sync.\"\"\"
+    import asyncio
+    from core.icloud import sync_university_schedule_to_calendar
+    
+    print(\"⏳ Starting periodic Apple Calendar sync...\", flush=True)
+    try:
+        await asyncio.gather(
+            sync_university_schedule_to_calendar(pool),
+            sync_events_table_to_calendar(pool),
+            sync_tasks_with_deadlines(pool)
+        )
+        print(\"✅ Periodic Apple Calendar sync completed.\", flush=True)
+    except Exception as e:
+        print(f\"❌ Periodic Apple Calendar sync failed: {e}\", flush=True)
 
 
 async def send_morning_briefing(application, pool):
@@ -401,17 +418,26 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
         else:
             lines.append("📋 *Tasks de azi*\nNiciun task pending azi 🎉")
 
-        lines += ["", "📅 *Evenimente*"]
+        lines += [\"\", \"📅 *Evenimente*\"]
         if events:
             for e in events:
                 time_str = (
-                    e["event_time"].strftime("%H:%M")
-                    if e["event_time"]
-                    else "toată ziua"
+                    e[\"event_time\"].strftime(\"%H:%M\")
+                    if e[\"event_time\"]
+                    else \"toată ziua\"
                 )
-                lines.append(f"• `{time_str}` — {escape_md(e['title'])}")
+                lines.append(f\"• `{time_str}` — {escape_md(e['title'])}\")
         else:
-            lines.append("Nimic în calendar azi\\.")
+            lines.append(\"Nimic în calendar azi\\\\.\")
+
+        # iCloud Section
+        icloud_events = await fetch_all_calendars_events(days_ahead=1)
+        if icloud_events:
+            lines.append(\"\\n📅 *Apple Calendar Azi:*\")
+            for ev in icloud_events:
+                if ev['start'].date() == today:
+                    time_str = ev['start'].strftime(\"%H:%M\")
+                    lines.append(f\"• `{time_str}` — {escape_md(ev['summary'])} \\(_{escape_md(ev['calendar'])}_\\)\")
 
         from db.queries.university import get_upcoming_exams
 
@@ -1943,6 +1969,15 @@ def setup_scheduler(application, pool):
         minute=30,
         misfire_grace_time=3600,
         args=[application, pool],
+    )
+
+    # ━━━ CALENDAR SYNC ━━━
+    from core.config import CALENDAR_SYNC_INTERVAL
+    scheduler.add_job(
+        sync_calendar_job,
+        "interval",
+        minutes=CALENDAR_SYNC_INTERVAL,
+        args=[pool],
     )
 
     scheduler.start()

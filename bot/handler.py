@@ -272,8 +272,9 @@ async def message_handler(
     # --- COMANDĂ CALENDAR (DETECTION) ---
     if text:
         clean_text = text.strip().lower()
-        if clean_text.startswith("/test_calendar"):
-            from core.calendar import test_connection
+        if clean_text.startswith(\"/test_calendar\"):
+            from core.icloud import test_connection
+
             res = await test_connection()
             status = "✅" if res["success"] else "❌"
             msg = f"{status} *iCloud Status*\n\n{escape_md(res['message'])}\n\n"
