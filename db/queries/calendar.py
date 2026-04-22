@@ -1,5 +1,4 @@
 from typing import Optional, Dict, Any
-from datetime import datetime
 
 
 async def get_sync_record(pool, lora_type: str, lora_id: int) -> Optional[Dict[str, Any]]:

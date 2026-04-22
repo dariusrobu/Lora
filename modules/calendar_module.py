@@ -1,7 +1,7 @@
 from typing import Dict, Any, Tuple, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 import core.icloud as calendar_core
-from bot.formatter import escape_md, safe_markdown
+from bot.formatter import escape_md
 import asyncio
 
 
@@ -61,7 +61,7 @@ async def handle_calendar_intent(
                 if end_dt.tzinfo is None:
                     end_dt = calendar_core.LOCAL_TZ.localize(end_dt)
             
-            uid = calendar_core.create_event(
+            calendar_core.create_event(
                 summary=summary,
                 start=start_dt,
                 end=end_dt,

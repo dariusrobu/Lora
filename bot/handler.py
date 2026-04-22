@@ -272,7 +272,7 @@ async def message_handler(
     # --- COMANDĂ CALENDAR (DETECTION) ---
     if text:
         clean_text = text.strip().lower()
-        if clean_text.startswith(\"/test_calendar\"):
+        if clean_text.startswith("/test_calendar"):
             from core.icloud import test_connection
 
             res = await test_connection()
@@ -1665,13 +1665,13 @@ Reguli:
             profile = await profile_queries.get_user_profile(pool, TG_UID)
             if profile.get("last_briefing_date") == today:
                 await update.message.reply_text(
-                    "Deja ți\\-am trimis briefing\\-ul de dimineață\\. O zi productivă\\! ☀️",
+                    "Deja ți-am trimis briefing-ul de dimineață. O zi productivă! ☀️",
                     parse_mode="MarkdownV2",
                 )
                 return
 
             await update.message.reply_text(
-                "Preg\\ătesc briefing\\-ul de dimineață\\. ☕", parse_mode="MarkdownV2"
+                "Pregătesc briefing-ul de dimineață. ☕", parse_mode="MarkdownV2"
             )
             try:
                 await send_morning_briefing(context.application, pool)
@@ -1681,7 +1681,7 @@ Reguli:
                 print(f"ERROR in morning briefing: {e}", flush=True)
                 traceback.print_exc()
                 await update.message.reply_text(
-                    f"❌ Eroare la briefing\\: {str(e)[:200]}", parse_mode="MarkdownV2"
+                    f"❌ Eroare la briefing: {str(e)[:200]}", parse_mode="MarkdownV2"
                 )
             return
 

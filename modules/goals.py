@@ -185,7 +185,7 @@ async def get_goal_detail(pool, goal_id: int) -> Tuple[str, Any]:
         from datetime import datetime
 
         delta = (datetime.now() - goal_data["updated_at"].replace(tzinfo=None)).days
-        days_ago = f"{delta} zile în urmă\\" if delta > 0 else "Azi"
+        days_ago = f"{delta} zile în urmă" if delta > 0 else "Azi"
 
     lines.append(f"\n_Ultimul update: {days_ago}_")
 
@@ -416,7 +416,7 @@ async def handle_goals_message(update, pool, state: dict, text: str):
 
                 goal = await goal_queries.add_goal(pool, title, desc, category)
                 await clear_state(pool)
-                await update.message.reply_text("✅ Goal salvat!\\")
+                await update.message.reply_text("✅ Goal salvat!")
 
                 text_md, markup = await get_goal_detail(pool, goal["id"])
                 await update.message.reply_text(

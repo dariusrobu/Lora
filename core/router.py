@@ -179,10 +179,9 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
             return "Nu am putut iniția briefing-ul manual (lipsă bot context).", None
 
     # ━━━ CALENDAR ━━━
-    elif module == \"calendar\":
+    elif module == "calendar":
         from modules.calendar_module import handle_calendar_intent
 
         return await handle_calendar_intent(pool, intent, data)
 
-    return f\"{reply}\\n\\n_(Note: Module {module} is still being implemented)_\", None
-
+    return f"{reply}\n\n_(Note: Module {module} is still being implemented)_", None
