@@ -88,7 +88,7 @@ async def handle_calendar_intent(
             f"🔄 *Sincronizare Apple Calendar completă*\n\n"
             f"• 🎓 Cursuri: {s_stats['created']} noi\n"
             f"• 📅 Evenimente: {e_stats['created']} noi\n"
-            f"• 📋 Task-uri: {t_stats['created']} noi\n"
+            f"• 📋 Task\\-uri: {t_stats['created']} noi\n"
             f"\nTotal exportat: {total_created} elemente ✓"
         )
         return msg, None
