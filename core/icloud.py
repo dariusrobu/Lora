@@ -1,4 +1,5 @@
 import caldav
+import asyncio
 from datetime import datetime, timedelta, date, time
 from typing import List, Dict, Any, Optional
 import pytz
@@ -155,7 +156,7 @@ async def fetch_all_calendars_events(days_ahead: int = 7) -> List[Dict[str, Any]
         return []
 
 
-def create_event(
+async def create_event(
     summary: str,
     start: datetime,
     end: Optional[datetime] = None,
@@ -176,7 +177,7 @@ def create_event(
     ical = iCal()
     event = iEvent()
     event.add("summary", summary)
-    
+
     if all_day:
         event.add("dtstart", start.date())
         event.add("dtend", (end + timedelta(days=1)).date())
@@ -188,6 +189,7 @@ def create_event(
         event.add("description", description)
     if location:
         event.add("location", location)
+
     if uid:
         event.add("uid", uid)
     if rrule:
@@ -195,8 +197,8 @@ def create_event(
         event["rrule"] = vRecur.from_ical(rrule)
 
     ical.add_component(event)
-    
-    new_event = cal.add_event(ical.to_ical())
+
+    new_event = await asyncio.to_thread(cal.add_event, ical.to_ical())
     # Return UID
     return str(iCal.from_ical(new_event.data).walk("vevent")[0].get("uid"))
 
@@ -267,8 +269,15 @@ async def sync_university_schedule_to_calendar(pool) -> dict:
                 stats["skipped"] += 1
                 continue
 
-            # 2. Calculate first occurrence
-            target_dow = day_map.get(c["day_of_week"].lower(), 0)
+            # 2. Calculate first occurrence - handle both int and string day_of_week
+            dow_val = c["day_of_week"]
+            if isinstance(dow_val, int):
+                target_dow = dow_val % 7  # Normalize to 0-6
+            elif isinstance(dow_val, str):
+                target_dow = day_map.get(dow_val.lower(), 0)
+            else:
+                target_dow = 0  # Fallback for any unexpected type
+            
             # Find first date of this weekday after semester start
             days_diff = (target_dow - semester_start.weekday() + 7) % 7
             first_date = semester_start + timedelta(days=days_diff)
@@ -277,12 +286,16 @@ async def sync_university_schedule_to_calendar(pool) -> dict:
             end_dt = LOCAL_TZ.localize(datetime.combine(first_date, c["end_time"]))
             
             uid = f"lora-schedule-{lora_id}@lora"
-            summary = f"🎓 {c['subject_name']} ({c['class_type'].upper()})"
+            class_type = c.get("class_type", "course")
+            if isinstance(class_type, str):
+                summary = f"🎓 {c['subject_name']} ({class_type.upper()})"
+            else:
+                summary = f"🎓 {c['subject_name']}"
             location = c.get("room", "")
             rrule = f"FREQ=WEEKLY;BYDAY={day_codes[target_dow]}"
             
             try:
-                create_event(
+                await create_event(
                     summary=summary,
                     start=start_dt,
                     end=end_dt,
@@ -327,7 +340,7 @@ async def sync_events_table_to_calendar(pool) -> dict:
             summary = f"📅 {r['title']}"
             
             try:
-                create_event(summary=summary, start=start_dt, end=end_dt, uid=uid, description=r.get("description"))
+                await create_event(summary=summary, start=start_dt, end=end_dt, uid=uid, description=r.get("description"))
                 await calendar_queries.save_sync_record(pool, lora_type, lora_id, uid, summary)
                 stats["created"] += 1
             except Exception:
@@ -361,7 +374,7 @@ async def sync_tasks_with_deadlines(pool) -> dict:
             summary = f"📋 Task: {t['title']} [{t.get('project_name') or 'Inbox'}]"
             
             try:
-                create_event(summary=summary, start=start_dt, all_day=True, uid=uid)
+                await create_event(summary=summary, start=start_dt, all_day=True, uid=uid)
                 await calendar_queries.save_sync_record(pool, lora_type, lora_id, uid, summary)
                 stats["created"] += 1
             except Exception:

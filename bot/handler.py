@@ -226,90 +226,100 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
 async def message_handler(
     update: Update, context: ContextTypes.DEFAULT_TYPE, pool, text=None
 ):
-    # Log EVERYTHING first
-    print(f"DEBUG: message_handler triggered for update {update.update_id}", flush=True)
+    try:
+        # Log EVERYTHING first - BEFORE any logic
+        update_dict = update.to_dict()
+        update_type = update_dict.get("message", update_dict.get("edited_message", update_dict.get("channel_post", "unknown")))
+        print(f"DEBUG: >>> message_handler invoked update_id={update.update_id}", flush=True)
+        print(f"DEBUG: update type = {type(update_type)}", flush=True)
+        print(f"DEBUG: update dict keys = {list(update_dict.keys())}", flush=True)
+        print(f"DEBUG: raw update = {update_dict}", flush=True)
+    except Exception as e:
+        print(f"DEBUG ERROR: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
 
-    # Log EVERY message before the security check
-    user_id = update.effective_user.id if update.effective_user else "Unknown"
+    try:
+        user_id = update.effective_user.id if update.effective_user else "Unknown"
 
-    # Use provided text or fallback to message text
-    if text is None and update.message:
-        text = update.message.text
+        # Use provided text or fallback to message text
+        if text is None and update.message:
+            text = update.message.text
 
-    # Fix common STT (speech-to-text) typos before processing
-    if text:
-        original_text = text
-        low_text = text.lower()
+        # Fix common STT (speech-to-text) typos before processing
+        if text:
+            original_text = text
+            low_text = text.lower()
 
-        # Fix typos in lowercase version
-        low_text = low_text.replace("adamga", "adauga")
-        low_text = low_text.replace("adamg", "adaug")
-        low_text = low_text.replace("adăuga", "adauga")
-        low_text = low_text.replace("adaugă", "adaug")
-        low_text = low_text.replace("cărții", "carti")
-        low_text = low_text.replace("cărţi", "carti")
-        low_text = low_text.replace("şt", "st")
-        low_text = low_text.replace("ţ", "t")
+            # Fix typos in lowercase version
+            low_text = low_text.replace("adamga", "adauga")
+            low_text = low_text.replace("adamg", "adaug")
+            low_text = low_text.replace("adăuga", "adauga")
+            low_text = low_text.replace("adaugă", "adaug")
+            low_text = low_text.replace("cărții", "carti")
+            low_text = low_text.replace("cărţi", "carti")
+            low_text = low_text.replace("şt", "st")
+            low_text = low_text.replace("ţ", "t")
 
-        # Handle duplicate text from STT (e.g., "text.text")
-        if low_text.count(".") > 1:
-            parts = low_text.split(".")
-            # Keep first non-empty part
-            low_text = next((p.strip() for p in parts if p.strip()), parts[0])
-            # For STT consistency, we update text too if it was likely a duplicate voice result
-            text = low_text
+            # Handle duplicate text from STT (e.g., "text.text")
+            if low_text.count(".") > 1:
+                parts = low_text.split(".")
+                # Keep first non-empty part
+                low_text = next((p.strip() for p in parts if p.strip()), parts[0])
+                # For STT consistency, we update text too if it was likely a duplicate voice result
+                text = low_text
 
-        if low_text != original_text.lower():
-            print(f"🔧 STT FIX: '{original_text}' -> '{low_text}'")
+            if low_text != original_text.lower():
+                print(f"🔧 STT FIX: '{original_text}' -> '{low_text}'")
 
-    print(
-        f"📥 RECEIVED: Update ID {update.update_id} from user_id {user_id} - Text: {repr(text)}"
-    )
+        print(
+            f"📥 RECEIVED: Update ID {update.update_id} from user_id {user_id} - Text: {repr(text)}"
+        )
 
-    if not await security_check(update):
-        return
-
-    # --- COMANDĂ CALENDAR (DETECTION) ---
-    if text:
-        clean_text = text.strip().lower()
-        if clean_text.startswith("/test_calendar"):
-            from core.icloud import test_connection
-
-            res = await test_connection()
-            status = "✅" if res["success"] else "❌"
-            msg = f"{status} *iCloud Status*\n\n{escape_md(res['message'])}\n\n"
-            if res.get("calendars"):
-                msg += "Calendare găsite:\n" + "\n".join(f"• {escape_md(c)}" for c in res["calendars"])
-            await update.message.reply_text(msg, parse_mode="MarkdownV2")
+        if not await security_check(update):
             return
 
-        if clean_text.startswith("/sync_calendar"):
-            from modules.calendar_module import handle_calendar_intent
-            reply, _ = await handle_calendar_intent(pool, "calendar_sync", {})
-            await update.message.reply_text(reply, parse_mode="MarkdownV2")
-            return
+        # --- COMANDĂ CALENDAR (DETECTION) ---
+        if text:
+            clean_text = text.strip().lower()
+            if clean_text.startswith("/test_calendar"):
+                from core.icloud import test_connection
 
-    # ── GROUP ROUTING ──
-    # If in a group, only respond if explicitly mentioned
-    if update.effective_chat and update.effective_chat.type in ("group", "supergroup"):
-        # Lazy-get bot username
-        bot_username = context.application.bot_data.get("bot_username")
-        if not bot_username:
-            me = await context.bot.get_me()
-            bot_username = me.username
-            context.application.bot_data["bot_username"] = bot_username
+                res = await test_connection()
+                status = "✅" if res["success"] else "❌"
+                msg = f"{status} *iCloud Status*\n\n{escape_md(res['message'])}\n\n"
+                if res.get("calendars"):
+                    msg += "Calendare găsite:\n" + "\n".join(f"• {escape_md(c)}" for c in res["calendars"])
+                await update.message.reply_text(msg, parse_mode="MarkdownV2")
+                return
 
-        # Check for mention in entities or text
-        is_mentioned = False
-        if update.message and update.message.entities:
-            for ent in update.message.entities:
-                if ent.type == "mention":
-                    mentioned_text = update.message.text[
-                        ent.offset : ent.offset + ent.length
-                    ].lower()
-                    if f"@{bot_username.lower()}" == mentioned_text:
-                        is_mentioned = True
-                        break
+            if clean_text.startswith("/sync_calendar"):
+                from modules.calendar_module import handle_calendar_intent
+                reply, _ = await handle_calendar_intent(pool, "calendar_sync", {})
+                await update.message.reply_text(reply, parse_mode="MarkdownV2")
+                return
+
+        # ── GROUP ROUTING ──
+        # If in a group, only respond if explicitly mentioned
+        if update.effective_chat and update.effective_chat.type in ("group", "supergroup"):
+            # Lazy-get bot username
+            bot_username = context.application.bot_data.get("bot_username")
+            if not bot_username:
+                me = await context.bot.get_me()
+                bot_username = me.username
+                context.application.bot_data["bot_username"] = bot_username
+
+            # Check for mention in entities or text
+            is_mentioned = False
+            if update.message and update.message.entities:
+                for ent in update.message.entities:
+                    if ent.type == "mention":
+                        mentioned_text = update.message.text[
+                            ent.offset : ent.offset + ent.length
+                        ].lower()
+                        if f"@{bot_username.lower()}" == mentioned_text:
+                            is_mentioned = True
+                            break
 
         if not is_mentioned and f"@{bot_username.lower()}" not in (text or "").lower():
             print(
@@ -317,7 +327,6 @@ async def message_handler(
             )
             return
 
-    try:
         telegram_id = update.effective_user.id
 
         # Non-text message handling
