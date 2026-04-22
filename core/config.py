@@ -12,8 +12,6 @@ REQUIRED_VARS = [
     "MORNING_BRIEFING_TIME",
     "EOD_REFLECTION_TIME",
     "LORA_API_SECRET",
-    "ICLOUD_USERNAME",
-    "ICLOUD_APP_PASSWORD",
 ]
 
 # Optional with defaults

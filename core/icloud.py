@@ -18,6 +18,9 @@ LOCAL_TZ = pytz.timezone(TIMEZONE)
 
 def get_caldav_client() -> caldav.DAVClient:
     """Connects to iCloud CalDAV."""
+    if not ICLOUD_USERNAME or not ICLOUD_APP_PASSWORD:
+        raise ValueError("ICLOUD_USERNAME and ICLOUD_APP_PASSWORD must be set.")
+
     return caldav.DAVClient(
         url="https://caldav.icloud.com",
         username=ICLOUD_USERNAME,
@@ -41,6 +44,12 @@ def get_lora_calendar(client: caldav.DAVClient) -> caldav.Calendar:
 
 async def test_connection() -> dict:
     """Tests the iCloud connection."""
+    if not ICLOUD_USERNAME or not ICLOUD_APP_PASSWORD:
+        return {
+            "success": False,
+            "calendars": [],
+            "message": "Credențialele iCloud nu sunt configurate. Setează ICLOUD_USERNAME și ICLOUD_APP_PASSWORD în Render.",
+        }
     try:
         client = get_caldav_client()
         principal = client.principal()
