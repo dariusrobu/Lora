@@ -128,16 +128,16 @@ async def start_bot():
         )
 
         # Ensure semester_config exists
-        await conn.execute(\"\"\"
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS semester_config (
                 id SERIAL PRIMARY KEY,
                 semester_start DATE NOT NULL,
                 created_at TIMESTAMP DEFAULT NOW()
             )
-        \"\"\")
+        """)
 
         # Ensure calendar_sync exists
-        await conn.execute(\"\"\"
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS calendar_sync (
                 id              SERIAL PRIMARY KEY,
                 lora_type       TEXT NOT NULL,
@@ -149,7 +149,8 @@ async def start_bot():
             );
             CREATE INDEX IF NOT EXISTS idx_calendar_sync_uid ON calendar_sync(ical_uid);
             CREATE INDEX IF NOT EXISTS idx_calendar_sync_lora ON calendar_sync(lora_type, lora_id);
-        \"\"\")
+        """)
+
         exists = await conn.fetchval("SELECT EXISTS (SELECT 1 FROM semester_config)")
         if not exists:
             await conn.execute(
