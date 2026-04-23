@@ -602,7 +602,7 @@ async def get_tasks_dashboard(pool) -> Tuple[str, Any]:
         from bot.keyboards import tasks_main_keyboard
 
         return (
-            r"Nu ai niciun task activ în acest moment\! 🎉\nPoți adăuga unul nou prin limbaj natural sau folosind butonul de mai jos.",
+            r"Nu ai niciun task activ în acest moment\! 🎉\nPoți adăuga unul nou prin limbaj natural sau folosind butonul de mai jos\.",
             tasks_main_keyboard(),
         )
 
@@ -621,7 +621,7 @@ async def get_tasks_dashboard(pool) -> Tuple[str, Any]:
     if suggestion:
         lines.append(f"{suggestion}\n")
 
-    lines.append(rf"✅ *{total}* task\-uri active pe *{len(projects)}* proiecte.")
+    lines.append(rf"✅ *{total}* task\-uri active pe *{len(projects)}* proiecte\.")
     if overdue > 0:
         lines.append(rf"🔴 *{overdue}* sunt restante\!")
 
