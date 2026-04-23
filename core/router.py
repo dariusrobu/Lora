@@ -24,17 +24,16 @@ async def route_intent(pool, intent_response: Any, bot=None):
 async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
     module = intent_response.get("module")
     intent = intent_response.get("intent")
-    data = intent_response.get("data")
+    data = intent_response.get("data") or {}   # Guard: Gemini may return null for data
     reply = intent_response.get("reply", "Hmm, I'm not sure how to respond to that.")
     user_message = intent_response.get("_user_message", "")
 
     print(f"DEBUG ROUTER: module={module}, intent={intent}, data_type={type(data)}")
 
-    # Inject original reply into data so modules can use it
-    if data is not None:
-        data["_original_reply"] = reply
-        if user_message:
-            data["_user_message"] = user_message
+    # Inject original reply and user message so modules can use them
+    data["_original_reply"] = reply
+    if user_message:
+        data["_user_message"] = user_message
 
     # Let's check for Agentic Mode FIRST
     if intent_response.get("needs_agent"):
@@ -54,10 +53,6 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
         from modules.tasks import handle_task_intent
 
         return await handle_task_intent(pool, intent, data)
-    elif module == "habits":
-        from modules.skills import handle_skill_intent
-
-        return await handle_skill_intent(pool, intent, data)
     elif module == "projects":
         from modules.projects import handle_project_intent
 

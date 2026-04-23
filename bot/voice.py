@@ -1,5 +1,6 @@
 import os
 import tempfile
+import asyncio
 from google import genai
 from google.genai import types
 from core.config import GEMINI_API_KEY
@@ -37,8 +38,10 @@ async def transcribe_voice(update, context) -> str:
 
         # 3. Upload to Gemini
         print("🎙 VOICE: Uploading to Gemini...", flush=True)
-        myfile = client.files.upload(
-            file=tmp_path, config=types.UploadFileConfig(mime_type="audio/ogg")
+        myfile = await asyncio.to_thread(
+            client.files.upload,
+            file=tmp_path,
+            config=types.UploadFileConfig(mime_type="audio/ogg")
         )
         print(f"🎙 VOICE: Uploaded, URI: {myfile.uri}", flush=True)
 
@@ -46,19 +49,23 @@ async def transcribe_voice(update, context) -> str:
         prompt = "Transcribe this voice message in ROMANIAN. The user speaks Romanian. Return only the transcribed text, nothing else."
 
         print("🎙 VOICE: Requesting transcription...", flush=True)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[
-                types.Content(
-                    role="user",
-                    parts=[
-                        types.Part.from_uri(
-                            file_uri=myfile.uri, mime_type=myfile.mime_type
-                        ),
-                        types.Part.from_text(text=prompt),
-                    ],
-                )
-            ],
+        response = await asyncio.wait_for(
+            asyncio.to_thread(
+                client.models.generate_content,
+                model="gemini-2.5-flash",
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=[
+                            types.Part.from_uri(
+                                file_uri=myfile.uri, mime_type=myfile.mime_type
+                            ),
+                            types.Part.from_text(text=prompt),
+                        ],
+                    )
+                ],
+            ),
+            timeout=45.0
         )
 
         transcription = response.text.strip()

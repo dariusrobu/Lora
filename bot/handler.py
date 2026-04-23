@@ -125,7 +125,7 @@ async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     from core.ical import generate_user_calendar
-    from core.config import TELEGRAM_BOT_TOKEN
+    from core.config import CALENDAR_SECRET
     import io
     import os
 
@@ -133,14 +133,13 @@ async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_chat_action("upload_document")
 
         # Link for automatic synchronization (HTTPS/WebCal)
-        token = TELEGRAM_BOT_TOKEN.split(":")[0]
         domain = (
             os.environ.get("WEB_DOMAIN", "lora-bot.onrender.com")
             .replace("https://", "")
             .replace("http://", "")
             .rstrip("/")
         )
-        webcal_url = f"https://{domain}/calendar/{token}"
+        webcal_url = f"https://{domain}/calendar/{CALENDAR_SECRET}"
 
         ics_bytes = await generate_user_calendar(pool)
 
@@ -167,6 +166,7 @@ async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         import traceback
 
         traceback.print_exc()
+
 
 
 async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
@@ -227,20 +227,8 @@ async def message_handler(
     update: Update, context: ContextTypes.DEFAULT_TYPE, pool, text=None
 ):
     try:
-        # Log EVERYTHING first - BEFORE any logic
-        update_dict = update.to_dict()
-        update_type = update_dict.get("message", update_dict.get("edited_message", update_dict.get("channel_post", "unknown")))
-        print(f"DEBUG: >>> message_handler invoked update_id={update.update_id}", flush=True)
-        print(f"DEBUG: update type = {type(update_type)}", flush=True)
-        print(f"DEBUG: update dict keys = {list(update_dict.keys())}", flush=True)
-        print(f"DEBUG: raw update = {update_dict}", flush=True)
-    except Exception as e:
-        print(f"DEBUG ERROR: {e}", flush=True)
-        import traceback
-        traceback.print_exc()
-
-    try:
         user_id = update.effective_user.id if update.effective_user else "Unknown"
+        print(f"📥 INCOMING: Update ID {update.update_id} from user_id {user_id}", flush=True)
 
         # Use provided text or fallback to message text
         if text is None and update.message:
@@ -321,11 +309,12 @@ async def message_handler(
                             is_mentioned = True
                             break
 
-        if not is_mentioned and f"@{bot_username.lower()}" not in (text or "").lower():
-            print(
-                f"🔇 LORA SILENT: Message in group {update.effective_chat.id} doesn't mention @{bot_username}"
-            )
-            return
+            # Only exit early if in a group and not mentioned
+            if not is_mentioned and f"@{bot_username.lower()}" not in (text or "").lower():
+                print(
+                    f"🔇 LORA SILENT: Message in group {update.effective_chat.id} doesn't mention @{bot_username}"
+                )
+                return
 
         telegram_id = update.effective_user.id
 
@@ -862,11 +851,8 @@ async def message_handler(
                             image_data = base64.b64encode(f.read()).decode()
                         os.unlink(tmp_path)
 
-                        from google import genai
                         from google.genai import types
-                        from core.config import GEMINI_API_KEY
-
-                        client = genai.Client(api_key=GEMINI_API_KEY)
+                        from core.gemini import client
                         prompt = """
 Analizează această imagine cu un orar universitar.
 Extrage TOATE cursurile și seminarele vizibile.
@@ -914,6 +900,8 @@ week_type: "odd" dacă e marcat SI, "even" dacă SP, "both" dacă apare în ambe
                             data_parsed = json.loads(raw)
                             classes = data_parsed.get("classes", [])
 
+                            from db.queries.university_schedules import insert_schedule_row
+
                             days_map = {
                                 "luni": 0,
                                 "marți": 1,
@@ -927,13 +915,8 @@ week_type: "odd" dacă e marcat SI, "even" dacă SP, "both" dacă apare în ambe
                                 day = days_map.get(c["day"].lower(), -1)
                                 if day == -1:
                                     continue
-                                await pool.execute(
-                                    """
-                                    INSERT INTO schedule (day_of_week, start_time, end_time, 
-                                        subject_name, class_type, room, week_type)
-                                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                                    ON CONFLICT DO NOTHING
-                                """,
+                                await insert_schedule_row(
+                                    pool,
                                     day,
                                     c["start_time"],
                                     c["end_time"],
@@ -985,11 +968,8 @@ week_type: "odd" dacă e marcat SI, "even" dacă SP, "both" dacă apare în ambe
                             pdf_data = base64.b64encode(f.read()).decode()
                         os.unlink(tmp_path)
 
-                        from google import genai
                         from google.genai import types
-                        from core.config import GEMINI_API_KEY
-
-                        client = genai.Client(api_key=GEMINI_API_KEY)
+                        from core.gemini import client
                         prompt = """
 Analizează acest document cu structura anului universitar.
 Extrage TOATE perioadele importante.
@@ -1039,32 +1019,15 @@ Returnează EXCLUSIV JSON valid:
                         try:
                             data_parsed = json.loads(raw)
 
-                            await pool.execute("""
-                                CREATE TABLE IF NOT EXISTS academic_periods (
-                                    id SERIAL PRIMARY KEY,
-                                    academic_year VARCHAR(10),
-                                    semester INTEGER,
-                                    period_type VARCHAR(50),
-                                    start_date DATE,
-                                    end_date DATE,
-                                    description TEXT,
-                                    created_at TIMESTAMP DEFAULT NOW(),
-                                    UNIQUE (academic_year, semester, period_type, start_date)
-                                )
-                            """)
+                            from db.queries.university_schedules import insert_academic_period
 
                             imported = 0
                             for sem in data_parsed.get("semesters", []):
                                 for period in sem.get("periods", []):
                                     from datetime import datetime
 
-                                    await pool.execute(
-                                        """
-                                        INSERT INTO academic_periods 
-                                            (academic_year, semester, period_type, start_date, end_date, description)
-                                        VALUES ($1, $2, $3, $4, $5, $6)
-                                        ON CONFLICT DO NOTHING
-                                    """,
+                                    await insert_academic_period(
+                                        pool,
                                         data_parsed.get("academic_year", "2025-2026"),
                                         sem["number"],
                                         period["type"],

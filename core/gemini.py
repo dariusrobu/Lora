@@ -40,7 +40,7 @@ TONE: {tone}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 MESAJ UTILIZATOR CURENT — ANALIZEAZĂ ACESTA:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{{user_message}}
+{user_message}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REGULI EXTRAGERE DATE — OBLIGATORIU DE URMAT:
@@ -329,29 +329,6 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - intent="log_habit" — "am făcut habit X", "bifează Y". Loghează valoare la skill existent (sau îl creează).
     - intent="list_habits" — "ce habits am", "arată-mi habits". Redirect → view_skills.
     - intent="delete_habit" — "șterge habit X". Șterge skill-ul.
-27. Focus: module="focus":
-    - intent="focus_start" pentru a porni ("intru în focus 30 minute", "pornește pomodoro").
-    - intent="focus_stop" pentru a opri manual ("oprește focus", "/stopfocus").
-    - intent="focus_list" pentru afișarea sesiunilor ("sesiunile mele de focus", "câte pomodoro").
-23. Planner: module="planner":
-    - intent="time_block" pentru generarea automată a programului zilei ("time block", "program azi", "organizează-mi ziua").
-24. University: module="university":
-    - intent="uni_add_subject" pentru a ADAUGA o MATERIE NOUĂ care nu există. (Ex: "adaugă materia Contabilitate", "am o materie nouă", "înregistrează materia X").
-    - intent="uni_list" pentru situația academică ("situația mea la facultate", "materiile mele", "media mea").
-    - intent="uni_log_attendance" pentru a RAPORTA că AI FOST sau AI LIPSIT. (Ex: "am fost la MRU seminar", "am lipsit de la Statistică", "nu am mers la X").
-    - intent="uni_add_grade" pentru note ("am luat X la Y", "notă X la materia Y").
-    - intent="uni_add_exam" pentru examene ("examen la X pe data Y", "am colocviu la X").
-    - intent="uni_exams" pentru sesiunea de examene ("ce examene am", "sesiunea mea").
-    - intent="uni_attendance_warning" pentru verificarea prezenței ("cum stau cu prezența", "am probleme cu prezența").
-25. Nutrition: module="nutrition":
-    - intent="meal_log" pentru logarea unei mese ("am mâncat la prânz 150g pui", "mic dejun: 3 ouă").
-        * REGULI EXTRA calorie/macro:
-        - Estimează calorii și macro-uri (P/C/F) pentru TOATE elementele menționate.
-        - Dacă lipsește cantitatea, folosește porții medii (ex: o felie pâine = 30g, un măr = 150g, o ciorbă = 350ml).
-        - Folosește specificul românesc pentru mâncăruri tradiționale (ciorbă, mămăligă, sarmale etc.).
-        - "description" va conține textul brut al utilizatorului.
-    - intent="nutrition_summary" pentru sumarul zilei ("ce am mâncat azi", "nutriție azi", "macros azi").
-    - intent="nutrition_target" pentru targeturi ("ce target am", "câte proteine trebuie").
 28. Morning Briefing Trigger:
     - intent="trigger_morning_briefing" pentru când userul se trezește sau vrea briefing-ul acum.
         * Cuvinte cheie: "m-am trezit", "bună dimineața", "am început ziua", "vreau briefingul", "morning briefing".
@@ -547,17 +524,20 @@ IntentResponse schema:
                         "needs_agent",
                     ],
                 )
-                response = await asyncio.to_thread(
-                    client.models.generate_content,
-                    model="gemini-2.5-flash",
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_prompt,
-                        response_mime_type="application/json",
-                        response_schema=response_schema,
-                        temperature=0.3,
-                        max_output_tokens=4000,
+                response = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        client.models.generate_content,
+                        model="gemini-2.5-flash",
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_prompt,
+                            response_mime_type="application/json",
+                            response_schema=response_schema,
+                            temperature=0.3,
+                            max_output_tokens=4000,
+                        ),
                     ),
+                    timeout=30.0,
                 )
                 raw_text = response.text
                 print(f"DEBUG RAW TEXT: {repr(raw_text)}", flush=True)
@@ -589,9 +569,11 @@ IntentResponse schema:
         if isinstance(parsed, list) and len(parsed) > 0:
             parsed = parsed[0]
 
-        # Trigger background fact extraction (fire-and-forget)
-        asyncio.create_task(
-            extract_and_save_facts(pool, client, user_message, parsed.get("reply", ""))
+        # Fire-and-forget: extract personal facts in background without blocking
+        loop = asyncio.get_event_loop()
+        loop.call_soon_threadsafe(
+            asyncio.ensure_future,
+            extract_and_save_facts(pool, client, user_message, parsed.get("reply", "")),
         )
 
         return parsed
@@ -633,17 +615,20 @@ FORMATARE:
 """
     full_instruction = system_instruction + tone_rules
     try:
-        response = await asyncio.to_thread(
-            client.models.generate_content,
-            model="gemini-2.5-flash",
-            contents=[
-                types.Content(role="user", parts=[types.Part(text=data_summary)])
-            ],
-            config=types.GenerateContentConfig(
-                system_instruction=full_instruction,
-                temperature=0.7,
-                max_output_tokens=2000,
+        response = await asyncio.wait_for(
+            asyncio.to_thread(
+                client.models.generate_content,
+                model="gemini-2.5-flash",
+                contents=[
+                    types.Content(role="user", parts=[types.Part(text=data_summary)])
+                ],
+                config=types.GenerateContentConfig(
+                    system_instruction=full_instruction,
+                    temperature=0.7,
+                    max_output_tokens=2000,
+                ),
             ),
+            timeout=45.0,
         )
         return response.text.strip()
     except Exception as e:

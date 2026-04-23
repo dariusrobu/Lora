@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS user_profile (
     last_weekly_review_date DATE,                -- prevents duplicate weekly review
     last_finance_summary_date DATE,              -- prevents duplicate weekly finance summary
     last_evening_date     DATE,                  -- prevents duplicate evening flow
+    last_monthly_review_date DATE,               -- prevents duplicate monthly summary
     created_at            TIMESTAMPTZ DEFAULT NOW(),
     updated_at            TIMESTAMPTZ DEFAULT NOW()
 );
@@ -438,7 +439,7 @@ CREATE TABLE IF NOT EXISTS schedule (
     end_time        TIME NOT NULL,
     room            TEXT,
     class_type      TEXT CHECK (class_type IN ('curs', 'seminar', 'laborator', 'curs+seminars')),
-    week_type       TEXT CHECK (week_type IN ('par', 'impar', 'both')),
+    week_type       TEXT CHECK (week_type IN ('odd', 'even', 'both')),
     is_active       BOOLEAN DEFAULT TRUE,
     created_at      TIMESTAMP DEFAULT NOW()
 );

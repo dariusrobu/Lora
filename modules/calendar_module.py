@@ -61,7 +61,7 @@ async def handle_calendar_intent(
                 if end_dt.tzinfo is None:
                     end_dt = calendar_core.LOCAL_TZ.localize(end_dt)
             
-            calendar_core.create_event(
+            await calendar_core.create_event(
                 summary=summary,
                 start=start_dt,
                 end=end_dt,

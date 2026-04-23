@@ -20,6 +20,7 @@ from core.config import (
     TIMEZONE,
     MORNING_BRIEFING_TIME,
     EOD_REFLECTION_TIME,
+    CALENDAR_SECRET,
 )
 from db.connection import get_pool, close_pool
 from bot.handler import (
@@ -44,13 +45,21 @@ from modules.skills import skills_command
 from core.ical import generate_user_calendar
 from api.routes import setup_api_routes
 
-# 2. Setup Logging
+# 2. Setup Logging — rotating file (2 MB × 3) + stdout stream
+from logging.handlers import RotatingFileHandler
+
+_log_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+_file_handler = RotatingFileHandler("bot.log", maxBytes=2 * 1024 * 1024, backupCount=3, encoding="utf-8")
+_file_handler.setFormatter(_log_formatter)
+_stream_handler = logging.StreamHandler(sys.stdout)
+_stream_handler.setFormatter(_log_formatter)
+
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
-    handlers=[logging.StreamHandler(sys.stdout)],
+    handlers=[_stream_handler, _file_handler],
 )
 logger = logging.getLogger(__name__)
+
 
 
 async def handle_health_check(request):
@@ -59,22 +68,14 @@ async def handle_health_check(request):
 
 async def handle_calendar_request(request):
     """HTTP endpoint to serve the .ics calendar."""
-    print(
-        f"DEBUG: Received calendar request for token: {request.match_info.get('token')}"
-    )
-    # Simple security check: token in URL
+    # Secure token comparison — never derived from the public bot ID
     token = request.match_info.get("token")
-    # Use the first 8 characters of the Telegram Bot Token as a simple secret
-    expected_token = TELEGRAM_BOT_TOKEN.split(":")[0]
-
-    if token != expected_token:
-        print(f"DEBUG: Unauthorized request. Expected {expected_token}, got {token}")
+    if not token or token != CALENDAR_SECRET:
         return web.Response(text="Unauthorized", status=403)
 
     pool = request.app["pool"]
     try:
         ics_bytes = await generate_user_calendar(pool)
-        print(f"DEBUG: Successfully generated calendar ({len(ics_bytes)} bytes)")
         return web.Response(
             body=ics_bytes,
             content_type="text/calendar",
@@ -88,15 +89,25 @@ async def handle_calendar_request(request):
         return web.Response(text=f"Error generating calendar: {e}", status=500)
 
 
+
 PID_FILE = "lora.pid"
 
 
 def check_pid_lock():
-    """Prevents multiple bot instances from running."""
-    # First, remove any stale PID file from previous crash/restart
+    """Prevents multiple bot instances from running simultaneously."""
     if os.path.exists(PID_FILE):
-        os.remove(PID_FILE)
-        print("Removed stale PID file.")
+        try:
+            with open(PID_FILE) as f:
+                existing_pid = int(f.read().strip())
+            # Signal 0 checks if the process is alive without killing it
+            os.kill(existing_pid, 0)
+            # Process is alive — another instance is running, abort
+            print(f"FATAL: Another Lora instance is already running (PID {existing_pid}). Exiting.")
+            sys.exit(1)
+        except (ProcessLookupError, ValueError):
+            # Process not found or PID file corrupt — safe to continue
+            print(f"Removed stale PID file (process {existing_pid if 'existing_pid' in dir() else '?'} is gone).")
+            os.remove(PID_FILE)
 
     with open(PID_FILE, "w") as f:
         f.write(str(os.getpid()))
@@ -104,6 +115,7 @@ def check_pid_lock():
 
 # Prevent multiple bot instances from running
 check_pid_lock()
+
 
 
 async def start_bot():
@@ -153,9 +165,17 @@ async def start_bot():
 
         exists = await conn.fetchval("SELECT EXISTS (SELECT 1 FROM semester_config)")
         if not exists:
+            from core.config import SEMESTER_START_DATE
+            from datetime import datetime
+            
+            try:
+                start_date = datetime.strptime(SEMESTER_START_DATE, "%Y-%m-%d").date()
+            except ValueError:
+                start_date = date(2026, 2, 23)
+
             await conn.execute(
                 "INSERT INTO semester_config (semester_start) VALUES ($1)",
-                date(2026, 2, 23),
+                start_date,
             )
 
     # 3. Build the Application

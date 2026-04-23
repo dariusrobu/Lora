@@ -2,271 +2,138 @@
 
 > For AI coding agents. Read before making changes.
 
-## Project Overview
-
-Personal Telegram bot ("second brain") for one user, integrated with the Council multi-agent system.
+## Stack
 
 - **Python** 3.11+ with required type hints
-- **Telegram**: `python-telegram-bot==22.6` (async, long polling)
-- **LLM**: `google-genai` SDK with `gemini-2.5-flash`
-- **Database**: Neon PostgreSQL via `asyncpg` — **no ORM**
+- **LLM**: `gemini-2.5-flash` via `from google import genai` — NOT legacy `google-generativeai`
+- **Telegram**: `python-telegram-bot==22.6` (long polling)
+- **Database**: Neon PostgreSQL via `asyncpg` — no ORM
 - **Scheduler**: `apscheduler==3.10.4`
+- **Hosting**: Railway (`numReplicas: 1`)
 
-**Flow**: `message → core/gemini.py → core/router.py → modules/{module}.py → db/queries/{module}.py`
+## Core Architecture
 
-## Council Integration
+`message → core/gemini.py → core/router.py → modules/{module}.py → db/queries/{module}.py`
 
-Lora integrates with the Business Council multi-agent system (5 bots: CEO, CFO, CTO, CMO, COO).
+**Never call Telegram directly from modules** — return `(reply_text, keyboard_or_none)` and let `handler.py` send.
 
-### Configuration
-```bash
-COUNCIL_API_URL=https://business-council.onrender.com
-COUNCIL_API_SECRET=your-secret
-COUNCIL_GROUP_CHAT_ID=-100xxxxx
-CTO_BOT_USERNAME=@cto_bot
+### IntentResponse Schema
+
+Gemini must return valid JSON with these fields:
+
+```json
+{
+  "intent": "add_task | chat | clarify | ...",
+  "module": "tasks | skills | null | ...",
+  "data": { ... },
+  "reply": "MarkdownV2 text — RAW characters, NO backslash escaping",
+  "needs_confirmation": false,
+  "needs_agent": false,
+  "agent_tools_needed": ["tool_get_tasks", ...]
+}
 ```
 
-### Core Council Functions (`core/council.py`)
-| Function | Purpose |
-|----------|---------|
-| `get_projects()` | Fetch strategic projects from Council |
-| `get_summary()` | Fetch executive summary (`/summary/me`) |
-| `get_decisions(id)` | Fetch decisions for project |
-| `send_feedback_to_cto()` | Send task difficulty feedback |
-| `send_report_to_council()` | Send daily completed tasks report |
+**Date strings must NOT be escape_md'd** — produces `2026\-03\-26` which breaks MarkdownV2.
 
-### Council-Powered Features
-1. **Task Linking**: When completing a task, Lora shows linked Council decision context
-2. **Executive Summary**: Morning briefing shows strategic priorities from Council
-3. **Feedback Loop**: After task completion → asks difficulty (1-10) → sends to CTO
-4. **Daily Report**: At EOD → sends completed tasks to Council via `POST /report/{id}`
-5. **Group Posting**: Optionally posts `[REPORT]` to Council group chat
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `core/gemini.py` | System prompt (~450 lines), LLM calls, IntentResponse contract |
+| `core/router.py` | Routes intents to modules, handles `needs_agent` |
+| `core/agent.py` | Agentic mode for complex queries (`run_agent`) |
+| `bot/handler.py` | Message routing, security check, dispatch |
+| `bot/formatter.py` | `escape_md()` user input, `safe_markdown()` LLM output, `split_message()` |
+| `db/schema.sql` | Source of truth — run `psql $DATABASE_URL -f db/schema.sql` once |
 
 ## Commands
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-
 # Run the bot
 python main.py
 
 # Lint (required before commit)
 ruff check .
 
-# Format code
+# Format
 ruff format .
 
-# Database init (fresh)
+# Database init
 psql $DATABASE_URL -f db/schema.sql
-
-# Apply migrations
 psql $DATABASE_URL -f db/migrations/001_schema_fixes.sql
 psql $DATABASE_URL -f db/migrations/003_projects_enhanced.sql
 psql $DATABASE_URL -f db/migrations/004_finance_categories.sql
 ```
 
+## Required Env Vars
+
+`TELEGRAM_BOT_TOKEN`, `TELEGRAM_USER_ID`, `GEMINI_API_KEY`, `DATABASE_URL`, `TIMEZONE`, `MORNING_BRIEFING_TIME`, `EOD_REFLECTION_TIME`, `LORA_API_SECRET`, `COUNCIL_API_SECRET`
+
+Additional (optional): `ICLOUD_USERNAME`, `ICLOUD_APP_PASSWORD`, `OPENWEATHER_API_KEY`
+
+## Council Integration
+
+Functions in `core/council.py`: `get_projects()`, `get_summary()`, `get_decisions(id)`, `send_feedback_to_cto()`, `send_report_to_council()`
+
+Council-powered features: Task linking on completion, Executive Summary in morning briefing, Difficulty feedback loop, Daily EOD report, Group chat posting.
+
+## Modules (23 total)
+
+`tasks`, `skills` (replaces habits), `projects`, `notes`, `finance`, `events`, `shopping`, `goals`, `health`, `nutrition`, `workout`, `university`, `schedule`, `reading`, `focus`, `planner`, `insights`, `memory`, `weather`, `news`, `mood`, `calendar_module`, `calendar`
+
 ## Code Style
 
-### Type Hints (Required)
+### Type hints (required)
 ```python
-def foo(pool, user_id: int) -> Tuple[str, Any]:
-    data: Dict[str, Any] = {}
-    value: int | None = None
-
 async def get_user(pool, user_id: int) -> Optional[Dict[str, Any]]:
 ```
 
-### Imports (Ordered)
+### Imports (ordered)
 ```python
 # stdlib
 from typing import Dict, Any, Tuple, Optional
-from datetime import datetime
 
 # third-party
 import asyncpg
 
-# local (absolute imports, no relative)
+# local (absolute imports)
 from db.queries.tasks import add_task
-from bot.formatter import escape_md
 ```
 
-### Naming
-| Type | Convention | Example |
-|------|------------|---------|
-| Files | `snake_case.py` | `task_queries.py` |
-| Functions | `snake_case` | `async def get_user_profile` |
-| Classes | `PascalCase` | `MyValidator` |
-| Constants | `UPPER_SNAKE_CASE` | `TELEGRAM_BOT_TOKEN` |
-
-### Docstrings (Google Style)
-```python
-async def get_user(pool, user_id: int) -> Optional[Dict[str, Any]]:
-    """Fetch user by ID from database.
-    
-    Args:
-        pool: Database connection pool.
-        user_id: The user's Telegram ID.
-    
-    Returns:
-        User dict or None if not found.
-    """
-```
-
-## Error Handling
-
-```python
-async def my_handler(update, context):
-    try:
-        # ... logic ...
-    except Exception as e:
-        print(f"ERROR: {e}")
-        traceback.print_exc()
-        await update.message.reply_text("A apărut o eroare.")
-```
-
-- Wrap every handler in try/except
-- Log with `print(f"ERROR: {e}")` + `traceback.print_exc()`
-- User errors in Romanian, system comments in English
-
-## Database (asyncpg)
-
-```python
-async def get_user(pool, user_id: int) -> Optional[Dict[str, Any]]:
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
-        return dict(row) if row else None
-```
-
-**Rules**:
+### DB queries
 - Use `$1, $2` placeholders — never f-strings or string interpolation
-- Keep queries in `db/queries/{module}.py` for shared queries
-- Use `json.loads()` for JSON columns
+- Keep queries in `db/queries/{module}.py`
 
-## Modules Pattern
-
-Modules return `(reply_text, keyboard_or_none)`:
-
+### Error handling
 ```python
-async def handle_module_intent(
-    pool,
-    intent: str,
-    data: Dict[str, Any]
-) -> Tuple[str, InlineKeyboardMarkup | None]:
-    if intent == "add_item":
-        return "Adăugat!", None
-    return "Intent not handled", None
+try:
+    # ...
+except Exception as e:
+    print(f"ERROR: {e}")
+    traceback.print_exc()
+    await update.message.reply_text("A apărut o eroare.")
 ```
+User errors in Romanian, system comments in English.
 
-**Never call Telegram directly** — return data, let `handler.py` send.
-
-## MarkdownV2 Formatting
-
-Use `bot/formatter.py`:
-
-| Function | Use for |
-|----------|---------|
-| `escape_md(text)` | User input, titles, untrusted text |
-| `safe_markdown(text)` | Gemini output, formatted strings |
-| `split_message(text)` | Messages over 4096 chars |
-
-**Characters to escape**: `_` `*` `[` `]` `(` `)` `~` `` ` `` `>` `#` `+` `-` `=` `|` `{` `}` `.` `!`
-
-**Date strings should NOT be escape_md'd** — `escape_md("2026-03-26")` produces `2026\\-03\\-26` which breaks MarkdownV2.
-
-## State Machine (`core/state.py`)
+## State Machine
 
 ```python
 await set_state(pool, "awaiting_confirmation", module, action, entity_id)
 state = await get_state(pool)
 await clear_state(pool)
 ```
-
-**States**: `awaiting_confirmation`, `awaiting_edit_field`, `null`
-
-## Folder Structure
-
-```
-lora/
-├── main.py                    # Entry point — asyncio loop, handlers, scheduler, web server
-├── requirements.txt
-├── railway.json               # Railway deployment (numReplicas: 1)
-├── api/routes.py              # HTTP API routes
-│
-├── bot/
-│   ├── handler.py             # Message routing, security, dispatch
-│   ├── keyboards.py           # InlineKeyboardMarkup builders
-│   ├── formatter.py           # MarkdownV2 utilities
-│   ├── voice.py               # STT transcription
-│   ├── tts.py                # edge-tts wrapper
-│   └── onboarding.py          # First-run wizard
-│
-├── core/
-│   ├── gemini.py              # LLM calls, system prompt, IntentResponse
-│   ├── router.py              # Intent → module routing
-│   ├── context.py            # build_context() for prompts
-│   ├── state.py             # State machine
-│   ├── config.py            # Env var loading + startup validation
-│   ├── memory.py            # Long-term fact extraction
-│   ├── ical.py            # Calendar generation
-│   ├── council.py            # Council API integration ★
-│   └── translator.py         # Council jargon translation ★
-│
-├── modules/                   # Business logic (no Telegram calls)
-│   ├── tasks.py             ├── projects.py       ├── notes.py
-│   ├── finance.py           ├── events.py       ├── shopping.py
-│   ├── goals.py             ├── skills.py        ├── mood.py
-│   ├── health.py            ├── nutrition.py      ├── workout.py
-│   ├── university.py        ├── schedule.py     ├── reading.py
-│   ├── focus.py            ├── planner.py       ├── insights.py
-│   ├── memory.py            ├── news.py         ├── weather.py
-│
-├── scheduler/
-│   └── jobs.py               # APScheduler jobs (morning briefing, EOD, daily report ★)
-│
-├── db/
-��   ├── connection.py         # asyncpg pool
-│   ├── schema.sql            # Table definitions
-│   ├── migrations/           # Schema migrations
-│   └── queries/              # Raw SQL per module
-└── api/
-    └── routes.py            # HTTP endpoints
-```
-
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `core/gemini.py` | LLM calls, system prompt, IntentResponse |
-| `core/router.py` | Routes intents to modules |
-| `core/council.py` | Council API integration ★ |
-| `bot/handler.py` | Message routing, security, dispatch |
-| `bot/formatter.py` | MarkdownV2 escaping |
-| `db/schema.sql` | All table definitions |
-| `scheduler/jobs.py` | Scheduled jobs including Council report ★ |
+States: `awaiting_confirmation`, `awaiting_edit_field`, `null`
 
 ## Language
 
-- **Romglish**: Romanian base, English tech terms
-- User errors in Romanian: "A apărut o eroare"
-- Avoid filler: "Sigur!", "Cu plăcere!"
-- Max 1 sentence for simple actions
+Romglish: Romanian base, English tech terms. User errors in Romanian: "A apărut o eroare." Max 1 sentence for simple actions. NO filler phrases: "Sigur!", "Cu plăcere!", "Bineînțeles!".
 
 ## Gotchas
 
 - SDK: `from google import genai` — NOT `google-generativeai`
 - `/reload` uses `os.execl()` — hard restart
-- Railway: `numReplicas: 1` for long polling
 - `bot.log` not rotated
-- Startup: 10s delay to clear old polling instances (main.py:172)
-- Required env vars: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_USER_ID`, `GEMINI_API_KEY`, `DATABASE_URL`, `TIMEZONE`, `MORNING_BRIEFING_TIME`, `EOD_REFLECTION_TIME`, `LORA_API_SECRET`, `COUNCIL_API_SECRET` ★
+- Startup: 10s delay to clear old polling instances (main.py:222)
 - No test suite exists
-
-## Deploy
-
-```bash
-ruff check .                    # Must pass
-git add -A
-git commit -m "description"
-git push                        # Railway auto-deploys
-```
+- Calendar sync tables created in `main.py`, not `schema.sql`
+- Voice input: STT → text → normal pipeline (bypasses Gemini during onboarding)

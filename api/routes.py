@@ -8,11 +8,13 @@ import db.queries.memory as memory_queries
 from core.context import build_context
 
 
-def serialize_dic(d):
-    for k, v in d.items():
-        if isinstance(v, (datetime, date)):
-            d[k] = v.isoformat()
-    return d
+def serialize_dic(d: dict) -> dict:
+    """Return a copy of d with date/datetime values converted to ISO strings."""
+    return {
+        k: v.isoformat() if isinstance(v, (datetime, date)) else v
+        for k, v in d.items()
+    }
+
 
 
 @require_auth

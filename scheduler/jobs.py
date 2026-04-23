@@ -696,11 +696,18 @@ async def send_eod_reflection(application, pool):
             "Seară liniștită\\. 🌙"
         )
 
-        await application.bot.send_message(
-            chat_id=TELEGRAM_USER_ID,
-            text=safe_markdown(message),
-            parse_mode=ParseMode.MARKDOWN_V2,
-        )
+        try:
+            await application.bot.send_message(
+                chat_id=TELEGRAM_USER_ID,
+                text=safe_markdown(message),
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+        except Exception as e:
+            print(f"Evening/Journal message MarkdownV2 failed, falling back: {e}", flush=True)
+            await application.bot.send_message(
+                chat_id=TELEGRAM_USER_ID,
+                text=message
+            )
 
         try:
             from bot.tts import text_to_speech
@@ -767,11 +774,18 @@ async def send_journal_night(application, pool):
             "📌 *La ce oră te trezești mâine?* \\(ex: la 7, pe la 8:30\\)"
         )
 
-        await application.bot.send_message(
-            chat_id=TELEGRAM_USER_ID,
-            text=safe_markdown(message),
-            parse_mode=ParseMode.MARKDOWN_V2,
-        )
+        try:
+            await application.bot.send_message(
+                chat_id=TELEGRAM_USER_ID,
+                text=safe_markdown(message),
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+        except Exception as e:
+            print(f"Evening/Journal message MarkdownV2 failed, falling back: {e}", flush=True)
+            await application.bot.send_message(
+                chat_id=TELEGRAM_USER_ID,
+                text=message
+            )
 
         try:
             from bot.tts import text_to_speech
@@ -864,12 +878,20 @@ async def check_class_reminders(application, pool) -> None:
             )
 
             # 2. Trimite mesaj
-            await application.bot.send_message(
-                chat_id=TELEGRAM_USER_ID,
-                text=msg,
-                parse_mode=ParseMode.MARKDOWN_V2,
-                reply_markup=keyboard,
-            )
+            try:
+                await application.bot.send_message(
+                    chat_id=TELEGRAM_USER_ID,
+                    text=msg,
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                    reply_markup=keyboard,
+                )
+            except Exception as e:
+                print(f"Class reminder MarkdownV2 failed, falling back: {e}", flush=True)
+                await application.bot.send_message(
+                    chat_id=TELEGRAM_USER_ID,
+                    text=msg,
+                    reply_markup=keyboard,
+                )
 
             # 3. Loghează DUPĂ trimitere (cu ON CONFLICT DO NOTHING)
             await pool.execute(
@@ -1539,12 +1561,20 @@ async def check_event_reminders(application, pool):
                 ]
             )
 
-            await application.bot.send_message(
-                chat_id=TELEGRAM_USER_ID,
-                text=msg,
-                parse_mode=ParseMode.MARKDOWN_V2,
-                reply_markup=keyboard,
-            )
+            try:
+                await application.bot.send_message(
+                    chat_id=TELEGRAM_USER_ID,
+                    text=msg,
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                    reply_markup=keyboard,
+                )
+            except Exception as e:
+                print(f"Event reminder MarkdownV2 failed, falling back: {e}", flush=True)
+                await application.bot.send_message(
+                    chat_id=TELEGRAM_USER_ID,
+                    text=msg,
+                    reply_markup=keyboard,
+                )
 
             await event_queries.mark_event_reminded(pool, e["id"])
             print(f"Event reminder sent for: {e['title']}", flush=True)
@@ -1583,12 +1613,20 @@ async def check_event_day_reminders(application, pool):
                 ]
             )
 
-            await application.bot.send_message(
-                chat_id=TELEGRAM_USER_ID,
-                text=msg,
-                parse_mode=ParseMode.MARKDOWN_V2,
-                reply_markup=keyboard,
-            )
+            try:
+                await application.bot.send_message(
+                    chat_id=TELEGRAM_USER_ID,
+                    text=msg,
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                    reply_markup=keyboard,
+                )
+            except Exception as e:
+                print(f"Event reminder MarkdownV2 failed, falling back: {e}", flush=True)
+                await application.bot.send_message(
+                    chat_id=TELEGRAM_USER_ID,
+                    text=msg,
+                    reply_markup=keyboard,
+                )
 
             await event_queries.mark_day_reminder_sent(pool, e["id"], tomorrow)
             print(f"Day reminder sent for: {e['title']}", flush=True)

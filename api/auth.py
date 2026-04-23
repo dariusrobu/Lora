@@ -1,8 +1,10 @@
+import functools
 from aiohttp import web
 from core.config import LORA_API_SECRET
 
 
 def require_auth(func):
+    @functools.wraps(func)
     async def wrapper(request):
         secret = request.headers.get("X-Internal-Secret")
         if not secret or secret != LORA_API_SECRET:
