@@ -330,7 +330,7 @@ async def _generate_health_summary_text(pool) -> Tuple[str, Any]:
 
     if not summary or summary.get("total_days", 0) == 0:
         return (
-            "Nu am destule date pentru un rezumat încă. Mai loghează câteva zile! 📊",
+            safe_markdown("Nu am destule date pentru un rezumat încă. Mai loghează câteva zile! 📊"),
             None,
         )
 
@@ -370,7 +370,7 @@ async def _generate_health_chart(pool) -> Tuple[str, Any]:
     history = await health_queries.get_health_history(pool, 30)
     if len(history) < 3:
         return (
-            "Am nevoie de măcar 3 zile logate pentru a genera un grafic relevant. 📉",
+            safe_markdown("Am nevoie de măcar 3 zile logate pentru a genera un grafic relevant. 📉"),
             None,
         )
 
@@ -434,7 +434,7 @@ async def _generate_today_logs_text(pool) -> Tuple[str, Any]:
     totals = await nutrition_queries.get_daily_totals(pool, today)
 
     if not health and not meals:
-        return "Nu ai logat nimic pentru azi încă. 🍎💧", None
+        return safe_markdown("Nu ai logat nimic pentru azi încă. 🍎💧"), None
 
     text = f"📜 *Jurnal Sănătate — {today.strftime('%d %b %Y')}*\n\n"
 

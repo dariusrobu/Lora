@@ -196,7 +196,7 @@ async def _generate_finance_chart(pool) -> Tuple[str, Any]:
     history = await finance_queries.get_finance_history(pool, 30)
     if len(history) < 2:
         return (
-            "Am nevoie de măcar 2 zile cu cheltuieli pentru a genera un trend. 📈",
+            safe_markdown("Am nevoie de măcar 2 zile cu cheltuieli pentru a genera un trend. 📈"),
             None,
         )
 
