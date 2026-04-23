@@ -331,7 +331,7 @@ async def _generate_health_summary_text(pool) -> Tuple[str, Any]:
     if not summary or summary.get("total_days", 0) == 0:
         return (
             safe_markdown("Nu am destule date pentru un rezumat încă. Mai loghează câteva zile! 📊"),
-            None,
+            health_summary_keyboard(),
         )
 
     avg_sleep = summary.get("avg_sleep", 0) or 0
