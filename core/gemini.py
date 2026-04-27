@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import pytz
 import asyncio
 import json
+import logging
 import re
 from pydantic import BaseModel, Field
 from core.memory import extract_and_save_facts
@@ -456,3 +457,40 @@ FORMATARE:
     except Exception as e:
         print(f"Gemini proactive error: {e}", flush=True)
         return ""
+
+
+_voice_logger = logging.getLogger("core.voice_normalize")
+
+
+async def normalize_voice_text(raw: str) -> str:
+    """
+    Calls Gemini to reformat a raw STT transcript into a clean, unambiguous command.
+    Falls back to the original text if the call fails.
+    """
+    prompt = (
+        "Textul următor vine dintr-o transcriere vocală și poate fi informal sau incomplet. "
+        "Reformulează-l ca o comandă clară păstrând exact intenția originală. "
+        "Nu adăuga informații noi. Răspunde DOAR cu textul reformulat, fără explicații. "
+        f"Transcriere: {raw}"
+    )
+    try:
+        response = await asyncio.wait_for(
+            asyncio.to_thread(
+                client.models.generate_content,
+                model="gemini-2.5-flash",
+                contents=[types.Content(role="user", parts=[types.Part(text=prompt)])],
+                config=types.GenerateContentConfig(
+                    temperature=0.2,
+                    max_output_tokens=256,
+                ),
+            ),
+            timeout=10.0,
+        )
+        normalized = response.text.strip()
+        _voice_logger.info("VOICE NORMALIZE | original=%r | normalized=%r", raw, normalized)
+        print(f"🎙 VOICE NORMALIZE | original: {repr(raw)} → normalized: {repr(normalized)}", flush=True)
+        return normalized
+    except Exception as e:
+        _voice_logger.warning("VOICE NORMALIZE FAILED (%s) — using raw text: %r", e, raw)
+        print(f"⚠️ VOICE NORMALIZE FAILED ({e}) — using raw: {repr(raw)}", flush=True)
+        return raw

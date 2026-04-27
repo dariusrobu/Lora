@@ -38,6 +38,7 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
 
     try:
         from bot.voice import transcribe_voice
+        from core.gemini import normalize_voice_text
 
         try:
             text = await transcribe_voice(update, context)
@@ -54,9 +55,11 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
             )
             return
 
-        # Pass transcribed text to the existing message handler logic
-        print(f"🎙 VOICE TRANSCRIBED: {repr(text)}")
-        return await message_handler(update, context, pool, text=text)
+        # Normalize raw STT text before intent analysis
+        print(f"🎙 VOICE TRANSCRIBED (raw): {repr(text)}", flush=True)
+        text = await normalize_voice_text(text)
+
+        return await message_handler(update, context, pool, text=text, source="voice")
 
     except Exception as e:
         print(f"ERROR in voice_handler: {e}")
@@ -224,7 +227,7 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
 
 
 async def message_handler(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, pool, text=None
+    update: Update, context: ContextTypes.DEFAULT_TYPE, pool, text=None, source: str = "text"
 ):
     try:
         user_id = update.effective_user.id if update.effective_user else "Unknown"
@@ -1659,6 +1662,9 @@ Reguli:
                 personal_notes=profile.get("personal_notes") or "",
                 system_hint=system_hint,
             )
+            # Stamp the source so the router can pass it through
+            if isinstance(intent_response, dict):
+                intent_response["source"] = source
         else:
             # For regex matches, we might still need the profile for trigger_morning_briefing
             # but we can load it only if that specific intent is found later.
