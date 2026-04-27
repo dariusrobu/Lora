@@ -387,9 +387,9 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
 
 Exemple de output JSON pentru workout_log:
 - Input: "am fost la MRU seminar azi"
-  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "MRU", "attended": true, "date": "{now.strftime("%Y-%m-%d")}" }}, "reply": "MRU — prezent ✅ înregistrat." }}
+  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "MRU", "attended": true, "date": "{now.strftime('%Y-%m-%d')}" }}, "reply": "MRU — prezent ✅ înregistrat." }}
 - Input: "am lipsit de la Statistică seminar"
-  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "Statistică", "attended": false, "date": "{now.strftime("%Y-%m-%d")}" }}, "reply": "Statistică Inferențială — absent ❌ înregistrat." }}
+  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "Statistică", "attended": false, "date": "{now.strftime('%Y-%m-%d')}" }}, "reply": "Statistică Inferențială — absent ❌ înregistrat." }}
 - Input: "adaugă materia Contabilitate"
   Output: {{ "intent": "uni_add_subject", "module": "university", "data": {{ "name": "Contabilitate" }}, "reply": "Contabilitate adăugată. 📚" }}
 - Input: "am făcut gym 50 min push day, bench press 60kg 5 reps, am ars 300 calorii"
@@ -397,7 +397,7 @@ Exemple de output JSON pentru workout_log:
 - Input: "am alergat 5km în 30 de minute"
   Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "sport_name": "Alergare", "duration_min": 30, "calories": null, "notes": null, "exercises": [] }}, "reply": "Alergare 30min notată. 🏃" }}
 - Input: "reapă-mă mâine la 10:00 să îmi pregătesc rucsacul"
-  Output: {{ "intent": "add_reminder", "module": "events", "data": {{ "title": "să îmi pregătesc rucsacul", "date": "2026-03-28", "event_time": "10:00" }}, "reply": "Reminder setat pentru mâine la 10:00. 🔔" }}
+  Output: {{ "intent": "add_reminder", "module": "events", "data": {{ "title": "să îmi pregătesc rucsacul", "date": "{tomorrow}", "event_time": "10:00" }}, "reply": "Reminder setat pentru mâine la 10:00. 🔔" }}
 - Input: "amintește-mi duminică să verific mail-ul"
   Output: {{ "intent": "add_reminder", "module": "events", "data": {{ "title": "să verific mail-ul", "date": "2026-03-29" }}, "reply": "Reminder setat pentru duminică. 🔔" }}
 
@@ -407,7 +407,7 @@ EXEMPLE DE CLASIFICARE CORECTĂ (FEW-SHOT):
 
 *** ADD_TASK ***
 U: "adaugă task să trimit mailul la contabilitate azi"
-A: intent="add_task", module="tasks", data={{ "title": "să trimit mailul la contabilitate", "due_date": "{now.strftime("%Y-%m-%d")}" }}, reply="Task adăugat ✅"
+A: intent="add_task", module="tasks", data={{ "title": "să trimit mailul la contabilitate", "due_date": "{now.strftime('%Y-%m-%d')}" }}, reply="Task adăugat ✅"
 U: "pune la proiectul Freelance task prioritate high rezolvă bug-ul de login"
 A: intent="add_task", module="tasks", data={{ "title": "rezolvă bug-ul de login", "project": "Freelance", "priority": "high" }}, reply="Bug-ul a fost adăugat la Freelance ✅"
 
@@ -449,9 +449,9 @@ A: intent="workout_log", module="workout", data={{ "sport_name": "Alergare", "du
 
 *** UNI_LOG_ATTENDANCE ***
 U: "am fost la seminar la mate"
-A: intent="uni_log_attendance", module="university", data={{ "subject": "mate", "attended": True, "date": "{now.strftime("%Y-%m-%d")}" }}, reply="Mate — prezent ✅"
+A: intent="uni_log_attendance", module="university", data={{ "subject": "mate", "attended": True, "date": "{now.strftime('%Y-%m-%d')}" }}, reply="Mate — prezent ✅"
 U: "n-am mers azi la curs la baze de date"
-A: intent="uni_log_attendance", module="university", data={{ "subject": "baze de date", "attended": False, "date": "{now.strftime("%Y-%m-%d")}" }}, reply="Baze de date — absent ❌"
+A: intent="uni_log_attendance", module="university", data={{ "subject": "baze de date", "attended": False, "date": "{now.strftime('%Y-%m-%d')}" }}, reply="Baze de date — absent ❌"
 
 *** ADD_GOAL ***
 U: "vreau să îmi setez obiectivul să termin licența anul ăsta"
