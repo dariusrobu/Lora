@@ -514,7 +514,6 @@ A: intent="add_goal", module="goals", data={{ "title": "slăbesc 5 kg", "categor
         raw_text = None
         for attempt in range(2):
             try:
-                response_schema = IntentResponse
                 response = await asyncio.wait_for(
                     asyncio.to_thread(
                         client.models.generate_content,
@@ -523,7 +522,6 @@ A: intent="add_goal", module="goals", data={{ "title": "slăbesc 5 kg", "categor
                         config=types.GenerateContentConfig(
                             system_instruction=system_prompt,
                             response_mime_type="application/json",
-                            response_schema=response_schema,
                             temperature=0.3,
                             max_output_tokens=4000,
                         ),
