@@ -598,6 +598,59 @@ async def message_handler(
                 else:
                     await clear_state(pool)
 
+            elif state["state_type"] == "awaiting_clarification":
+                # The user is answering a clarification question from a previous low-confidence intent.
+                # Merge the clarification answer with the partial intent stored in extra, then re-route.
+                extra = state.get("extra") or {}
+                partial_intent = extra.get("partial_intent", "")
+                partial_data = extra.get("partial_data", {})
+
+                print(
+                    f"🔍 CLARIFICATION RECEIVED: '{text}' for partial_intent='{partial_intent}'",
+                    flush=True,
+                )
+
+                context_snapshot = await build_context(pool, text)
+                profile = await get_user_profile(pool, telegram_id)
+
+                # Build an enriched system hint so Gemini knows this is a clarification
+                clarification_hint = (
+                    f"Utilizatorul răspunde la o întrebare de clarificare. "
+                    f"Intent-ul anterior parțial era '{partial_intent}' cu datele: {partial_data}. "
+                    f"Combină datele parțiale cu răspunsul utilizatorului și returnează intent-ul complet."
+                )
+
+                intent_response = await get_gemini_response(
+                    pool,
+                    user_message=text,
+                    user_name=profile.get("name", "User"),
+                    tone=profile.get("tone", "warm"),
+                    context_snapshot=context_snapshot,
+                    history=history,
+                    personal_notes=profile.get("personal_notes") or "",
+                    system_hint=clarification_hint,
+                )
+                if isinstance(intent_response, dict):
+                    intent_response["source"] = source
+                    # Merge any partial data that Gemini may have dropped
+                    merged_data = {**partial_data, **intent_response.get("data", {})}
+                    # Clean internal keys
+                    merged_data.pop("_original_reply", None)
+                    merged_data.pop("_user_message", None)
+                    intent_response["data"] = merged_data
+                    # Force confidence=1.0 so we don't loop forever
+                    intent_response["confidence"] = 1.0
+                    intent_response["clarification_needed"] = False
+
+                await clear_state(pool)
+                final_reply, reply_markup = await route_intent(
+                    pool, intent_response, bot=context.bot
+                )
+                await update.message.reply_text(
+                    final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup
+                )
+                return
+
             elif state["state_type"] == "awaiting_focus_result":
                 session_id = state.get("item_id")
                 import db.queries.focus as focus_queries

@@ -70,9 +70,24 @@ REGULI STRICTE:
 INSTRUCȚIUNI TEHNICE:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 1. CONFIDENCE: Setează `confidence < 0.7` dacă informația cheie lipsește (ex: nu știi pe ce s-au cheltuit banii, nu știi numele task-ului, etc).
-2. CLARIFICATION_NEEDED: Dacă mesajul este ambiguu sau `confidence < 0.7`, setează `clarification_needed = true` și adaugă O SINGURĂ întrebare scurtă în `clarification_question`. Nu ghici niciodată sume, date, nume de proiecte sau categorii.
-3. TIMP ȘI DATE: Tot ce ține de timp se formatează stric în ISO 8601 ("YYYY-MM-DD" sau "HH:MM"). "Azi" = {now.strftime("%Y-%m-%d")}, "mâine" = {tomorrow}.
-4. STT / VOCE: Conversațiile pot veni din Voice to Text și pot avea typo-uri majore ("adamga" = adaugă, "saldă" = sală). Extrage intenția corectă, trecând peste greșelile de tipar.
+2. CLARIFICATION_NEEDED + clarification_question:
+   - Dacă mesajul e ambiguu sau `confidence < 0.7`, setează `clarification_needed = true`.
+   - Pune în `clarification_question` O SINGURĂ întrebare, directă, MAXIM 10 CUVINTE.
+   - NU ghici niciodată sume, date, nume de proiecte sau categorii — mai bine întreabă.
+   - Exemple CORECTE de clarification_question:
+     * "Pe ce ai cheltuit banii?"
+     * "Care e titlul task-ului?"
+     * "La ce proiect îl adaugi?"
+     * "Ce sport ai practicat?"
+   - Exemple GREȘITE (prea lungi sau vagi):
+     * "Poți să îmi dai mai multe detalii despre ce ai cheltuit?" ❌
+     * "Am nevoie de informații suplimentare." ❌
+3. CLARIFICATION RESPONSE (HINT): Dacă hint-ul conține "răspunde la o întrebare de clarificare" și "Intent-ul anterior":
+   - Combină datele parțiale din hint cu răspunsul utilizatorului.
+   - Setează `confidence = 1.0` și `clarification_needed = false`.
+   - Returnează intent-ul complet și executabil.
+4. TIMP ȘI DATE: Tot ce ține de timp se formatează stric în ISO 8601 ("YYYY-MM-DD" sau "HH:MM"). "Azi" = {now.strftime("%Y-%m-%d")}, "mâine" = {tomorrow}.
+5. STT / VOCE: Conversațiile pot veni din Voice to Text și pot avea typo-uri majore ("adamga" = adaugă, "saldă" = sală). Extrage intenția corectă, trecând peste greșelile de tipar.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONTEXT:
