@@ -407,21 +407,21 @@ EXEMPLE DE CLASIFICARE CORECTĂ (FEW-SHOT):
 
 *** ADD_TASK ***
 U: "adaugă task să trimit mailul la contabilitate azi"
-A: intent="add_task", module="tasks", data={"title": "să trimit mailul la contabilitate", "due_date": "{now.strftime('%Y-%m-%d')}"}, reply="Task adăugat ✅"
+A: intent="add_task", module="tasks", data={{ "title": "să trimit mailul la contabilitate", "due_date": "{now.strftime("%Y-%m-%d")}" }}, reply="Task adăugat ✅"
 U: "pune la proiectul Freelance task prioritate high rezolvă bug-ul de login"
-A: intent="add_task", module="tasks", data={"title": "rezolvă bug-ul de login", "project": "Freelance", "priority": "high"}, reply="Bug-ul a fost adăugat la Freelance ✅"
+A: intent="add_task", module="tasks", data={{ "title": "rezolvă bug-ul de login", "project": "Freelance", "priority": "high" }}, reply="Bug-ul a fost adăugat la Freelance ✅"
 
 *** COMPLETE_TASK ***
 U: "gata, am terminat task-ul cu raportul"
-A: intent="complete_task", module="tasks", data={"title": "raportul"}, reply="Excelent, raportul e bifat! ✅"
+A: intent="complete_task", module="tasks", data={{ "title": "raportul" }}, reply="Excelent, raportul e bifat! ✅"
 U: "bifează antrenamentul de ieri"
-A: intent="complete_task", module="tasks", data={"title": "antrenamentul de ieri"}, reply="Bifat! 💪"
+A: intent="complete_task", module="tasks", data={{ "title": "antrenamentul de ieri" }}, reply="Bifat! 💪"
 
 *** FINANCE_LOG ***
 U: "am dat 45 ron pe un uber"
-A: intent="finance_log", module="finance", data={"amount": 45, "type": "expense", "category": "transport", "description": "uber"}, reply="💸 `45 RON` — transport înregistrat."
+A: intent="finance_log", module="finance", data={{ "amount": 45, "type": "expense", "category": "transport", "description": "uber" }}, reply="💸 `45 RON` — transport înregistrat."
 U: "mi-a intrat salariul 6000 lei"
-A: intent="finance_log", module="finance", data={"amount": 6000, "type": "income", "category": "salariu"}, reply="💰 `6000 RON` — salariu adăugat!"
+A: intent="finance_log", module="finance", data={{ "amount": 6000, "type": "income", "category": "salariu" }}, reply="💰 `6000 RON` — salariu adăugat!"
 
 *** FINANCE_SUMMARY ***
 U: "cum stau cu banii luna asta?"
@@ -431,33 +431,33 @@ A: intent="finance_summary", module="finance", data={{}}, reply="Imediat, scot r
 
 *** LOG_SKILL ***
 U: "am mai băgat 30 de minute de spaniolă"
-A: intent="log_skill", module="skills", data={"skill_name": "spaniolă", "value": 30}, reply="✅ 30 salvat pentru *spaniolă*."
+A: intent="log_skill", module="skills", data={{ "skill_name": "spaniolă", "value": 30 }}, reply="✅ 30 salvat pentru *spaniolă*."
 U: "loghează o oră de citit"
-A: intent="log_skill", module="skills", data={"skill_name": "citit", "value": 60}, reply="✅ 60 salvat pentru *citit*."
+A: intent="log_skill", module="skills", data={{ "skill_name": "citit", "value": 60 }}, reply="✅ 60 salvat pentru *citit*."
 
 *** HEALTH_LOG ***
 U: "am dormit 8h aseară, super bine"
-A: intent="health_log", module="health", data={"sleep_hours": 8.0, "sleep_quality": "great"}, reply="8h somn excelent salvate. 😴"
+A: intent="health_log", module="health", data={{ "sleep_hours": 8.0, "sleep_quality": "great" }}, reply="8h somn excelent salvate. 😴"
 U: "bagă 1 litru de apă și 79.5 kg pe cântar"
-A: intent="health_log", module="health", data={"water_ml": 1000, "weight_kg": 79.5}, reply="Apă și greutate actualizate. 💧⚖️"
+A: intent="health_log", module="health", data={{ "water_ml": 1000, "weight_kg": 79.5 }}, reply="Apă și greutate actualizate. 💧⚖️"
 
 *** WORKOUT_LOG ***
 U: "am fost 1h la sală, push day"
-A: intent="workout_log", module="workout", data={"sport_name": "Gym", "duration_min": 60, "notes": "push day"}, reply="Gym 60min salvat. 💪"
+A: intent="workout_log", module="workout", data={{ "sport_name": "Gym", "duration_min": 60, "notes": "push day" }}, reply="Gym 60min salvat. 💪"
 U: "alergare 45 minute în parc"
-A: intent="workout_log", module="workout", data={"sport_name": "Alergare", "duration_min": 45}, reply="Alergare 45min notată. 🏃"
+A: intent="workout_log", module="workout", data={{ "sport_name": "Alergare", "duration_min": 45 }}, reply="Alergare 45min notată. 🏃"
 
 *** UNI_LOG_ATTENDANCE ***
 U: "am fost la seminar la mate"
-A: intent="uni_log_attendance", module="university", data={"subject": "mate", "attended": True, "date": "{now.strftime('%Y-%m-%d')}"}, reply="Mate — prezent ✅"
+A: intent="uni_log_attendance", module="university", data={{ "subject": "mate", "attended": True, "date": "{now.strftime("%Y-%m-%d")}" }}, reply="Mate — prezent ✅"
 U: "n-am mers azi la curs la baze de date"
-A: intent="uni_log_attendance", module="university", data={"subject": "baze de date", "attended": False, "date": "{now.strftime('%Y-%m-%d')}"}, reply="Baze de date — absent ❌"
+A: intent="uni_log_attendance", module="university", data={{ "subject": "baze de date", "attended": False, "date": "{now.strftime("%Y-%m-%d")}" }}, reply="Baze de date — absent ❌"
 
 *** ADD_GOAL ***
 U: "vreau să îmi setez obiectivul să termin licența anul ăsta"
-A: intent="add_goal", module="goals", data={"title": "să termin licența anul ăsta", "category": "Academice"}, reply="Obiectiv adăugat. Hai să-l spargem în sub-tasks! 🎯"
+A: intent="add_goal", module="goals", data={{ "title": "să termin licența anul ăsta", "category": "Academice" }}, reply="Obiectiv adăugat. Hai să-l spargem în sub-tasks! 🎯"
 U: "adaugă goal nou: slăbesc 5 kg"
-A: intent="add_goal", module="goals", data={"title": "slăbesc 5 kg", "category": "Sănătate"}, reply="Obiectiv înregistrat cu succes! 🎯"
+A: intent="add_goal", module="goals", data={{ "title": "slăbesc 5 kg", "category": "Sănătate" }}, reply="Obiectiv înregistrat cu succes! 🎯"
 """
 
     contents = []
