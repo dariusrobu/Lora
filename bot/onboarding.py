@@ -28,10 +28,12 @@ async def handle_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         keyboard = [
             [
                 InlineKeyboardButton(
-                    "Yes, that's right", callback_data=make_callback_data("onboard", "tz", "ok")
+                    "Yes, that's right",
+                    callback_data=make_callback_data("onboard", "tz", "ok"),
                 ),
                 InlineKeyboardButton(
-                    "No, change it", callback_data=make_callback_data("onboard", "tz", "change")
+                    "No, change it",
+                    callback_data=make_callback_data("onboard", "tz", "change"),
                 ),
             ]
         ]

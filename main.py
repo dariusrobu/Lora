@@ -28,6 +28,7 @@ from bot.handler import (
     callback_handler,
     voice_handler,
     photo_handler,
+    profile_handler,
     focus_command,
     stopfocus_command,
     timeblock_command,
@@ -48,8 +49,12 @@ from api.routes import setup_api_routes
 # 2. Setup Logging — rotating file (2 MB × 3) + stdout stream
 from logging.handlers import RotatingFileHandler
 
-_log_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-_file_handler = RotatingFileHandler("bot.log", maxBytes=2 * 1024 * 1024, backupCount=3, encoding="utf-8")
+_log_formatter = logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+_file_handler = RotatingFileHandler(
+    "bot.log", maxBytes=2 * 1024 * 1024, backupCount=3, encoding="utf-8"
+)
 _file_handler.setFormatter(_log_formatter)
 _stream_handler = logging.StreamHandler(sys.stdout)
 _stream_handler.setFormatter(_log_formatter)
@@ -59,7 +64,6 @@ logging.basicConfig(
     handlers=[_stream_handler, _file_handler],
 )
 logger = logging.getLogger(__name__)
-
 
 
 async def handle_health_check(request):
@@ -89,7 +93,6 @@ async def handle_calendar_request(request):
         return web.Response(text=f"Error generating calendar: {e}", status=500)
 
 
-
 PID_FILE = "lora.pid"
 
 
@@ -105,11 +108,15 @@ def check_pid_lock():
                 # Signal 0 checks if the process is alive without killing it
                 os.kill(existing_pid, 0)
                 # Process is alive — another instance is running, abort
-                print(f"FATAL: Another Lora instance is already running (PID {existing_pid}). Exiting.")
+                print(
+                    f"FATAL: Another Lora instance is already running (PID {existing_pid}). Exiting."
+                )
                 sys.exit(1)
         except (ProcessLookupError, ValueError):
             # Process not found or PID file corrupt — safe to continue
-            print(f"Removed stale PID file (process {existing_pid if 'existing_pid' in dir() else '?'} is gone).")
+            print(
+                f"Removed stale PID file (process {existing_pid if 'existing_pid' in dir() else '?'} is gone)."
+            )
             os.remove(PID_FILE)
 
     with open(PID_FILE, "w") as f:
@@ -118,7 +125,6 @@ def check_pid_lock():
 
 # Prevent multiple bot instances from running
 check_pid_lock()
-
 
 
 async def start_bot():
@@ -170,7 +176,7 @@ async def start_bot():
         if not exists:
             from core.config import SEMESTER_START_DATE
             from datetime import datetime
-            
+
             try:
                 start_date = datetime.strptime(SEMESTER_START_DATE, "%Y-%m-%d").date()
             except ValueError:
@@ -197,8 +203,19 @@ async def start_bot():
     photo_handler_with_pool = partial(photo_handler, pool=pool)
 
     application.add_handler(CommandHandler("calendar", calendar_command))
-    application.add_handler(CommandHandler("test_calendar", partial(message_handler, pool=pool, text="/test_calendar")))
-    application.add_handler(CommandHandler("sync_calendar", partial(message_handler, pool=pool, text="/sync_calendar")))
+    application.add_handler(
+        CommandHandler("profile", partial(profile_handler, pool=pool))
+    )
+    application.add_handler(
+        CommandHandler(
+            "test_calendar", partial(message_handler, pool=pool, text="/test_calendar")
+        )
+    )
+    application.add_handler(
+        CommandHandler(
+            "sync_calendar", partial(message_handler, pool=pool, text="/sync_calendar")
+        )
+    )
     application.add_handler(CommandHandler("focus", focus_command))
     application.add_handler(CommandHandler("stopfocus", stopfocus_command))
     application.add_handler(CommandHandler("timeblock", timeblock_command))

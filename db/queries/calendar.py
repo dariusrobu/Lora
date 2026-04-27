@@ -1,7 +1,9 @@
 from typing import Optional, Dict, Any
 
 
-async def get_sync_record(pool, lora_type: str, lora_id: int) -> Optional[Dict[str, Any]]:
+async def get_sync_record(
+    pool, lora_type: str, lora_id: int
+) -> Optional[Dict[str, Any]]:
     """Checks if a Lora item has already been synced to iCloud."""
     async with pool.acquire() as conn:
         row = await conn.fetchrow(

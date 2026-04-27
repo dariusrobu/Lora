@@ -1,4 +1,5 @@
 from bot.callback_utils import make_callback_data
+
 # core/vision.py
 import json
 import asyncio
@@ -102,8 +103,14 @@ async def process_vision_result(
         keyboard = InlineKeyboardMarkup(
             [
                 [
-                    InlineKeyboardButton("✅ Confirmă", callback_data=make_callback_data("vision", "confirm")),
-                    InlineKeyboardButton("❌ Anulează", callback_data=make_callback_data("vision", "cancel")),
+                    InlineKeyboardButton(
+                        "✅ Confirmă",
+                        callback_data=make_callback_data("vision", "confirm"),
+                    ),
+                    InlineKeyboardButton(
+                        "❌ Anulează",
+                        callback_data=make_callback_data("vision", "cancel"),
+                    ),
                 ]
             ]
         )

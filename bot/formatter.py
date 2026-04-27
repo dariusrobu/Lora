@@ -25,7 +25,7 @@ def safe_markdown(text: str) -> str:
     # Characters that MUST be escaped in MarkdownV2 (excluding * and ` for formatting)
     # Note: hyphen '-' is critical and often missed.
     must_escape = r"[]()~>#+-=|{}.!_"
-    
+
     # We use regex to avoid double-escaping if a backslash is already there
     for char in must_escape:
         # Match char NOT preceded by a backslash
@@ -58,7 +58,7 @@ def split_message(text: str, limit: int = 4000):
 
         chunks.append(text[:idx].strip())
         text = text[idx:].lstrip()
-    
+
     return chunks
 
 

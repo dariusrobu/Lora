@@ -23,6 +23,12 @@ CREATE TABLE IF NOT EXISTS user_profile (
     last_finance_summary_date DATE,              -- prevents duplicate weekly finance summary
     last_evening_date     DATE,                  -- prevents duplicate evening flow
     last_monthly_review_date DATE,               -- prevents duplicate monthly summary
+    -- Behavioral and Preference Extensions
+    preferred_tone        VARCHAR(20) DEFAULT 'direct' CHECK (preferred_tone IN ('formal', 'casual', 'direct')),
+    active_hours_start    TIME DEFAULT '08:00',
+    active_hours_end      TIME DEFAULT '22:00',
+    frequent_categories   JSONB DEFAULT '{}',
+    language_style        JSONB DEFAULT '{}',
     created_at            TIMESTAMPTZ DEFAULT NOW(),
     updated_at            TIMESTAMPTZ DEFAULT NOW()
 );
@@ -35,6 +41,17 @@ CREATE TABLE IF NOT EXISTS conversations (
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX idx_conversations_created ON conversations(created_at DESC);
+
+-- ── Message History (Conversational Context) ──────────────────
+CREATE TABLE IF NOT EXISTS message_history (
+    id          SERIAL PRIMARY KEY,
+    user_id     BIGINT NOT NULL,
+    role        TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content     TEXT NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_message_history_user_id ON message_history(user_id);
+CREATE INDEX idx_message_history_created_at ON message_history(created_at DESC);
 
 -- ── Conversation state ────────────────────────────────────────
 -- Stores ephemeral state between turns (confirmations, edit flows)
@@ -499,14 +516,16 @@ CREATE TABLE IF NOT EXISTS focus_sessions (
 
 -- ── Memory Engine (Long-Term Facts) ───────────────────────────
 CREATE TABLE IF NOT EXISTS memory_facts (
-    id SERIAL PRIMARY KEY,
-    category VARCHAR(50) NOT NULL,  -- 'preference', 'pattern', 'personal', 'achievement'
-    fact TEXT NOT NULL,
-    source VARCHAR(100),            -- 'user_stated', 'inferred', 'observed'
-    confidence NUMERIC(3,2) DEFAULT 1.0,
-    last_seen TIMESTAMP DEFAULT NOW(),
+    id               SERIAL PRIMARY KEY,
+    user_id          BIGINT NOT NULL,
+    category         TEXT DEFAULT 'general', -- 'preference', 'pattern', 'personal', 'achievement'
+    fact             TEXT NOT NULL,
+    source           TEXT DEFAULT 'manual', -- 'manual', 'auto', 'user_stated', 'inferred'
+    confidence       NUMERIC(3,2) DEFAULT 1.0,
+    expires_at       TIMESTAMPTZ,
+    last_seen        TIMESTAMP DEFAULT NOW(),
     times_referenced INTEGER DEFAULT 1,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at       TIMESTAMP DEFAULT NOW()
 );
 CREATE INDEX idx_memory_category ON memory_facts(category);
 CREATE INDEX idx_memory_fact_search ON memory_facts USING GIN(to_tsvector('english', fact));

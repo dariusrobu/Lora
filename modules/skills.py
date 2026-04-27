@@ -150,10 +150,13 @@ async def handle_skill_intent(
                     [
                         InlineKeyboardButton(
                             "✅ Creează și bifează",
-                            callback_data=make_callback_data("skill", "create", "confirm", name, value),
+                            callback_data=make_callback_data(
+                                "skill", "create", "confirm", name, value
+                            ),
                         ),
                         InlineKeyboardButton(
-                            "❌ Anulează", callback_data=make_callback_data("skills", "cancel")
+                            "❌ Anulează",
+                            callback_data=make_callback_data("skills", "cancel"),
                         ),
                     ]
                 ]
@@ -268,7 +271,10 @@ async def handle_skills_callback(update, context, pool) -> None:
                 [
                     [
                         InlineKeyboardButton(
-                            "⬅️ Înapoi", callback_data=make_callback_data("skills", "detail", skill_id)
+                            "⬅️ Înapoi",
+                            callback_data=make_callback_data(
+                                "skills", "detail", skill_id
+                            ),
                         )
                     ]
                 ]
@@ -418,11 +424,10 @@ async def skills_command(update, context) -> None:
             "Eroare la deschiderea dashboard-ului de skills\\.", parse_mode="MarkdownV2"
         )
 
+
 async def _save_prompt_to_conversation(pool, prompt: str) -> None:
-    """Saves the assistant's prompt to the conversation table for Gemini context."""
-    async with pool.acquire() as conn:
-        await conn.execute(
-            "INSERT INTO conversations (role, content) VALUES ($1, $2)",
-            "assistant",
-            prompt,
-        )
+    """Saves the assistant's prompt to the history table for Gemini context."""
+    from db.queries.history import save_message
+    from core.config import TELEGRAM_USER_ID
+
+    await save_message(pool, TELEGRAM_USER_ID, "assistant", prompt)

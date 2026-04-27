@@ -27,10 +27,14 @@ async def handle_memory_callback(query, pool, data: str):
             keyboard = [
                 [
                     InlineKeyboardButton(
-                        "✅ Da, șterge tot", callback_data=make_callback_data("memory", "clear", "all", "confirmed")
+                        "✅ Da, șterge tot",
+                        callback_data=make_callback_data(
+                            "memory", "clear", "all", "confirmed"
+                        ),
                     ),
                     InlineKeyboardButton(
-                        "❌ Nu, anulează", callback_data=make_callback_data("memory", "view", "back")
+                        "❌ Nu, anulează",
+                        callback_data=make_callback_data("memory", "view", "back"),
                     ),
                 ]
             ]
@@ -153,5 +157,50 @@ async def handle_memory_intent(
             "Nu am înțeles ce amintire vrei să șterg. Te rog să menționezi ID-ul (ex: #3).",
             None,
         )
+
+    elif intent == "memory_search":
+        topic = data.get("topic")
+        user_id = data.get("user_id")
+        if not topic:
+            return "Despre ce anume vrei să afli ce știu?", None
+
+        results = await search_memory_core(pool, topic, user_id)
+
+        if not results["facts"] and not results["history"]:
+            return (
+                f"Momentan nu am nicio informație salvată despre *{escape_md(topic)}*.",
+                None,
+            )
+
+        text = f"🔍 *Ce știu despre {escape_md(topic)}:*\n\n"
+
+        if results["facts"]:
+            text += "📌 *Fapte memorate:*\n"
+            for f in results["facts"]:
+                text += f"• {escape_md(f['fact'])}\n"
+            text += "\n"
+
+        if results["history"]:
+            text += "💬 *Din conversații recente:*\n"
+            for h in results["history"][:3]:
+                content = h["content"]
+                if len(content) > 120:
+                    content = content[:117] + "..."
+                text += f'• _"{escape_md(content)}"_\n'
+
+        return safe_markdown(text), None
+
+    return "Modulul de memorie a primit o intenție necunoscută.", None
+
+
+async def search_memory_core(pool, topic: str, user_id: int) -> Dict[str, Any]:
+    """Aggregates search results from memory_facts and message_history."""
+    from db.queries.history import search_history
+    from db.queries.memory import semantic_search_memories
+
+    facts = await semantic_search_memories(pool, user_id, topic)
+    history = await search_history(pool, user_id, topic)
+
+    return {"facts": facts, "history": history}
 
     return "Modulul de memorie a primit o intenție necunoscută.", None

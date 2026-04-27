@@ -1,5 +1,5 @@
 from bot.callback_utils import make_callback_data
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from datetime import date
 import io
 import matplotlib.pyplot as plt
@@ -11,7 +11,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 async def handle_finance_intent(
     pool, intent: str, data: Dict[str, Any]
-) -> Tuple[str, Any]:
+) -> Tuple[str, Any, Optional[int]]:
     """
     Main router for finance-related intents.
     """
@@ -19,38 +19,48 @@ async def handle_finance_intent(
         return await _handle_log_expense(pool, data)
 
     elif intent == "finance_summary" or intent == "view_finance":
-        return await _generate_finance_summary_text(pool)
+        res_text, res_markup = await _generate_finance_summary_text(pool)
+        return res_text, res_markup, None
 
     elif intent == "finance_chart":
-        return await _generate_finance_chart(pool)
+        res_text, res_markup = await _generate_finance_chart(pool)
+        return res_text, res_markup, None
 
     elif intent == "list_categories":
-        return await _list_categories(pool)
+        res_text, res_markup = await _list_categories(pool)
+        return res_text, res_markup, None
 
     elif intent == "add_category":
-        return await _add_category(pool, data)
+        res_text, res_markup = await _add_category(pool, data)
+        return res_text, res_markup, None
 
     elif intent == "delete_category":
-        return await _delete_category(pool, data)
+        res_text, res_markup = await _delete_category(pool, data)
+        return res_text, res_markup, None
 
     elif intent == "set_budget":
-        return await _set_budget(pool, data)
+        res_text, res_markup = await _set_budget(pool, data)
+        return res_text, res_markup, None
 
-    return escape_md(
-        "Nu sunt sigură cum să procesez această cerere pentru finanțe. 💸"
-    ), None
+    return (
+        escape_md("Nu sunt sigură cum să procesez această cerere pentru finanțe. 💸"),
+        None,
+        None,
+    )
 
 
-async def _handle_log_expense(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
+async def _handle_log_expense(
+    pool, data: Dict[str, Any]
+) -> Tuple[str, Any, Optional[int]]:
     amount = data.get("amount")
     category = data.get("category", "other")
     description = data.get("description", "")
     tx_type = data.get("type", "expense")
 
     if amount is None:
-        return "Te rog să specifici suma (ex: 50 RON). 💸", None
+        return "Te rog să specifici suma (ex: 50 RON). 💸", None, None
 
-    await finance_queries.log_transaction(
+    tx_id = await finance_queries.log_transaction(
         pool, tx_type=tx_type, amount=amount, category=category, description=description
     )
 
@@ -61,7 +71,7 @@ async def _handle_log_expense(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
     daily_total = await finance_queries.get_daily_total(pool, date.today())
     msg += f"\n💸 *Cheltuieli azi:* {daily_total:.2f} RON"
 
-    return msg, None
+    return msg, None, tx_id
 
 
 async def _list_categories(pool) -> Tuple[str, Any]:
@@ -80,10 +90,15 @@ async def _list_categories(pool) -> Tuple[str, Any]:
         [
             [
                 InlineKeyboardButton(
-                    "➕ Categorie Nouă", callback_data=make_callback_data("finance", "add", "category")
+                    "➕ Categorie Nouă",
+                    callback_data=make_callback_data("finance", "add", "category"),
                 )
             ],
-            [InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("finance", "summary"))],
+            [
+                InlineKeyboardButton(
+                    "◀️ Înapoi", callback_data=make_callback_data("finance", "summary")
+                )
+            ],
         ]
     )
     return safe_markdown(text), keyboard
@@ -176,17 +191,32 @@ async def _generate_finance_summary_text(pool) -> Tuple[str, Any]:
         [
             [
                 InlineKeyboardButton(
-                    "➕ Cheltuială", callback_data=make_callback_data("finance", "add", "expense")
+                    "➕ Cheltuială",
+                    callback_data=make_callback_data("finance", "add", "expense"),
                 ),
-                InlineKeyboardButton("➕ Venit", callback_data=make_callback_data("finance", "add", "income")),
+                InlineKeyboardButton(
+                    "➕ Venit",
+                    callback_data=make_callback_data("finance", "add", "income"),
+                ),
             ],
-            [InlineKeyboardButton("📈 Grafic Trend", callback_data=make_callback_data("finance", "chart"))],
             [
                 InlineKeyboardButton(
-                    "📊 Statistici DETALIATE", callback_data=make_callback_data("finance", "stats")
+                    "📈 Grafic Trend",
+                    callback_data=make_callback_data("finance", "chart"),
                 )
             ],
-            [InlineKeyboardButton("⚙️ Categorii", callback_data=make_callback_data("finance", "categories"))],
+            [
+                InlineKeyboardButton(
+                    "📊 Statistici DETALIATE",
+                    callback_data=make_callback_data("finance", "stats"),
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "⚙️ Categorii",
+                    callback_data=make_callback_data("finance", "categories"),
+                )
+            ],
         ]
     )
 
@@ -197,7 +227,9 @@ async def _generate_finance_chart(pool) -> Tuple[str, Any]:
     history = await finance_queries.get_finance_history(pool, 30)
     if len(history) < 2:
         return (
-            safe_markdown("Am nevoie de măcar 2 zile cu cheltuieli pentru a genera un trend. 📈"),
+            safe_markdown(
+                "Am nevoie de măcar 2 zile cu cheltuieli pentru a genera un trend. 📈"
+            ),
             None,
         )
 
@@ -295,3 +327,21 @@ async def handle_finance_message(update, pool, state: dict, text: str) -> None:
         traceback.print_exc()
         await update.message.reply_text("A apărut o eroare la logarea finanțelor.")
         await clear_state(pool)
+
+
+async def undo_last_action(pool, item_id: int) -> str:
+    """Rolls back the last transaction."""
+    if not item_id:
+        return "Nu am ce să anulez."
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT amount, category, description FROM finances WHERE id = $1", item_id
+        )
+        if not row:
+            return "Tranzacția a fost deja ștearsă sau nu există."
+
+        await conn.execute("DELETE FROM finances WHERE id = $1", item_id)
+
+        desc = f" ({row['description']})" if row["description"] else ""
+        return f"🗑️ Am anulat tranzacția: *{row['amount']} RON* la *{row['category']}*{escape_md(desc)}\\."

@@ -240,6 +240,7 @@ async def get_all_vacations(pool) -> list:
         )
         return [dict(r) for r in rows]
 
+
 async def get_full_schedule(pool) -> list:
     """Returnează tot orarul activ (indiferent de săptămână)."""
     async with pool.acquire() as conn:

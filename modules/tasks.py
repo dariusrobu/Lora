@@ -1,5 +1,5 @@
 from bot.callback_utils import make_callback_data
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from datetime import datetime, date, timedelta
 import re
 import db.queries.tasks as task_queries
@@ -283,11 +283,10 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
             )
 
 
-
 async def handle_task_intent(
     pool, intent: str, data: Dict[str, Any]
-) -> Tuple[str, Any]:
-    """Handles task-related intents and returns reply text + keyboard."""
+) -> Tuple[str, Any, Optional[int]]:
+    """Handles task-related intents and returns reply text + keyboard + item_id."""
 
     if intent == "add_task":
         title = (
@@ -312,7 +311,7 @@ async def handle_task_intent(
                     if not priority and parsed.get("priority"):
                         priority = parsed.get("priority")
             if not title:
-                return "What task should I add? (I didn't catch the title)", None
+                return "What task should I add? (I didn't catch the title)", None, None
 
         due_date_str = data.get("due_date")
         due_date = None
@@ -362,7 +361,23 @@ async def handle_task_intent(
 
         from bot.keyboards import task_keyboard
 
-        return f"Done ✅ Added *{escape_md(title)}*", task_keyboard(task_id)
+        reply_msg = f"Done ✅ Added *{escape_md(title)}*"
+
+        # --- PROACTIVE MEMORY: Find similar tasks ---
+        from core.config import TELEGRAM_USER_ID
+
+        similar = await task_queries.find_similar_tasks(pool, title, TELEGRAM_USER_ID)
+        if similar:
+            s = similar[0]
+            days = s.get("duration_days", 0) or 0
+            date_str = (
+                s["completed_at"].strftime("%Y-%m-%d")
+                if s.get("completed_at")
+                else "trecut"
+            )
+            reply_msg += f"\n\n💡 _Ai mai avut un task similar pe {date_str} — a durat {int(days)} zile\\._"
+
+        return reply_msg, task_keyboard(task_id), task_id
 
     elif intent == "list_tasks":
         project_id: int | None = data.get("project_id")
@@ -384,7 +399,7 @@ async def handle_task_intent(
                 if project_name
                 else "Niciun task restant\\! 🎉"
             )
-            return msg, None
+            return msg, None, None
 
         # Group tasks by project_name (query already sorted by project_name NULLS LAST)
         from collections import OrderedDict
@@ -418,16 +433,16 @@ async def handle_task_intent(
 
         from bot.keyboards import task_list_keyboard
 
-        return "\n".join(lines), task_list_keyboard(tasks, back_callback="tasks:main")
-
-        from bot.keyboards import task_list_keyboard
-
-        return "\n".join(lines), task_list_keyboard(tasks, back_callback="tasks:main")
+        return (
+            "\n".join(lines),
+            task_list_keyboard(tasks, back_callback="tasks:main"),
+            None,
+        )
 
     elif intent == "complete_task":
         task_id = data.get("id")
         if not task_id:
-            return "Which task would you like to complete?", None
+            return "Which task would you like to complete?", None, None
 
         task = await task_queries.get_task(pool, task_id)
         task_title = task["title"] if task else "Unknown task"
@@ -445,14 +460,12 @@ async def handle_task_intent(
         else:
             context_msg = ""
 
-        await task_queries.complete_task(pool, task_id)
-
         feedback_msg = (
-            f"✅ Completed *{escape_md(task_title)}*{context_msg}\n\n"
-            f"_How hard was this? (1-10)_ 🤔\n"
-            f"Reply with a number or '/done [number]'"
+            f"✅ *{escape_md(task_title)}* completat\!{context_msg}\n\n"
+            "Pe o scară de la 1 la 10, cât de greu a fost? "
+            "Reply with a number or '/done [number]'"
         )
-        return feedback_msg, None
+        return feedback_msg, None, task_id
 
     elif intent == "submit_task_feedback":
         difficulty = data.get("difficulty") or data.get("rating")
@@ -461,21 +474,22 @@ async def handle_task_intent(
         context = data.get("context", "")
 
         if not difficulty:
-            return "Ce dificultate? (1-10)", None
+            return "Ce dificultate? (1-10)", None, None
 
         try:
             difficulty = int(difficulty)
             difficulty = max(1, min(10, difficulty))
         except (ValueError, TypeError):
-            return "Te rog un număr între 1-10.", None
+            return "Te rog un număr între 1-10.", None, None
 
         sent = await send_feedback_to_cto(difficulty, task_title, context)
         if sent:
             return (
                 f"Feedback salvat! 📊 Difficultate: *{difficulty}/10*\nMulțumesc! 💙",
                 None,
+                None,
             )
-        return "⚠️ Nu am putut trimite feedback la CTO.", None
+        return "⚠️ Nu am putut trimite feedback la CTO.", None, None
 
     elif intent == "edit_task":
         task_id = data.get("id")
@@ -501,10 +515,11 @@ async def handle_task_intent(
                     return (
                         f"I found multiple tasks matching *{escape_md(search_term)}*. Which one did you mean?",
                         task_list_keyboard(matches, back_callback="tasks:main"),
+                        None,
                     )
 
         if not task_id:
-            return "Which task should I edit?", None
+            return "Which task should I edit?", None, None
 
         # Clean up data to only include valid update fields
         upd = {}
@@ -519,9 +534,9 @@ async def handle_task_intent(
             if k in data:
                 upd[k] = data[k]
 
-        if not upd:
             return (
                 "What should I change about it? (e.g., 'Rename it to X' or 'Set priority to high')",
+                None,
                 None,
             )
 
@@ -529,7 +544,11 @@ async def handle_task_intent(
         task = await task_queries.get_task(pool, task_id)
         from bot.keyboards import task_keyboard
 
-        return f"Updated ✅ *{escape_md(task['title'])}*", task_keyboard(task_id)
+        return (
+            f"Updated ✅ *{escape_md(task['title'])}*",
+            task_keyboard(task_id),
+            task_id,
+        )
 
     elif intent == "delete_task":
         task_id = data.get("id")
@@ -554,15 +573,16 @@ async def handle_task_intent(
                     return (
                         f"I found multiple tasks matching *{escape_md(title)}*. Which one did you mean?",
                         task_list_keyboard(matches, back_callback="tasks:main"),
+                        None,
                     )
             # if 0 matches, we'll fall through to "Which task..."
 
         if not task_id:
-            return "Which task should I delete?", None
+            return "Which task should I delete?", None, None
 
         task = await task_queries.get_task(pool, task_id)
         if not task:
-            return "I couldn't find that task.", None
+            return "I couldn't find that task.", None, None
 
 
 def _build_urgency_suggestion(tasks: list, today: date) -> str | None:
@@ -693,28 +713,43 @@ async def get_project_tasks_view(pool, project_id: int) -> Tuple[str, Any]:
     project_keyboard = [
         [
             InlineKeyboardButton(
-                "✏️ Editează", callback_data=make_callback_data("projects", "edit", project_id)
+                "✏️ Editează",
+                callback_data=make_callback_data("projects", "edit", project_id),
             )
         ],
         [
             InlineKeyboardButton(
-                "🗑️ Șterge", callback_data=make_callback_data("projects", "delete", project_id)
+                "🗑️ Șterge",
+                callback_data=make_callback_data("projects", "delete", project_id),
             )
         ],
         [
             InlineKeyboardButton(
-                "◀️ Înapoi la proiecte", callback_data=make_callback_data("tasks", "projects", "list")
+                "◀️ Înapoi la proiecte",
+                callback_data=make_callback_data("tasks", "projects", "list"),
             )
         ],
     ]
     combined_keyboard = list(markup.inline_keyboard) + project_keyboard
     return "\n".join(lines), InlineKeyboardMarkup(combined_keyboard)
 
+
 async def _save_prompt_to_conversation(pool, prompt: str) -> None:
-    """Saves the assistant's prompt to the conversation table for Gemini context."""
-    async with pool.acquire() as conn:
-        await conn.execute(
-            "INSERT INTO conversations (role, content) VALUES ($1, $2)",
-            "assistant",
-            prompt,
-        )
+    """Saves the assistant's prompt to the history table for Gemini context."""
+    from db.queries.history import save_message
+    from core.config import TELEGRAM_USER_ID
+
+    await save_message(pool, TELEGRAM_USER_ID, "assistant", prompt)
+
+
+async def undo_last_action(pool, item_id: int) -> str:
+    """Rolls back the last task creation."""
+    if not item_id:
+        return "Nu am ce să anulez."
+
+    task = await task_queries.get_task(pool, item_id)
+    if not task:
+        return "Task-ul a fost deja șters sau nu există."
+
+    await task_queries.delete_task(pool, item_id)
+    return f"🗑️ Am anulat task-ul: *{escape_md(task['title'])}*"

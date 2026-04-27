@@ -335,7 +335,9 @@ async def handle_reading_callback(query, pool, data: str) -> None:
                 reply_markup=reading_main_keyboard(),
             )
         else:
-            prompt = "📝 *Adaugă notă*\n\nAlege cartea pentru care vrei să adaugi o notă:"
+            prompt = (
+                "📝 *Adaugă notă*\n\nAlege cartea pentru care vrei să adaugi o notă:"
+            )
             await query.edit_message_text(
                 prompt,
                 parse_mode="MarkdownV2",
@@ -344,12 +346,21 @@ async def handle_reading_callback(query, pool, data: str) -> None:
                         [
                             InlineKeyboardButton(
                                 f"📖 {escape_md(b.get('title', '')[:30])}",
-                                callback_data=make_callback_data("reading", "note", "book", b['id']),
+                                callback_data=make_callback_data(
+                                    "reading", "note", "book", b["id"]
+                                ),
                             )
                         ]
                         for b in current
                     ]
-                    + [[InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("reading", "main"))]]
+                    + [
+                        [
+                            InlineKeyboardButton(
+                                "◀️ Înapoi",
+                                callback_data=make_callback_data("reading", "main"),
+                            )
+                        ]
+                    ]
                 ),
             )
             await _save_prompt_to_conversation(pool, prompt)
@@ -378,12 +389,21 @@ async def handle_reading_callback(query, pool, data: str) -> None:
                         [
                             InlineKeyboardButton(
                                 f"📖 {escape_md(b.get('title', '')[:30])}",
-                                callback_data=make_callback_data("reading", "update", "book", b['id']),
+                                callback_data=make_callback_data(
+                                    "reading", "update", "book", b["id"]
+                                ),
                             )
                         ]
                         for b in current
                     ]
-                    + [[InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("reading", "main"))]]
+                    + [
+                        [
+                            InlineKeyboardButton(
+                                "◀️ Înapoi",
+                                callback_data=make_callback_data("reading", "main"),
+                            )
+                        ]
+                    ]
                 ),
             )
 
@@ -402,7 +422,10 @@ async def handle_reading_callback(query, pool, data: str) -> None:
                     [
                         [
                             InlineKeyboardButton(
-                                "❌ Anulează", callback_data=make_callback_data("reading", "detail", book_id)
+                                "❌ Anulează",
+                                callback_data=make_callback_data(
+                                    "reading", "detail", book_id
+                                ),
                             )
                         ]
                     ]
@@ -427,12 +450,21 @@ async def handle_reading_callback(query, pool, data: str) -> None:
                         [
                             InlineKeyboardButton(
                                 f"📖 {escape_md(b.get('title', '')[:30])}",
-                                callback_data=make_callback_data("reading", "finish", "book", b['id']),
+                                callback_data=make_callback_data(
+                                    "reading", "finish", "book", b["id"]
+                                ),
                             )
                         ]
                         for b in current
                     ]
-                    + [[InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("reading", "main"))]]
+                    + [
+                        [
+                            InlineKeyboardButton(
+                                "◀️ Înapoi",
+                                callback_data=make_callback_data("reading", "main"),
+                            )
+                        ]
+                    ]
                 ),
             )
 
@@ -450,7 +482,9 @@ async def handle_reading_callback(query, pool, data: str) -> None:
                         [
                             InlineKeyboardButton(
                                 "❌ Fără rating",
-                                callback_data=make_callback_data("reading", "finish", "no", "rating", book_id),
+                                callback_data=make_callback_data(
+                                    "reading", "finish", "no", "rating", book_id
+                                ),
                             )
                         ]
                     ]
@@ -481,7 +515,10 @@ async def handle_reading_callback(query, pool, data: str) -> None:
                     [
                         [
                             InlineKeyboardButton(
-                                "❌ Anulează", callback_data=make_callback_data("reading", "detail", book_id)
+                                "❌ Anulează",
+                                callback_data=make_callback_data(
+                                    "reading", "detail", book_id
+                                ),
                             )
                         ]
                     ]
@@ -514,7 +551,8 @@ async def handle_reading_callback(query, pool, data: str) -> None:
         keyboard = [
             [
                 InlineKeyboardButton(
-                    "◀️ Înapoi", callback_data=make_callback_data("reading", "detail", book_id)
+                    "◀️ Înapoi",
+                    callback_data=make_callback_data("reading", "detail", book_id),
                 )
             ]
         ]
@@ -552,7 +590,14 @@ async def handle_reading_callback(query, pool, data: str) -> None:
             prompt,
             parse_mode="MarkdownV2",
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("❌ Anulează", callback_data=make_callback_data("reading", "main"))]]
+                [
+                    [
+                        InlineKeyboardButton(
+                            "❌ Anulează",
+                            callback_data=make_callback_data("reading", "main"),
+                        )
+                    ]
+                ]
             ),
         )
         await _save_prompt_to_conversation(pool, prompt)
@@ -737,11 +782,10 @@ async def reading_command(update, context) -> None:
             parse_mode="MarkdownV2",
         )
 
+
 async def _save_prompt_to_conversation(pool, prompt: str) -> None:
-    """Saves the assistant's prompt to the conversation table for Gemini context."""
-    async with pool.acquire() as conn:
-        await conn.execute(
-            "INSERT INTO conversations (role, content) VALUES ($1, $2)",
-            "assistant",
-            prompt,
-        )
+    """Saves the assistant's prompt to the history table for Gemini context."""
+    from db.queries.history import save_message
+    from core.config import TELEGRAM_USER_ID
+
+    await save_message(pool, TELEGRAM_USER_ID, "assistant", prompt)

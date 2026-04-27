@@ -363,7 +363,8 @@ def get_reminder_keyboard(
                 callback_data=make_callback_data("event", "reminder", event_id, "1440"),
             ),
             InlineKeyboardButton(
-                "Fără 🔕", callback_data=make_callback_data("event", "reminder", event_id, "0")
+                "Fără 🔕",
+                callback_data=make_callback_data("event", "reminder", event_id, "0"),
             ),
         ],
     ]

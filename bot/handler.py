@@ -14,6 +14,7 @@ from bot.formatter import escape_md, safe_markdown, split_message
 from core.context import build_context
 from core.gemini import get_gemini_response
 from core.router import route_intent
+from db.queries.history import save_message, get_recent_history
 
 
 async def security_check(update: Update) -> bool:
@@ -227,7 +228,11 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
 
 
 async def message_handler(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, pool, text=None, source: str = "text"
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    pool,
+    text=None,
+    source: str = "text",
 ):
     try:
         user_id = update.effective_user.id if update.effective_user else "Unknown"
@@ -348,6 +353,15 @@ async def message_handler(
             from modules.tasks import get_tasks_dashboard
 
             text_out, markup = await get_tasks_dashboard(pool)
+            await update.message.reply_text(
+                text_out, parse_mode="MarkdownV2", reply_markup=markup
+            )
+            return
+
+        if text == "/memory":
+            from modules.memory import handle_memory_intent
+
+            text_out, markup = await handle_memory_intent(pool, "memory_view", {})
             await update.message.reply_text(
                 text_out, parse_mode="MarkdownV2", reply_markup=markup
             )
@@ -500,13 +514,8 @@ async def message_handler(
                 pool, intent_response, bot=context.bot
             )
             if final_reply:
-                # Save assistant reply to conversations
-                async with pool.acquire() as conn:
-                    await conn.execute(
-                        "INSERT INTO conversations (role, content) VALUES ($1, $2)",
-                        "assistant",
-                        final_reply,
-                    )
+                # Save assistant reply to history
+                await save_message(pool, telegram_id, "assistant", final_reply)
                 await update.message.reply_text(
                     final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup
                 )
@@ -524,23 +533,11 @@ async def message_handler(
             return
 
         # Phase 3: Gemini Brain integration
-        async with pool.acquire() as conn:
-            # 1. Get history (last 10 turns, BOTH roles) BEFORE saving current message
-            history_rows = await conn.fetch(
-                "SELECT role, content FROM conversations ORDER BY created_at DESC LIMIT 10"
-            )
-            # Reverse to get chronological order
-            history = [
-                {"role": r["role"], "content": r["content"]}
-                for r in reversed(history_rows)
-            ]
+        # 1. Get history (last 8 messages) BEFORE saving current message
+        history = await get_recent_history(pool, telegram_id, limit=8)
 
-            # 2. Save current user message to conversations
-            await conn.execute(
-                "INSERT INTO conversations (role, content) VALUES ($1, $2)",
-                "user",
-                text,
-            )
+        # 2. Save current user message to history
+        await save_message(pool, telegram_id, "user", text)
 
         # Phase 8: State Check (Confirmations / Edits)
         from core.state import get_state, clear_state
@@ -597,6 +594,33 @@ async def message_handler(
                     return
                 else:
                     await clear_state(pool)
+
+            elif state["state_type"] == "awaiting_profile_hours":
+                try:
+                    parts = text.split("-")
+                    start_h = parts[0].strip()
+                    end_h = parts[1].strip()
+                    # Validate format (basic)
+                    if ":" not in start_h or ":" not in end_h:
+                        raise ValueError()
+
+                    await pool.execute(
+                        "UPDATE user_profile SET active_hours_start = $1, active_hours_end = $2 WHERE telegram_id = $3",
+                        start_h,
+                        end_h,
+                        telegram_id,
+                    )
+                    await clear_state(pool)
+                    await update.message.reply_text(
+                        f"✅ Orele active au fost setate la: *{start_h} \\- {end_h}*",
+                        parse_mode="MarkdownV2",
+                    )
+                except Exception:
+                    await clear_state(pool)
+                    await update.message.reply_text(
+                        "❌ Format invalid. Încearcă `09:00-21:00`."
+                    )
+                return
 
             elif state["state_type"] == "awaiting_clarification":
                 # The user is answering a clarification question from a previous low-confidence intent.
@@ -1809,13 +1833,8 @@ Reguli:
         if final_reply is None:
             return
 
-        # 6. Save assistant reply to conversations
-        async with pool.acquire() as conn:
-            await conn.execute(
-                "INSERT INTO conversations (role, content) VALUES ($1, $2)",
-                "assistant",
-                final_reply,
-            )
+        # 6. Save assistant reply to history
+        await save_message(pool, telegram_id, "assistant", final_reply)
 
         # 7. Send to user
         chunks = split_message(final_reply)
@@ -1868,12 +1887,56 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     try:
         data = query.data
         from bot.callback_utils import parse_callback_data
+
         action, params = parse_callback_data(data)
 
         print(
             f"DEBUG: CALLBACK RECEIVED: action={action} params={params} from user={update.effective_user.id}",
             flush=True,
         )
+
+        if data.startswith("profile_"):
+            if data == "profile_edit_tone":
+                from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+                keyboard = [
+                    [
+                        InlineKeyboardButton(
+                            "👔 Formal", callback_data="profile_set_tone:formal"
+                        ),
+                        InlineKeyboardButton(
+                            "😎 Casual", callback_data="profile_set_tone:casual"
+                        ),
+                        InlineKeyboardButton(
+                            "🎯 Direct", callback_data="profile_set_tone:direct"
+                        ),
+                    ]
+                ]
+                await query.edit_message_text(
+                    "Alege noul ton pentru Lora:",
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                )
+            elif data.startswith("profile_set_tone:"):
+                new_tone = data.split(":")[1]
+                await pool.execute(
+                    "UPDATE user_profile SET preferred_tone = $1 WHERE telegram_id = $2",
+                    new_tone,
+                    update.effective_user.id,
+                )
+                await query.edit_message_text(
+                    f"✅ Tonul a fost setat la: *{new_tone}*", parse_mode="MarkdownV2"
+                )
+            elif data == "profile_edit_hours":
+                from core.state import set_state
+
+                await set_state(
+                    pool, "awaiting_profile_hours", "profile", "edit_hours", None
+                )
+                await query.edit_message_text(
+                    "Te rog introdu intervalul de ore active (ex: `09:00-21:00`):",
+                    parse_mode="MarkdownV2",
+                )
+            return
 
         if data.startswith("memory:"):
             from modules.memory import handle_memory_callback
@@ -1923,7 +1986,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             await handle_health_callback(query, pool, data)
             return
 
-        if action == "finance" or action == "finance_chart" or action == "finance_summary":
+        if (
+            action == "finance"
+            or action == "finance_chart"
+            or action == "finance_summary"
+        ):
             import io
             from modules.finance import handle_finance_intent
 
@@ -2063,9 +2130,14 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
 
         # Generic fallback for unknown callbacks
         import logging
+
         logger = logging.getLogger(__name__)
-        logger.warning(f"Unknown callback data received: action={action} params={params} (raw: {data})")
-        await query.message.reply_text("Scuze, această acțiune nu mai este valabilă sau a apărut o eroare internă.")
+        logger.warning(
+            f"Unknown callback data received: action={action} params={params} (raw: {data})"
+        )
+        await query.message.reply_text(
+            "Scuze, această acțiune nu mai este valabilă sau a apărut o eroare internă."
+        )
 
     except Exception as e:
         print(f"ERROR in callback_handler: {e}")
@@ -2106,17 +2178,34 @@ async def show_uni_dashboard(message_or_query, pool, send_new: bool = False):
     keyboard = InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton("📊 Overview", callback_data=make_callback_data("uni", "overview")),
-                InlineKeyboardButton("📚 Materii", callback_data=make_callback_data("uni", "subjects")),
+                InlineKeyboardButton(
+                    "📊 Overview", callback_data=make_callback_data("uni", "overview")
+                ),
+                InlineKeyboardButton(
+                    "📚 Materii", callback_data=make_callback_data("uni", "subjects")
+                ),
             ],
             [
-                InlineKeyboardButton("📅 Orar", callback_data=make_callback_data("uni", "schedule")),
-                InlineKeyboardButton("🎓 Examene", callback_data=make_callback_data("uni", "exams")),
+                InlineKeyboardButton(
+                    "📅 Orar", callback_data=make_callback_data("uni", "schedule")
+                ),
+                InlineKeyboardButton(
+                    "🎓 Examene", callback_data=make_callback_data("uni", "exams")
+                ),
             ],
-            [InlineKeyboardButton("📝 Note & Prezențe", callback_data=make_callback_data("uni", "grades"))],
             [
-                InlineKeyboardButton("🔍 Analiză", callback_data=make_callback_data("uni", "analysis")),
-                InlineKeyboardButton("📥 Import", callback_data=make_callback_data("uni", "import")),
+                InlineKeyboardButton(
+                    "📝 Note & Prezențe",
+                    callback_data=make_callback_data("uni", "grades"),
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "🔍 Analiză", callback_data=make_callback_data("uni", "analysis")
+                ),
+                InlineKeyboardButton(
+                    "📥 Import", callback_data=make_callback_data("uni", "import")
+                ),
             ],
         ]
     )
@@ -2142,8 +2231,9 @@ async def handle_uni_callback(query, pool, data: str):
     action = parts[2] if len(parts) > 2 else ""
     item_id = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else None
 
-
-    back_btn = InlineKeyboardButton("← Înapoi", callback_data=make_callback_data("uni", "dashboard"))
+    back_btn = InlineKeyboardButton(
+        "← Înapoi", callback_data=make_callback_data("uni", "dashboard")
+    )
 
     # ━━━ DASHBOARD ━━━
     if section == "dashboard":
@@ -2216,7 +2306,8 @@ async def handle_uni_callback(query, pool, data: str):
                 [
                     [
                         InlineKeyboardButton(
-                            "➕ Adaugă", callback_data=make_callback_data("uni", "subjects", "add")
+                            "➕ Adaugă",
+                            callback_data=make_callback_data("uni", "subjects", "add"),
                         )
                     ],
                     [back_btn],
@@ -2280,7 +2371,8 @@ async def handle_uni_callback(query, pool, data: str):
                 [
                     [
                         InlineKeyboardButton(
-                            "➕ Adaugă oră", callback_data=make_callback_data("uni", "schedule", "add")
+                            "➕ Adaugă oră",
+                            callback_data=make_callback_data("uni", "schedule", "add"),
                         )
                     ],
                     [back_btn],
@@ -2333,7 +2425,8 @@ async def handle_uni_callback(query, pool, data: str):
                 [
                     [
                         InlineKeyboardButton(
-                            "➕ Adaugă examen", callback_data=make_callback_data("uni", "exams", "add")
+                            "➕ Adaugă examen",
+                            callback_data=make_callback_data("uni", "exams", "add"),
                         )
                     ],
                     [back_btn],
@@ -2389,19 +2482,30 @@ async def handle_uni_callback(query, pool, data: str):
                 [
                     [
                         InlineKeyboardButton(
-                            "➕ Notă", callback_data=make_callback_data("uni", "grades", "add", "grade")
+                            "➕ Notă",
+                            callback_data=make_callback_data(
+                                "uni", "grades", "add", "grade"
+                            ),
                         ),
                         InlineKeyboardButton(
-                            "➕ Prezență", callback_data=make_callback_data("uni", "grades", "add", "attendance")
+                            "➕ Prezență",
+                            callback_data=make_callback_data(
+                                "uni", "grades", "add", "attendance"
+                            ),
                         ),
                     ],
                     [
                         InlineKeyboardButton(
                             "✏️ Edit prezență",
-                            callback_data=make_callback_data("uni", "grades", "edit", "attendance"),
+                            callback_data=make_callback_data(
+                                "uni", "grades", "edit", "attendance"
+                            ),
                         ),
                         InlineKeyboardButton(
-                            "🗑 Șterge notă", callback_data=make_callback_data("uni", "grades", "delete", "grade")
+                            "🗑 Șterge notă",
+                            callback_data=make_callback_data(
+                                "uni", "grades", "delete", "grade"
+                            ),
                         ),
                     ],
                     [back_btn],
@@ -2514,7 +2618,12 @@ Dacă nu sunt suficiente date: spune direct.
 
         keyboard = InlineKeyboardMarkup(
             [
-                [InlineKeyboardButton("🔄 Regenerează", callback_data=make_callback_data("uni", "analysis"))],
+                [
+                    InlineKeyboardButton(
+                        "🔄 Regenerează",
+                        callback_data=make_callback_data("uni", "analysis"),
+                    )
+                ],
                 [back_btn],
             ]
         )
@@ -2534,13 +2643,17 @@ Dacă nu sunt suficiente date: spune direct.
                     [
                         InlineKeyboardButton(
                             "📸 Import orar din poză",
-                            callback_data=make_callback_data("uni", "import", "schedule", "photo"),
+                            callback_data=make_callback_data(
+                                "uni", "import", "schedule", "photo"
+                            ),
                         )
                     ],
                     [
                         InlineKeyboardButton(
                             "📄 Structură din PDF",
-                            callback_data=make_callback_data("uni", "import", "structure", "pdf"),
+                            callback_data=make_callback_data(
+                                "uni", "import", "structure", "pdf"
+                            ),
                         )
                     ],
                     [back_btn],
@@ -2656,12 +2769,57 @@ async def reading_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text, markup = await get_reading_dashboard(pool)
     await update.message.reply_text(text, parse_mode="MarkdownV2", reply_markup=markup)
 
+    from core.config import TELEGRAM_USER_ID
+
+    await save_message(pool, TELEGRAM_USER_ID, "assistant", text)
+
+
+async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
+    """Displays the user profile and allows editing."""
+    if not await security_check(update):
+        return
+
+    from modules.profile import get_user_profile_full
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    from bot.formatter import escape_md
+
+    user_id = update.effective_user.id
+    profile = await get_user_profile_full(pool, user_id)
+
+    if not profile:
+        await update.message.reply_text("Nu am găsit profilul tău.")
+        return
+
+    name = profile.get("name", "Utilizator")
+    tone = profile.get("preferred_tone", "direct")
+    start = profile.get("active_hours_start", "08:00")
+    end = profile.get("active_hours_end", "22:00")
+
+    text = (
+        f"👤 *Profilul lui {escape_md(name)}*\n\n"
+        f"🎭 *Tone:* `{tone}`\n"
+        f"⏰ *Ore active:* `{start}` \\- `{end}`\n"
+        f"🌍 *Timezone:* `{escape_md(profile.get('timezone', 'UTC'))}`\n\n"
+        "_Poți edita preferințele folosind butoanele de mai jos:_"
+    )
+
+    keyboard = [
+        [
+            InlineKeyboardButton("🎭 Schimbă Tone", callback_data="profile_edit_tone"),
+            InlineKeyboardButton(
+                "⏰ Schimbă Orele", callback_data="profile_edit_hours"
+            ),
+        ]
+    ]
+
+    await update.message.reply_text(
+        text, parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
 
 async def _save_prompt_to_conversation(pool, prompt: str) -> None:
-    """Saves the assistant's prompt to the conversation table for Gemini context."""
-    async with pool.acquire() as conn:
-        await conn.execute(
-            "INSERT INTO conversations (role, content) VALUES ($1, $2)",
-            "assistant",
-            prompt,
-        )
+    """Saves the assistant's prompt to the history table for Gemini context."""
+    from db.queries.history import save_message
+    from core.config import TELEGRAM_USER_ID
+
+    await save_message(pool, TELEGRAM_USER_ID, "assistant", prompt)

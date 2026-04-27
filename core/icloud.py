@@ -139,15 +139,17 @@ async def fetch_all_calendars_events(days_ahead: int = 7) -> List[Dict[str, Any]
                         start = expanded_event.get("DTSTART").dt
                         if not isinstance(start, datetime):
                             start = LOCAL_TZ.localize(datetime.combine(start, time.min))
-                        
-                        all_events.append({
-                            "summary": str(expanded_event.get("SUMMARY")),
-                            "start": start,
-                            "calendar": cal.name
-                        })
+
+                        all_events.append(
+                            {
+                                "summary": str(expanded_event.get("SUMMARY")),
+                                "start": start,
+                                "calendar": cal.name,
+                            }
+                        )
             except Exception:
                 continue
-        
+
         # Sort by time
         all_events.sort(key=lambda x: x["start"])
         return all_events
@@ -209,17 +211,17 @@ async def update_event(uid: str, **kwargs) -> bool:
         client = get_caldav_client()
         cal = get_lora_calendar(client)
         event = cal.event_by_uid(uid)
-        
+
         # We fetch current, modify, and save
         ical = iCal.from_ical(event.data)
         vevent = ical.walk("vevent")[0]
-        
+
         if "summary" in kwargs:
             vevent["summary"] = vText(kwargs["summary"])
         if "description" in kwargs:
             vevent["description"] = vText(kwargs["description"])
         # ... add others if needed
-        
+
         event.data = ical.to_ical()
         event.save()
         return True
@@ -242,27 +244,39 @@ async def delete_event(uid: str) -> bool:
 
 # --- SYNC LOGIC ---
 
+
 async def sync_university_schedule_to_calendar(pool) -> dict:
     """Syncs the schedule table to Apple Calendar as weekly recurring events."""
     stats = {"created": 0, "skipped": 0, "errors": 0}
     try:
         from db.queries.schedule import get_full_schedule
+
         classes = await get_full_schedule(pool)
-        
+
         # We need the semester start to calculate the first occurrence
         async with pool.acquire() as conn:
-            semester_start = await conn.fetchval("SELECT semester_start FROM semester_config LIMIT 1")
-        
-        if not semester_start:
-            semester_start = date(2024, 2, 26) # Fallback
+            semester_start = await conn.fetchval(
+                "SELECT semester_start FROM semester_config LIMIT 1"
+            )
 
-        day_map = {"luni": 0, "marți": 1, "miercuri": 2, "joi": 3, "vineri": 4, "sâmbătă": 5, "duminică": 6}
+        if not semester_start:
+            semester_start = date(2024, 2, 26)  # Fallback
+
+        day_map = {
+            "luni": 0,
+            "marți": 1,
+            "miercuri": 2,
+            "joi": 3,
+            "vineri": 4,
+            "sâmbătă": 5,
+            "duminică": 6,
+        }
         day_codes = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
 
         for c in classes:
             lora_id = c["id"]
             lora_type = "schedule"
-            
+
             # 1. Check if already synced
             existing = await calendar_queries.get_sync_record(pool, lora_type, lora_id)
             if existing:
@@ -277,14 +291,14 @@ async def sync_university_schedule_to_calendar(pool) -> dict:
                 target_dow = day_map.get(dow_val.lower(), 0)
             else:
                 target_dow = 0  # Fallback for any unexpected type
-            
+
             # Find first date of this weekday after semester start
             days_diff = (target_dow - semester_start.weekday() + 7) % 7
             first_date = semester_start + timedelta(days=days_diff)
-            
+
             start_dt = LOCAL_TZ.localize(datetime.combine(first_date, c["start_time"]))
             end_dt = LOCAL_TZ.localize(datetime.combine(first_date, c["end_time"]))
-            
+
             uid = f"lora-schedule-{lora_id}@lora"
             class_type = c.get("class_type", "course")
             if isinstance(class_type, str):
@@ -293,7 +307,7 @@ async def sync_university_schedule_to_calendar(pool) -> dict:
                 summary = f"🎓 {c['subject_name']}"
             location = c.get("room", "")
             rrule = f"FREQ=WEEKLY;BYDAY={day_codes[target_dow]}"
-            
+
             try:
                 await create_event(
                     summary=summary,
@@ -301,14 +315,16 @@ async def sync_university_schedule_to_calendar(pool) -> dict:
                     end=end_dt,
                     location=location,
                     uid=uid,
-                    rrule=rrule
+                    rrule=rrule,
                 )
-                await calendar_queries.save_sync_record(pool, lora_type, lora_id, uid, summary)
+                await calendar_queries.save_sync_record(
+                    pool, lora_type, lora_id, uid, summary
+                )
                 stats["created"] += 1
             except Exception as e:
                 print(f"Error syncing class {lora_id}: {e}")
                 stats["errors"] += 1
-                
+
         return stats
     except Exception as e:
         print(f"Sync schedule CRITICAL error: {e}")
@@ -322,26 +338,34 @@ async def sync_events_table_to_calendar(pool) -> dict:
         async with pool.acquire() as conn:
             # Only sync non-reminders (events) for now
             rows = await conn.fetch("SELECT * FROM events WHERE event_type = 'event'")
-            
+
         for r in rows:
             lora_id = r["id"]
             lora_type = "event"
-            
+
             existing = await calendar_queries.get_sync_record(pool, lora_type, lora_id)
             if existing:
                 stats["skipped"] += 1
                 continue
-                
+
             start_dt = datetime.combine(r["event_date"], r["event_time"] or time.min)
             start_dt = LOCAL_TZ.localize(start_dt)
             end_dt = start_dt + timedelta(hours=1)
-            
+
             uid = f"lora-event-{lora_id}@lora"
             summary = f"📅 {r['title']}"
-            
+
             try:
-                await create_event(summary=summary, start=start_dt, end=end_dt, uid=uid, description=r.get("description"))
-                await calendar_queries.save_sync_record(pool, lora_type, lora_id, uid, summary)
+                await create_event(
+                    summary=summary,
+                    start=start_dt,
+                    end=end_dt,
+                    uid=uid,
+                    description=r.get("description"),
+                )
+                await calendar_queries.save_sync_record(
+                    pool, lora_type, lora_id, uid, summary
+                )
                 stats["created"] += 1
             except Exception:
                 stats["errors"] += 1
@@ -356,26 +380,33 @@ async def sync_tasks_with_deadlines(pool) -> dict:
     stats = {"created": 0, "skipped": 0, "errors": 0}
     try:
         from db.queries.tasks import list_tasks
+
         all_tasks = await list_tasks(pool)
-        pending_with_date = [t for t in all_tasks if t["status"] == "pending" and t["due_date"]]
-        
+        pending_with_date = [
+            t for t in all_tasks if t["status"] == "pending" and t["due_date"]
+        ]
+
         for t in pending_with_date:
             lora_id = t["id"]
             lora_type = "task"
-            
+
             existing = await calendar_queries.get_sync_record(pool, lora_type, lora_id)
             if existing:
                 stats["skipped"] += 1
                 continue
-                
+
             # All-day event
             start_dt = LOCAL_TZ.localize(datetime.combine(t["due_date"], time.min))
             uid = f"lora-task-{lora_id}@lora"
             summary = f"📋 Task: {t['title']} [{t.get('project_name') or 'Inbox'}]"
-            
+
             try:
-                await create_event(summary=summary, start=start_dt, all_day=True, uid=uid)
-                await calendar_queries.save_sync_record(pool, lora_type, lora_id, uid, summary)
+                await create_event(
+                    summary=summary, start=start_dt, all_day=True, uid=uid
+                )
+                await calendar_queries.save_sync_record(
+                    pool, lora_type, lora_id, uid, summary
+                )
                 stats["created"] += 1
             except Exception:
                 stats["errors"] += 1

@@ -8,30 +8,141 @@ import asyncio
 import json
 import logging
 import re
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from core.memory import extract_and_save_facts
+from core.context import build_temporal_context
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
+
+def preprocess_text(text: str) -> str:
+    """
+    Applies basic normalizations and corrections for common Romanian typos and abbreviations.
+    """
+    if not text:
+        return text
+
+    # Use regex for word boundary matching
+    # Normalizations: abbreviations and common words without diacritics
+    norm_map = {
+        r"\bazi\b": "astăzi",
+        r"\bsapt\b": "săptămâna",
+        r"\bmin\b": "minute",
+        r"\bmancare\b": "mâncare",
+        r"\bcheltuiala\b": "cheltuială",
+        r"\bcat\b": "cât",
+        r"\bsa\b": "să",
+        r"\bsun\b": "sun",  # no change but for boundary testing
+    }
+
+    processed = text.lower()
+    for pattern, replacement in norm_map.items():
+        processed = re.sub(pattern, replacement, processed)
+
+    return processed
+
+
 class IntentResponse(BaseModel):
-    intent: str = Field(description="Identified action, e.g. add_task, chat, log_expense")
-    module: str | None = Field(description="The target module, e.g. tasks, projects, finance, None if general")
-    data: Dict[str, Any] = Field(description="Module-specific structured data extracted from the user message")
-    reply: str = Field(description="Assistant reply formatted in MarkdownV2")
-    needs_confirmation: bool = Field(description="True if the action is destructive and requires user confirmation")
-    needs_agent: bool = Field(description="True if the query is complex and needs multi-step agent reasoning")
-    agent_tools_needed: List[str] | None = Field(default=None, description="List of tools needed by the agent if needs_agent is True")
-    confidence: float = Field(ge=0.0, le=1.0, description="Scorul de certitudine al intent-ului detectat. Sub 0.7 = incert.")
-    source: str = Field(default='text', pattern='^(text|voice)$', description="Sursa mesajului")
-    clarification_needed: bool = Field(default=False, description="True dacă mesajul e ambiguu și necesită clarificare înainte de execuție")
-    clarification_question: str | None = Field(default=None, description="Întrebarea de clarificare dacă clarification_needed e True")
-    additional_intents: List['IntentResponse'] | None = Field(
-        default=None,
-        description="Lista de intenții secundare dacă mesajul conține mai multe acțiuni simultane"
+    intent: str = Field(
+        description="Identified action, e.g. add_task, chat, log_expense"
     )
+    module: str | None = Field(
+        description="The target module, e.g. tasks, projects, finance, None if general"
+    )
+    data: Dict[str, Any] = Field(
+        description="Module-specific structured data extracted from the user message"
+    )
+    reply: str = Field(description="Assistant reply formatted in MarkdownV2")
+    needs_confirmation: bool = Field(
+        description="True if the action is destructive and requires user confirmation"
+    )
+    needs_agent: bool = Field(
+        description="True if the query is complex and needs multi-step agent reasoning"
+    )
+    agent_tools_needed: List[str] | None = Field(
+        default=None,
+        description="List of tools needed by the agent if needs_agent is True",
+    )
+    confidence: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Scorul de certitudine al intent-ului detectat. Sub 0.7 = incert.",
+    )
+    source: str = Field(
+        default="text", pattern="^(text|voice)$", description="Sursa mesajului"
+    )
+    clarification_needed: bool = Field(
+        default=False,
+        description="True dacă mesajul e ambiguu și necesită clarificare înainte de execuție",
+    )
+    clarification_question: str | None = Field(
+        default=None,
+        description="Întrebarea de clarificare dacă clarification_needed e True",
+    )
+    memory_extracts: List[Dict[str, Any]] | None = Field(
+        default=None,
+        description="Fapte importante de memorat extrase din mesaj: {fact, category, confidence, expires_at?}",
+    )
+    additional_intents: List["IntentResponse"] | None = Field(
+        default=None,
+        description="Lista de intenții secundare dacă mesajul conține mai multe acțiuni simultane",
+    )
+
+    @model_validator(mode="after")
+    def validate_temporal_bounds(self) -> "IntentResponse":
+        """
+        Validates date fields in the 'data' dictionary.
+        If a date is > 1 year in the past or > 2 years in the future,
+        confidence is lowered to 0.5.
+        """
+        if not self.data:
+            return self
+
+        user_tz = pytz.timezone(TIMEZONE)
+        now = datetime.now(user_tz)
+        # Convert to offset-naive for comparison if parsed_date is naive
+        # Or better, make parsed_date aware if needed. ISO dates from Gemini are naive.
+        now_naive = now.replace(tzinfo=None)
+
+        one_year_ago = now_naive - timedelta(days=365)
+        two_years_ahead = now_naive + timedelta(days=365 * 2)
+
+        # Common date keys in Lora's schema
+        date_keys = [
+            "due_date",
+            "date",
+            "event_date",
+            "start_date",
+            "end_date",
+            "exam_date",
+        ]
+
+        for key in date_keys:
+            val = self.data.get(key)
+            if not val or not isinstance(val, str):
+                continue
+
+            try:
+                # Try parsing ISO format YYYY-MM-DD
+                parsed_date = datetime.strptime(val[:10], "%Y-%m-%d")
+
+                if parsed_date < one_year_ago or parsed_date > two_years_ahead:
+                    print(
+                        f"⚠️ Temporal Out-of-Bounds: {key}={val}. Lowering confidence."
+                    )
+                    self.confidence = min(self.confidence, 0.5)
+                    self.clarification_needed = True
+                    if not self.clarification_question:
+                        self.clarification_question = f"Sigur data {val} este corectă?"
+            except ValueError:
+                continue  # Not a date or wrong format
+
+        return self
+
 
 # Resolve forward reference (additional_intents references IntentResponse itself)
 IntentResponse.model_rebuild()
+
 
 async def get_gemini_response(
     pool,
@@ -45,6 +156,11 @@ async def get_gemini_response(
 ) -> Dict[str, Any]:
     """Calls Gemini and returns the parsed IntentResponse JSON."""
 
+    temporal_context = build_temporal_context(TIMEZONE)
+
+    # Pre-process user message for typo tolerance
+    user_message = preprocess_text(user_message)
+
     user_tz = pytz.timezone(TIMEZONE)
     now = datetime.now(user_tz)
     tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -52,12 +168,21 @@ async def get_gemini_response(
     system_prompt = f"""
 Ești Lora, asistentul personal AI al lui {user_name}, care trăiește în Telegram.
 Ești second brain-ul lor — organizat, proactiv, și niciodată enervant.
-Timezone: {TIMEZONE}. Nu ieși niciodată din personaj.
+Nu ieși niciodată din personaj.
 
 TONE: {tone}
 - warm  = caldă, prietenoasă, dar directă și fără fluff
 - direct = concisă, la obiect, zero filler
 - brief  = răspunsuri cât mai scurte posibil
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{temporal_context}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONVERSAȚIE RECENTĂ (Context):
+{_format_history_for_prompt(history)}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 MESAJ UTILIZATOR CURENT — ANALIZEAZĂ ACESTA:
@@ -72,6 +197,7 @@ REGULI STRICTE:
 2. Răspunde ÎNTOTDEAUNA în limba română (sunt permiși termeni tech: task, meeting, gym).
 3. ZERO FILLER PHRASES: Interzis să folosești "Sigur!", "Cu plăcere!", "Bineînțeles!", "Desigur!", "Am notat că", "Iată".
 4. Confirmi scurt. Acțiuni simple (add_task, log_skill) = MAX 1 propoziție + emoji.
+5. Pentru `correct_last`, confirmă scurt că anulezi sau corectezi (ex: "Am anulat ultima acțiune. Ce facem în schimb?").
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 INSTRUCȚIUNI TEHNICE:
@@ -94,15 +220,24 @@ INSTRUCȚIUNI TEHNICE:
    - Setează `confidence = 1.0` și `clarification_needed = false`.
    - Returnează intent-ul complet și executabil.
 4. TIMP ȘI DATE: Tot ce ține de timp se formatează stric în ISO 8601 ("YYYY-MM-DD" sau "HH:MM"). "Azi" = {now.strftime("%Y-%m-%d")}, "mâine" = {tomorrow}.
-5. STT / VOCE: Conversațiile pot veni din Voice to Text și pot avea typo-uri majore ("adamga" = adaugă, "saldă" = sală). Extrage intenția corectă, trecând peste greșelile de tipar.
+5. STT / VOCE: Conversațiile pot vin din Voice to Text și pot avea typo-uri majore ("adamga" = adaugă, "saldă" = sală). Extrage intenția corectă, trecând peste greșelile de tipar.
 6. MULTI-INTENT: Dacă mesajul conține MAI MULTE acțiuni distincte (ex: "adaugă task și loghează 50 lei pe mâncare"):
-   - Intent-ul PRINCIPAL merge în câmpurile de bază (intent, module, data, reply).
-   - Celelalte intenții merg în `additional_intents` ca o listă de obiecte cu aceleași câmpuri.
+    - Intent-ul PRINCIPAL merge în câmpurile de bază (intent, module, data, reply).
+    - Toate celelalte acțiuni merg în lista `additional_intents`.
+7. TYPO TOLERANCE: Utilizatorul poate scrie în română cu diacritice lipsă, greșeli de tastare, sau prescurtări. Interpretează intenția, nu forma exactă.
    - Fiecare obiect din `additional_intents` are propriul intent, module, data, reply (confirmare scurtă).
    - `additional_intents` e null dacă mesajul conține O SINGURĂ acțiune.
+8. CORRECTION & UNDO (correct_last): Dacă user-ul indică o greșeală, vrea să anuleze ultima acțiune sau să o corecteze (ex: "nu 30, ci 50", "anulează", "nu asta"), returnează `intent="correct_last"`.
+   - Pune în `data["correction_text"]` mesajul utilizatorului.
    - EXEMPLU — mesaj: "adaugă task revizuire cod și am dat 30 lei pe taxi":
      * principal: intent="add_task", module="tasks", data={{"title":"revizuire cod"}}, reply="Task adăugat ✅"
      * additional_intents: [{{"intent":"finance_log","module":"finance","data":{{"amount":30,"type":"expense","category":"transport","description":"taxi"}},"reply":"💸 30 RON taxi înregistrat.",...}}]
+9. ACTIVE MEMORY: Detectează informații noi despre utilizator și returnează-le în `memory_extracts`.
+   - Ce extragi: preferințe ("îmi place pizza"), info personale ("numele câinelui meu e Rex"), pattern-uri ("merg la sală luni și joi"), decizii ("nu mai vreau remindere pentru cafea").
+   - Structură obiect: {{"fact": "descriere scurtă în română", "category": "preference|personal|pattern|decision", "confidence": 0.0-1.0}}.
+   - Setează `confidence > 0.8` doar dacă ești sigur. `expires_at` (ISO date) e opțional pentru info temporare.
+10. PROACTIVE MEMORY: Dacă există fapte relevante în secțiunea MEMORIE din context, menționează-le scurt în `reply` când e cazul (ex: "Data trecută ai menționat că...", "Știu că preferi..."). Fii natural, nu forța.
+11. MEMORY SEARCH: Dacă utilizatorul întreabă ce știi despre un anumit subiect (ex: "ce știi despre sănătatea mea?", "ce știi despre Ana?", "adu-mi aminte ce am discutat despre X"), returnează `intent="memory_search"` și `data={{"topic": "subiectul extras"}}`.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONTEXT:
@@ -119,6 +254,9 @@ CAPABILITIES (MODULE & INTENTS):
 CAPABILITIES:
 Skills (fost Habits), Tasks, Projects, Goals, Notes & Journal, Finance, Events, Shopping List.
 Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → skills equivalent.
+25. Correction & Undo:
+    - intent="correct_last" — "nu asta vroiam", "am greșit", "nu 30, ci 50", "anulează", "undo", "corectez".
+      Data: {{"correction_text": string}}
 
 14. Events: module="events":
     - intent="add_event" — "adaugă eveniment", "programare", "am eveniment". 
@@ -517,10 +655,29 @@ async def normalize_voice_text(raw: str) -> str:
             timeout=10.0,
         )
         normalized = response.text.strip()
-        _voice_logger.info("VOICE NORMALIZE | original=%r | normalized=%r", raw, normalized)
-        print(f"🎙 VOICE NORMALIZE | original: {repr(raw)} → normalized: {repr(normalized)}", flush=True)
+        _voice_logger.info(
+            "VOICE NORMALIZE | original=%r | normalized=%r", raw, normalized
+        )
+        print(
+            f"🎙 VOICE NORMALIZE | original: {repr(raw)} → normalized: {repr(normalized)}",
+            flush=True,
+        )
         return normalized
     except Exception as e:
-        _voice_logger.warning("VOICE NORMALIZE FAILED (%s) — using raw text: %r", e, raw)
+        _voice_logger.warning(
+            "VOICE NORMALIZE FAILED (%s) — using raw text: %r", e, raw
+        )
         print(f"⚠️ VOICE NORMALIZE FAILED ({e}) — using raw: {repr(raw)}", flush=True)
         return raw
+
+
+def _format_history_for_prompt(history: List[Dict[str, str]]) -> str:
+    """Formats history for inclusion in the system prompt."""
+    if not history:
+        return "Fără istoric recent."
+
+    lines = []
+    for m in history:
+        role = "U" if m["role"] == "user" else "A"
+        lines.append(f"{role}: {m['content']}")
+    return "\n".join(lines)

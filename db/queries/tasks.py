@@ -221,3 +221,31 @@ async def get_monthly_task_stats(pool, start_date, end_date) -> dict:
             end_date,
         )
         return {"completed": row["completed"], "created": row["created"]}
+
+
+async def find_similar_tasks(pool, title: str, user_id: int) -> List[Dict[str, Any]]:
+    """
+    Finds completed tasks with a similar title (fuzzy match).
+    Used to provide proactive feedback about previous performance.
+    """
+    # Extract keywords (words longer than 3 chars)
+    words = [w.strip() for w in title.split() if len(w.strip()) > 3]
+    if not words:
+        words = [title.strip()]
+
+    # We use the first word for now as a simple keyword search
+    keyword = f"%{words[0]}%"
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT title, created_at, completed_at, 
+                   EXTRACT(DAY FROM (completed_at - created_at)) as duration_days
+            FROM tasks
+            WHERE status = 'done' AND title ILIKE $1
+            ORDER BY completed_at DESC
+            LIMIT 3
+            """,
+            keyword,
+        )
+        return [dict(r) for r in rows]

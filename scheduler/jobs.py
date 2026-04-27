@@ -1,6 +1,10 @@
 from bot.callback_utils import make_callback_data
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from core.icloud import sync_events_table_to_calendar, sync_tasks_with_deadlines, fetch_all_calendars_events
+from core.icloud import (
+    sync_events_table_to_calendar,
+    sync_tasks_with_deadlines,
+    fetch_all_calendars_events,
+)
 from datetime import datetime, timedelta
 import pytz
 from core.config import (
@@ -145,17 +149,42 @@ async def sync_calendar_job(pool):
     """Background job to keep Apple Calendar in sync."""
     import asyncio
     from core.icloud import sync_university_schedule_to_calendar
-    
+
     print("⏳ Starting periodic Apple Calendar sync...", flush=True)
     try:
         await asyncio.gather(
             sync_university_schedule_to_calendar(pool),
             sync_events_table_to_calendar(pool),
-            sync_tasks_with_deadlines(pool)
+            sync_tasks_with_deadlines(pool),
         )
         print("✅ Periodic Apple Calendar sync completed.", flush=True)
     except Exception as e:
         print(f"❌ Periodic Apple Calendar sync failed: {e}", flush=True)
+
+
+async def cleanup_history_job(pool):
+    """Periodic job to cleanup message history older than 30 days."""
+    from db.queries.history import cleanup_history
+
+    print("🧹 Starting message history cleanup...", flush=True)
+    try:
+        deleted = await cleanup_history(pool, days=30)
+        print(f"✅ Cleanup finished: deleted {deleted} old messages.", flush=True)
+    except Exception as e:
+        print(f"❌ History cleanup failed: {e}", flush=True)
+
+
+async def update_profile_job(pool):
+    """Weekly job to analyze behavior and update user profile."""
+    from modules.profile import update_profile_from_behavior
+    from core.config import TELEGRAM_USER_ID
+
+    print("🔄 Starting weekly profile update...", flush=True)
+    try:
+        await update_profile_from_behavior(pool, TELEGRAM_USER_ID)
+        print("✅ Weekly profile update finished.", flush=True)
+    except Exception as e:
+        print(f"❌ Profile update failed: {e}", flush=True)
 
 
 async def send_morning_briefing(application, pool):
@@ -437,9 +466,11 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
         if icloud_events:
             lines.append("\n📅 *Apple Calendar Azi:*")
             for ev in icloud_events:
-                if ev['start'].date() == today:
-                    time_str = ev['start'].strftime("%H:%M")
-                    lines.append(f"• `{time_str}` — {escape_md(ev['summary'])} \\(_{escape_md(ev['calendar'])}_\\)")
+                if ev["start"].date() == today:
+                    time_str = ev["start"].strftime("%H:%M")
+                    lines.append(
+                        f"• `{time_str}` — {escape_md(ev['summary'])} \\(_{escape_md(ev['calendar'])}_\\)"
+                    )
 
         from db.queries.university import get_upcoming_exams
 
@@ -704,11 +735,11 @@ async def send_eod_reflection(application, pool):
                 parse_mode=ParseMode.MARKDOWN_V2,
             )
         except Exception as e:
-            print(f"Evening/Journal message MarkdownV2 failed, falling back: {e}", flush=True)
-            await application.bot.send_message(
-                chat_id=TELEGRAM_USER_ID,
-                text=message
+            print(
+                f"Evening/Journal message MarkdownV2 failed, falling back: {e}",
+                flush=True,
             )
+            await application.bot.send_message(chat_id=TELEGRAM_USER_ID, text=message)
 
         try:
             from bot.tts import text_to_speech
@@ -782,11 +813,11 @@ async def send_journal_night(application, pool):
                 parse_mode=ParseMode.MARKDOWN_V2,
             )
         except Exception as e:
-            print(f"Evening/Journal message MarkdownV2 failed, falling back: {e}", flush=True)
-            await application.bot.send_message(
-                chat_id=TELEGRAM_USER_ID,
-                text=message
+            print(
+                f"Evening/Journal message MarkdownV2 failed, falling back: {e}",
+                flush=True,
             )
+            await application.bot.send_message(chat_id=TELEGRAM_USER_ID, text=message)
 
         try:
             from bot.tts import text_to_speech
@@ -869,10 +900,16 @@ async def check_class_reminders(application, pool) -> None:
                 [
                     [
                         InlineKeyboardButton(
-                            "✅ Prezent", callback_data=make_callback_data("attendance", "present", c['id'])
+                            "✅ Prezent",
+                            callback_data=make_callback_data(
+                                "attendance", "present", c["id"]
+                            ),
                         ),
                         InlineKeyboardButton(
-                            "❌ Absent", callback_data=make_callback_data("attendance", "absent", c['id'])
+                            "❌ Absent",
+                            callback_data=make_callback_data(
+                                "attendance", "absent", c["id"]
+                            ),
                         ),
                     ]
                 ]
@@ -887,7 +924,9 @@ async def check_class_reminders(application, pool) -> None:
                     reply_markup=keyboard,
                 )
             except Exception as e:
-                print(f"Class reminder MarkdownV2 failed, falling back: {e}", flush=True)
+                print(
+                    f"Class reminder MarkdownV2 failed, falling back: {e}", flush=True
+                )
                 await application.bot.send_message(
                     chat_id=TELEGRAM_USER_ID,
                     text=msg,
@@ -1553,10 +1592,14 @@ async def check_event_reminders(application, pool):
                 [
                     [
                         InlineKeyboardButton(
-                            "👍 Ok", callback_data=make_callback_data("event", "reminder", "ack", e['id'])
+                            "👍 Ok",
+                            callback_data=make_callback_data(
+                                "event", "reminder", "ack", e["id"]
+                            ),
                         ),
                         InlineKeyboardButton(
-                            "📝 Note", callback_data=make_callback_data("event", "note", e['id'])
+                            "📝 Note",
+                            callback_data=make_callback_data("event", "note", e["id"]),
                         ),
                     ]
                 ]
@@ -1570,7 +1613,9 @@ async def check_event_reminders(application, pool):
                     reply_markup=keyboard,
                 )
             except Exception as e:
-                print(f"Event reminder MarkdownV2 failed, falling back: {e}", flush=True)
+                print(
+                    f"Event reminder MarkdownV2 failed, falling back: {e}", flush=True
+                )
                 await application.bot.send_message(
                     chat_id=TELEGRAM_USER_ID,
                     text=msg,
@@ -1608,7 +1653,10 @@ async def check_event_day_reminders(application, pool):
                 [
                     [
                         InlineKeyboardButton(
-                            "👍 Ok", callback_data=make_callback_data("event", "day", "ack", e['id'])
+                            "👍 Ok",
+                            callback_data=make_callback_data(
+                                "event", "day", "ack", e["id"]
+                            ),
                         ),
                     ]
                 ]
@@ -1622,7 +1670,9 @@ async def check_event_day_reminders(application, pool):
                     reply_markup=keyboard,
                 )
             except Exception as e:
-                print(f"Event reminder MarkdownV2 failed, falling back: {e}", flush=True)
+                print(
+                    f"Event reminder MarkdownV2 failed, falling back: {e}", flush=True
+                )
                 await application.bot.send_message(
                     chat_id=TELEGRAM_USER_ID,
                     text=msg,
@@ -1678,7 +1728,7 @@ async def check_habit_reminders(application, pool) -> None:
             [
                 InlineKeyboardButton(
                     f"✅ {h['name'][:15]}",
-                    callback_data=make_callback_data("habit", "done", h['id']),
+                    callback_data=make_callback_data("habit", "done", h["id"]),
                 )
             ]
             for h in rows[:5]
@@ -1686,7 +1736,12 @@ async def check_habit_reminders(application, pool) -> None:
 
         if len(rows) > 5:
             keyboard_buttons.append(
-                [InlineKeyboardButton("📋 Vezi toate", callback_data=make_callback_data("list", "habits"))]
+                [
+                    InlineKeyboardButton(
+                        "📋 Vezi toate",
+                        callback_data=make_callback_data("list", "habits"),
+                    )
+                ]
             )
 
         keyboard = InlineKeyboardMarkup(keyboard_buttons)
@@ -1764,9 +1819,13 @@ async def check_task_deadline_reminders(application, pool) -> None:
             [
                 [
                     InlineKeyboardButton(
-                        "✅ Mark done", callback_data=make_callback_data("task", "reminder", "dismiss")
+                        "✅ Mark done",
+                        callback_data=make_callback_data("task", "reminder", "dismiss"),
                     ),
-                    InlineKeyboardButton("📝 Note", callback_data=make_callback_data("view", "pending", "tasks")),
+                    InlineKeyboardButton(
+                        "📝 Note",
+                        callback_data=make_callback_data("view", "pending", "tasks"),
+                    ),
                 ]
             ]
         )
@@ -1855,6 +1914,27 @@ def setup_scheduler(application, pool):
         minute=0,
         misfire_grace_time=3600,
         args=[application, pool],
+    )
+
+    # 1b. Daily history cleanup at 04:00
+    scheduler.add_job(
+        cleanup_history_job,
+        "cron",
+        hour=4,
+        minute=0,
+        misfire_grace_time=3600,
+        args=[pool],
+    )
+
+    # 1c. Weekly profile update on Monday at 06:00
+    scheduler.add_job(
+        update_profile_job,
+        "cron",
+        day_of_week="mon",
+        hour=6,
+        minute=0,
+        misfire_grace_time=7200,
+        args=[pool],
     )
 
     # 3. EOD Reflection - short daily summary at configured EOD time
@@ -2013,6 +2093,7 @@ def setup_scheduler(application, pool):
 
     # ━━━ CALENDAR SYNC ━━━
     from core.config import CALENDAR_SYNC_INTERVAL
+
     scheduler.add_job(
         sync_calendar_job,
         "interval",

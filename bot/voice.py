@@ -41,7 +41,7 @@ async def transcribe_voice(update, context) -> str:
         myfile = await asyncio.to_thread(
             client.files.upload,
             file=tmp_path,
-            config=types.UploadFileConfig(mime_type="audio/ogg")
+            config=types.UploadFileConfig(mime_type="audio/ogg"),
         )
         print(f"🎙 VOICE: Uploaded, URI: {myfile.uri}", flush=True)
 
@@ -65,7 +65,7 @@ async def transcribe_voice(update, context) -> str:
                     )
                 ],
             ),
-            timeout=45.0
+            timeout=45.0,
         )
 
         transcription = response.text.strip()

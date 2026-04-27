@@ -78,10 +78,11 @@ async def log_transaction(
         tx_date = date.today()
 
     async with pool.acquire() as conn:
-        await conn.execute(
+        row = await conn.fetchrow(
             """
             INSERT INTO finances (type, amount, category, description, tx_date)
             VALUES ($1, $2, $3, $4, $5)
+            RETURNING id
             """,
             tx_type,
             decimal.Decimal(str(amount)),
@@ -89,6 +90,7 @@ async def log_transaction(
             description,
             tx_date,
         )
+        return row["id"]
 
 
 async def get_daily_total(pool, log_date: date, tx_type: str = "expense") -> float:

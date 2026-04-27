@@ -3,33 +3,88 @@ from typing import List, Dict, Any
 
 
 async def save_memory_fact(
-    pool, category: str, fact: str, source: str, confidence: float = 1.0
+    pool,
+    user_id: int,
+    category: str,
+    fact: str,
+    source: str,
+    confidence: float = 1.0,
+    expires_at: str = None,
 ) -> int:
-    """Saves a new memory fact to the database.
-
-    Args:
-        pool: Database connection pool.
-        category: 'preference', 'pattern', 'personal', 'achievement'.
-        fact: The extracted fact.
-        source: 'user_stated', 'inferred', 'observed'.
-        confidence: Confidence score (0.0 to 1.0).
-
-    Returns:
-        The ID of the newly created fact.
-    """
+    """Saves a new memory fact to the database."""
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO memory_facts (category, fact, source, confidence)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO memory_facts (user_id, category, fact, source, confidence, expires_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING id
             """,
+            user_id,
             category,
             fact,
             source,
             confidence,
+            expires_at,
         )
         return row["id"]
+
+
+async def save_auto_memory(
+    pool,
+    user_id: int,
+    fact: str,
+    category: str,
+    confidence: float,
+    expires_at: str = None,
+) -> bool:
+    """
+    Saves a memory fact automatically, with deduplication.
+    Checks for same category and similar start of fact (first 50 chars).
+    """
+    if confidence < 0.8:
+        return False
+
+    prefix = fact[:50].strip()
+
+    async with pool.acquire() as conn:
+        # Deduplication check
+        existing = await conn.fetchval(
+            """
+            SELECT id FROM memory_facts 
+            WHERE user_id = $1 AND category = $2 AND fact ILIKE $3
+            LIMIT 1
+            """,
+            user_id,
+            category,
+            f"{prefix}%",
+        )
+
+        if existing:
+            # Update last_seen and confidence if higher
+            await conn.execute(
+                """
+                UPDATE memory_facts 
+                SET last_seen = NOW(), confidence = GREATEST(confidence, $1), times_referenced = times_referenced + 1
+                WHERE id = $2
+                """,
+                confidence,
+                existing,
+            )
+            return False
+
+        # New fact
+        await conn.execute(
+            """
+            INSERT INTO memory_facts (user_id, category, fact, source, confidence, expires_at)
+            VALUES ($1, $2, $3, 'auto', $4, $5)
+            """,
+            user_id,
+            category,
+            fact,
+            confidence,
+            expires_at,
+        )
+        return True
 
 
 async def get_relevant_facts(pool, query_keywords: List[str]) -> List[Dict[str, Any]]:
@@ -149,5 +204,25 @@ async def search_memories(pool, query: str) -> List[Dict[str, Any]]:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT * FROM memory_facts WHERE fact ILIKE $1", f"%{query}%"
+        )
+        return [dict(r) for r in rows]
+
+
+async def semantic_search_memories(
+    pool, user_id: int, query: str, limit: int = 5
+) -> List[Dict[str, Any]]:
+    """Searches memories using full-text search."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT *
+            FROM memory_facts
+            WHERE user_id = $1 AND to_tsvector('simple', fact) @@ to_tsquery('simple', $2)
+            ORDER BY confidence DESC, created_at DESC
+            LIMIT $3
+            """,
+            user_id,
+            " & ".join(query.split()),
+            limit,
         )
         return [dict(r) for r in rows]

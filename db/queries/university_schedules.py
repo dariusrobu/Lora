@@ -1,5 +1,6 @@
 # db/queries/university_schedules.py
 """DB queries for schedule imports: schedule rows and academic_periods."""
+
 from datetime import date
 from typing import Any, Dict, List, Optional
 

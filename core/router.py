@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, Tuple, Optional
 import logging
 import asyncpg
 from db.queries.log import log_execution
@@ -46,10 +46,16 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
 
     if confidence < 0.7 or clarification_needed:
         from core.state import set_state
-        question = clarification_question or "Scuze, am nevoie de un mic detaliu. Poți clarifica ce anume dorești?"
+
+        question = (
+            clarification_question
+            or "Scuze, am nevoie de un mic detaliu. Poți clarifica ce anume dorești?"
+        )
         # Save partial intent data so the context is preserved
         payload = {"partial_intent": intent, "partial_data": data}
-        await set_state(pool, "awaiting_clarification", module, "clarify", None, payload)
+        await set_state(
+            pool, "awaiting_clarification", module, "clarify", None, payload
+        )
         return question, None
 
     # Let's check for Agentic Mode FIRST
@@ -65,15 +71,53 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
     if not module:
         return reply, None
 
+    # --- SPECIAL HANDLING: CORRECT LAST ---
+    if intent == "correct_last":
+        return await _handle_correct_last(pool, intent_response, bot)
+
     try:
-        reply_text, keyboard = await _execute_module_intent(
+        reply_text, keyboard, item_id = await _execute_module_intent(
             pool, module, intent, data, reply, bot
+        )
+
+        # Update state with last successful intent and ID
+        await set_state(
+            pool,
+            "null",
+            module,
+            "last_action",
+            item_id,
+            extra={
+                "last_intent": intent_response.model_dump()
+                if hasattr(intent_response, "model_dump")
+                else intent_response,
+                "last_inserted_id": item_id,
+            },
         )
 
         logger.info(
             f"Execution success | intent: {intent} | module: {module} | data_keys: {list(data.keys())}"
         )
         await log_execution(pool, intent, module, True)
+
+        # ── Memory Extraction ───────────────────────────────────────────
+        memory_extracts = intent_response.get("memory_extracts")
+        if memory_extracts:
+            from db.queries.memory import save_auto_memory
+            from core.config import TELEGRAM_USER_ID
+
+            for fact_data in memory_extracts:
+                try:
+                    await save_auto_memory(
+                        pool,
+                        TELEGRAM_USER_ID,
+                        fact_data.get("fact"),
+                        fact_data.get("category", "general"),
+                        fact_data.get("confidence", 0.0),
+                        fact_data.get("expires_at"),
+                    )
+                except Exception as me:
+                    logger.warning(f"Failed to auto-save memory: {me}")
 
         # ── Multi-intent: execute additional_intents sequentially ──────────
         additional = intent_response.get("additional_intents")
@@ -88,27 +132,38 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
                         extra_intent = dict(extra_intent)
                 e_module = extra_intent.get("module")
                 e_intent = extra_intent.get("intent")
-                e_data   = extra_intent.get("data") or {}
-                e_reply  = extra_intent.get("reply", "")
+                e_data = extra_intent.get("data") or {}
+                e_reply = extra_intent.get("reply", "")
                 e_data["_original_reply"] = e_reply
                 if not e_module:
                     all_replies.append(e_reply)
                     continue
                 try:
-                    e_text, _ = await _execute_module_intent(
+                    e_text, _, _ = await _execute_module_intent(
                         pool, e_module, e_intent, e_data, e_reply, bot
                     )
                     await log_execution(pool, e_intent, e_module, True)
                     if e_text:
                         all_replies.append(e_text)
-                    logger.info(f"Multi-intent [{idx}] success | intent={e_intent} | module={e_module}")
+                    logger.info(
+                        f"Multi-intent [{idx}] success | intent={e_intent} | module={e_module}"
+                    )
                 except Exception as ex:
-                    await log_execution(pool, e_intent, e_module, False, type(ex).__name__, str(ex))
-                    logger.error(f"Multi-intent [{idx}] failed | intent={e_intent} | error={ex}")
-                    all_replies.append(f"⚠️ Nu am putut executa acțiunea *{e_intent}*: {str(ex)[:80]}")
+                    await log_execution(
+                        pool, e_intent, e_module, False, type(ex).__name__, str(ex)
+                    )
+                    logger.error(
+                        f"Multi-intent [{idx}] failed | intent={e_intent} | error={ex}"
+                    )
+                    all_replies.append(
+                        f"⚠️ Nu am putut executa acțiunea *{e_intent}*: {str(ex)[:80]}"
+                    )
 
             combined = "\n".join(all_replies)
-            return combined, keyboard
+            return (
+                combined,
+                keyboard,
+            )  # Multi-intent doesn't track a single item_id easily
 
         return reply_text, keyboard
     except KeyError as e:
@@ -119,24 +174,91 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
         return (
             "A apărut o eroare: lipsesc date necesare pentru a procesa comanda.",
             None,
+            None,
         )
     except asyncpg.PostgresError as e:
         logger.error(
             f"Execution error | intent: {intent} | module: {module} | type: PostgresError | msg: {e} | data: {data}"
         )
         await log_execution(pool, intent, module, False, "PostgresError", str(e))
-        return "A apărut o eroare de bază de date. Te rog să încerci din nou.", None
+        return (
+            "A apărut o eroare de bază de date. Te rog să încerci din nou.",
+            None,
+            None,
+        )
     except Exception as e:
         logger.error(
             f"Execution error | intent: {intent} | module: {module} | type: Exception | msg: {e} | data: {data}"
         )
         await log_execution(pool, intent, module, False, "Exception", str(e))
-        return "A apărut o eroare neașteptată la procesarea comenzii.", None
+        return "A apărut o eroare neașteptată la procesarea comenzii.", None, None
+
+
+async def _handle_correct_last(pool, intent_response, bot):
+    """Handles undoing the last action and re-evaluating with correction."""
+    from db.queries.state import get_state, clear_state
+    from core.gemini import analyze_intent
+
+    state = await get_state(pool)
+    if not state or not state.get("extra"):
+        return "Nu am găsit nicio acțiune recentă de corectat.", None
+
+    last_intent = state["extra"].get("last_intent")
+    last_id = state["extra"].get("last_inserted_id")
+    module_name = state["module"]
+
+    if not last_intent or not last_id:
+        return "Nu am destule informații pentru a face corecția.", None
+
+    # 1. Undo the last action
+    undo_msg = "Am anulat acțiunea anterioară."
+    try:
+        if module_name == "tasks":
+            from modules.tasks import undo_last_action
+
+            undo_msg = await undo_last_action(pool, last_id)
+        elif module_name == "finance":
+            from modules.finance import undo_last_action
+
+            undo_msg = await undo_last_action(pool, last_id)
+        elif module_name == "health":
+            from modules.health import undo_last_action
+
+            undo_msg = await undo_last_action(pool, last_id)
+        elif module_name == "workout":
+            from modules.workout import undo_last_action
+
+            undo_msg = await undo_last_action(pool, last_id)
+    except Exception as e:
+        logger.error(f"Undo failed: {e}")
+        undo_msg = "⚠️ Nu am putut anula acțiunea anterioară complet."
+
+    # 2. Clear state
+    await clear_state(pool)
+
+    # 3. Re-analyze with correction context
+    correction_text = intent_response.data.get("correction_text", "")
+
+    # Check if it was just an "undo" request
+    undo_keywords = ["undo", "anulează", "anuleaza", "șterge", "sterge", "nu mai"]
+    is_pure_undo = any(w == correction_text.lower().strip() for w in undo_keywords)
+
+    if is_pure_undo:
+        return f"{undo_msg}\nCe dorești să facem în schimb?", None
+
+    hint = f"Utilizatorul vrea să CORECTEZE ultima acțiune. Intent-ul anterior a fost: {last_intent}. Mesajul de corecție: {correction_text}"
+
+    # We use the original message from the last intent to keep the context
+    new_intent_response = await analyze_intent(correction_text, system_hint=hint)
+
+    # Route the new intent
+    reply, kb = await route_intent(pool, new_intent_response, bot)
+    return f"{undo_msg}\n\n{reply}", kb
 
 
 async def _execute_module_intent(
     pool, module: str, intent: str, data: Dict[str, Any], reply: str, bot=None
-):
+) -> Tuple[str, Any, Optional[int]]:
     # Module routing logic
     if module == "tasks":
         from modules.tasks import handle_task_intent
@@ -145,11 +267,13 @@ async def _execute_module_intent(
     elif module == "projects":
         from modules.projects import handle_project_intent
 
-        return await handle_project_intent(pool, intent, data)
+        res = await handle_project_intent(pool, intent, data)
+        return (res[0], res[1], res[2] if len(res) > 2 else None)
     elif module == "notes":
         from modules.notes import handle_note_intent
 
-        return await handle_note_intent(pool, intent, data)
+        res = await handle_note_intent(pool, intent, data)
+        return (res[0], res[1], res[2] if len(res) > 2 else None)
     elif module == "finance":
         from modules.finance import handle_finance_intent
 
@@ -178,7 +302,7 @@ async def _execute_module_intent(
         from modules.insights import generate_insights
 
         text = await generate_insights(pool)
-        return text, None
+        return text, None, None
     elif module == "health":
         from modules.health import handle_health_intent
 
@@ -187,7 +311,7 @@ async def _execute_module_intent(
         from modules.news import fetch_tech_news
 
         news = await fetch_tech_news()
-        return f"{reply}\n\n{news}", None
+        return f"{reply}\n\n{news}", None, None
     elif module == "workout":
         from modules.workout import handle_workout_intent
 
@@ -203,7 +327,8 @@ async def _execute_module_intent(
     elif module == "planner":
         from modules.planner import generate_time_block
 
-        return await generate_time_block(pool)
+        res = await generate_time_block(pool)
+        return (res[0], res[1], res[2] if len(res) > 2 else None)
     elif module == "university":
         from modules.university import handle_university_intent
 
@@ -218,7 +343,9 @@ async def _execute_module_intent(
         return await handle_schedule_intent(pool, intent, data, bot)
     elif module == "memory":
         from modules.memory import handle_memory_intent
+        from core.config import TELEGRAM_USER_ID
 
+        data["user_id"] = TELEGRAM_USER_ID
         return await handle_memory_intent(pool, intent, data)
     elif module == "weather":
         from modules.weather import get_weather_summary
@@ -228,8 +355,8 @@ async def _execute_module_intent(
             await get_weather_summary(city) if city else await get_weather_summary()
         )
         if weather:
-            return f"{reply}\n\n🌤️ {weather}", None
-        return reply, None
+            return f"{reply}\n\n🌤️ {weather}", None, None
+        return reply, None, None
     elif intent == "trigger_morning_briefing":
         from scheduler.jobs import send_morning_briefing
         from core.config import TELEGRAM_USER_ID as TG_UID
@@ -266,6 +393,16 @@ async def _execute_module_intent(
     elif module == "calendar":
         from modules.calendar_module import handle_calendar_intent
 
-        return await handle_calendar_intent(pool, intent, data)
+        res = await handle_calendar_intent(pool, intent, data)
+        return (res[0], res[1], res[2] if len(res) > 2 else None)
 
-    return f"{reply}\n\n_(Note: Module {module} is still being implemented)_", None
+    res = await _handle_generic_module(pool, module, intent, data, reply)
+    return (res[0], res[1], res[2] if len(res) > 2 else None)
+
+
+async def _handle_generic_module(pool, module, intent, data, reply):
+    return (
+        f"{reply}\n\n_(Note: Module {module} is still being implemented)_",
+        None,
+        None,
+    )

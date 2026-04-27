@@ -78,12 +78,15 @@ Do NOT extract trivial strings like "User said hello".
         traceback.print_exc()
 
 
-async def get_context_memory(pool, current_message: str) -> str:
+async def get_context_memory(
+    pool, current_message: str, category_hint: str = None
+) -> str:
     """Retrieves relevant facts from long-term memory to include in the context.
 
     Args:
         pool: Database connection pool.
         current_message: The user's current message to search for relevant facts.
+        category_hint: Optional category to prioritize.
 
     Returns:
         A formatted string of relevant facts.
@@ -95,16 +98,28 @@ async def get_context_memory(pool, current_message: str) -> str:
             for word in current_message.split()
             if len(word) >= 3
         ]
-        if not keywords:
-            return "Nicio amintire relevantă identificată."
 
-        facts = await get_relevant_facts(pool, keywords)
+        # 1. Fetch relevant facts by keywords
+        facts = []
+        if keywords:
+            facts = await get_relevant_facts(pool, keywords)
+
+        # 2. If we have a category hint, fetch a few from that category too
+        if category_hint:
+            from db.queries.memory import get_all_facts_by_category
+
+            cat_facts = await get_all_facts_by_category(pool, category_hint)
+            # Merge and avoid duplicates
+            existing_ids = {f["id"] for f in facts}
+            for cf in cat_facts[:3]:
+                if cf["id"] not in existing_ids:
+                    facts.append(cf)
 
         if not facts:
             return "Nicio amintire relevantă identificată."
 
         formatted_facts = []
-        for f in facts:
+        for f in facts[:5]:  # Limit to top 5 as requested
             # Update last_seen for the fact since it's being used
             await update_fact_seen(pool, f["id"])
             formatted_facts.append(f"• [{f['category'].capitalize()}] {f['fact']}")

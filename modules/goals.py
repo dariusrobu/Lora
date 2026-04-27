@@ -135,7 +135,13 @@ async def get_completed_goals(pool) -> Tuple[str, Any]:
 
     if not goals:
         return "✅ Nu ai obiective finalizate încă\\.", InlineKeyboardMarkup(
-            [[InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("goals", "cancel"))]]
+            [
+                [
+                    InlineKeyboardButton(
+                        "◀️ Înapoi", callback_data=make_callback_data("goals", "cancel")
+                    )
+                ]
+            ]
         )
 
     lines = ["✅ *Obiective Completate*\n"]
@@ -144,7 +150,13 @@ async def get_completed_goals(pool) -> Tuple[str, Any]:
         lines.append(f"• {escape_md(g['title'])} — {escape_md(date_str)}")
 
     return "\n".join(lines), InlineKeyboardMarkup(
-        [[InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("goals", "cancel"))]]
+        [
+            [
+                InlineKeyboardButton(
+                    "◀️ Înapoi", callback_data=make_callback_data("goals", "cancel")
+                )
+            ]
+        ]
     )
 
 
@@ -219,7 +231,13 @@ async def get_goals_overview(pool) -> Tuple[str, Any]:
     from telegram import InlineKeyboardMarkup
 
     return "\n".join(lines), InlineKeyboardMarkup(
-        [[InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("goals", "cancel"))]]
+        [
+            [
+                InlineKeyboardButton(
+                    "◀️ Înapoi", callback_data=make_callback_data("goals", "cancel")
+                )
+            ]
+        ]
     )
 
 
@@ -287,7 +305,8 @@ async def handle_goals_callback(query, pool, data: str):
                         [
                             [
                                 InlineKeyboardButton(
-                                    "❌ Anulează", callback_data=make_callback_data("goals", "cancel")
+                                    "❌ Anulează",
+                                    callback_data=make_callback_data("goals", "cancel"),
                                 )
                             ]
                         ]
@@ -323,7 +342,10 @@ async def handle_goals_callback(query, pool, data: str):
                     [
                         [
                             InlineKeyboardButton(
-                                "❌ Anulează", callback_data=make_callback_data("goals", "detail", goal_id)
+                                "❌ Anulează",
+                                callback_data=make_callback_data(
+                                    "goals", "detail", goal_id
+                                ),
                             )
                         ]
                     ]
@@ -403,7 +425,8 @@ async def handle_goals_message(update, pool, state: dict, text: str):
                         [
                             [
                                 InlineKeyboardButton(
-                                    "❌ Anulează", callback_data=make_callback_data("goals", "cancel")
+                                    "❌ Anulează",
+                                    callback_data=make_callback_data("goals", "cancel"),
                                 )
                             ]
                         ]

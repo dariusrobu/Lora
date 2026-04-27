@@ -17,7 +17,7 @@ async def upsert_health_log(
     Uses COALESCE to avoid overwriting existing values with NULL.
     """
     async with pool.acquire() as conn:
-        await conn.execute(
+        row = await conn.fetchrow(
             """
             INSERT INTO health_logs (
                 log_date, sleep_hours, sleep_quality, water_ml, nutrition, weight_kg, notes
@@ -32,6 +32,7 @@ async def upsert_health_log(
                 weight_kg     = COALESCE($6, health_logs.weight_kg),
                 notes         = COALESCE($7, health_logs.notes),
                 updated_at    = NOW()
+            RETURNING id
             """,
             log_date,
             sleep_hours,
@@ -41,6 +42,7 @@ async def upsert_health_log(
             weight_kg,
             notes,
         )
+        return row["id"]
 
 
 async def add_water(pool, log_date: date, ml_to_add: int) -> int:

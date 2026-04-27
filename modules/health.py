@@ -1,4 +1,4 @@
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from datetime import date
 import io
 import traceback
@@ -10,7 +10,7 @@ import db.queries.health as health_queries
 
 async def handle_health_intent(
     pool, intent: str, data: Dict[str, Any], bot=None
-) -> Tuple[str, Any]:
+) -> Tuple[str, Any, Optional[int]]:
     today = date.today()
 
     if intent in [
@@ -34,20 +34,28 @@ async def handle_health_intent(
         bar = "█" * (pct // 10) + "░" * (10 - (pct // 10))
 
         msg = f"✅ \\+{water_ml}ml adăugați\\.\n💧 *Total azi:* {new_total}/{target}ml\n`{bar}` {pct}\\%"
-        return msg, None
+        # We use today's log ID for undo. add_water doesn't return the ID, but we can fetch it or just not support undo for water yet.
+        # Actually, let's get the ID if we want to support undo.
+        log = await health_queries.get_health_log(pool, today)
+        return msg, None, log["id"] if log else None
 
     elif intent == "health_summary":
-        return await _generate_health_summary_text(pool)
+        res_text, res_markup = await _generate_health_summary_text(pool)
+        return res_text, res_markup, None
 
     elif intent == "health_chart":
-        return await _generate_health_chart(pool)
+        res_text, res_markup = await _generate_health_chart(pool)
+        return res_text, res_markup, None
 
     elif intent == "view_today_logs":
-        return await _generate_today_logs_text(pool)
+        res_text, res_markup = await _generate_today_logs_text(pool)
+        return res_text, res_markup, None
 
-    return escape_md(
-        "Nu sunt sigură cum să procesez această cerere pentru sănătate. 🤔"
-    ), None
+    return (
+        escape_md("Nu sunt sigură cum să procesez această cerere pentru sănătate. 🤔"),
+        None,
+        None,
+    )
 
 
 async def handle_health_callback(query, pool, data: str) -> None:
@@ -196,7 +204,7 @@ async def handle_health_message(update, pool, state: dict, text: str) -> None:
 
 async def _handle_upsert(
     pool, intent: str, data: Dict[str, Any], log_date: date
-) -> Tuple[str, Any]:
+) -> Tuple[str, Any, Optional[int]]:
     sleep_hours = data.get("sleep_hours")
     sleep_quality = data.get("sleep_quality")
     water_ml = data.get("water_ml")
@@ -204,7 +212,7 @@ async def _handle_upsert(
     weight_kg = data.get("weight_kg")
     notes = data.get("notes")
 
-    await health_queries.upsert_health_log(
+    log_id = await health_queries.upsert_health_log(
         pool,
         log_date,
         sleep_hours=sleep_hours,
@@ -225,11 +233,8 @@ async def _handle_upsert(
     if nutrition is not None:
         parts.append(f"nutriție: {nutrition} ✓")
 
-    if not parts:
-        return escape_md("Am salvat log-ul de sanatate. ✅"), None
-
     msg = "✅ Health logat: " + " + ".join(parts)
-    return escape_md(msg), None
+    return escape_md(msg), None, log_id
 
 
 FOOD_MACROS = {
@@ -323,7 +328,9 @@ async def _generate_health_summary_text(pool) -> Tuple[str, Any]:
 
     if not summary or summary.get("total_days", 0) == 0:
         return (
-            safe_markdown("Nu am destule date pentru un rezumat încă. Mai loghează câteva zile! 📊"),
+            safe_markdown(
+                "Nu am destule date pentru un rezumat încă. Mai loghează câteva zile! 📊"
+            ),
             health_summary_keyboard(),
         )
 
@@ -363,7 +370,9 @@ async def _generate_health_chart(pool) -> Tuple[str, Any]:
     history = await health_queries.get_health_history(pool, 30)
     if len(history) < 3:
         return (
-            safe_markdown("Am nevoie de măcar 3 zile logate pentru a genera un grafic relevant. 📉"),
+            safe_markdown(
+                "Am nevoie de măcar 3 zile logate pentru a genera un grafic relevant. 📉"
+            ),
             None,
         )
 
@@ -471,9 +480,24 @@ async def _get_water_target(pool) -> int:
 
 
 async def _save_prompt_to_conversation(pool, prompt: str) -> None:
+    """Saves the assistant's prompt to the history table for Gemini context."""
+    from db.queries.history import save_message
+    from core.config import TELEGRAM_USER_ID
+
+    await save_message(pool, TELEGRAM_USER_ID, "assistant", prompt)
+
+
+async def undo_last_action(pool, item_id: int) -> str:
+    """Rolls back the last health log entry (or clears fields)."""
+    if not item_id:
+        return "Nu am ce să anulez."
+
     async with pool.acquire() as conn:
-        await conn.execute(
-            "INSERT INTO conversations (role, content) VALUES ($1, $2)",
-            "assistant",
-            prompt,
+        row = await conn.fetchrow(
+            "SELECT log_date FROM health_logs WHERE id = $1", item_id
         )
+        if not row:
+            return "Log-ul de sănătate a fost deja șters sau nu există."
+
+        await conn.execute("DELETE FROM health_logs WHERE id = $1", item_id)
+        return f"🗑️ Am anulat log-ul de sănătate din data de *{row['log_date']}*\\."

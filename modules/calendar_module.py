@@ -9,24 +9,26 @@ async def handle_calendar_intent(
     pool, intent: str, data: Dict[str, Any]
 ) -> Tuple[str, Optional[Any]]:
     """Handler for calendar-related intents."""
-    
+
     if intent == "calendar_today":
         events = await calendar_core.fetch_all_calendars_events(days_ahead=1)
         if not events:
             return "📅 Nu ai evenimente planificate pentru azi în Apple Calendar.", None
-        
+
         lines = ["📅 *Evenimente Azi (Apple Calendar):*"]
         for e in events:
             time_str = e["start"].strftime("%H:%M")
-            lines.append(f"• `{time_str}` — {escape_md(e['summary'])} \\(_{escape_md(e['calendar'])}_\\)")
-        
+            lines.append(
+                f"• `{time_str}` — {escape_md(e['summary'])} \\(_{escape_md(e['calendar'])}_\\)"
+            )
+
         return "\n".join(lines), None
 
     elif intent == "calendar_week":
         events = await calendar_core.fetch_all_calendars_events(days_ahead=7)
         if not events:
             return "📅 Nu ai evenimente planificate săptămâna aceasta.", None
-        
+
         lines = ["📅 *Evenimente Săptămâna Aceasta:*"]
         current_date = None
         for e in events:
@@ -34,10 +36,12 @@ async def handle_calendar_intent(
             if event_date != current_date:
                 current_date = event_date
                 lines.append(f"\n🗓 *{event_date.strftime('%d %b')}*")
-            
+
             time_str = e["start"].strftime("%H:%M")
-            lines.append(f"• `{time_str}` — {escape_md(e['summary'])} \\(_{escape_md(e['calendar'])}_\\)")
-            
+            lines.append(
+                f"• `{time_str}` — {escape_md(e['summary'])} \\(_{escape_md(e['calendar'])}_\\)"
+            )
+
         return "\n".join(lines), None
 
     elif intent == "calendar_add":
@@ -46,30 +50,36 @@ async def handle_calendar_intent(
         end_str = data.get("end")
         location = data.get("location")
         description = data.get("description")
-        
+
         if not summary or not start_str:
-            return "❌ Am nevoie de un titlu și o oră pentru a adăuga în calendar.", None
-            
+            return (
+                "❌ Am nevoie de un titlu și o oră pentru a adăuga în calendar.",
+                None,
+            )
+
         try:
             start_dt = datetime.fromisoformat(start_str)
             if start_dt.tzinfo is None:
                 start_dt = calendar_core.LOCAL_TZ.localize(start_dt)
-                
+
             end_dt = None
             if end_str:
                 end_dt = datetime.fromisoformat(end_str)
                 if end_dt.tzinfo is None:
                     end_dt = calendar_core.LOCAL_TZ.localize(end_dt)
-            
+
             await calendar_core.create_event(
                 summary=summary,
                 start=start_dt,
                 end=end_dt,
                 location=location,
-                description=description
+                description=description,
             )
-            
-            return f"✅ Eveniment adăugat în Apple Calendar: *{escape_md(summary)}*\n⏰ {start_dt.strftime('%H:%M')}", None
+
+            return (
+                f"✅ Eveniment adăugat în Apple Calendar: *{escape_md(summary)}*\n⏰ {start_dt.strftime('%H:%M')}",
+                None,
+            )
         except Exception as e:
             return f"❌ Eroare la adăugarea în calendar: {str(e)}", None
 
@@ -78,12 +88,12 @@ async def handle_calendar_intent(
         results = await asyncio.gather(
             calendar_core.sync_university_schedule_to_calendar(pool),
             calendar_core.sync_events_table_to_calendar(pool),
-            calendar_core.sync_tasks_with_deadlines(pool)
+            calendar_core.sync_tasks_with_deadlines(pool),
         )
-        
+
         s_stats, e_stats, t_stats = results
         total_created = s_stats["created"] + e_stats["created"] + t_stats["created"]
-        
+
         msg = (
             f"🔄 *Sincronizare Apple Calendar completă*\n\n"
             f"• 🎓 Cursuri: {s_stats['created']} noi\n"

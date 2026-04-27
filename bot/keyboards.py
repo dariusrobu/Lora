@@ -6,9 +6,16 @@ from bot.formatter import escape_md
 def task_keyboard(task_id: int) -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton("✅ Done", callback_data=make_callback_data("tasks", "complete", task_id)),
-            InlineKeyboardButton("✏️ Edit", callback_data=make_callback_data("tasks", "edit", task_id)),
-            InlineKeyboardButton("🗑 Delete", callback_data=make_callback_data("tasks", "delete", task_id)),
+            InlineKeyboardButton(
+                "✅ Done",
+                callback_data=make_callback_data("tasks", "complete", task_id),
+            ),
+            InlineKeyboardButton(
+                "✏️ Edit", callback_data=make_callback_data("tasks", "edit", task_id)
+            ),
+            InlineKeyboardButton(
+                "🗑 Delete", callback_data=make_callback_data("tasks", "delete", task_id)
+            ),
         ]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -25,7 +32,9 @@ def task_list_keyboard(
             [
                 InlineKeyboardButton(
                     f"✅ {t['title'][:25]}",
-                    callback_data=make_callback_data("tasks", "complete", t['id'], "list"),
+                    callback_data=make_callback_data(
+                        "tasks", "complete", t["id"], "list"
+                    ),
                 )
             ]
         )
@@ -36,16 +45,27 @@ def task_list_keyboard(
 def tasks_main_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton("📋 Toate task-urile", callback_data=make_callback_data("tasks", "list_all")),
-            InlineKeyboardButton("📂 Pe proiecte", callback_data=make_callback_data("tasks", "projects_list")),
-        ],
-        [
-            InlineKeyboardButton("➕ Task nou", callback_data=make_callback_data("tasks", "new")),
-            InlineKeyboardButton("➕ Proiect nou", callback_data=make_callback_data("projects", "new")),
+            InlineKeyboardButton(
+                "📋 Toate task-urile",
+                callback_data=make_callback_data("tasks", "list_all"),
+            ),
+            InlineKeyboardButton(
+                "📂 Pe proiecte",
+                callback_data=make_callback_data("tasks", "projects_list"),
+            ),
         ],
         [
             InlineKeyboardButton(
-                "✅ Recent încheiate", callback_data=make_callback_data("tasks", "recent_done")
+                "➕ Task nou", callback_data=make_callback_data("tasks", "new")
+            ),
+            InlineKeyboardButton(
+                "➕ Proiect nou", callback_data=make_callback_data("projects", "new")
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                "✅ Recent încheiate",
+                callback_data=make_callback_data("tasks", "recent_done"),
             )
         ],
     ]
@@ -58,13 +78,28 @@ def tasks_projects_keyboard(projects_with_counts: list) -> InlineKeyboardMarkup:
         # p is dict with 'id', 'name', 'task_count'
         label = f"📁 {p['name']} ({p['task_count']})"
         keyboard.append(
-            [InlineKeyboardButton(label, callback_data=make_callback_data("tasks", "project_view", p['id']))]
+            [
+                InlineKeyboardButton(
+                    label,
+                    callback_data=make_callback_data("tasks", "project_view", p["id"]),
+                )
+            ]
         )
 
     keyboard.append(
-        [InlineKeyboardButton("➕ Proiect nou", callback_data=make_callback_data("projects", "new"))]
+        [
+            InlineKeyboardButton(
+                "➕ Proiect nou", callback_data=make_callback_data("projects", "new")
+            )
+        ]
     )
-    keyboard.append([InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("tasks", "main"))])
+    keyboard.append(
+        [
+            InlineKeyboardButton(
+                "◀️ Înapoi", callback_data=make_callback_data("tasks", "main")
+            )
+        ]
+    )
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -73,9 +108,14 @@ def tasks_confirm_delete_keyboard(task_id: int) -> InlineKeyboardMarkup:
         [
             [
                 InlineKeyboardButton(
-                    "✅ Confirmă", callback_data=make_callback_data("tasks", "delete_confirmed", task_id)
+                    "✅ Confirmă",
+                    callback_data=make_callback_data(
+                        "tasks", "delete_confirmed", task_id
+                    ),
                 ),
-                InlineKeyboardButton("❌ Anulează", callback_data=make_callback_data("tasks", "cancel")),
+                InlineKeyboardButton(
+                    "❌ Anulează", callback_data=make_callback_data("tasks", "cancel")
+                ),
             ]
         ]
     )
@@ -87,10 +127,13 @@ def projects_confirm_delete_keyboard(project_id: int) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     "✅ Confirmă",
-                    callback_data=make_callback_data("projects", "delete_confirmed", project_id),
+                    callback_data=make_callback_data(
+                        "projects", "delete_confirmed", project_id
+                    ),
                 ),
                 InlineKeyboardButton(
-                    "❌ Anulează", callback_data=make_callback_data("tasks", "projects_list")
+                    "❌ Anulează",
+                    callback_data=make_callback_data("tasks", "projects_list"),
                 ),
             ]
         ]
@@ -102,7 +145,9 @@ def tasks_project_detail_keyboard(project_id: int) -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(
                 "➕ Adaugă task aici",
-                callback_data=make_callback_data("tasks", "new_for_project", project_id),
+                callback_data=make_callback_data(
+                    "tasks", "new_for_project", project_id
+                ),
             ),
         ],
         [
@@ -111,12 +156,14 @@ def tasks_project_detail_keyboard(project_id: int) -> InlineKeyboardMarkup:
                 callback_data=make_callback_data("projects", "complete", project_id),
             ),
             InlineKeyboardButton(
-                "🗑️ Șterge proiect", callback_data=make_callback_data("projects", "delete", project_id)
+                "🗑️ Șterge proiect",
+                callback_data=make_callback_data("projects", "delete", project_id),
             ),
         ],
         [
             InlineKeyboardButton(
-                "◀️ Înapoi la proiecte", callback_data=make_callback_data("tasks", "projects_list")
+                "◀️ Înapoi la proiecte",
+                callback_data=make_callback_data("tasks", "projects_list"),
             )
         ],
     ]
@@ -129,7 +176,11 @@ def projects_main_keyboard(projects: list) -> InlineKeyboardMarkup:
 
     # 1. Row for adding
     keyboard.append(
-        [InlineKeyboardButton("➕ Proiect Nou", callback_data=make_callback_data("projects", "new"))]
+        [
+            InlineKeyboardButton(
+                "➕ Proiect Nou", callback_data=make_callback_data("projects", "new")
+            )
+        ]
     )
 
     # 2. List some projects as buttons (max 5 for the main view)
@@ -137,7 +188,8 @@ def projects_main_keyboard(projects: list) -> InlineKeyboardMarkup:
         keyboard.append(
             [
                 InlineKeyboardButton(
-                    f"📂 {p['name']}", callback_data=make_callback_data("tasks", "project_view", p['id'])
+                    f"📂 {p['name']}",
+                    callback_data=make_callback_data("tasks", "project_view", p["id"]),
                 )
             ]
         )
@@ -145,8 +197,13 @@ def projects_main_keyboard(projects: list) -> InlineKeyboardMarkup:
     # 3. View all / Tasks
     keyboard.append(
         [
-            InlineKeyboardButton("📋 Vezi toate", callback_data=make_callback_data("tasks", "projects_list")),
-            InlineKeyboardButton("✅ Tasks", callback_data=make_callback_data("tasks", "main")),
+            InlineKeyboardButton(
+                "📋 Vezi toate",
+                callback_data=make_callback_data("tasks", "projects_list"),
+            ),
+            InlineKeyboardButton(
+                "✅ Tasks", callback_data=make_callback_data("tasks", "main")
+            ),
         ]
     )
 
@@ -156,12 +213,20 @@ def projects_main_keyboard(projects: list) -> InlineKeyboardMarkup:
 def mood_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton("😊 Great", callback_data=make_callback_data("mood", "great")),
-            InlineKeyboardButton("🙂 Good", callback_data=make_callback_data("mood", "good")),
+            InlineKeyboardButton(
+                "😊 Great", callback_data=make_callback_data("mood", "great")
+            ),
+            InlineKeyboardButton(
+                "🙂 Good", callback_data=make_callback_data("mood", "good")
+            ),
         ],
         [
-            InlineKeyboardButton("😐 Okay", callback_data=make_callback_data("mood", "okay")),
-            InlineKeyboardButton("😔 Tough", callback_data=make_callback_data("mood", "bad")),
+            InlineKeyboardButton(
+                "😐 Okay", callback_data=make_callback_data("mood", "okay")
+            ),
+            InlineKeyboardButton(
+                "😔 Tough", callback_data=make_callback_data("mood", "bad")
+            ),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -173,20 +238,36 @@ def mood_keyboard() -> InlineKeyboardMarkup:
 def workout_main_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton("📝 Log antrenament", callback_data=make_callback_data("workout_log")),
-            InlineKeyboardButton("📊 Statistici", callback_data=make_callback_data("workout_stats_menu")),
+            InlineKeyboardButton(
+                "📝 Log antrenament", callback_data=make_callback_data("workout_log")
+            ),
+            InlineKeyboardButton(
+                "📊 Statistici", callback_data=make_callback_data("workout_stats_menu")
+            ),
         ],
         [
-            InlineKeyboardButton("🏆 Personal Records", callback_data=make_callback_data("workout_prs")),
-            InlineKeyboardButton("📅 Săptămâna", callback_data=make_callback_data("workout_week")),
+            InlineKeyboardButton(
+                "🏆 Personal Records", callback_data=make_callback_data("workout_prs")
+            ),
+            InlineKeyboardButton(
+                "📅 Săptămâna", callback_data=make_callback_data("workout_week")
+            ),
         ],
         [
-            InlineKeyboardButton("✏️ Editează", callback_data=make_callback_data("workout_edit")),
-            InlineKeyboardButton("🗑️ Șterge", callback_data=make_callback_data("workout_delete")),
+            InlineKeyboardButton(
+                "✏️ Editează", callback_data=make_callback_data("workout_edit")
+            ),
+            InlineKeyboardButton(
+                "🗑️ Șterge", callback_data=make_callback_data("workout_delete")
+            ),
         ],
         [
-            InlineKeyboardButton("⚙️ Sporturi", callback_data=make_callback_data("workout_sports")),
-            InlineKeyboardButton("🏋️ Exerciții", callback_data=make_callback_data("workout_exercises")),
+            InlineKeyboardButton(
+                "⚙️ Sporturi", callback_data=make_callback_data("workout_sports")
+            ),
+            InlineKeyboardButton(
+                "🏋️ Exerciții", callback_data=make_callback_data("workout_exercises")
+            ),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -195,11 +276,21 @@ def workout_main_keyboard() -> InlineKeyboardMarkup:
 def workout_stats_period_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton("7 zile", callback_data=make_callback_data("workout_stats_7")),
-            InlineKeyboardButton("30 zile", callback_data=make_callback_data("workout_stats_30")),
-            InlineKeyboardButton("180 zile", callback_data=make_callback_data("workout_stats_180")),
+            InlineKeyboardButton(
+                "7 zile", callback_data=make_callback_data("workout_stats_7")
+            ),
+            InlineKeyboardButton(
+                "30 zile", callback_data=make_callback_data("workout_stats_30")
+            ),
+            InlineKeyboardButton(
+                "180 zile", callback_data=make_callback_data("workout_stats_180")
+            ),
         ],
-        [InlineKeyboardButton("⬅️ Înapoi", callback_data=make_callback_data("workout_main"))],
+        [
+            InlineKeyboardButton(
+                "⬅️ Înapoi", callback_data=make_callback_data("workout_main")
+            )
+        ],
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -207,14 +298,26 @@ def workout_stats_period_keyboard() -> InlineKeyboardMarkup:
 def sport_category_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton("Forță", callback_data=make_callback_data("workout_cat_Forță")),
-            InlineKeyboardButton("Cardio", callback_data=make_callback_data("workout_cat_Cardio")),
+            InlineKeyboardButton(
+                "Forță", callback_data=make_callback_data("workout_cat_Forță")
+            ),
+            InlineKeyboardButton(
+                "Cardio", callback_data=make_callback_data("workout_cat_Cardio")
+            ),
         ],
         [
-            InlineKeyboardButton("Sport", callback_data=make_callback_data("workout_cat_Sport")),
-            InlineKeyboardButton("Mobilitate", callback_data=make_callback_data("workout_cat_Mobilitate")),
+            InlineKeyboardButton(
+                "Sport", callback_data=make_callback_data("workout_cat_Sport")
+            ),
+            InlineKeyboardButton(
+                "Mobilitate", callback_data=make_callback_data("workout_cat_Mobilitate")
+            ),
         ],
-        [InlineKeyboardButton("⬅️ Înapoi", callback_data=make_callback_data("workout_main"))],
+        [
+            InlineKeyboardButton(
+                "⬅️ Înapoi", callback_data=make_callback_data("workout_main")
+            )
+        ],
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -233,15 +336,28 @@ def sports_list_keyboard(sports: list[dict]) -> InlineKeyboardMarkup:
             row.append(
                 InlineKeyboardButton(
                     f"{sports[i + 1].get('icon', '')} {sports[i + 1]['name']}",
-                    callback_data=make_callback_data(f"workout_sport_{sports[i + 1]['id']}"),
+                    callback_data=make_callback_data(
+                        f"workout_sport_{sports[i + 1]['id']}"
+                    ),
                 )
             )
         keyboard.append(row)
 
     keyboard.append(
-        [InlineKeyboardButton("➕ Adaugă sport nou", callback_data=make_callback_data("workout_add_sport"))]
+        [
+            InlineKeyboardButton(
+                "➕ Adaugă sport nou",
+                callback_data=make_callback_data("workout_add_sport"),
+            )
+        ]
     )
-    keyboard.append([InlineKeyboardButton("⬅️ Înapoi", callback_data=make_callback_data("workout_main"))])
+    keyboard.append(
+        [
+            InlineKeyboardButton(
+                "⬅️ Înapoi", callback_data=make_callback_data("workout_main")
+            )
+        ]
+    )
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -251,14 +367,18 @@ def exercises_list_keyboard(exercises: list[dict]) -> InlineKeyboardMarkup:
         row = [
             InlineKeyboardButton(
                 exercises[i]["name"],
-                callback_data=make_callback_data(f"workout_exercise_{exercises[i]['id']}"),
+                callback_data=make_callback_data(
+                    f"workout_exercise_{exercises[i]['id']}"
+                ),
             )
         ]
         if i + 1 < len(exercises):
             row.append(
                 InlineKeyboardButton(
                     exercises[i + 1]["name"],
-                    callback_data=make_callback_data(f"workout_exercise_{exercises[i + 1]['id']}"),
+                    callback_data=make_callback_data(
+                        f"workout_exercise_{exercises[i + 1]['id']}"
+                    ),
                 )
             )
         keyboard.append(row)
@@ -266,11 +386,18 @@ def exercises_list_keyboard(exercises: list[dict]) -> InlineKeyboardMarkup:
     keyboard.append(
         [
             InlineKeyboardButton(
-                "➕ Adaugă exercițiu", callback_data=make_callback_data("workout_add_exercise")
+                "➕ Adaugă exercițiu",
+                callback_data=make_callback_data("workout_add_exercise"),
             )
         ]
     )
-    keyboard.append([InlineKeyboardButton("⬅️ Înapoi", callback_data=make_callback_data("workout_main"))])
+    keyboard.append(
+        [
+            InlineKeyboardButton(
+                "⬅️ Înapoi", callback_data=make_callback_data("workout_main")
+            )
+        ]
+    )
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -280,9 +407,13 @@ def confirm_delete_keyboard(item_type: str, item_id: int) -> InlineKeyboardMarku
         [
             InlineKeyboardButton(
                 "✅ Confirmă",
-                callback_data=make_callback_data(f"workout_confirm_delete_{item_type}_{item_id}"),
+                callback_data=make_callback_data(
+                    f"workout_confirm_delete_{item_type}_{item_id}"
+                ),
             ),
-            InlineKeyboardButton("❌ Anulează", callback_data=make_callback_data("workout_main")),
+            InlineKeyboardButton(
+                "❌ Anulează", callback_data=make_callback_data("workout_main")
+            ),
         ]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -295,12 +426,20 @@ def goals_main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton("🎯 Goals active", callback_data=make_callback_data("goals_active")),
-                InlineKeyboardButton("✅ Completate", callback_data=make_callback_data("goals_completed")),
+                InlineKeyboardButton(
+                    "🎯 Goals active", callback_data=make_callback_data("goals_active")
+                ),
+                InlineKeyboardButton(
+                    "✅ Completate", callback_data=make_callback_data("goals_completed")
+                ),
             ],
             [
-                InlineKeyboardButton("➕ Goal nou", callback_data=make_callback_data("goals_new")),
-                InlineKeyboardButton("📊 Overview", callback_data=make_callback_data("goals_overview")),
+                InlineKeyboardButton(
+                    "➕ Goal nou", callback_data=make_callback_data("goals_new")
+                ),
+                InlineKeyboardButton(
+                    "📊 Overview", callback_data=make_callback_data("goals_overview")
+                ),
             ],
         ]
     )
@@ -320,18 +459,29 @@ def goals_category_keyboard(context: str = "new") -> InlineKeyboardMarkup:
     for i in range(0, len(categories), 2):
         row = [
             InlineKeyboardButton(
-                categories[i], callback_data=make_callback_data(f"goals_category_{categories[i]}_{context}")
+                categories[i],
+                callback_data=make_callback_data(
+                    f"goals_category_{categories[i]}_{context}"
+                ),
             )
         ]
         if i + 1 < len(categories):
             row.append(
                 InlineKeyboardButton(
                     categories[i + 1],
-                    callback_data=make_callback_data(f"goals_category_{categories[i + 1]}_{context}"),
+                    callback_data=make_callback_data(
+                        f"goals_category_{categories[i + 1]}_{context}"
+                    ),
                 )
             )
         keyboard.append(row)
-    keyboard.append([InlineKeyboardButton("❌ Anulează", callback_data=make_callback_data("goals_cancel"))])
+    keyboard.append(
+        [
+            InlineKeyboardButton(
+                "❌ Anulează", callback_data=make_callback_data("goals_cancel")
+            )
+        ]
+    )
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -340,18 +490,31 @@ def goals_list_keyboard(goals: list) -> InlineKeyboardMarkup:
     for g in goals:
         label = f"🎯 {g['title']} ({g.get('progress', 0)}%)"
         keyboard.append(
-            [InlineKeyboardButton(label, callback_data=make_callback_data(f"goals_detail_{g['id']}"))]
+            [
+                InlineKeyboardButton(
+                    label, callback_data=make_callback_data(f"goals_detail_{g['id']}")
+                )
+            ]
         )
-    keyboard.append([InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("goals_cancel"))])
+    keyboard.append(
+        [
+            InlineKeyboardButton(
+                "◀️ Înapoi", callback_data=make_callback_data("goals_cancel")
+            )
+        ]
+    )
     return InlineKeyboardMarkup(keyboard)
 
 
 def goal_detail_keyboard(goal_id: int, is_completed: bool) -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton("✏️ Editează", callback_data=make_callback_data(f"goals_edit_{goal_id}")),
             InlineKeyboardButton(
-                "➕ Sub-task", callback_data=make_callback_data(f"goals_add_subtask_{goal_id}")
+                "✏️ Editează", callback_data=make_callback_data(f"goals_edit_{goal_id}")
+            ),
+            InlineKeyboardButton(
+                "➕ Sub-task",
+                callback_data=make_callback_data(f"goals_add_subtask_{goal_id}"),
             ),
         ]
     ]
@@ -359,18 +522,31 @@ def goal_detail_keyboard(goal_id: int, is_completed: bool) -> InlineKeyboardMark
         keyboard.append(
             [
                 InlineKeyboardButton(
-                    "✅ Completat", callback_data=make_callback_data(f"goals_complete_goal_{goal_id}")
+                    "✅ Completat",
+                    callback_data=make_callback_data(f"goals_complete_goal_{goal_id}"),
                 ),
                 InlineKeyboardButton(
-                    "🗑️ Șterge", callback_data=make_callback_data(f"goals_delete_{goal_id}")
+                    "🗑️ Șterge",
+                    callback_data=make_callback_data(f"goals_delete_{goal_id}"),
                 ),
             ]
         )
     else:
         keyboard.append(
-            [InlineKeyboardButton("🗑️ Șterge", callback_data=make_callback_data(f"goals_delete_{goal_id}"))]
+            [
+                InlineKeyboardButton(
+                    "🗑️ Șterge",
+                    callback_data=make_callback_data(f"goals_delete_{goal_id}"),
+                )
+            ]
         )
-    keyboard.append([InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("goals_active"))])
+    keyboard.append(
+        [
+            InlineKeyboardButton(
+                "◀️ Înapoi", callback_data=make_callback_data("goals_active")
+            )
+        ]
+    )
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -382,12 +558,18 @@ def subtasks_keyboard(subtasks: list, goal_id: int) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     f"{icon} {st['title']}",
-                    callback_data=make_callback_data(f"goals_complete_subtask_{st['id']}"),
+                    callback_data=make_callback_data(
+                        f"goals_complete_subtask_{st['id']}"
+                    ),
                 )
             ]
         )
     keyboard.append(
-        [InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data(f"goals_detail_{goal_id}"))]
+        [
+            InlineKeyboardButton(
+                "◀️ Înapoi", callback_data=make_callback_data(f"goals_detail_{goal_id}")
+            )
+        ]
     )
     return InlineKeyboardMarkup(keyboard)
 
@@ -397,10 +579,12 @@ def confirm_delete_goal_keyboard(goal_id: int) -> InlineKeyboardMarkup:
         [
             [
                 InlineKeyboardButton(
-                    "✅ Confirmă", callback_data=make_callback_data(f"goals_confirm_delete_{goal_id}")
+                    "✅ Confirmă",
+                    callback_data=make_callback_data(f"goals_confirm_delete_{goal_id}"),
                 ),
                 InlineKeyboardButton(
-                    "❌ Anulează", callback_data=make_callback_data(f"goals_detail_{goal_id}")
+                    "❌ Anulează",
+                    callback_data=make_callback_data(f"goals_detail_{goal_id}"),
                 ),
             ]
         ]
@@ -414,14 +598,26 @@ def skills_main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton("📊 Stats", callback_data=make_callback_data("skills_list")),
-                InlineKeyboardButton("➕ Log", callback_data=make_callback_data("skills_log_list")),
+                InlineKeyboardButton(
+                    "📊 Stats", callback_data=make_callback_data("skills_list")
+                ),
+                InlineKeyboardButton(
+                    "➕ Log", callback_data=make_callback_data("skills_log_list")
+                ),
             ],
             [
-                InlineKeyboardButton("📈 Progress", callback_data=make_callback_data("skills_progress")),
-                InlineKeyboardButton("⚙️ Manage", callback_data=make_callback_data("skills_manage")),
+                InlineKeyboardButton(
+                    "📈 Progress", callback_data=make_callback_data("skills_progress")
+                ),
+                InlineKeyboardButton(
+                    "⚙️ Manage", callback_data=make_callback_data("skills_manage")
+                ),
             ],
-            [InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("skills_cancel"))],
+            [
+                InlineKeyboardButton(
+                    "◀️ Înapoi", callback_data=make_callback_data("skills_cancel")
+                )
+            ],
         ]
     )
 
@@ -434,15 +630,27 @@ def skills_list_keyboard(
         keyboard.append(
             [
                 InlineKeyboardButton(
-                    f"{s['name']}", callback_data=make_callback_data(f"{action_prefix}{s['id']}")
+                    f"{s['name']}",
+                    callback_data=make_callback_data(f"{action_prefix}{s['id']}"),
                 )
             ]
         )
 
     keyboard.append(
-        [InlineKeyboardButton("➕ Adaugă Skill Nou", callback_data=make_callback_data("skills_add_new"))]
+        [
+            InlineKeyboardButton(
+                "➕ Adaugă Skill Nou",
+                callback_data=make_callback_data("skills_add_new"),
+            )
+        ]
     )
-    keyboard.append([InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("skills_cancel"))])
+    keyboard.append(
+        [
+            InlineKeyboardButton(
+                "◀️ Înapoi", callback_data=make_callback_data("skills_cancel")
+            )
+        ]
+    )
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -451,20 +659,27 @@ def skill_detail_keyboard(skill_id: int) -> InlineKeyboardMarkup:
         [
             [
                 InlineKeyboardButton(
-                    "📝 Log Value", callback_data=make_callback_data(f"skills_log_entry_{skill_id}")
+                    "📝 Log Value",
+                    callback_data=make_callback_data(f"skills_log_entry_{skill_id}"),
                 )
             ],
             [
                 InlineKeyboardButton(
-                    "📊 Istoric", callback_data=make_callback_data(f"skills_history_{skill_id}")
+                    "📊 Istoric",
+                    callback_data=make_callback_data(f"skills_history_{skill_id}"),
                 )
             ],
             [
                 InlineKeyboardButton(
-                    "🗑️ Șterge", callback_data=make_callback_data(f"skills_delete_{skill_id}")
+                    "🗑️ Șterge",
+                    callback_data=make_callback_data(f"skills_delete_{skill_id}"),
                 )
             ],
-            [InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("skills_list"))],
+            [
+                InlineKeyboardButton(
+                    "◀️ Înapoi", callback_data=make_callback_data("skills_list")
+                )
+            ],
         ]
     )
 
@@ -474,10 +689,14 @@ def confirm_delete_skill_keyboard(skill_id: int) -> InlineKeyboardMarkup:
         [
             [
                 InlineKeyboardButton(
-                    "✅ Confirmă", callback_data=make_callback_data(f"skills_confirm_delete_{skill_id}")
+                    "✅ Confirmă",
+                    callback_data=make_callback_data(
+                        f"skills_confirm_delete_{skill_id}"
+                    ),
                 ),
                 InlineKeyboardButton(
-                    "❌ Anulează", callback_data=make_callback_data(f"skills_detail_{skill_id}")
+                    "❌ Anulează",
+                    callback_data=make_callback_data(f"skills_detail_{skill_id}"),
                 ),
             ]
         ]
@@ -491,19 +710,29 @@ def reading_main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton("📖 Biblioteca", callback_data=make_callback_data("reading_library")),
-                InlineKeyboardButton("📝 Note", callback_data=make_callback_data("reading_notes")),
-            ],
-            [
-                InlineKeyboardButton("📊 Stats", callback_data=make_callback_data("reading_stats_menu")),
                 InlineKeyboardButton(
-                    "🔄 Update Progress", callback_data=make_callback_data("reading_update_prompt")
+                    "📖 Biblioteca", callback_data=make_callback_data("reading_library")
+                ),
+                InlineKeyboardButton(
+                    "📝 Note", callback_data=make_callback_data("reading_notes")
                 ),
             ],
             [
-                InlineKeyboardButton("➕ Carte nouă", callback_data=make_callback_data("reading_add")),
                 InlineKeyboardButton(
-                    "🏁 Finalizează", callback_data=make_callback_data("reading_complete_prompt")
+                    "📊 Stats", callback_data=make_callback_data("reading_stats_menu")
+                ),
+                InlineKeyboardButton(
+                    "🔄 Update Progress",
+                    callback_data=make_callback_data("reading_update_prompt"),
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    "➕ Carte nouă", callback_data=make_callback_data("reading_add")
+                ),
+                InlineKeyboardButton(
+                    "🏁 Finalizează",
+                    callback_data=make_callback_data("reading_complete_prompt"),
                 ),
             ],
         ]
@@ -514,16 +743,28 @@ def reading_stats_period_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton("7 zile", callback_data=make_callback_data("reading_stats_7")),
-                InlineKeyboardButton("30 zile", callback_data=make_callback_data("reading_stats_30")),
-            ],
-            [
-                InlineKeyboardButton("Anul acesta", callback_data=make_callback_data("reading_stats_year")),
                 InlineKeyboardButton(
-                    "Toate timpurile", callback_data=make_callback_data("reading_stats_all")
+                    "7 zile", callback_data=make_callback_data("reading_stats_7")
+                ),
+                InlineKeyboardButton(
+                    "30 zile", callback_data=make_callback_data("reading_stats_30")
                 ),
             ],
-            [InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("reading_main"))],
+            [
+                InlineKeyboardButton(
+                    "Anul acesta",
+                    callback_data=make_callback_data("reading_stats_year"),
+                ),
+                InlineKeyboardButton(
+                    "Toate timpurile",
+                    callback_data=make_callback_data("reading_stats_all"),
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    "◀️ Înapoi", callback_data=make_callback_data("reading_main")
+                )
+            ],
         ]
     )
 
@@ -537,11 +778,18 @@ def reading_books_keyboard(
         keyboard.append(
             [
                 InlineKeyboardButton(
-                    f"📖 {title}", callback_data=make_callback_data(f"{action_prefix}{b['id']}")
+                    f"📖 {title}",
+                    callback_data=make_callback_data(f"{action_prefix}{b['id']}"),
                 )
             ]
         )
-    keyboard.append([InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("reading_main"))])
+    keyboard.append(
+        [
+            InlineKeyboardButton(
+                "◀️ Înapoi", callback_data=make_callback_data("reading_main")
+            )
+        ]
+    )
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -549,10 +797,12 @@ def reading_book_detail_keyboard(book_id: int, status: str) -> InlineKeyboardMar
     keyboard = [
         [
             InlineKeyboardButton(
-                "🔄 Update pagini", callback_data=make_callback_data(f"reading_update_book_{book_id}")
+                "🔄 Update pagini",
+                callback_data=make_callback_data(f"reading_update_book_{book_id}"),
             ),
             InlineKeyboardButton(
-                "📝 Adaugă notă", callback_data=make_callback_data(f"reading_note_book_{book_id}")
+                "📝 Adaugă notă",
+                callback_data=make_callback_data(f"reading_note_book_{book_id}"),
             ),
         ],
     ]
@@ -568,17 +818,20 @@ def reading_book_detail_keyboard(book_id: int, status: str) -> InlineKeyboardMar
     keyboard.append(
         [
             InlineKeyboardButton(
-                "📖 Vezi note", callback_data=make_callback_data(f"reading_view_notes_{book_id}")
+                "📖 Vezi note",
+                callback_data=make_callback_data(f"reading_view_notes_{book_id}"),
             ),
             InlineKeyboardButton(
-                "🗑️ Șterge", callback_data=make_callback_data(f"reading_delete_book_{book_id}")
+                "🗑️ Șterge",
+                callback_data=make_callback_data(f"reading_delete_book_{book_id}"),
             ),
         ]
     )
     keyboard.append(
         [
             InlineKeyboardButton(
-                "◀️ Înapoi la bibliotecă", callback_data=make_callback_data("reading_library")
+                "◀️ Înapoi la bibliotecă",
+                callback_data=make_callback_data("reading_library"),
             )
         ]
     )
@@ -590,10 +843,14 @@ def reading_confirm_delete_keyboard(book_id: int) -> InlineKeyboardMarkup:
         [
             [
                 InlineKeyboardButton(
-                    "✅ Confirmă", callback_data=make_callback_data(f"reading_confirm_delete_{book_id}")
+                    "✅ Confirmă",
+                    callback_data=make_callback_data(
+                        f"reading_confirm_delete_{book_id}"
+                    ),
                 ),
                 InlineKeyboardButton(
-                    "❌ Anulează", callback_data=make_callback_data(f"reading_detail_{book_id}")
+                    "❌ Anulează",
+                    callback_data=make_callback_data(f"reading_detail_{book_id}"),
                 ),
             ]
         ]
@@ -607,21 +864,33 @@ def health_summary_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton("💧 Apă", callback_data=make_callback_data("health", "log_water")),
-                InlineKeyboardButton("😴 Somn", callback_data=make_callback_data("health", "log_sleep")),
-            ],
-            [
-                InlineKeyboardButton("⚖️ Greutate", callback_data=make_callback_data("health", "log_weight")),
                 InlineKeyboardButton(
-                    "🍎 Nutriție", callback_data=make_callback_data("health", "log_nutrition")
+                    "💧 Apă", callback_data=make_callback_data("health", "log_water")
+                ),
+                InlineKeyboardButton(
+                    "😴 Somn", callback_data=make_callback_data("health", "log_sleep")
                 ),
             ],
             [
-                InlineKeyboardButton("📊 Grafic COMPLET", callback_data=make_callback_data("health", "chart")),
+                InlineKeyboardButton(
+                    "⚖️ Greutate",
+                    callback_data=make_callback_data("health", "log_weight"),
+                ),
+                InlineKeyboardButton(
+                    "🍎 Nutriție",
+                    callback_data=make_callback_data("health", "log_nutrition"),
+                ),
             ],
             [
                 InlineKeyboardButton(
-                    "📜 Jurnal AZI", callback_data=make_callback_data("health", "today_logs")
+                    "📊 Grafic COMPLET",
+                    callback_data=make_callback_data("health", "chart"),
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    "📜 Jurnal AZI",
+                    callback_data=make_callback_data("health", "today_logs"),
                 ),
             ],
         ]
@@ -633,7 +902,8 @@ def health_back_keyboard() -> InlineKeyboardMarkup:
         [
             [
                 InlineKeyboardButton(
-                    "🔙 Înapoi la Dashboard", callback_data=make_callback_data("health", "summary")
+                    "🔙 Înapoi la Dashboard",
+                    callback_data=make_callback_data("health", "summary"),
                 )
             ],
         ]
@@ -648,15 +918,22 @@ def memory_main_keyboard() -> InlineKeyboardMarkup:
         [
             [
                 InlineKeyboardButton(
-                    "🗑️ Șterge ultima", callback_data=make_callback_data("memory", "delete_last")
+                    "🗑️ Șterge ultima",
+                    callback_data=make_callback_data("memory", "delete_last"),
                 ),
-                InlineKeyboardButton("🧹 Șterge tot", callback_data=make_callback_data("memory", "clear_all")),
+                InlineKeyboardButton(
+                    "🧹 Șterge tot",
+                    callback_data=make_callback_data("memory", "clear_all"),
+                ),
             ],
             [
                 InlineKeyboardButton(
-                    "📊 Categorii", callback_data=make_callback_data("memory", "view_categories")
+                    "📊 Categorii",
+                    callback_data=make_callback_data("memory", "view_categories"),
                 ),
-                InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("chat", "main")),
+                InlineKeyboardButton(
+                    "◀️ Înapoi", callback_data=make_callback_data("chat", "main")
+                ),
             ],
         ]
     )
