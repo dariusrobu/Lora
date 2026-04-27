@@ -1,3 +1,4 @@
+from bot.callback_utils import make_callback_data
 from typing import Dict, Any, Tuple
 from datetime import datetime, date, timedelta
 import re
@@ -281,7 +282,6 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
                 text, parse_mode="MarkdownV2", reply_markup=markup
             )
 
-    await query.answer()
 
 
 async def handle_task_intent(
@@ -693,17 +693,17 @@ async def get_project_tasks_view(pool, project_id: int) -> Tuple[str, Any]:
     project_keyboard = [
         [
             InlineKeyboardButton(
-                "✏️ Editează", callback_data=f"projects:edit:{project_id}"
+                "✏️ Editează", callback_data=make_callback_data("projects", "edit", project_id)
             )
         ],
         [
             InlineKeyboardButton(
-                "🗑️ Șterge", callback_data=f"projects:delete:{project_id}"
+                "🗑️ Șterge", callback_data=make_callback_data("projects", "delete", project_id)
             )
         ],
         [
             InlineKeyboardButton(
-                "◀️ Înapoi la proiecte", callback_data="tasks:projects_list"
+                "◀️ Înapoi la proiecte", callback_data=make_callback_data("tasks", "projects", "list")
             )
         ],
     ]

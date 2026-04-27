@@ -1,3 +1,4 @@
+from bot.callback_utils import make_callback_data
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from db.queries.profile import update_user_profile, get_user_profile
@@ -27,10 +28,10 @@ async def handle_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         keyboard = [
             [
                 InlineKeyboardButton(
-                    "Yes, that's right", callback_data="onboard:tz_ok"
+                    "Yes, that's right", callback_data=make_callback_data("onboard", "tz", "ok")
                 ),
                 InlineKeyboardButton(
-                    "No, change it", callback_data="onboard:tz_change"
+                    "No, change it", callback_data=make_callback_data("onboard", "tz", "change")
                 ),
             ]
         ]

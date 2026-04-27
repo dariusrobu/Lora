@@ -1,3 +1,4 @@
+from bot.callback_utils import make_callback_data
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from core.icloud import sync_events_table_to_calendar, sync_tasks_with_deadlines, fetch_all_calendars_events
 from datetime import datetime, timedelta
@@ -868,10 +869,10 @@ async def check_class_reminders(application, pool) -> None:
                 [
                     [
                         InlineKeyboardButton(
-                            "✅ Prezent", callback_data=f"attendance:present:{c['id']}"
+                            "✅ Prezent", callback_data=make_callback_data("attendance", "present", c['id'])
                         ),
                         InlineKeyboardButton(
-                            "❌ Absent", callback_data=f"attendance:absent:{c['id']}"
+                            "❌ Absent", callback_data=make_callback_data("attendance", "absent", c['id'])
                         ),
                     ]
                 ]
@@ -1552,10 +1553,10 @@ async def check_event_reminders(application, pool):
                 [
                     [
                         InlineKeyboardButton(
-                            "👍 Ok", callback_data=f"event_reminder_ack:{e['id']}"
+                            "👍 Ok", callback_data=make_callback_data("event", "reminder", "ack", e['id'])
                         ),
                         InlineKeyboardButton(
-                            "📝 Note", callback_data=f"event_note:{e['id']}"
+                            "📝 Note", callback_data=make_callback_data("event", "note", e['id'])
                         ),
                     ]
                 ]
@@ -1607,7 +1608,7 @@ async def check_event_day_reminders(application, pool):
                 [
                     [
                         InlineKeyboardButton(
-                            "👍 Ok", callback_data=f"event_day_ack:{e['id']}"
+                            "👍 Ok", callback_data=make_callback_data("event", "day", "ack", e['id'])
                         ),
                     ]
                 ]
@@ -1677,7 +1678,7 @@ async def check_habit_reminders(application, pool) -> None:
             [
                 InlineKeyboardButton(
                     f"✅ {h['name'][:15]}",
-                    callback_data=f"habit_done:{h['id']}",
+                    callback_data=make_callback_data("habit", "done", h['id']),
                 )
             ]
             for h in rows[:5]
@@ -1685,7 +1686,7 @@ async def check_habit_reminders(application, pool) -> None:
 
         if len(rows) > 5:
             keyboard_buttons.append(
-                [InlineKeyboardButton("📋 Vezi toate", callback_data="list_habits")]
+                [InlineKeyboardButton("📋 Vezi toate", callback_data=make_callback_data("list", "habits"))]
             )
 
         keyboard = InlineKeyboardMarkup(keyboard_buttons)
@@ -1763,9 +1764,9 @@ async def check_task_deadline_reminders(application, pool) -> None:
             [
                 [
                     InlineKeyboardButton(
-                        "✅ Mark done", callback_data="task_reminder_dismiss"
+                        "✅ Mark done", callback_data=make_callback_data("task", "reminder", "dismiss")
                     ),
-                    InlineKeyboardButton("📝 Note", callback_data="view_pending_tasks"),
+                    InlineKeyboardButton("📝 Note", callback_data=make_callback_data("view", "pending", "tasks")),
                 ]
             ]
         )

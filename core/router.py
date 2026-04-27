@@ -40,6 +40,18 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
     if user_message:
         data["_user_message"] = user_message
 
+    confidence = intent_response.get("confidence", 1.0)
+    clarification_needed = intent_response.get("clarification_needed", False)
+    clarification_question = intent_response.get("clarification_question")
+
+    if confidence < 0.7 or clarification_needed:
+        from core.state import set_state
+        question = clarification_question or "Scuze, am nevoie de un mic detaliu. Poți clarifica ce anume dorești?"
+        # Save partial intent data so the context is preserved
+        payload = {"partial_intent": intent, "partial_data": data}
+        await set_state(pool, "awaiting_clarification", module, "clarify", None, payload)
+        return question, None
+
     # Let's check for Agentic Mode FIRST
     if intent_response.get("needs_agent"):
         from core.agent import run_agent

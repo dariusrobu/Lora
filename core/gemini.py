@@ -7,10 +7,23 @@ import pytz
 import asyncio
 import json
 import re
+from pydantic import BaseModel, Field
 from core.memory import extract_and_save_facts
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
+class IntentResponse(BaseModel):
+    intent: str = Field(description="Identified action, e.g. add_task, chat, log_expense")
+    module: str | None = Field(description="The target module, e.g. tasks, projects, finance, None if general")
+    data: Dict[str, Any] = Field(description="Module-specific structured data extracted from the user message")
+    reply: str = Field(description="Assistant reply formatted in MarkdownV2")
+    needs_confirmation: bool = Field(description="True if the action is destructive and requires user confirmation")
+    needs_agent: bool = Field(description="True if the query is complex and needs multi-step agent reasoning")
+    agent_tools_needed: List[str] | None = Field(default=None, description="List of tools needed by the agent if needs_agent is True")
+    confidence: float = Field(ge=0.0, le=1.0, description="Scorul de certitudine al intent-ului detectat. Sub 0.7 = incert.")
+    source: str = Field(default='text', pattern='^(text|voice)$', description="Sursa mesajului")
+    clarification_needed: bool = Field(default=False, description="True dacă mesajul e ambiguu și necesită clarificare înainte de execuție")
+    clarification_question: str | None = Field(default=None, description="Întrebarea de clarificare dacă clarification_needed e True")
 
 async def get_gemini_response(
     pool,
@@ -511,30 +524,7 @@ IntentResponse schema:
         raw_text = None
         for attempt in range(2):
             try:
-                response_schema = types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={
-                        "intent": types.Schema(type=types.Type.STRING),
-                        "module": types.Schema(type=types.Type.STRING, nullable=True),
-                        "data": types.Schema(type=types.Type.OBJECT),
-                        "reply": types.Schema(type=types.Type.STRING),
-                        "needs_confirmation": types.Schema(type=types.Type.BOOLEAN),
-                        "needs_agent": types.Schema(type=types.Type.BOOLEAN),
-                        "agent_tools_needed": types.Schema(
-                            type=types.Type.ARRAY,
-                            items=types.Schema(type=types.Type.STRING),
-                            nullable=True,
-                        ),
-                    },
-                    required=[
-                        "intent",
-                        "module",
-                        "data",
-                        "reply",
-                        "needs_confirmation",
-                        "needs_agent",
-                    ],
-                )
+                response_schema = IntentResponse
                 response = await asyncio.wait_for(
                     asyncio.to_thread(
                         client.models.generate_content,

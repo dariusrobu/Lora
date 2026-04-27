@@ -1,3 +1,4 @@
+from bot.callback_utils import make_callback_data
 from typing import Dict, Any, Tuple
 import db.queries.memory as memory_queries
 from bot.formatter import escape_md, safe_markdown
@@ -26,10 +27,10 @@ async def handle_memory_callback(query, pool, data: str):
             keyboard = [
                 [
                     InlineKeyboardButton(
-                        "✅ Da, șterge tot", callback_data="memory:clear_all_confirmed"
+                        "✅ Da, șterge tot", callback_data=make_callback_data("memory", "clear", "all", "confirmed")
                     ),
                     InlineKeyboardButton(
-                        "❌ Nu, anulează", callback_data="memory:view_back"
+                        "❌ Nu, anulează", callback_data=make_callback_data("memory", "view", "back")
                     ),
                 ]
             ]
@@ -38,7 +39,6 @@ async def handle_memory_callback(query, pool, data: str):
                 parse_mode="MarkdownV2",
                 reply_markup=InlineKeyboardMarkup(keyboard),
             )
-            await query.answer()
 
         elif data == "memory:clear_all_confirmed":
             print("DEBUG: Processing memory:clear_all_confirmed", flush=True)
@@ -58,7 +58,6 @@ async def handle_memory_callback(query, pool, data: str):
             await query.edit_message_text(
                 text, parse_mode="MarkdownV2", reply_markup=markup
             )
-            await query.answer()
     except Exception as e:
         print(f"ERROR in handle_memory_callback: {e}")
         import traceback

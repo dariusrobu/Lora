@@ -1,3 +1,4 @@
+from bot.callback_utils import make_callback_data
 from typing import Dict, Any, Tuple
 from datetime import date
 import io
@@ -79,10 +80,10 @@ async def _list_categories(pool) -> Tuple[str, Any]:
         [
             [
                 InlineKeyboardButton(
-                    "➕ Categorie Nouă", callback_data="finance_add_category"
+                    "➕ Categorie Nouă", callback_data=make_callback_data("finance", "add", "category")
                 )
             ],
-            [InlineKeyboardButton("◀️ Înapoi", callback_data="finance_summary")],
+            [InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("finance", "summary"))],
         ]
     )
     return safe_markdown(text), keyboard
@@ -175,17 +176,17 @@ async def _generate_finance_summary_text(pool) -> Tuple[str, Any]:
         [
             [
                 InlineKeyboardButton(
-                    "➕ Cheltuială", callback_data="finance_add_expense"
+                    "➕ Cheltuială", callback_data=make_callback_data("finance", "add", "expense")
                 ),
-                InlineKeyboardButton("➕ Venit", callback_data="finance_add_income"),
+                InlineKeyboardButton("➕ Venit", callback_data=make_callback_data("finance", "add", "income")),
             ],
-            [InlineKeyboardButton("📈 Grafic Trend", callback_data="finance_chart")],
+            [InlineKeyboardButton("📈 Grafic Trend", callback_data=make_callback_data("finance", "chart"))],
             [
                 InlineKeyboardButton(
-                    "📊 Statistici DETALIATE", callback_data="finance_stats"
+                    "📊 Statistici DETALIATE", callback_data=make_callback_data("finance", "stats")
                 )
             ],
-            [InlineKeyboardButton("⚙️ Categorii", callback_data="finance_categories")],
+            [InlineKeyboardButton("⚙️ Categorii", callback_data=make_callback_data("finance", "categories"))],
         ]
     )
 

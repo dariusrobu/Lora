@@ -62,7 +62,6 @@ async def handle_health_callback(query, pool, data: str) -> None:
             await query.edit_message_text(
                 text, parse_mode="MarkdownV2", reply_markup=markup
             )
-            await query.answer()
 
         elif action == "chart":
             result, _ = await _generate_health_chart(pool)
@@ -74,34 +73,29 @@ async def handle_health_callback(query, pool, data: str) -> None:
                 )
             else:
                 await query.message.reply_text(result)
-            await query.answer()
 
         elif action == "today_logs":
             text, markup = await _generate_today_logs_text(pool)
             await query.edit_message_text(
                 text, parse_mode="MarkdownV2", reply_markup=markup
             )
-            await query.answer()
 
         elif action == "log_water":
             await set_state(pool, "awaiting_health_input", "health", "log_water", None)
             prompt = "💧 *Câți ml ai băut?*\n_\\(ex: am băut 500ml, 1\\.5L, \\+250\\)_"
             await query.edit_message_text(prompt, parse_mode="MarkdownV2")
-            await query.answer()
             await _save_prompt_to_conversation(pool, prompt)
 
         elif action == "log_sleep":
             await set_state(pool, "awaiting_health_input", "health", "log_sleep", None)
             prompt = "😴 *Câte ore ai dormit?*\n_\\(ex: 8 ore, somn bun, 7h30\\)_"
             await query.edit_message_text(prompt, parse_mode="MarkdownV2")
-            await query.answer()
             await _save_prompt_to_conversation(pool, prompt)
 
         elif action == "log_weight":
             await set_state(pool, "awaiting_health_input", "health", "log_weight", None)
             prompt = "⚖️ *Care e greutatea ta azi?*\n_\\(ex: 74\\.5kg, am 75\\)_"
             await query.edit_message_text(prompt, parse_mode="MarkdownV2")
-            await query.answer()
             await _save_prompt_to_conversation(pool, prompt)
 
         elif action == "log_nutrition":
@@ -110,7 +104,6 @@ async def handle_health_callback(query, pool, data: str) -> None:
             )
             prompt = "🍎 *Ce ai mâncat azi?*\n_\\(ex: 2 ouă și o felie de pâine, am mâncat un măr, prânz: pui cu orez 200g\\)_"
             await query.edit_message_text(prompt, parse_mode="MarkdownV2")
-            await query.answer()
             await _save_prompt_to_conversation(pool, prompt)
 
         elif action == "cancel":

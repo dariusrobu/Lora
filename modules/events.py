@@ -1,3 +1,4 @@
+from bot.callback_utils import make_callback_data
 from typing import Dict, Any, Tuple
 from datetime import datetime, timedelta
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
@@ -349,20 +350,20 @@ def get_reminder_keyboard(
         [
             InlineKeyboardButton(
                 "30 min" if current_reminder != 30 else "✅ 30 min",
-                callback_data=f"event_reminder:{event_id}:30",
+                callback_data=make_callback_data("event", "reminder", event_id, "30"),
             ),
             InlineKeyboardButton(
                 "1 oră" if current_reminder != 60 else "✅ 1 oră",
-                callback_data=f"event_reminder:{event_id}:60",
+                callback_data=make_callback_data("event", "reminder", event_id, "60"),
             ),
         ],
         [
             InlineKeyboardButton(
                 "1 zi" if current_reminder != 1440 else "✅ 1 zi",
-                callback_data=f"event_reminder:{event_id}:1440",
+                callback_data=make_callback_data("event", "reminder", event_id, "1440"),
             ),
             InlineKeyboardButton(
-                "Fără 🔕", callback_data=f"event_reminder:{event_id}:0"
+                "Fără 🔕", callback_data=make_callback_data("event", "reminder", event_id, "0")
             ),
         ],
     ]

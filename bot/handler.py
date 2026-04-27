@@ -1,3 +1,4 @@
+from bot.callback_utils import make_callback_data
 import traceback
 from datetime import date
 from telegram import Update
@@ -1799,14 +1800,19 @@ Reguli:
 
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
+    query = update.callback_query
+    await query.answer()
+
     if not await security_check(update):
         return
 
     try:
-        query = update.callback_query
         data = query.data
+        from bot.callback_utils import parse_callback_data
+        action, params = parse_callback_data(data)
+
         print(
-            f"DEBUG: CALLBACK RECEIVED: data={data} from user={update.effective_user.id}",
+            f"DEBUG: CALLBACK RECEIVED: action={action} params={params} from user={update.effective_user.id}",
             flush=True,
         )
 
@@ -1858,11 +1864,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             await handle_health_callback(query, pool, data)
             return
 
-        if data.startswith("finance_"):
+        if action == "finance" or action == "finance_chart" or action == "finance_summary":
             import io
             from modules.finance import handle_finance_intent
 
-            if data == "finance_chart":
+            if data == "finance_chart" or action == "finance_chart":
                 result, _ = await handle_finance_intent(pool, "finance_chart", {})
                 if isinstance(result, (bytes, io.BytesIO)):
                     await context.bot.send_photo(
@@ -1870,18 +1876,15 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                         photo=result,
                         caption="Finance Trends 📉 (ultimele 30 zile)",
                     )
-                    await query.answer()
                 else:
-                    await query.answer(result)
                     await query.message.reply_text(result)
                 return
 
-            elif data == "finance_summary":
+            elif data == "finance_summary" or action == "finance_summary":
                 text, markup = await handle_finance_intent(pool, "finance_summary", {})
                 await query.edit_message_text(
                     text, parse_mode="MarkdownV2", reply_markup=markup
                 )
-                await query.answer()
                 return
 
             elif data == "finance_add_expense":
@@ -1898,7 +1901,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 prompt = "💸 *Ce cheltuială ai făcut?*\n_\\(ex: 50 RON cafea, taxi 30lei, mâncare 100\\)_"
                 await query.edit_message_text(prompt, parse_mode="MarkdownV2")
                 await _save_prompt_to_conversation(pool, prompt)
-                await query.answer()
                 return
 
             elif data == "finance_add_income":
@@ -1915,7 +1917,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 prompt = "💰 *Ce venit ai primit?*\n_\\(ex: salariu 5000, bonus 200, vânzare olx 50\\)_"
                 await query.edit_message_text(prompt, parse_mode="MarkdownV2")
                 await _save_prompt_to_conversation(pool, prompt)
-                await query.answer()
                 return
 
             elif data == "finance_stats":
@@ -1929,7 +1930,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 await query.edit_message_text(
                     text, parse_mode="MarkdownV2", reply_markup=markup
                 )
-                await query.answer()
                 return
 
             elif data == "finance_add_category":
@@ -1945,7 +1945,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 prompt = "💰 *Nume pentru categorie nouă:*\n_(ex: cafea, combustibil, abonamente)_"
                 await query.edit_message_text(prompt, parse_mode="MarkdownV2")
                 await _save_prompt_to_conversation(pool, prompt)
-                await query.answer()
                 return
 
             return
@@ -1984,7 +1983,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             await set_state(
                 pool, "awaiting_event_note", "events", "add_note", int(event_id)
             )
-            await query.answer()
             await query.edit_message_text(
                 "Ce note vrei să adaugi pentru acest eveniment?"
             )
@@ -2001,10 +1999,15 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             from core.state import clear_state
 
             await clear_state(pool)
-            await query.answer("Cancelled.")
             await query.edit_message_text("Action cancelled\\.")
+            return
 
-        await query.answer()
+        # Generic fallback for unknown callbacks
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Unknown callback data received: action={action} params={params} (raw: {data})")
+        await query.message.reply_text("Scuze, această acțiune nu mai este valabilă sau a apărut o eroare internă.")
+
     except Exception as e:
         print(f"ERROR in callback_handler: {e}")
         traceback.print_exc()
@@ -2044,17 +2047,17 @@ async def show_uni_dashboard(message_or_query, pool, send_new: bool = False):
     keyboard = InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton("📊 Overview", callback_data="uni:overview"),
-                InlineKeyboardButton("📚 Materii", callback_data="uni:subjects"),
+                InlineKeyboardButton("📊 Overview", callback_data=make_callback_data("uni", "overview")),
+                InlineKeyboardButton("📚 Materii", callback_data=make_callback_data("uni", "subjects")),
             ],
             [
-                InlineKeyboardButton("📅 Orar", callback_data="uni:schedule"),
-                InlineKeyboardButton("🎓 Examene", callback_data="uni:exams"),
+                InlineKeyboardButton("📅 Orar", callback_data=make_callback_data("uni", "schedule")),
+                InlineKeyboardButton("🎓 Examene", callback_data=make_callback_data("uni", "exams")),
             ],
-            [InlineKeyboardButton("📝 Note & Prezențe", callback_data="uni:grades")],
+            [InlineKeyboardButton("📝 Note & Prezențe", callback_data=make_callback_data("uni", "grades"))],
             [
-                InlineKeyboardButton("🔍 Analiză", callback_data="uni:analysis"),
-                InlineKeyboardButton("📥 Import", callback_data="uni:import"),
+                InlineKeyboardButton("🔍 Analiză", callback_data=make_callback_data("uni", "analysis")),
+                InlineKeyboardButton("📥 Import", callback_data=make_callback_data("uni", "import")),
             ],
         ]
     )
@@ -2073,14 +2076,15 @@ async def handle_uni_callback(query, pool, data: str):
     """Routes all uni: callback queries."""
     from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 
+    await query.answer()
+
     parts = data.split(":")
     section = parts[1] if len(parts) > 1 else ""
     action = parts[2] if len(parts) > 2 else ""
     item_id = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else None
 
-    await query.answer()
 
-    back_btn = InlineKeyboardButton("← Înapoi", callback_data="uni:dashboard")
+    back_btn = InlineKeyboardButton("← Înapoi", callback_data=make_callback_data("uni", "dashboard"))
 
     # ━━━ DASHBOARD ━━━
     if section == "dashboard":
@@ -2153,7 +2157,7 @@ async def handle_uni_callback(query, pool, data: str):
                 [
                     [
                         InlineKeyboardButton(
-                            "➕ Adaugă", callback_data="uni:subjects:add"
+                            "➕ Adaugă", callback_data=make_callback_data("uni", "subjects", "add")
                         )
                     ],
                     [back_btn],
@@ -2217,7 +2221,7 @@ async def handle_uni_callback(query, pool, data: str):
                 [
                     [
                         InlineKeyboardButton(
-                            "➕ Adaugă oră", callback_data="uni:schedule:add"
+                            "➕ Adaugă oră", callback_data=make_callback_data("uni", "schedule", "add")
                         )
                     ],
                     [back_btn],
@@ -2270,7 +2274,7 @@ async def handle_uni_callback(query, pool, data: str):
                 [
                     [
                         InlineKeyboardButton(
-                            "➕ Adaugă examen", callback_data="uni:exams:add"
+                            "➕ Adaugă examen", callback_data=make_callback_data("uni", "exams", "add")
                         )
                     ],
                     [back_btn],
@@ -2326,19 +2330,19 @@ async def handle_uni_callback(query, pool, data: str):
                 [
                     [
                         InlineKeyboardButton(
-                            "➕ Notă", callback_data="uni:grades:add_grade"
+                            "➕ Notă", callback_data=make_callback_data("uni", "grades", "add", "grade")
                         ),
                         InlineKeyboardButton(
-                            "➕ Prezență", callback_data="uni:grades:add_attendance"
+                            "➕ Prezență", callback_data=make_callback_data("uni", "grades", "add", "attendance")
                         ),
                     ],
                     [
                         InlineKeyboardButton(
                             "✏️ Edit prezență",
-                            callback_data="uni:grades:edit_attendance",
+                            callback_data=make_callback_data("uni", "grades", "edit", "attendance"),
                         ),
                         InlineKeyboardButton(
-                            "🗑 Șterge notă", callback_data="uni:grades:delete_grade"
+                            "🗑 Șterge notă", callback_data=make_callback_data("uni", "grades", "delete", "grade")
                         ),
                     ],
                     [back_btn],
@@ -2451,7 +2455,7 @@ Dacă nu sunt suficiente date: spune direct.
 
         keyboard = InlineKeyboardMarkup(
             [
-                [InlineKeyboardButton("🔄 Regenerează", callback_data="uni:analysis")],
+                [InlineKeyboardButton("🔄 Regenerează", callback_data=make_callback_data("uni", "analysis"))],
                 [back_btn],
             ]
         )
@@ -2471,13 +2475,13 @@ Dacă nu sunt suficiente date: spune direct.
                     [
                         InlineKeyboardButton(
                             "📸 Import orar din poză",
-                            callback_data="uni:import:schedule_photo",
+                            callback_data=make_callback_data("uni", "import", "schedule", "photo"),
                         )
                     ],
                     [
                         InlineKeyboardButton(
                             "📄 Structură din PDF",
-                            callback_data="uni:import:structure_pdf",
+                            callback_data=make_callback_data("uni", "import", "structure", "pdf"),
                         )
                     ],
                     [back_btn],

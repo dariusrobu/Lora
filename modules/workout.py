@@ -1,3 +1,4 @@
+from bot.callback_utils import make_callback_data
 # modules/workout.py
 
 from typing import Any, Tuple
@@ -262,7 +263,6 @@ async def get_exercises_manager(pool) -> Tuple[str, Any]:
 
 
 async def handle_workout_callback(query, pool, data: str):
-    await query.answer()
     parts = data.split("_")
     action = (
         "_".join(parts[1:3]) if len(parts) >= 3 else parts[1] if len(parts) >= 2 else ""
@@ -281,19 +281,19 @@ async def handle_workout_callback(query, pool, data: str):
             row = [
                 InlineKeyboardButton(
                     f"{sports[i].get('icon', '')} {sports[i]['name']}",
-                    callback_data=f"workout_log_sport_{sports[i]['id']}",
+                    callback_data=make_callback_data("workout", "log", "sport", sports[i]['id']),
                 )
             ]
             if i + 1 < len(sports):
                 row.append(
                     InlineKeyboardButton(
                         f"{sports[i + 1].get('icon', '')} {sports[i + 1]['name']}",
-                        callback_data=f"workout_log_sport_{sports[i + 1]['id']}",
+                        callback_data=make_callback_data("workout", "log", "sport", sports[i + 1]['id']),
                     )
                 )
             keyboard.append(row)
         keyboard.append(
-            [InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")]
+            [InlineKeyboardButton("⬅️ Înapoi", callback_data=make_callback_data("workout", "main"))]
         )
         await query.edit_message_text(
             "📝 *Log Antrenament*\n\nAlege sportul:",
@@ -311,7 +311,7 @@ async def handle_workout_callback(query, pool, data: str):
             prompt,
             parse_mode="MarkdownV2",
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("❌ Anulează", callback_data="workout_main")]]
+                [[InlineKeyboardButton("❌ Anulează", callback_data=make_callback_data("workout", "main"))]]
             ),
         )
         await _save_prompt_to_conversation(pool, prompt)
@@ -335,7 +335,7 @@ async def handle_workout_callback(query, pool, data: str):
             text,
             parse_mode="MarkdownV2",
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")]]
+                [[InlineKeyboardButton("⬅️ Înapoi", callback_data=make_callback_data("workout", "main"))]]
             ),
         )
 
@@ -345,7 +345,7 @@ async def handle_workout_callback(query, pool, data: str):
             text,
             parse_mode="MarkdownV2",
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")]]
+                [[InlineKeyboardButton("⬅️ Înapoi", callback_data=make_callback_data("workout", "main"))]]
             ),
         )
 
@@ -368,7 +368,7 @@ async def handle_workout_callback(query, pool, data: str):
             prompt,
             parse_mode="MarkdownV2",
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("❌ Anulează", callback_data="workout_main")]]
+                [[InlineKeyboardButton("❌ Anulează", callback_data=make_callback_data("workout", "main"))]]
             ),
         )
         await _save_prompt_to_conversation(pool, prompt)
@@ -380,7 +380,7 @@ async def handle_workout_callback(query, pool, data: str):
             prompt,
             parse_mode="MarkdownV2",
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("❌ Anulează", callback_data="workout_main")]]
+                [[InlineKeyboardButton("❌ Anulează", callback_data=make_callback_data("workout", "main"))]]
             ),
         )
         await _save_prompt_to_conversation(pool, prompt)
@@ -414,10 +414,10 @@ async def handle_workout_callback(query, pool, data: str):
         for w in recent[:10]:
             label = f"{w['workout_date']} - {w['type']} ({w['duration_min']}m)"
             keyboard.append(
-                [InlineKeyboardButton(label, callback_data=f"workout_delete_{w['id']}")]
+                [InlineKeyboardButton(label, callback_data=make_callback_data("workout", "delete", w['id']))]
             )
         keyboard.append(
-            [InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")]
+            [InlineKeyboardButton("⬅️ Înapoi", callback_data=make_callback_data("workout", "main"))]
         )
         await query.edit_message_text(
             "🗑 *Șterge antrenament*\n\nAlege antrenamentul:",
@@ -445,12 +445,12 @@ async def handle_workout_callback(query, pool, data: str):
             keyboard.append(
                 [
                     InlineKeyboardButton(
-                        label, callback_data=f"workout_edit_sel_{w['id']}"
+                        label, callback_data=make_callback_data("workout", "edit", "sel", w['id'])
                     )
                 ]
             )
         keyboard.append(
-            [InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_main")]
+            [InlineKeyboardButton("⬅️ Înapoi", callback_data=make_callback_data("workout", "main"))]
         )
         await query.edit_message_text(
             "✏️ *Editează antrenament*\n\nAlege antrenamentul pe care vrei să\\-l modifici:",
@@ -473,15 +473,15 @@ async def handle_workout_callback(query, pool, data: str):
         keyboard = [
             [
                 InlineKeyboardButton(
-                    "⏱ Durată", callback_data=f"workout_edit_f_dur_{workout_id}"
+                    "⏱ Durată", callback_data=make_callback_data("workout", "edit", "f", "dur", workout_id)
                 )
             ],
             [
                 InlineKeyboardButton(
-                    "📝 Note", callback_data=f"workout_edit_f_notes_{workout_id}"
+                    "📝 Note", callback_data=make_callback_data("workout", "edit", "f", "notes", workout_id)
                 )
             ],
-            [InlineKeyboardButton("⬅️ Înapoi", callback_data="workout_edit")],
+            [InlineKeyboardButton("⬅️ Înapoi", callback_data=make_callback_data("workout", "edit"))],
         ]
         await query.edit_message_text(
             text, parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup(keyboard)
@@ -505,7 +505,7 @@ async def handle_workout_callback(query, pool, data: str):
                         [
                             InlineKeyboardButton(
                                 "❌ Anulează",
-                                callback_data=f"workout_edit_sel_{workout_id}",
+                                callback_data=make_callback_data("workout", "edit", "sel", workout_id),
                             )
                         ]
                     ]
@@ -525,7 +525,7 @@ async def handle_workout_callback(query, pool, data: str):
                         [
                             InlineKeyboardButton(
                                 "❌ Anulează",
-                                callback_data=f"workout_edit_sel_{workout_id}",
+                                callback_data=make_callback_data("workout", "edit", "sel", workout_id),
                             )
                         ]
                     ]

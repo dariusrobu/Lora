@@ -1,3 +1,4 @@
+from bot.callback_utils import make_callback_data
 from typing import Dict, Any, Tuple, Optional
 from telegram import InlineKeyboardMarkup
 from bot.formatter import escape_md
@@ -149,10 +150,10 @@ async def handle_skill_intent(
                     [
                         InlineKeyboardButton(
                             "✅ Creează și bifează",
-                            callback_data=f"skill_create_confirm:{name}:{value}",
+                            callback_data=make_callback_data("skill", "create", "confirm", name, value),
                         ),
                         InlineKeyboardButton(
-                            "❌ Anulează", callback_data="skills_cancel"
+                            "❌ Anulează", callback_data=make_callback_data("skills", "cancel")
                         ),
                     ]
                 ]
@@ -267,7 +268,7 @@ async def handle_skills_callback(update, context, pool) -> None:
                 [
                     [
                         InlineKeyboardButton(
-                            "⬅️ Înapoi", callback_data=f"skills_detail_{skill_id}"
+                            "⬅️ Înapoi", callback_data=make_callback_data("skills", "detail", skill_id)
                         )
                     ]
                 ]
@@ -315,7 +316,6 @@ async def handle_skills_callback(update, context, pool) -> None:
                 parse_mode="MarkdownV2",
             )
 
-        await query.answer()
     except Exception as e:
         import logging
 
