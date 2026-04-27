@@ -1731,6 +1731,7 @@ Reguli:
 
             intent_response = await get_gemini_response(
                 pool,
+                user_id=telegram_id,
                 user_message=text,
                 user_name=profile.get("name", "User"),
                 tone=profile.get("tone", "warm"),

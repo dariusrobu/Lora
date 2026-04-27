@@ -6,7 +6,7 @@ from db.queries.memory import save_memory_fact, get_relevant_facts, update_fact_
 
 
 async def extract_and_save_facts(
-    pool, client, user_message: str, assistant_reply: str
+    pool, client, user_id: int, user_message: str, assistant_reply: str
 ) -> None:
     """Analyzes the message exchange and extracts new facts to store in long-term memory."""
     try:
@@ -70,7 +70,7 @@ Do NOT extract trivial strings like "User said hello".
             confidence = fact_data.get("confidence", 1.0)
 
             if fact:
-                await save_memory_fact(pool, category, fact, source, confidence)
+                await save_memory_fact(pool, user_id, category, fact, source, confidence)
                 print(f"🧠 MEMORY SAVED: [{category}] {fact}")
 
     except Exception as e:

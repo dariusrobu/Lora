@@ -120,7 +120,7 @@ async def handle_memory_intent(
         text += "💡 _Atinge codul pentru copy-paste_\n"
         text += "🗑 _Ex: 'șterge #03'_"
 
-        return safe_markdown(text), None
+        return safe_markdown(text), None, None
 
     elif intent == "memory_delete":
         fact_id = data.get("fact_id")
@@ -142,19 +142,21 @@ async def handle_memory_intent(
                 text = "Am găsit mai multe amintiri similare. Pe care vrei să o șterg? (Folosește ID-ul)\n\n"
                 for r in results:
                     text += f"◽ `#{r['id']}` {r['fact']}\n"
-                return safe_markdown(text), None
+                return safe_markdown(text), None, None
             else:
                 return (
                     f"Nu am găsit nicio amintire legată de '{escape_md(str(query))}'.",
+                    None,
                     None,
                 )
 
         if fact_id:
             await memory_queries.delete_fact(pool, int(fact_id))
-            return f"✅ Amintirea `#{fact_id}` a fost ștearsă. Am uitat! 💨", None
+            return f"✅ Amintirea `#{fact_id}` a fost ștearsă. Am uitat! 💨", None, None
 
         return (
             "Nu am înțeles ce amintire vrei să șterg. Te rog să menționezi ID-ul (ex: #3).",
+            None,
             None,
         )
 
@@ -162,13 +164,14 @@ async def handle_memory_intent(
         topic = data.get("topic")
         user_id = data.get("user_id")
         if not topic:
-            return "Despre ce anume vrei să afli ce știu?", None
+            return "Despre ce anume vrei să afli ce știu?", None, None
 
         results = await search_memory_core(pool, topic, user_id)
 
         if not results["facts"] and not results["history"]:
             return (
                 f"Momentan nu am nicio informație salvată despre *{escape_md(topic)}*.",
+                None,
                 None,
             )
 
@@ -188,9 +191,9 @@ async def handle_memory_intent(
                     content = content[:117] + "..."
                 text += f'• _"{escape_md(content)}"_\n'
 
-        return safe_markdown(text), None
+        return safe_markdown(text), None, None
 
-    return "Modulul de memorie a primit o intenție necunoscută.", None
+    return "Modulul de memorie a primit o intenție necunoscută.", None, None
 
 
 async def search_memory_core(pool, topic: str, user_id: int) -> Dict[str, Any]:

@@ -146,6 +146,7 @@ IntentResponse.model_rebuild()
 
 async def get_gemini_response(
     pool,
+    user_id: int,
     user_message: str,
     user_name: str,
     tone: str,
@@ -562,7 +563,9 @@ A: intent="add_goal", module="goals", data={{ "title": "slăbesc 5 kg", "categor
         loop = asyncio.get_event_loop()
         loop.call_soon_threadsafe(
             asyncio.ensure_future,
-            extract_and_save_facts(pool, client, user_message, parsed.get("reply", "")),
+            extract_and_save_facts(
+                pool, client, user_id, user_message, parsed.get("reply", "")
+            ),
         )
 
         return parsed
