@@ -75,6 +75,41 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
         )
         await log_execution(pool, intent, module, True)
 
+        # ── Multi-intent: execute additional_intents sequentially ──────────
+        additional = intent_response.get("additional_intents")
+        if additional:
+            all_replies = [reply_text] if reply_text else []
+            for idx, extra_intent in enumerate(additional, start=1):
+                if not isinstance(extra_intent, dict):
+                    # Pydantic model → convert to dict
+                    try:
+                        extra_intent = extra_intent.model_dump()
+                    except AttributeError:
+                        extra_intent = dict(extra_intent)
+                e_module = extra_intent.get("module")
+                e_intent = extra_intent.get("intent")
+                e_data   = extra_intent.get("data") or {}
+                e_reply  = extra_intent.get("reply", "")
+                e_data["_original_reply"] = e_reply
+                if not e_module:
+                    all_replies.append(e_reply)
+                    continue
+                try:
+                    e_text, _ = await _execute_module_intent(
+                        pool, e_module, e_intent, e_data, e_reply, bot
+                    )
+                    await log_execution(pool, e_intent, e_module, True)
+                    if e_text:
+                        all_replies.append(e_text)
+                    logger.info(f"Multi-intent [{idx}] success | intent={e_intent} | module={e_module}")
+                except Exception as ex:
+                    await log_execution(pool, e_intent, e_module, False, type(ex).__name__, str(ex))
+                    logger.error(f"Multi-intent [{idx}] failed | intent={e_intent} | error={ex}")
+                    all_replies.append(f"⚠️ Nu am putut executa acțiunea *{e_intent}*: {str(ex)[:80]}")
+
+            combined = "\n".join(all_replies)
+            return combined, keyboard
+
         return reply_text, keyboard
     except KeyError as e:
         logger.error(

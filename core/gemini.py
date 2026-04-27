@@ -25,6 +25,13 @@ class IntentResponse(BaseModel):
     source: str = Field(default='text', pattern='^(text|voice)$', description="Sursa mesajului")
     clarification_needed: bool = Field(default=False, description="True dacă mesajul e ambiguu și necesită clarificare înainte de execuție")
     clarification_question: str | None = Field(default=None, description="Întrebarea de clarificare dacă clarification_needed e True")
+    additional_intents: List['IntentResponse'] | None = Field(
+        default=None,
+        description="Lista de intenții secundare dacă mesajul conține mai multe acțiuni simultane"
+    )
+
+# Resolve forward reference (additional_intents references IntentResponse itself)
+IntentResponse.model_rebuild()
 
 async def get_gemini_response(
     pool,
@@ -88,6 +95,14 @@ INSTRUCȚIUNI TEHNICE:
    - Returnează intent-ul complet și executabil.
 4. TIMP ȘI DATE: Tot ce ține de timp se formatează stric în ISO 8601 ("YYYY-MM-DD" sau "HH:MM"). "Azi" = {now.strftime("%Y-%m-%d")}, "mâine" = {tomorrow}.
 5. STT / VOCE: Conversațiile pot veni din Voice to Text și pot avea typo-uri majore ("adamga" = adaugă, "saldă" = sală). Extrage intenția corectă, trecând peste greșelile de tipar.
+6. MULTI-INTENT: Dacă mesajul conține MAI MULTE acțiuni distincte (ex: "adaugă task și loghează 50 lei pe mâncare"):
+   - Intent-ul PRINCIPAL merge în câmpurile de bază (intent, module, data, reply).
+   - Celelalte intenții merg în `additional_intents` ca o listă de obiecte cu aceleași câmpuri.
+   - Fiecare obiect din `additional_intents` are propriul intent, module, data, reply (confirmare scurtă).
+   - `additional_intents` e null dacă mesajul conține O SINGURĂ acțiune.
+   - EXEMPLU — mesaj: "adaugă task revizuire cod și am dat 30 lei pe taxi":
+     * principal: intent="add_task", module="tasks", data={{"title":"revizuire cod"}}, reply="Task adăugat ✅"
+     * additional_intents: [{{"intent":"finance_log","module":"finance","data":{{"amount":30,"type":"expense","category":"transport","description":"taxi"}},"reply":"💸 30 RON taxi înregistrat.",...}}]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONTEXT:
