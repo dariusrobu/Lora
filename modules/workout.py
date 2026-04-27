@@ -306,13 +306,15 @@ async def handle_workout_callback(query, pool, data: str):
         await set_state(
             pool, "awaiting_workout_input", "workout", "log_duration", sport_id
         )
+        prompt = "⏱ Câte minute a durat antrenamentul?\n_Scrie doar numărul_\\."
         await query.edit_message_text(
-            "⏱ Câte minute a durat antrenamentul?\n_Scrie doar numărul_\\.",
+            prompt,
             parse_mode="MarkdownV2",
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("❌ Anulează", callback_data="workout_main")]]
             ),
         )
+        await _save_prompt_to_conversation(pool, prompt)
 
     elif data == "workout_stats_menu":
         await query.edit_message_text(
@@ -361,23 +363,27 @@ async def handle_workout_callback(query, pool, data: str):
 
     elif data == "workout_add_sport":
         await set_state(pool, "awaiting_workout_input", "workout", "add_sport", None)
+        prompt = "➕ *Adaugă sport*\n\nScrie în format: `Nume, Categorie, distance/weight/reps, icon`\n_Categorii: Forță / Cardio / Sport / Mobilitate_"
         await query.edit_message_text(
-            "➕ *Adaugă sport*\n\nScrie în format: `Nume, Categorie, distance/weight/reps, icon`\n_Categorii: Forță / Cardio / Sport / Mobilitate_",
+            prompt,
             parse_mode="MarkdownV2",
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("❌ Anulează", callback_data="workout_main")]]
             ),
         )
+        await _save_prompt_to_conversation(pool, prompt)
 
     elif data == "workout_add_exercise":
         await set_state(pool, "awaiting_workout_input", "workout", "add_exercise", None)
+        prompt = "➕ *Adaugă exercițiu*\n\nScrie în format: `Nume, Categorie, Grupa Musculară`"
         await query.edit_message_text(
-            "➕ *Adaugă exercițiu*\n\nScrie în format: `Nume, Categorie, Grupa Musculară`",
+            prompt,
             parse_mode="MarkdownV2",
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("❌ Anulează", callback_data="workout_main")]]
             ),
         )
+        await _save_prompt_to_conversation(pool, prompt)
 
     elif action == "delete_sport":
         sport_id = int(parts[-1])
@@ -490,8 +496,9 @@ async def handle_workout_callback(query, pool, data: str):
             await set_state(
                 pool, "awaiting_workout_input", "workout", "edit_duration", workout_id
             )
+            prompt = "⏱ *Editează Durată*\n\nIntrodu noua durată în minute:"
             await query.edit_message_text(
-                "⏱ *Editează Durată*\n\nIntrodu noua durată în minute:",
+                prompt,
                 parse_mode="MarkdownV2",
                 reply_markup=InlineKeyboardMarkup(
                     [
@@ -504,12 +511,14 @@ async def handle_workout_callback(query, pool, data: str):
                     ]
                 ),
             )
+            await _save_prompt_to_conversation(pool, prompt)
         elif field == "notes":
             await set_state(
                 pool, "awaiting_workout_input", "workout", "edit_notes", workout_id
             )
+            prompt = "📝 *Editează Note*\n\nIntrodu noile note pentru acest antrenament:"
             await query.edit_message_text(
-                "📝 *Editează Note*\n\nIntrodu noile note pentru acest antrenament:",
+                prompt,
                 parse_mode="MarkdownV2",
                 reply_markup=InlineKeyboardMarkup(
                     [
@@ -522,6 +531,7 @@ async def handle_workout_callback(query, pool, data: str):
                     ]
                 ),
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
 
 async def handle_workout_message(update, pool, state: dict, text: str):
@@ -595,3 +605,12 @@ async def handle_workout_message(update, pool, state: dict, text: str):
 
     finally:
         await clear_state(pool)
+
+async def _save_prompt_to_conversation(pool, prompt: str) -> None:
+    """Saves the assistant's prompt to the conversation table for Gemini context."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO conversations (role, content) VALUES ($1, $2)",
+            "assistant",
+            prompt,
+        )

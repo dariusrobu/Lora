@@ -1,4 +1,9 @@
 from typing import Dict, Any
+import logging
+import asyncpg
+from db.queries.log import log_execution
+
+logger = logging.getLogger("core.router")
 
 
 async def route_intent(pool, intent_response: Any, bot=None):
@@ -24,7 +29,7 @@ async def route_intent(pool, intent_response: Any, bot=None):
 async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
     module = intent_response.get("module")
     intent = intent_response.get("intent")
-    data = intent_response.get("data") or {}   # Guard: Gemini may return null for data
+    data = intent_response.get("data") or {}  # Guard: Gemini may return null for data
     reply = intent_response.get("reply", "Hmm, I'm not sure how to respond to that.")
     user_message = intent_response.get("_user_message", "")
 
@@ -48,6 +53,43 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
     if not module:
         return reply, None
 
+    try:
+        reply_text, keyboard = await _execute_module_intent(
+            pool, module, intent, data, reply, bot
+        )
+
+        logger.info(
+            f"Execution success | intent: {intent} | module: {module} | data_keys: {list(data.keys())}"
+        )
+        await log_execution(pool, intent, module, True)
+
+        return reply_text, keyboard
+    except KeyError as e:
+        logger.error(
+            f"Execution error | intent: {intent} | module: {module} | type: KeyError | msg: {e} | data: {data}"
+        )
+        await log_execution(pool, intent, module, False, "KeyError", str(e))
+        return (
+            "A apărut o eroare: lipsesc date necesare pentru a procesa comanda.",
+            None,
+        )
+    except asyncpg.PostgresError as e:
+        logger.error(
+            f"Execution error | intent: {intent} | module: {module} | type: PostgresError | msg: {e} | data: {data}"
+        )
+        await log_execution(pool, intent, module, False, "PostgresError", str(e))
+        return "A apărut o eroare de bază de date. Te rog să încerci din nou.", None
+    except Exception as e:
+        logger.error(
+            f"Execution error | intent: {intent} | module: {module} | type: Exception | msg: {e} | data: {data}"
+        )
+        await log_execution(pool, intent, module, False, "Exception", str(e))
+        return "A apărut o eroare neașteptată la procesarea comenzii.", None
+
+
+async def _execute_module_intent(
+    pool, module: str, intent: str, data: Dict[str, Any], reply: str, bot=None
+):
     # Module routing logic
     if module == "tasks":
         from modules.tasks import handle_task_intent

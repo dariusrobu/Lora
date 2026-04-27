@@ -20,6 +20,7 @@ async def get_gemini_response(
     context_snapshot: str,
     history: List[Dict[str, str]],
     personal_notes: str = "",
+    system_hint: str = "",
 ) -> Dict[str, Any]:
     """Calls Gemini and returns the parsed IntentResponse JSON."""
 
@@ -39,6 +40,7 @@ TONE: {tone}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 MESAJ UTILIZATOR CURENT — ANALIZEAZĂ ACESTA:
+{f"(HINT: {system_hint})" if system_hint else ""}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {user_message}
 
@@ -188,6 +190,7 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     Când needs_agent=true, restul câmpurilor (module, etc.) sunt opționale/ignorate, exceptând `agent_tools_needed` unde poți anticipa sculele necesare ("tool_get_tasks", "tool_get_events_today", "tool_get_habit_status", "tool_get_finance_summary", "tool_get_health_today", "tool_get_goals_progress").
  14. Projects: module="projects":
      - intent="add_project" — "creează proiect", "proiect nou: X". Data: {{"name": string, "description": string, "deadline": "YYYY-MM-DD", "priority": "high"|"medium"|"low", "category": string}}
+       Regulă: extrage numele proiectului ("cu numele X" -> name="X"). Dacă este un mesaj scurt de 1-3 cuvinte, acela e numele proiectului. MEREU include "name" în data.
      - intent="list_projects" — "ce proiecte am", "dashboard proiecte", "toate proiectele".
      - intent="view_project" — "arată-mi proiectul X", "detalii proiect Y", "ce stă cu proiectul Z".
      - intent="update_project" — "schimbă deadline la proiectul X", "setează prioritate high la Y", "adaugă descriere la Z".
@@ -465,15 +468,19 @@ IntentResponse schema:
                 if contents:
                     contents[-1].parts[0].text += f"\n\n{m['content']}"
                 else:
-                    contents.append(types.Content(role=role, parts=[types.Part(text=m["content"])]))
+                    contents.append(
+                        types.Content(role=role, parts=[types.Part(text=m["content"])])
+                    )
             else:
                 # Merge consecutive model messages
                 if contents:
                     contents[-1].parts[0].text += f"\n\n{m['content']}"
                 else:
-                    contents.append(types.Content(role=role, parts=[types.Part(text=m["content"])]))
+                    contents.append(
+                        types.Content(role=role, parts=[types.Part(text=m["content"])])
+                    )
             continue
-            
+
         contents.append(types.Content(role=role, parts=[types.Part(text=m["content"])]))
         last_role = role
 
@@ -483,9 +490,13 @@ IntentResponse schema:
         if contents:
             contents[-1].parts[0].text += f"\n\n{user_message}"
         else:
-            contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
+            contents.append(
+                types.Content(role="user", parts=[types.Part(text=user_message)])
+            )
     else:
-        contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
+        contents.append(
+            types.Content(role="user", parts=[types.Part(text=user_message)])
+        )
 
     print(
         f"🚀 GEMINI CALL: contents count={len(contents)} | last turn: {repr(user_message)}",

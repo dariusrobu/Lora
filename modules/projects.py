@@ -10,7 +10,12 @@ async def handle_project_intent(
     if intent == "add_project":
         name = data.get("name")
         if not name:
-            return "What should I call the project?", None
+            from core.state import set_state
+
+            await set_state(
+                pool, "awaiting_project_name", "projects", "add_project", None
+            )
+            return "Cum vrei să se numească proiectul?", None
 
         deadline = None
         if data.get("deadline"):
@@ -50,7 +55,7 @@ async def handle_project_intent(
             project = await project_queries.get_project(pool, data["id"])
 
         if not project:
-            return "Which project do you want to view?", None
+            return "Ce proiect vrei să vezi?", None
 
         detail = await project_queries.get_project_detail(pool, project["id"])
         if not detail:
@@ -148,7 +153,7 @@ async def handle_project_intent(
                 project_id = project["id"]
 
         if not project_id:
-            return "Which project should I update?", None
+            return "Ce proiect vrei să actualizezi?", None
 
         update_data = {}
         if data.get("name"):
@@ -183,7 +188,7 @@ async def handle_project_intent(
                 project_id = project["id"]
 
         if not project_id:
-            return "Which project?", None
+            return "Pentru ce proiect?", None
 
         if progress is not None:
             progress = max(0, min(100, int(progress)))
@@ -211,7 +216,7 @@ async def handle_project_intent(
                 project_id = project["id"]
 
         if not project_id:
-            return "Which project should I archive?", None
+            return "Ce proiect vrei să arhivezi?", None
 
         project = await project_queries.get_project(pool, project_id)
         if not project:
@@ -233,7 +238,7 @@ async def handle_project_intent(
                 project_id = project["id"]
 
         if not project_id:
-            return "Which project should I delete?", None
+            return "Ce proiect vrei să ștergi?", None
 
         project = await project_queries.get_project(pool, project_id)
         if not project:
@@ -261,7 +266,7 @@ async def handle_project_intent(
             return f"Project *{escape_md(project['name'])}* has been deleted\\.", None
         return "Project already deleted or not found\\.", None
 
-    return "Project module is ready\\! (Phase 5 continues)", None
+    return "Modulul de proiecte funcționează corect.", None
 
 
 async def get_projects_dashboard(pool) -> Tuple[str, Any]:

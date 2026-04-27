@@ -186,18 +186,22 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
 
         elif action == "new":
             await set_state(pool, "awaiting_task_input", "tasks", "add", None)
+            prompt = "📝 *Adaugă task nou*\n\nScrie titlul task\\-ului \\(și opțional data sau prioritatea\\)\\.\n_Ex: Cumpără becuri mâine \\!\\!high_"
             await query.edit_message_text(
-                "📝 *Adaugă task nou*\n\nScrie titlul task\\-ului \\(și opțional data sau prioritatea\\)\\.\n_Ex: Cumpără becuri mâine \\!\\!high_",
+                prompt,
                 parse_mode="MarkdownV2",
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
         elif action == "new_for_project":
             project_id = int(parts[2])
             await set_state(pool, "awaiting_task_input", "tasks", "add", project_id)
+            prompt = "📝 *Adaugă task în proiect*\n\nScrie titlul task\\-ului\\.\nLora îl va asocia automat cu acest proiect\\."
             await query.edit_message_text(
-                "📝 *Adaugă task în proiect*\n\nScrie titlul task\\-ului\\.\nLora îl va asocia automat cu acest proiect\\.",
+                prompt,
                 parse_mode="MarkdownV2",
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
         elif action == "edit":
             task_id = int(parts[2])
@@ -224,10 +228,12 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
     elif module == "projects":
         if action == "new":
             await set_state(pool, "awaiting_project_input", "projects", "add", None)
+            prompt = "📂 *Creează proiect nou*\n\nScrie numele proiectului și o scurtă descriere\\.\n_Ex: Licență, Planificare și scriere capitol 1_"
             await query.edit_message_text(
-                "📂 *Creează proiect nou*\n\nScrie numele proiectului și o scurtă descriere\\.\n_Ex: Licență, Planificare și scriere capitol 1_",
+                prompt,
                 parse_mode="MarkdownV2",
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
         elif action == "delete":
             project_id = int(parts[2])
@@ -703,3 +709,12 @@ async def get_project_tasks_view(pool, project_id: int) -> Tuple[str, Any]:
     ]
     combined_keyboard = list(markup.inline_keyboard) + project_keyboard
     return "\n".join(lines), InlineKeyboardMarkup(combined_keyboard)
+
+async def _save_prompt_to_conversation(pool, prompt: str) -> None:
+    """Saves the assistant's prompt to the conversation table for Gemini context."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO conversations (role, content) VALUES ($1, $2)",
+            "assistant",
+            prompt,
+        )

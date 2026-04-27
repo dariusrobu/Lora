@@ -523,3 +523,15 @@ CREATE TABLE IF NOT EXISTS calendar_sync (
 );
 CREATE INDEX idx_calendar_sync_uid ON calendar_sync(ical_uid);
 CREATE INDEX idx_calendar_sync_lora ON calendar_sync(lora_type, lora_id);
+
+-- ── Execution Log ──────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS execution_log (
+    id SERIAL PRIMARY KEY,
+    intent TEXT,
+    module TEXT,
+    success BOOLEAN,
+    error_type TEXT,
+    error_message TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+

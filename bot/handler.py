@@ -168,7 +168,6 @@ async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         traceback.print_exc()
 
 
-
 async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
     """Handles incoming photos, sending them to the Vision Module."""
     if not await security_check(update):
@@ -228,7 +227,10 @@ async def message_handler(
 ):
     try:
         user_id = update.effective_user.id if update.effective_user else "Unknown"
-        print(f"📥 INCOMING: Update ID {update.update_id} from user_id {user_id}", flush=True)
+        print(
+            f"📥 INCOMING: Update ID {update.update_id} from user_id {user_id}",
+            flush=True,
+        )
 
         # Use provided text or fallback to message text
         if text is None and update.message:
@@ -277,19 +279,25 @@ async def message_handler(
                 status = "✅" if res["success"] else "❌"
                 msg = f"{status} *iCloud Status*\n\n{escape_md(res['message'])}\n\n"
                 if res.get("calendars"):
-                    msg += "Calendare găsite:\n" + "\n".join(f"• {escape_md(c)}" for c in res["calendars"])
+                    msg += "Calendare găsite:\n" + "\n".join(
+                        f"• {escape_md(c)}" for c in res["calendars"]
+                    )
                 await update.message.reply_text(msg, parse_mode="MarkdownV2")
                 return
 
             if clean_text.startswith("/sync_calendar"):
                 from modules.calendar_module import handle_calendar_intent
+
                 reply, _ = await handle_calendar_intent(pool, "calendar_sync", {})
                 await update.message.reply_text(reply, parse_mode="MarkdownV2")
                 return
 
         # ── GROUP ROUTING ──
         # If in a group, only respond if explicitly mentioned
-        if update.effective_chat and update.effective_chat.type in ("group", "supergroup"):
+        if update.effective_chat and update.effective_chat.type in (
+            "group",
+            "supergroup",
+        ):
             # Lazy-get bot username
             bot_username = context.application.bot_data.get("bot_username")
             if not bot_username:
@@ -310,7 +318,10 @@ async def message_handler(
                             break
 
             # Only exit early if in a group and not mentioned
-            if not is_mentioned and f"@{bot_username.lower()}" not in (text or "").lower():
+            if (
+                not is_mentioned
+                and f"@{bot_username.lower()}" not in (text or "").lower()
+            ):
                 print(
                     f"🔇 LORA SILENT: Message in group {update.effective_chat.id} doesn't mention @{bot_username}"
                 )
@@ -853,6 +864,7 @@ async def message_handler(
 
                         from google.genai import types
                         from core.gemini import client
+
                         prompt = """
 Analizează această imagine cu un orar universitar.
 Extrage TOATE cursurile și seminarele vizibile.
@@ -900,7 +912,9 @@ week_type: "odd" dacă e marcat SI, "even" dacă SP, "both" dacă apare în ambe
                             data_parsed = json.loads(raw)
                             classes = data_parsed.get("classes", [])
 
-                            from db.queries.university_schedules import insert_schedule_row
+                            from db.queries.university_schedules import (
+                                insert_schedule_row,
+                            )
 
                             days_map = {
                                 "luni": 0,
@@ -970,6 +984,7 @@ week_type: "odd" dacă e marcat SI, "even" dacă SP, "both" dacă apare în ambe
 
                         from google.genai import types
                         from core.gemini import client
+
                         prompt = """
 Analizează acest document cu structura anului universitar.
 Extrage TOATE perioadele importante.
@@ -1019,7 +1034,9 @@ Returnează EXCLUSIV JSON valid:
                         try:
                             data_parsed = json.loads(raw)
 
-                            from db.queries.university_schedules import insert_academic_period
+                            from db.queries.university_schedules import (
+                                insert_academic_period,
+                            )
 
                             imported = 0
                             for sem in data_parsed.get("semesters", []):
@@ -1059,6 +1076,24 @@ Returnează EXCLUSIV JSON valid:
                         )
                     return
 
+            elif state["state_type"] == "awaiting_project_name":
+                intent_response = {
+                    "intent": "add_project",
+                    "module": "projects",
+                    "data": {"name": text},
+                    "reply": f"Proiectul *{escape_md(text)}* a fost adăugat. ✅",
+                    "needs_confirmation": False,
+                    "needs_agent": False,
+                }
+                await clear_state(pool)
+                final_reply, reply_markup = await route_intent(
+                    pool, intent_response, bot=context.bot
+                )
+                await update.message.reply_text(
+                    final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup
+                )
+                return
+
             elif state["state_type"] == "awaiting_edit_field":
                 context_snapshot = await build_context(pool, text)
                 profile = await get_user_profile(pool, telegram_id)
@@ -1072,6 +1107,7 @@ Returnează EXCLUSIV JSON valid:
                     context_snapshot=context_snapshot,
                     history=[],
                     personal_notes=f"ACTION: Extract the fields to change for item {state['item_id']} in module {state['module']}. Return intent='edit_{state['module'][:-1]}', data={{'id': {state['item_id']}, ...fields...}}",
+                    system_hint=f"User is editing an item in {state['module']}.",
                 )
 
                 await clear_state(pool)
@@ -1258,27 +1294,8 @@ Reguli:
                 return
 
             elif state["state_type"] == "awaiting_task_input":
-                from modules.tasks import handle_task_intent
-                from core.state import clear_state
-
-                # Try to extract project_id from state extra
-                project_id = state.get("extra")
-                # We can call handle_task_intent with "add_task"
-                # But we need Gemini to parse the description, or we just use the raw text.
-                # Let's let it fall through to Gemini BUT with a hint.
-                # Actually, the most robust way is to just clear state and let Gemini handle it naturally.
-                # BUT if we have a project_id, we MUST pass it.
-                if project_id:
-                    # Forced add to project
-                    data = {"title": text, "project_id": project_id}
-                    reply, markup = await handle_task_intent(pool, "add_task", data)
-                    await clear_state(pool)
-                    await update.message.reply_text(
-                        reply, parse_mode="MarkdownV2", reply_markup=markup
-                    )
-                    return
-                await clear_state(pool)
-                # Fall through to Gemini
+                # Let it fall through to Gemini with state-based system_hint
+                pass
 
             elif state["state_type"] == "awaiting_project_input":
                 from db.queries.projects import add_project
@@ -1399,11 +1416,11 @@ Reguli:
                     await handle_finance_message(update, pool, state, text)
                 elif state["module"] == "workout":
                     from modules.workout import handle_workout_message
+
                     await handle_workout_message(update, pool, state, text)
 
                 # Fall through to Gemini if not returned by handlers
                 await clear_state(pool)
-
 
         # 4. Try regex parser first for simple add_task / add_event patterns
         intent_response = None
@@ -1608,6 +1625,29 @@ Reguli:
             context_snapshot = await build_context(pool, text)
             profile = await get_user_profile(pool, telegram_id)
 
+            # Generate hint based on state
+            system_hint = ""
+            if state:
+                state_type = state.get("state_type")
+                if state_type == "awaiting_task_input":
+                    system_hint = "User is providing the TITLE for a new TASK. Extract it as add_task."
+                elif state_type == "awaiting_project_input":
+                    system_hint = "User is providing info for a new PROJECT. Extract it as add_project."
+                elif state_type == "awaiting_health_input":
+                    system_hint = "User is providing health/metric data. Extract it as health_log."
+                elif state_type == "awaiting_skill_input":
+                    system_hint = (
+                        "User is logging skill progress. Extract it as log_skill."
+                    )
+                elif state_type == "awaiting_finance_input":
+                    system_hint = (
+                        "User is providing finance data. Extract it as finance_log."
+                    )
+                elif state_type == "awaiting_uni_input":
+                    system_hint = (
+                        "User is providing university data (exam, grade, or subject)."
+                    )
+
             intent_response = await get_gemini_response(
                 pool,
                 user_message=text,
@@ -1616,6 +1656,7 @@ Reguli:
                 context_snapshot=context_snapshot,
                 history=history,
                 personal_notes=profile.get("personal_notes") or "",
+                system_hint=system_hint,
             )
         else:
             # For regex matches, we might still need the profile for trigger_morning_briefing
@@ -1657,7 +1698,48 @@ Reguli:
                 )
             return
 
-        # 5. Route intent and get final reply + keyboard
+        # 5. Merge state context into Gemini results
+        if state:
+            state_type = state.get("state_type")
+            if state_type == "awaiting_task_input":
+                # If Gemini somehow failed to catch add_task despite hint, force it here
+                if intent_response.get("intent") != "add_task":
+                    intent_response["intent"] = "add_task"
+                    intent_response["module"] = "tasks"
+                    if not intent_response.get("data"):
+                        intent_response["data"] = {}
+                    if not intent_response["data"].get("title"):
+                        intent_response["data"]["title"] = text
+
+                # Ensure project_id is preserved if it came from state
+                project_id = state.get("extra")
+                if project_id:
+                    if not intent_response.get("data"):
+                        intent_response["data"] = {}
+                    intent_response["data"]["project_id"] = project_id
+
+            elif state_type == "awaiting_project_input":
+                if intent_response.get("intent") != "add_project":
+                    intent_response["intent"] = "add_project"
+                    intent_response["module"] = "projects"
+                    if not intent_response.get("data"):
+                        intent_response["data"] = {}
+                    if not intent_response["data"].get("name"):
+                        intent_response["data"]["name"] = text
+
+        # 6. Clear state before routing if we processed a state-based intent
+        if state and intent_response.get("intent") in [
+            "add_task",
+            "add_project",
+            "health_log",
+            "log_skill",
+            "finance_log",
+        ]:
+            from core.state import clear_state
+
+            await clear_state(pool)
+
+        # 7. Route intent and get final reply + keyboard
         intent_response["_user_message"] = text
         final_reply, reply_markup = await route_intent(
             pool, intent_response, bot=context.bot
@@ -1680,7 +1762,10 @@ Reguli:
         for i, chunk in enumerate(chunks):
             current_markup = reply_markup if i == len(chunks) - 1 else None
             try:
-                print(f"📤 SENDING chunk {i+1}/{len(chunks)}: {repr(chunk[:50])}...", flush=True)
+                print(
+                    f"📤 SENDING chunk {i + 1}/{len(chunks)}: {repr(chunk[:50])}...",
+                    flush=True,
+                )
                 await update.message.reply_text(
                     safe_markdown(chunk),
                     parse_mode="MarkdownV2",
@@ -1688,7 +1773,10 @@ Reguli:
                 )
 
             except Exception as e:
-                print(f"⚠️ MarkdownV2 FAILED for chunk {i+1}, falling back to plain text: {e}", flush=True)
+                print(
+                    f"⚠️ MarkdownV2 FAILED for chunk {i + 1}, falling back to plain text: {e}",
+                    flush=True,
+                )
                 try:
                     await update.message.reply_text(chunk, reply_markup=current_markup)
                 except Exception as e2:
@@ -1809,6 +1897,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 )
                 prompt = "💸 *Ce cheltuială ai făcut?*\n_\\(ex: 50 RON cafea, taxi 30lei, mâncare 100\\)_"
                 await query.edit_message_text(prompt, parse_mode="MarkdownV2")
+                await _save_prompt_to_conversation(pool, prompt)
                 await query.answer()
                 return
 
@@ -1825,6 +1914,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 )
                 prompt = "💰 *Ce venit ai primit?*\n_\\(ex: salariu 5000, bonus 200, vânzare olx 50\\)_"
                 await query.edit_message_text(prompt, parse_mode="MarkdownV2")
+                await _save_prompt_to_conversation(pool, prompt)
                 await query.answer()
                 return
 
@@ -1854,6 +1944,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 )
                 prompt = "💰 *Nume pentru categorie nouă:*\n_(ex: cafea, combustibil, abonamente)_"
                 await query.edit_message_text(prompt, parse_mode="MarkdownV2")
+                await _save_prompt_to_conversation(pool, prompt)
                 await query.answer()
                 return
 
@@ -2079,11 +2170,13 @@ async def handle_uni_callback(query, pool, data: str):
                 pool, "awaiting_uni_input", "university", "add_subject", None
             )
             keyboard = InlineKeyboardMarkup([[back_btn]])
+            prompt = "📚 *Adaugă materie*\n\nScrie numele materiei:"
             await query.edit_message_text(
-                "📚 *Adaugă materie*\n\nScrie numele materiei:",
+                prompt,
                 parse_mode="MarkdownV2",
                 reply_markup=keyboard,
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
         elif action == "delete" and item_id:
             subject = await pool.fetchrow(
@@ -2141,14 +2234,18 @@ async def handle_uni_callback(query, pool, data: str):
                 pool, "awaiting_uni_input", "university", "add_schedule", None
             )
             keyboard = InlineKeyboardMarkup([[back_btn]])
-            await query.edit_message_text(
+            prompt = (
                 "📅 *Adaugă oră în orar*\n\n"
                 "Scrie în format:\n"
                 "`Zi, HH:MM\\-HH:MM, Materie, tip, sala, sapt`\n\n"
-                "Exemplu: `Luni, 08:00\\-09:30, MRU, seminar, 208, odd`",
+                "Exemplu: `Luni, 08:00\\-09:30, MRU, seminar, 208, odd`"
+            )
+            await query.edit_message_text(
+                prompt,
                 parse_mode="MarkdownV2",
                 reply_markup=keyboard,
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
     # ━━━ EXAMENE ━━━
     elif section == "exams":
@@ -2188,14 +2285,18 @@ async def handle_uni_callback(query, pool, data: str):
 
             await set_state(pool, "awaiting_uni_input", "university", "add_exam", None)
             keyboard = InlineKeyboardMarkup([[back_btn]])
-            await query.edit_message_text(
+            prompt = (
                 "🎓 *Adaugă examen*\n\n"
                 "Scrie în format:\n"
                 "`Materie, YYYY\\-MM\\-DD, tip, sala`\n\n"
-                "Exemplu: `Statistică, 2026\\-06\\-15, examen, A2`",
+                "Exemplu: `Statistică, 2026\\-06\\-15, examen, A2`"
+            )
+            await query.edit_message_text(
+                prompt,
                 parse_mode="MarkdownV2",
                 reply_markup=keyboard,
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
     # ━━━ NOTE & PREZENȚE ━━━
     elif section == "grades":
@@ -2252,11 +2353,13 @@ async def handle_uni_callback(query, pool, data: str):
 
             await set_state(pool, "awaiting_uni_input", "university", "add_grade", None)
             keyboard = InlineKeyboardMarkup([[back_btn]])
+            prompt = "📝 *Adaugă notă*\n\nFormat: `Materie, notă, tip`\nExemplu: `Statistică, 8\\.5, partial`"
             await query.edit_message_text(
-                "📝 *Adaugă notă*\n\nFormat: `Materie, notă, tip`\nExemplu: `Statistică, 8\\.5, partial`",
+                prompt,
                 parse_mode="MarkdownV2",
                 reply_markup=keyboard,
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
         elif action == "add_attendance":
             from core.state import set_state
@@ -2265,11 +2368,13 @@ async def handle_uni_callback(query, pool, data: str):
                 pool, "awaiting_uni_input", "university", "add_attendance", None
             )
             keyboard = InlineKeyboardMarkup([[back_btn]])
+            prompt = "📝 *Adaugă prezență*\n\nFormat: `Materie, prezent/absent, YYYY\\-MM\\-DD`\nExemplu: `MRU, prezent, 2026\\-03\\-23`"
             await query.edit_message_text(
-                "📝 *Adaugă prezență*\n\nFormat: `Materie, prezent/absent, YYYY\\-MM\\-DD`\nExemplu: `MRU, prezent, 2026\\-03\\-23`",
+                prompt,
                 parse_mode="MarkdownV2",
                 reply_markup=keyboard,
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
         elif action == "edit_attendance":
             from core.state import set_state
@@ -2278,11 +2383,13 @@ async def handle_uni_callback(query, pool, data: str):
                 pool, "awaiting_uni_input", "university", "edit_attendance", None
             )
             keyboard = InlineKeyboardMarkup([[back_btn]])
+            prompt = "✏️ *Editează prezență*\n\nFormat: `Materie, YYYY\\-MM\\-DD, prezent/absent`\nExemplu: `MRU, 2026\\-03\\-23, absent`"
             await query.edit_message_text(
-                "✏️ *Editează prezență*\n\nFormat: `Materie, YYYY\\-MM\\-DD, prezent/absent`\nExemplu: `MRU, 2026\\-03\\-23, absent`",
+                prompt,
                 parse_mode="MarkdownV2",
                 reply_markup=keyboard,
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
         elif action == "delete_grade":
             from core.state import set_state
@@ -2291,11 +2398,13 @@ async def handle_uni_callback(query, pool, data: str):
                 pool, "awaiting_uni_input", "university", "delete_grade", None
             )
             keyboard = InlineKeyboardMarkup([[back_btn]])
+            prompt = "🗑 *Șterge notă*\n\nFormat: `Materie, tip`\nExemplu: `Statistică, partial`"
             await query.edit_message_text(
-                "🗑 *Șterge notă*\n\nFormat: `Materie, tip`\nExemplu: `Statistică, partial`",
+                prompt,
                 parse_mode="MarkdownV2",
                 reply_markup=keyboard,
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
     # ━━━ ANALIZĂ GEMINI ━━━
     elif section == "analysis":
@@ -2483,3 +2592,13 @@ async def reading_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text, markup = await get_reading_dashboard(pool)
     await update.message.reply_text(text, parse_mode="MarkdownV2", reply_markup=markup)
+
+
+async def _save_prompt_to_conversation(pool, prompt: str) -> None:
+    """Saves the assistant's prompt to the conversation table for Gemini context."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO conversations (role, content) VALUES ($1, $2)",
+            "assistant",
+            prompt,
+        )

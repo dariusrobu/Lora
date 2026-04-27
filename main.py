@@ -99,11 +99,14 @@ def check_pid_lock():
         try:
             with open(PID_FILE) as f:
                 existing_pid = int(f.read().strip())
-            # Signal 0 checks if the process is alive without killing it
-            os.kill(existing_pid, 0)
-            # Process is alive — another instance is running, abort
-            print(f"FATAL: Another Lora instance is already running (PID {existing_pid}). Exiting.")
-            sys.exit(1)
+            if existing_pid == os.getpid():
+                print("PID matches current process (likely restarted via execl).")
+            else:
+                # Signal 0 checks if the process is alive without killing it
+                os.kill(existing_pid, 0)
+                # Process is alive — another instance is running, abort
+                print(f"FATAL: Another Lora instance is already running (PID {existing_pid}). Exiting.")
+                sys.exit(1)
         except (ProcessLookupError, ValueError):
             # Process not found or PID file corrupt — safe to continue
             print(f"Removed stale PID file (process {existing_pid if 'existing_pid' in dir() else '?'} is gone).")

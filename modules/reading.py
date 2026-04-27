@@ -335,9 +335,9 @@ async def handle_reading_callback(query, pool, data: str) -> None:
                 reply_markup=reading_main_keyboard(),
             )
         else:
-            text = "📝 *Adaugă notă*\n\nAlege cartea pentru care vrei să adaugi o notă:"
+            prompt = "📝 *Adaugă notă*\n\nAlege cartea pentru care vrei să adaugi o notă:"
             await query.edit_message_text(
-                text,
+                prompt,
                 parse_mode="MarkdownV2",
                 reply_markup=InlineKeyboardMarkup(
                     [
@@ -352,6 +352,7 @@ async def handle_reading_callback(query, pool, data: str) -> None:
                     + [[InlineKeyboardButton("◀️ Înapoi", callback_data="reading_main")]]
                 ),
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
     elif data.startswith("reading_detail_"):
         book_id = int(parts[-1])
@@ -393,8 +394,9 @@ async def handle_reading_callback(query, pool, data: str) -> None:
             await set_state(pool, "reading_update_pages", "reading", "update", book_id)
             current_pages = book.get("pages_read", 0)
             total_pages = book.get("total_pages", "")
+            prompt = f"🔄 Update *{escape_md(book['title'])}*\\n\\nPagina curentă: *{current_pages}*\\/{total_pages}\\n\\nIntrodu noua pagină:"
             await query.edit_message_text(
-                f"🔄 Update *{escape_md(book['title'])}*\\n\\nPagina curentă: *{current_pages}*\\/{total_pages}\\n\\nIntrodu noua pagină:",
+                prompt,
                 parse_mode="MarkdownV2",
                 reply_markup=InlineKeyboardMarkup(
                     [
@@ -406,6 +408,7 @@ async def handle_reading_callback(query, pool, data: str) -> None:
                     ]
                 ),
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
     elif data == "reading_complete_prompt":
         current = await reading_queries.get_current_books(pool)
@@ -438,8 +441,9 @@ async def handle_reading_callback(query, pool, data: str) -> None:
         book = await reading_queries.get_book_by_id(pool, book_id)
         if book:
             await set_state(pool, "reading_rate_book", "reading", "rate", book_id)
+            prompt = f"🏁 Finalizează *{escape_md(book['title'])}*\n\nAi vrea să îi dai un rating \\(1\\-5 stele\\)?\n\n_Scrie numărul sau 'nu' dacă nu vrei rating\\._"
             await query.edit_message_text(
-                f"🏁 Finalizează *{escape_md(book['title'])}*\n\nAi vrea să îi dai un rating \\(1\\-5 stele\\)?\n\n_Scrie numărul sau 'nu' dacă nu vrei rating\\._",
+                prompt,
                 parse_mode="MarkdownV2",
                 reply_markup=InlineKeyboardMarkup(
                     [
@@ -452,6 +456,7 @@ async def handle_reading_callback(query, pool, data: str) -> None:
                     ]
                 ),
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
     elif data.startswith("reading_finish_no_rating_"):
         book_id = int(parts[-1])
@@ -468,8 +473,9 @@ async def handle_reading_callback(query, pool, data: str) -> None:
         book = await reading_queries.get_book_by_id(pool, book_id)
         if book:
             await set_state(pool, "reading_add_note", "reading", "note", book_id)
+            prompt = f"📝 Notă pentru *{escape_md(book['title'])}*\n\nScrie nota ta \\(poți include și numărul paginii\\):"
             await query.edit_message_text(
-                f"📝 Notă pentru *{escape_md(book['title'])}*\n\nScrie nota ta \\(poți include și numărul paginii\\):",
+                prompt,
                 parse_mode="MarkdownV2",
                 reply_markup=InlineKeyboardMarkup(
                     [
@@ -481,6 +487,7 @@ async def handle_reading_callback(query, pool, data: str) -> None:
                     ]
                 ),
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
     elif data.startswith("reading_view_notes_"):
         book_id = int(parts[-1])
@@ -540,13 +547,15 @@ async def handle_reading_callback(query, pool, data: str) -> None:
 
     elif data == "reading_add":
         await set_state(pool, "reading_add_book", "reading", "add", None)
+        prompt = "➕ *Carte nouă*\n\nIntrodu titlul cărții:\n_Poți include autorul și numărul de pagini în același mesaj \\(ex: '1984 de George Orwell, 328 pagini'\\)_"
         await query.edit_message_text(
-            "➕ *Carte nouă*\n\nIntrodu titlul cărții:\n_Poți include autorul și numărul de pagini în același mesaj \\(ex: '1984 de George Orwell, 328 pagini'\\)_",
+            prompt,
             parse_mode="MarkdownV2",
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("❌ Anulează", callback_data="reading_main")]]
             ),
         )
+        await _save_prompt_to_conversation(pool, prompt)
 
 
 async def handle_reading_message(update, pool, state: dict) -> bool:
@@ -726,4 +735,13 @@ async def reading_command(update, context) -> None:
         await update.message.reply_text(
             "Eroare la deschiderea dashboard\\-ului de lectură\\.",
             parse_mode="MarkdownV2",
+        )
+
+async def _save_prompt_to_conversation(pool, prompt: str) -> None:
+    """Saves the assistant's prompt to the conversation table for Gemini context."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO conversations (role, content) VALUES ($1, $2)",
+            "assistant",
+            prompt,
         )

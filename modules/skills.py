@@ -225,19 +225,23 @@ async def handle_skills_callback(update, context, pool) -> None:
 
         elif data == "skills_add_new":
             await set_state(pool, "skills_add_name", "skills", "add", None)
+            prompt = "➕ *Skill Nou*\n\nIntrodu numele skill\\-ului \\(ex: Sah, Duolingo, Rubik\\):"
             await query.edit_message_text(
-                "➕ *Skill Nou*\n\nIntrodu numele skill\\-ului \\(ex: Sah, Duolingo, Rubik\\):",
+                prompt,
                 parse_mode="MarkdownV2",
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
         elif data.startswith("skills_log_entry_"):
             skill_id = int(data.split("_")[-1])
             skill = await skill_queries.get_skill_by_id(pool, skill_id)
             await set_state(pool, "skills_log_value", "skills", "log", skill_id)
+            prompt = f"📝 *Log {escape_md(skill['name'])}*\n\nIntrodu valoarea \\({escape_md(skill['unit'])}\\):"
             await query.edit_message_text(
-                f"📝 *Log {escape_md(skill['name'])}*\n\nIntrodu valoarea \\({escape_md(skill['unit'])}\\):",
+                prompt,
                 parse_mode="MarkdownV2",
             )
+            await _save_prompt_to_conversation(pool, prompt)
 
         elif data.startswith("skills_history_"):
             skill_id = int(data.split("_")[-1])
@@ -412,4 +416,13 @@ async def skills_command(update, context) -> None:
         logging.error(f"Error in skills command: {e}")
         await update.message.reply_text(
             "Eroare la deschiderea dashboard-ului de skills\\.", parse_mode="MarkdownV2"
+        )
+
+async def _save_prompt_to_conversation(pool, prompt: str) -> None:
+    """Saves the assistant's prompt to the conversation table for Gemini context."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO conversations (role, content) VALUES ($1, $2)",
+            "assistant",
+            prompt,
         )
