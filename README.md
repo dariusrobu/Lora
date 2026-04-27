@@ -320,9 +320,16 @@ Lora speaks **Romglish** — Romanian as the base language with natural English 
 
 Run schema once: `psql $DATABASE_URL -f db/schema.sql`
 
-For existing databases, run migrations:
+For existing databases, run migrations in order (see `db/migrations/README.md` for full conventions):
 ```bash
 psql $DATABASE_URL -f db/migrations/001_schema_fixes.sql
+psql $DATABASE_URL -f db/migrations/002_academic_profile.sql
+psql $DATABASE_URL -f db/migrations/003_projects_enhanced.sql
+psql $DATABASE_URL -f db/migrations/004_finance_categories.sql
+psql $DATABASE_URL -f db/migrations/005_week_type_enum_fix.sql
+psql $DATABASE_URL -f db/migrations/006_academic_periods.sql
+psql $DATABASE_URL -f db/migrations/007_conversation_state.sql
+psql $DATABASE_URL -f db/migrations/008_execution_log.sql
 ```
 
 ---
