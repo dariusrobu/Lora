@@ -1,11 +1,13 @@
 from typing import List, Dict, Any, Optional
 from datetime import date
 import decimal
+from core.utils import with_retry
 
 
 # ── Categories CRUD ───────────────────────────────────────────
 
 
+@with_retry(max_attempts=3, base_delay=1.0)
 async def add_category(
     pool, name: str, icon: str = "💰", keywords: Optional[List[str]] = None
 ) -> int:
@@ -65,6 +67,7 @@ async def detect_category_from_text(pool, text: str) -> Optional[str]:
 # ── Transactions ─────────────────────────────────────────────
 
 
+@with_retry(max_attempts=3, base_delay=1.0)
 async def log_transaction(
     pool,
     tx_type: str,
@@ -190,6 +193,7 @@ async def get_finance_history(pool, days: int = 30) -> List[Dict[str, Any]]:
         return [dict(r) for r in rows]
 
 
+@with_retry(max_attempts=3, base_delay=1.0)
 async def set_budget_limit(pool, category: str, limit: float):
     """Sets or updates a budget limit for a category."""
     async with pool.acquire() as conn:

@@ -5,11 +5,11 @@ from bot.formatter import escape_md
 
 async def handle_note_intent(
     pool, intent: str, data: Dict[str, Any]
-) -> Tuple[str, Any]:
+) -> Tuple[str, Any, Optional[int]]:
     if intent == "add_note":
         content = data.get("content")
         if not content:
-            return "Ce anume vrei să notez? ✍️", None
+            return "Ce anume vrei să notez? ✍️", None, None
 
         project_id = data.get("project_id")
         project_name = data.get("project") or data.get("project_name")
@@ -32,7 +32,7 @@ async def handle_note_intent(
         project_msg = (
             f" pentru proiectul *{escape_md(project_name)}*" if project_name else ""
         )
-        return f"{type_label}{project_msg} ✅\n\n{escape_md(content)}", None
+        return f"{type_label}{project_msg} ✅\n\n{escape_md(content)}", None, None
 
     elif intent == "list_notes":
         type_filter = data.get("type")
@@ -55,7 +55,7 @@ async def handle_note_intent(
                 if project_name
                 else "Nu ai nicio notiță salvată\\."
             )
-            return msg, None
+            return msg, None, None
 
         if project_name:
             header = f"📓 *Notițe {escape_md(project_name)}:*"
@@ -71,17 +71,18 @@ async def handle_note_intent(
                 n["content"][:50] + "..." if len(n["content"]) > 50 else n["content"]
             )
             lines.append(f"• {emoji} {escape_md(summary)}")
-        return "\n".join(lines), None
+        return "\n".join(lines), None, None
 
     elif intent == "search_notes":
         query = data.get("query")
         if not query:
-            return "Ce anume să caut? 🔍", None
+            return "Ce anume să caut? 🔍", None, None
 
         notes = await note_queries.search_notes(pool, query)
         if not notes:
             return (
                 f"Nu am găsit nicio notiță care să conțină `{escape_md(query)}`\\.",
+                None,
                 None,
             )
 
@@ -92,6 +93,6 @@ async def handle_note_intent(
                 n["content"][:60] + "..." if len(n["content"]) > 60 else n["content"]
             )
             lines.append(f"• {emoji} {escape_md(summary)}")
-        return "\n".join(lines), None
+        return "\n".join(lines), None, None
 
-    return "Note module is ready\\!", None
+    return "Note module is ready\\!", None, None

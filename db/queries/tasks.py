@@ -1,7 +1,9 @@
 from typing import List, Optional, Dict, Any
 from datetime import date
+from core.utils import with_retry
 
 
+@with_retry(max_attempts=3, base_delay=1.0)
 async def add_task(
     pool,
     title: str,
@@ -38,15 +40,16 @@ async def get_task(pool, task_id: int) -> Optional[Dict[str, Any]]:
 
 async def get_tasks_by_title(pool, title: str) -> List[Dict[str, Any]]:
     async with pool.acquire() as conn:
-        # Search for case-insensitive partial match or exact match
+        # Search for case-insensitive and diacritic-insensitive partial match
+        # Requires 'unaccent' extension in Postgres
         rows = await conn.fetch(
-            "SELECT * FROM tasks WHERE (title ILIKE $1 OR title ILIKE $2) AND status = 'pending'",
+            "SELECT * FROM tasks WHERE (unaccent(title) ILIKE unaccent($1)) AND status = 'pending'",
             f"%{title}%",
-            title,
         )
         return [dict(r) for r in rows]
 
 
+@with_retry(max_attempts=3, base_delay=1.0)
 async def update_task(pool, task_id: int, **kwargs):
     if not kwargs:
         return
@@ -63,6 +66,7 @@ async def update_task(pool, task_id: int, **kwargs):
         await conn.execute(query, task_id, *values)
 
 
+@with_retry(max_attempts=3, base_delay=1.0)
 async def delete_task(pool, task_id: int):
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM tasks WHERE id = $1", task_id)
@@ -92,6 +96,7 @@ async def list_tasks(
         return [dict(r) for r in rows]
 
 
+@with_retry(max_attempts=3, base_delay=1.0)
 async def complete_task(pool, task_id: int):
     async with pool.acquire() as conn:
         # Get task details before marking as done
@@ -225,24 +230,25 @@ async def get_monthly_task_stats(pool, start_date, end_date) -> dict:
 
 async def find_similar_tasks(pool, title: str, user_id: int) -> List[Dict[str, Any]]:
     """
-    Finds completed tasks with a similar title (fuzzy match).
+    Finds completed tasks with a similar title (fuzzy match, diacritic insensitive).
     Used to provide proactive feedback about previous performance.
     """
-    # Extract keywords (words longer than 3 chars)
-    words = [w.strip() for w in title.split() if len(w.strip()) > 3]
+    # Extract keywords (words longer than 2 chars to be more inclusive)
+    words = [w.strip() for w in title.split() if len(w.strip()) > 2]
     if not words:
         words = [title.strip()]
 
-    # We use the first word for now as a simple keyword search
+    # Use the first significant word for keyword search with unaccent
     keyword = f"%{words[0]}%"
 
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT title, created_at, completed_at, 
-                   EXTRACT(DAY FROM (completed_at - created_at)) as duration_days
+                   EXTRACT(EPOCH FROM (completed_at - created_at))/3600 as duration_hours
             FROM tasks
-            WHERE status = 'done' AND title ILIKE $1
+            WHERE status = 'done' 
+              AND unaccent(title) ILIKE unaccent($1)
             ORDER BY completed_at DESC
             LIMIT 3
             """,

@@ -211,18 +211,33 @@ async def search_memories(pool, query: str) -> List[Dict[str, Any]]:
 async def semantic_search_memories(
     pool, user_id: int, query: str, limit: int = 5
 ) -> List[Dict[str, Any]]:
-    """Searches memories using full-text search."""
+    # Clean query, filter short words and remove accents
+    words = [w for w in query.split() if len(w) > 2]
+    if not words:
+        return []
+    
+    # We'll use a simpler ILIKE approach with unaccent for maximum reliability in Romanian
+    # as tsvector 'simple' still has issues with diacritics even with unaccent sometimes
+    
     async with pool.acquire() as conn:
+        # Build a search condition that checks each word against the unaccented fact
+        conditions = []
+        params = [user_id]
+        for i, word in enumerate(words, start=2):
+            conditions.append(f"unaccent(fact) ILIKE unaccent(${i})")
+            params.append(f"%{word}%")
+            
+        where_clause = " OR ".join(conditions)
+        
         rows = await conn.fetch(
-            """
+            f"""
             SELECT *
             FROM memory_facts
-            WHERE user_id = $1 AND to_tsvector('simple', fact) @@ to_tsquery('simple', $2)
+            WHERE user_id = $1 AND ({where_clause})
             ORDER BY confidence DESC, created_at DESC
             LIMIT $3
             """,
-            user_id,
-            " & ".join(query.split()),
-            limit,
+            *params,
+            limit
         )
         return [dict(r) for r in rows]

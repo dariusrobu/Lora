@@ -76,3 +76,8 @@ def format_date_ro(dt: date | datetime) -> str:
         return "Mâine"
 
     return dt.strftime("%d %b")
+
+
+def format_date_short(dt: date | datetime) -> str:
+    """Alias for format_date_ro."""
+    return format_date_ro(dt)

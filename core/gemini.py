@@ -11,8 +11,13 @@ import re
 from pydantic import BaseModel, Field, model_validator
 from core.memory import extract_and_save_facts
 from core.context import build_temporal_context
+import google.api_core.exceptions
 
 client = genai.Client(api_key=GEMINI_API_KEY)
+
+# Resilience state
+_api_available = True
+_failure_count = 0
 
 
 def preprocess_text(text: str) -> str:
@@ -144,6 +149,63 @@ class IntentResponse(BaseModel):
 IntentResponse.model_rebuild()
 
 
+async def _log_api_downtime(pool, error_type: str, user_id: int = None):
+    """Logs API downtime to execution_log."""
+    if not pool: return
+    try:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO execution_log (user_id, success, error_type) VALUES ($1, FALSE, $2)",
+                user_id, error_type
+            )
+    except Exception as e:
+        print(f"Failed to log downtime: {e}")
+
+async def _call_gemini_with_retry(pool, user_id, api_func, *args, **kwargs):
+    """Wrapper for Gemini API calls with retry logic and state tracking."""
+    global _api_available, _failure_count
+    
+    delays = [2, 4]
+    last_err = None
+    
+    for i in range(len(delays) + 1):
+        try:
+            # Execute the actual call
+            # Note: client calls are usually blocking, so we use to_thread inside the actual functions 
+            # OR we expect api_func to be a coroutine.
+            # In our case, we wrap the call to genai.Client
+            response = await api_func(*args, **kwargs)
+            
+            recovery_prefix = ""
+            if not _api_available:
+                recovery_prefix = "Sunt din nou online\! 🚀\\n\n"
+                print("Gemini API recovered! 🚀")
+            
+            _api_available = True
+            _failure_count = 0
+            return response, recovery_prefix
+            
+        except (google.api_core.exceptions.ServiceUnavailable,
+                google.api_core.exceptions.DeadlineExceeded,
+                asyncio.TimeoutError,
+                Exception) as e:
+            
+            last_err = e
+            error_msg = str(e)
+            print(f"Gemini API attempt {i+1} failed: {error_msg}")
+            
+            if i < len(delays):
+                await asyncio.sleep(delays[i])
+                continue
+            
+            # If we are here, all retries failed
+            _failure_count += 1
+            if _failure_count >= 3:
+                _api_available = False
+            
+            await _log_api_downtime(pool, "api_unavailable", user_id)
+            raise last_err
+
 async def get_gemini_response(
     pool,
     user_id: int,
@@ -239,6 +301,7 @@ INSTRUCȚIUNI TEHNICE:
    - Setează `confidence > 0.8` doar dacă ești sigur. `expires_at` (ISO date) e opțional pentru info temporare.
 10. PROACTIVE MEMORY: Dacă există fapte relevante în secțiunea MEMORIE din context, menționează-le scurt în `reply` când e cazul (ex: "Data trecută ai menționat că...", "Știu că preferi..."). Fii natural, nu forța.
 11. MEMORY SEARCH: Dacă utilizatorul întreabă ce știi despre un anumit subiect (ex: "ce știi despre sănătatea mea?", "ce știi despre Ana?", "adu-mi aminte ce am discutat despre X"), returnează `intent="memory_search"` și `data={{"topic": "subiectul extras"}}`.
+12. ACTIVE HOURS: Dacă în CONTEXT CURENT sunt specificate "Ore active", ține cont de ele când sugerezi task-uri sau planifici ziua. Nu propune activități noi în afara acestui interval decât dacă utilizatorul cere explicit.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONTEXT:
@@ -295,8 +358,13 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - Regulă conversie APĂ: "2L" / "2 litri" → 2000 | "un pahar" → 250 | "500ml" → 500.
     - Regulă SOMN: "7h30/7 și jumătate" → 7.5.
     - Regulă CALITATE: "bună/ok" → "good" | "proastă/rău" → "bad" | "excelentă" → "great" | "groaznic" → "terrible" | "neutru" → "neutral".
-19. Tasks: module="tasks":
-    - intent="add_task" — "vreau să îmi setez un task", "adaugă: X". Poți specifica și proiectul (data: {{"project": "nume"}}).
+29. Tasks: module="tasks":
+    - intent="add_task" — "vreau să îmi setez un task", "adaugă: X".
+      Data: {{"title": string, "due_date": "YYYY-MM-DD", "project": string, "priority": "high|medium|low"}}
+      Reguli: extrage TOTdeauna titlul și orice dată menționată.
+      - "azi", "mâine", "luni" → calculează data corectă în ISO
+      - "în weekend" → setează data pentru sâmbăta săptămânii curente (sau următoarea dacă e deja weekend)
+      - "peste X zile" → calculează data
     - intent="list_tasks" — "ce am de făcut", "arată-mi task-urile". Poți filtra pe proiect (data: {{"project": "nume"}}).
     - intent="complete_task" — "am terminat X", "bifează Y".
     - intent="delete_task" — "șterge task-ul X".
@@ -315,7 +383,7 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - intent="memory_view" — "ce știi despre mine", "ce amintiri ai", "vezi memoria". 
       Returnează dashboard-ul cu faptele salvate.
     - intent="memory_delete" — "șterge amintirea X", "uită că fumez", "anulează faptul că...". 
-      Extrage ID-ul amintirii sau textul relevant în data.
+      Data: {{"fact_id": string (ex: "#05"), "query": string (căutare text dacă ID lipsește)}}
 20. Workout: module="workout":
     - intent="workout_log" pentru înregistrarea unui antrenament (gym, fotbal, cardio, alergare etc.).
         * REGULI de extragere date pentru `workout_log`:
@@ -512,52 +580,41 @@ A: intent="add_goal", module="goals", data={{ "title": "slăbesc 5 kg", "categor
         )
 
     try:
-        raw_text = None
-        for attempt in range(2):
-            try:
-                response = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        client.models.generate_content,
-                        model="gemini-2.5-flash",
-                        contents=contents,
-                        config=types.GenerateContentConfig(
-                            system_instruction=system_prompt,
-                            response_mime_type="application/json",
-                            temperature=0.3,
-                            max_output_tokens=4000,
-                        ),
+        async def call_gen():
+            return await asyncio.wait_for(
+                asyncio.to_thread(
+                    client.models.generate_content,
+                    model="gemini-2.5-flash",
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        response_mime_type="application/json",
+                        temperature=0.3,
+                        max_output_tokens=4000,
                     ),
-                    timeout=30.0,
-                )
-                raw_text = response.text
-                print(f"DEBUG RAW TEXT: {repr(raw_text)}", flush=True)
+                ),
+                timeout=30.0,
+            )
 
-                raw_text = re.sub(r"\\([^.!_~\-])", "\\1", raw_text)
-                # Protect reply field content from breaking JSON by escaping quotes inside it
-                raw_text = re.sub(
-                    r'("reply"\s*:\s*")([^"]*)(")',
-                    lambda m: m.group(1) + m.group(2).replace('"', '\\"') + m.group(3),
-                    raw_text,
-                )
-                parsed = json.loads(raw_text)
-                break
-            except json.JSONDecodeError as e:
-                print(f"JSONDecodeError attempt {attempt + 1}: {e}", flush=True)
-                if attempt == 0:
-                    match = re.search(
-                        r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", raw_text or ""
-                    )
-                    if match:
-                        raw_text = match.group(0)
-                        print(
-                            f"Trying extracted JSON: {repr(raw_text[:100])}...",
-                            flush=True,
-                        )
-                        continue
-                raise
+        response, recovery_prefix = await _call_gemini_with_retry(pool, user_id, call_gen)
+        raw_text = response.text
+        print(f"DEBUG RAW TEXT: {repr(raw_text)}", flush=True)
+
+        raw_text = re.sub(r"\\([^.!_~\-])", "\\1", raw_text)
+        # Protect reply field content from breaking JSON by escaping quotes inside it
+        raw_text = re.sub(
+            r'("reply"\s*:\s*")([^"]*)(")',
+            lambda m: m.group(1) + m.group(2).replace('"', '\\"') + m.group(3),
+            raw_text,
+        )
+        parsed = json.loads(raw_text)
 
         if isinstance(parsed, list) and len(parsed) > 0:
             parsed = parsed[0]
+
+        # Add recovery message if needed
+        if recovery_prefix:
+            parsed["reply"] = recovery_prefix + parsed.get("reply", "")
 
         # Fire-and-forget: extract personal facts in background without blocking
         loop = asyncio.get_event_loop()
@@ -572,10 +629,10 @@ A: intent="add_goal", module="goals", data={{ "title": "slăbesc 5 kg", "categor
     except Exception as e:
         print(f"Gemini error: {e}", flush=True)
         return {
-            "intent": "chat",
+            "intent": "api_unavailable",
             "module": None,
             "data": {},
-            "reply": "I'm having a little trouble thinking clearly right now\\. Could you try again in a moment? 🧠💨",
+            "reply": "Sunt offline momentan, încearcă din nou în câteva minute. 🔧",
             "needs_confirmation": False,
         }
 
@@ -607,22 +664,29 @@ FORMATARE:
 """
     full_instruction = system_instruction + tone_rules
     try:
-        response = await asyncio.wait_for(
-            asyncio.to_thread(
-                client.models.generate_content,
-                model="gemini-2.5-flash",
-                contents=[
-                    types.Content(role="user", parts=[types.Part(text=data_summary)])
-                ],
-                config=types.GenerateContentConfig(
-                    system_instruction=full_instruction,
-                    temperature=0.7,
-                    max_output_tokens=2000,
+        async def call_gen():
+            return await asyncio.wait_for(
+                asyncio.to_thread(
+                    client.models.generate_content,
+                    model="gemini-2.5-flash",
+                    contents=[
+                        types.Content(role="user", parts=[types.Part(text=data_summary)])
+                    ],
+                    config=types.GenerateContentConfig(
+                        system_instruction=full_instruction,
+                        temperature=0.7,
+                        max_output_tokens=2000,
+                    ),
                 ),
-            ),
-            timeout=45.0,
-        )
-        return response.text.strip()
+                timeout=45.0,
+            )
+            
+        response, recovery_prefix = await _call_gemini_with_retry(None, None, call_gen)
+        text = response.text.strip()
+        if recovery_prefix:
+            from bot.formatter import safe_markdown
+            return recovery_prefix + text
+        return text
     except Exception as e:
         print(f"Gemini proactive error: {e}", flush=True)
         return ""
@@ -643,19 +707,27 @@ async def normalize_voice_text(raw: str) -> str:
         f"Transcriere: {raw}"
     )
     try:
-        response = await asyncio.wait_for(
-            asyncio.to_thread(
-                client.models.generate_content,
-                model="gemini-2.5-flash",
-                contents=[types.Content(role="user", parts=[types.Part(text=prompt)])],
-                config=types.GenerateContentConfig(
-                    temperature=0.2,
-                    max_output_tokens=256,
+        async def call_gen():
+            return await asyncio.wait_for(
+                asyncio.to_thread(
+                    client.models.generate_content,
+                    model="gemini-2.5-flash",
+                    contents=[types.Content(role="user", parts=[types.Part(text=prompt)])],
+                    config=types.GenerateContentConfig(
+                        temperature=0.2,
+                        max_output_tokens=256,
+                    ),
                 ),
-            ),
-            timeout=10.0,
-        )
+                timeout=10.0,
+            )
+            
+        response, recovery_prefix = await _call_gemini_with_retry(None, None, call_gen)
         normalized = response.text.strip()
+        
+        # Prepend recovery message if applicable
+        if recovery_prefix:
+            normalized = recovery_prefix + normalized
+
         _voice_logger.info(
             "VOICE NORMALIZE | original=%r | normalized=%r", raw, normalized
         )

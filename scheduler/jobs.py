@@ -5,7 +5,7 @@ from core.icloud import (
     sync_tasks_with_deadlines,
     fetch_all_calendars_events,
 )
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date, time
 import pytz
 from core.config import (
     TELEGRAM_USER_ID,
@@ -187,8 +187,10 @@ async def update_profile_job(pool):
         print(f"❌ Profile update failed: {e}", flush=True)
 
 
-async def send_morning_briefing(application, pool):
+async def send_morning_briefing(application, pool, force=False):
     """Sends a daily summary of tasks, events, skills, and health."""
+    import json
+    import os
     try:
         user_tz = pytz.timezone(TIMEZONE)
         now = datetime.now(user_tz)
@@ -196,387 +198,71 @@ async def send_morning_briefing(application, pool):
 
         # 1. Idempotency check
         profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
-        if profile.get("last_briefing_date") == today:
+        if not force and profile.get("last_briefing_date") == today:
             return
 
-        print(f"Starting morning briefing for {today}...", flush=True)
+        print(f"Starting prioritized morning briefing for {today}...", flush=True)
 
-        # 2. Gather data in PARALLEL
-        from modules.weather import get_weather_summary
-        from db.queries.shopping import list_shopping_items
-        from db.queries import workout as workout_queries
-        import asyncio
-        import os
+        # 2. Gather prioritized context
+        from core.context import build_morning_briefing_context
         from core.gemini import get_proactive_response
-        from bot.formatter import safe_markdown, split_message
+        from bot.formatter import safe_markdown, split_message, escape_md
 
-        (
-            all_tasks,
-            events,
-            reminders,
-            skills,
-            weather_info,
-            shopping_items,
-            health_log,
-            workouts_yesterday,
-        ) = await asyncio.gather(
-            task_queries.list_tasks(pool),
-            event_queries.list_events(pool, today, today),
-            event_queries.list_reminders(pool),
-            skill_queries.get_all_skills(pool),
-            get_weather_summary(),
-            list_shopping_items(pool),
-            health_queries.get_health_log(pool, today),
-            workout_queries.get_recent_workouts(pool, days=1),
-        )
+        briefing_data = await build_morning_briefing_context(pool)
+        
+        # 3. Construct Gemini Prompt
+        name = briefing_data.get("user_name", "User")
+        tone = profile.get("tone", "warm")
+        
+        instruction = f"""Ești Lora, asistenta inteligentă a lui {name}.
+Generezi un Morning Briefing COMPLET, PRIORITIZAT și ELEGANT pentru Telegram.
 
-        weather_info = weather_info or "Vremea nu este disponibilă acum."
-        overdue: list = [
-            t for t in all_tasks if t["due_date"] and t["due_date"] < today
-        ]
-        due_today: list = [t for t in all_tasks if t["due_date"] == today]
-        priority_tasks: list = (overdue + due_today)[:5]
-        pending_skills = [s for s in skills if s.get("last_log_date") != today]
+CONTEXTUL ZILEI:
+- Vremea și recomandări vestimentare scurte.
+- Programul Universitar: Cursuri/seminarii azi (menționează sala și ora).
+- Evenimente: Calendar și Remindere.
+- Urgent azi: Task-uri critice.
+- Focus recomandat: Alege CEL MAI IMPORTANT lucru de azi și explică de ce.
+- Finanțe: Balanță și alerte de buget.
+- Sănătate: Nudge-uri bazate pe somn/apă (dacă datele sunt slabe).
+- Motivație: Streak-uri de skill-uri.
 
-        # 3. Build shared context strings for Gemini calls
-        name: str = profile.get("name", "User")
-        tone: str = profile.get("tone", "warm")
+REGULI DE FORMATRE:
+1. Folosește UN SINGUR EMOJI per secțiune (nu exagera).
+2. Ton: {"prietenos și cald" if tone == "warm" else "direct și profesionist"}, Romglish (baza Română, termeni tech în Engleză).
+3. NU folosi placeholder-uri. Dacă o secțiune nu are date în context, omite-o complet.
+4. Mesajul trebuie să se simtă ca o conversație fluidă, nu ca un raport sec.
+5. La final, un scurt mesaj de motivație personalizat.
+6. Formatare: Telegram MarkdownV2 (caractere RAW, fără escaping manual în prompt, dar folosește *bold* și _italic_ corect).
+7. FĂRĂ introduceri gen 'Iată briefingul tău', începe direct cu Vremea sau Programul."""
 
-        # If priority_tasks is empty, use all pending tasks
-        if priority_tasks:
-            tasks_to_show = priority_tasks
-        else:
-            tasks_to_show = all_tasks
+        gemini_context = json.dumps(briefing_data, indent=2)
+        
+        # 4. Generate text via Gemini
+        briefing_text_raw = await get_proactive_response(instruction, gemini_context)
+        
+        if not briefing_text_raw or briefing_text_raw.strip() == "":
+            briefing_text_raw = "Bună dimineața! Se pare că azi e o zi liberă sau nu am date noi. Bucură-te de liniște! ☀️"
 
-        # If more than 5 tasks, show summary by project
-        if len(tasks_to_show) > 5:
-            from collections import Counter
-
-            project_counts = Counter(
-                t.get("project_name") or "Fără proiect" for t in tasks_to_show
-            )
-            task_text = " • ".join(
-                f"{proj}: {count} task-uri" for proj, count in project_counts.items()
-            )
-        else:
-            task_text = (
-                "\n".join(
-                    f"{'OVERDUE: ' if t in overdue else ''}{t['title']}"
-                    + (f" (prioritate: {t['priority']})" if t.get("priority") else "")
-                    + (f" [{t['project_name']}]" if t.get("project_name") else "")
-                    for t in tasks_to_show
-                )
-                or "Niciun task."
-            )
-
-        event_text = (
-            "\n".join(
-                f"{e['title']} la {e['event_time'].strftime('%H:%M') if e['event_time'] else 'toată ziua'}"
-                for e in events
-            )
-            or "Niciun eveniment."
-        )
-
-        reminder_text = (
-            "\n".join(
-                f"{r['title']} ({r['event_date'].strftime('%d %b')})"
-                for r in reminders[:5]
-            )
-            or "Niciun reminder."
-        )
-
-        skill_text = "\n".join(s["name"] for s in pending_skills) or "Totul e la zi."
-
-        gemini_context = f"""USER: {name}
-DATE: {today.strftime("%A, %d %B %Y")}
-ORA: {now.strftime("%H:%M")}
-TONE: {tone}
-
-TASKS PRIORITARE:
-{task_text}
-
-EVENIMENTE AZI:
-{event_text}
-
-REMINDERE URMĂTOARE:
-{reminder_text}
-
-SKILLS PENDING AZI:
-{skill_text}
-"""
-
-        # 4. Gemini calls — itinerary + focus + automated time block
-        itinerary_instruction = f"""Ești Lora, asistenta lui {name}.
-Generezi secțiunea 'Planul zilei' pentru morning briefing-ul de Telegram.
-Creează un itinerar realist pe ore combinând tasks + events + skills.
-
-IMPORTANT: Userul îți va menționa ce a făcut deja azi. 
-NU include în plan activități menționate ca deja făcute. 
-Planul trebuie să înceapă de la momentul curent și să meargă în viitor. 
-Dacă userul zice 'am făcut X și Y', începe planul cu următoarea activitate logică conform orei.
-
-- Sugerează ore aproximative, ex: '9:00 — focus pe X', '11:00 — meeting Y'
-- Dacă sunt puține date, sugerează blocuri de focus time generice
-- Maxim 5-6 rânduri, fiecare pe linie separată
-- Fiecare rând: `HH:MM` — descriere (Telegram MarkdownV2, caractere RAW)
-- Ton: {"concis și la obiect" if tone == "direct" else "cald și practic"}, Romglish
-- FĂRĂ introduceri, FĂRĂ 'Iată planul:', începe direct cu primul rând de oră"""
-
-        focus_instruction = f"""Ești Lora, asistenta lui {name}.
-Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel mai important.
-- O SINGURĂ propoziție scurtă (max 15 cuvinte)
-- Ton: {"direct, fără ornamente" if tone == "direct" else "motivant și cald"}, Romglish
-- FĂRĂ introduceri, FĂRĂ ghilimele, scrie direct propoziția"""
-
-        from modules.planner import generate_time_block
-
-        results = await asyncio.gather(
-            get_proactive_response(itinerary_instruction, gemini_context),
-            get_proactive_response(focus_instruction, gemini_context),
-            generate_time_block(pool),
-        )
-
-        itinerary_raw = results[0]
-        focus_raw = results[1]
-        time_block_text, _ = results[2]
-
-        # Fallback to legacy itinerary if time_block fails
-        if "Nu am putut genera" in time_block_text:
-            final_itinerary = itinerary_raw
-        else:
-            # generate_time_block returns valid MarkdownV2 with title, we use it directly
-            final_itinerary = time_block_text
-
-        # 5. Build deterministic 6-section Telegram message
+        # Add header
         day_ro: dict[str, str] = {
-            "Monday": "Luni",
-            "Tuesday": "Marți",
-            "Wednesday": "Miercuri",
-            "Thursday": "Joi",
-            "Friday": "Vineri",
-            "Saturday": "Sâmbătă",
-            "Sunday": "Duminică",
+            "Monday": "Luni", "Tuesday": "Marți", "Wednesday": "Miercuri",
+            "Thursday": "Joi", "Friday": "Vineri", "Saturday": "Sâmbătă", "Sunday": "Duminică",
         }
         day_name = day_ro.get(today.strftime("%A"), today.strftime("%A"))
         date_str = escape_md(f"{day_name}, {today.strftime('%d %B %Y')}")
 
-        lines: list[str] = [
+        header = [
             "━━━━━━━━━━━━━━━",
             f"☀️ *Bună dimineața, {escape_md(name)}!*",
             f"_{date_str}_",
-            "━━━━━━━━━━━━━━━",
-            "",
-            f"🌤 *Vremea* — {escape_md(weather_info)}",
+            "━━━━━━━━━━━━━━━\n",
         ]
+        
+        final_text = "\n".join(header) + safe_markdown(briefing_text_raw)
 
-        # 📚 UNIVERSITATE
-        from db.queries.schedule import (
-            get_today_schedule,
-            get_current_week_type,
-            get_active_vacation,
-        )
-
-        week_type = await get_current_week_type(pool)
-        week_label = "impară" if week_type == "odd" else "pară"
-
-        study_year = profile.get("study_year") or "?"
-        specialization = profile.get("specialization") or "?"
-        university = profile.get("university_name") or "UBB"
-
-        lines += [
-            "",
-            f"📚 *{escape_md(university)} · Anul {study_year} · {escape_md(specialization)} · Săptămâna {week_label}*",
-        ]
-
-        vacation = await get_active_vacation(pool)
-        if vacation:
-            return_date = (vacation["end_date"] + timedelta(days=1)).strftime("%d %B")
-            lines.append(
-                f"🌴 *{escape_md(vacation['name'])}* — revii pe {escape_md(return_date)}"
-            )
-
-        today_classes = await get_today_schedule(pool)
-        if today_classes:
-            lines.append(
-                f"🎓 *{len(today_classes)} {'curs' if len(today_classes) == 1 else 'cursuri'} azi:*"
-            )
-            for c in today_classes:
-                start = c["start_time"].strftime("%H:%M")
-                room = f" · sala {escape_md(c['room'])}" if c.get("room") else ""
-                lines.append(f"• `{start}` — {escape_md(c['subject_name'])}{room}")
-        else:
-            if not vacation:
-                lines.append("📭 Nicio activitate didactică azi.")
-
-        # Group tasks by project
-        from collections import defaultdict
-
-        project_groups = defaultdict(lambda: {"tasks": [], "has_overdue": False})
-
-        for t in priority_tasks:
-            proj = t.get("project_name") or "Fără proiect"
-            project_groups[proj]["tasks"].append(t)
-            if t in overdue:
-                project_groups[proj]["has_overdue"] = True
-
-        if project_groups:
-            sorted_projects = sorted(
-                project_groups.items(),
-                key=lambda x: (
-                    -x[1]["has_overdue"],
-                    -sum(1 for t in x[1]["tasks"] if t.get("priority") == "high"),
-                    x[0],
-                ),
-            )
-
-            total_tasks = sum(len(g["tasks"]) for g in project_groups.values())
-            lines.append(
-                f"📋 *Tasks de azi* — {total_tasks} taskuri în {len(project_groups)} proiecte\n"
-            )
-
-            for proj_name, data in sorted_projects:
-                count = len(data["tasks"])
-                overdue_count = sum(1 for t in data["tasks"] if t in overdue)
-                has_high = any(t.get("priority") == "high" for t in data["tasks"])
-
-                overdue_str = f" ({overdue_count} overdue)" if overdue_count > 0 else ""
-                prio_str = " 🔥" if has_high else ""
-                prefix = "⚠️ " if data["has_overdue"] else "📁 "
-
-                lines.append(
-                    f"{prefix}{escape_md(proj_name)} ({count}){overdue_str}{prio_str}"
-                )
-        else:
-            lines.append("📋 *Tasks de azi*\nNiciun task pending azi 🎉")
-
-        lines += ["", "📅 *Evenimente*"]
-        if events:
-            for e in events:
-                time_str = (
-                    e["event_time"].strftime("%H:%M")
-                    if e["event_time"]
-                    else "toată ziua"
-                )
-                lines.append(f"• `{time_str}` — {escape_md(e['title'])}")
-        else:
-            lines.append("Nimic în calendar azi\\.")
-
-        # iCloud Section
-        icloud_events = await fetch_all_calendars_events(days_ahead=1)
-        if icloud_events:
-            lines.append("\n📅 *Apple Calendar Azi:*")
-            for ev in icloud_events:
-                if ev["start"].date() == today:
-                    time_str = ev["start"].strftime("%H:%M")
-                    lines.append(
-                        f"• `{time_str}` — {escape_md(ev['summary'])} \\(_{escape_md(ev['calendar'])}_\\)"
-                    )
-
-        from db.queries.university import get_upcoming_exams
-
-        exams_soon = await get_upcoming_exams(pool, days=7)
-        if exams_soon:
-            lines += ["", "🎓 *Examene în 7 zile*"]
-            for e in exams_soon:
-                date_str = escape_md(e["exam_date"].strftime("%d %b"))
-                subject = escape_md(e["subject_name"])
-                type_str = escape_md(e["exam_type"])
-                lines.append(f"• *{date_str}* — {subject} \\({type_str}\\)")
-
-        lines += ["", "🧠 *Skills de lucrat azi*"]
-        if pending_skills:
-            for s in pending_skills:
-                streak = await skill_queries.get_skill_streak(pool, s["id"])
-                streak_str = f" \\(streak: {streak} 🔥\\)" if streak > 0 else ""
-                lines.append(f"• {escape_md(s['name'])}{streak_str}")
-        else:
-            lines.append("Toate skill\\-urile sunt la zi ✅")
-
-        # We don't add the section title if we use generate_time_block directly
-        # because it already includes "🗓 *Time Block*"
-        if "Nu am putut genera" in time_block_text:
-            lines += ["", "🗺 *Planul zilei*"]
-            if final_itinerary and final_itinerary.strip():
-                lines.append(safe_markdown(final_itinerary.strip()))
-            else:
-                lines.append("Organizează\\-ți ziua după energie și prioritate\\.")
-        else:
-            lines += ["", final_itinerary]
-
-        lines += ["", "💡 *Focus*"]
-        if focus_raw and focus_raw.strip():
-            lines.append(safe_markdown(focus_raw.strip()))
-        elif priority_tasks:
-            lines.append(escape_md(priority_tasks[0]["title"]))
-        else:
-            lines.append(r"O zi la un moment dat\.")
-
-        # Health nudges (subtle, only if needed)
-        if health_log:
-            nudges = []
-            sleep = health_log.get("sleep_hours")
-            water = health_log.get("water_ml")
-            if sleep and sleep < 6:
-                nudges.append(rf"Ai dormit doar {sleep:.0f}h\.")
-            if water and water < 1500:
-                nudges.append(rf"Apa e la {int(water / 1000 * 10) / 10:.1f}L\.")
-            if nudges:
-                lines += ["", "⚠️ " + " ".join(nudges)]
-
-        # 🏋️ Antrenament ieri
-        if workouts_yesterday:
-            workout_lines = ["", "🏋️ *Antrenament ieri*"]
-            for w in workouts_yesterday:
-                icon = w.get("icon", "🏋️")
-                sport_name = escape_md(w.get("type", "Sport"))
-                duration = w.get("duration_min", "?")
-                workout_lines.append(f"• {icon} {sport_name}: {duration} min")
-            lines += workout_lines
-
-        # 📊 Corelații - predicții bazate pe date
-        try:
-            from core.correlations import compute_correlations
-
-            recent = await compute_correlations(pool)
-            if recent:
-                strong = [c for c in recent if c.get("strength") == "puternică"]
-                if strong:
-                    corr = strong[0]
-                    if corr.get("recommendation"):
-                        lines += [
-                            "",
-                            f"📊 *Din date:* {escape_md(corr['recommendation'])}",
-                        ]
-        except Exception:
-            pass
-
-        # 🏛️ Executive Summary from Council
-        try:
-            from core.council import get_summary, get_strategy_summary
-
-            summary_data = await get_summary()
-            if summary_data:
-                lines += ["", "🏛️ *Consiliu — Rezumat Executiv:*"]
-                if summary_data.get("current_focus"):
-                    lines.append(f"🎯 *Focus:* {summary_data['current_focus']}")
-                if summary_data.get("key_decisions"):
-                    lines.append("📝 *Decizii cheie:*")
-                    for d in summary_data["key_decisions"][:3]:
-                        lines.append(f"• {d}")
-                if summary_data.get("warnings"):
-                    for w in summary_data["warnings"]:
-                        lines.append(f"⚠️ {w}")
-            else:
-                strategy_summary = await get_strategy_summary()
-                if strategy_summary:
-                    lines += ["", "🏛️ *Consiliu — Strategic:*", strategy_summary]
-        except Exception:
-            pass
-
-        briefing_text = "\n".join(lines)
-
-        # 5b. Send Telegram text message
-        chunks = split_message(briefing_text)
+        # 5. Send Telegram text message
+        chunks = split_message(final_text)
         for chunk in chunks:
             try:
                 await application.bot.send_message(
@@ -585,88 +271,41 @@ Pe baza tasks-urilor și evenimentelor de azi, identifică UN SINGUR lucru cel m
                     parse_mode=ParseMode.MARKDOWN_V2,
                 )
             except Exception as e:
-                print(
-                    f"Morning brief MarkdownV2 failed, falling back to plain: {e}",
-                    flush=True,
-                )
+                print(f"Morning brief MarkdownV2 failed, falling back to plain: {e}", flush=True)
                 await application.bot.send_message(chat_id=TELEGRAM_USER_ID, text=chunk)
 
-        # 6. Generate and send "podcast" (voice) in background-like manner
+        # 6. Generate and send Voice Podcast
         try:
             from bot.tts import text_to_speech
-            import os
-
             print("🎙️ Starting TTS generation for Morning Briefing...", flush=True)
-            podcast_data = f"""USER: {name}
-TONE: {tone}
-DATE: {today.strftime("%A, %d %B %Y")}
-WEATHER: {weather_info}
-
-TOP 3 TASKS:
-{task_text}
-
-EVENIMENTE AZI:
-{event_text}
-
-SKILLS PENDING AZI:
-{skill_text}
-"""
-            podcast_instruction = f"""Ești Lora, asistenta personală a lui {name}.
- Generezi un podcast vocal de dimineață. Scrie să sune natural când e citit cu voce.
- Generează textul podcastului EXCLUSIV în limba română (MAXIM 250 cuvinte).
-  Sunt permise DOAR aceste cuvinte în engleză: task, meeting, gym, chess, duolingo.
- INTERZIS COMPLET: the game plan, all clear, catch up, deep work, worry, talk of the town, fun, highlights, insights și orice altă expresie idiomatică în engleză.
-  Structură: salut + oră → vreme → top tasks ca plan, nu liste → evenimente + skills → gând scurt motivațional.
- Ton: cald și direct. EVITĂ superlativele și entuziasmul exagerat (ex: super, fascinant, minunat, amazing, extraordinar, wow). Nu repeta 'zâmbete', 'energie', 'bucurie'.
- Vorbește ca un asistent de încredere, nu ca un hype-man. Fără bullet points, fără titluri de secțiuni.
- Formatare: Telegram MarkdownV2 raw (fără backslash escape în JSON)."""
-            raw_brief = await get_proactive_response(podcast_instruction, podcast_data)
-            tts_text: str = raw_brief or briefing_text
-            print(f"🎙️ TTS input length: {len(tts_text)} characters", flush=True)
-            voice_file = await text_to_speech(tts_text, podcast_mode=True)
-            print(
-                f"🎙️ TTS file generated: {voice_file} (size: {os.path.getsize(voice_file)} bytes)",
-                flush=True,
-            )
-
+            
+            podcast_instruction = f"""Ești Lora. Generezi un podcast vocal scurt bazat pe briefing-ul de azi. 
+Scrie să sune natural când e citit cu voce, EXCLUSIV în limba română (MAXIM 200 cuvinte).
+Salută-l pe {name}, prezintă prioritățile și încheie motivant. Fără liste, fără titluri."""
+            
+            tts_input = await get_proactive_response(podcast_instruction, briefing_text_raw)
+            voice_file = await text_to_speech(tts_input or briefing_text_raw, podcast_mode=True)
+            
             with open(voice_file, "rb") as f:
                 await application.bot.send_voice(
                     chat_id=TELEGRAM_USER_ID,
                     voice=f,
-                    caption="🎙️ *Lora Podcast: Morning Briefing*",
+                    caption="🎙️ *Lora Podcast: Briefing Prioritizat*",
                     parse_mode=ParseMode.MARKDOWN_V2,
                 )
-                print("🎙️ Voice message sent successfully!", flush=True)
-
             if os.path.exists(voice_file):
                 os.remove(voice_file)
-
         except Exception as e:
-            import traceback
-
             print(f"❌ Podcast generation error: {e}", flush=True)
-            traceback.print_exc()
-            try:
-                await application.bot.send_message(
-                    chat_id=TELEGRAM_USER_ID,
-                    text=f"❌ *Podcast error:* `{escape_md(str(e))}`",
-                    parse_mode=ParseMode.MARKDOWN_V2,
-                )
-            except Exception:
-                await application.bot.send_message(
-                    chat_id=TELEGRAM_USER_ID,
-                    text=f"❌ Podcast error: {str(e)}",
-                )
 
-        # ── 7. Mark as sent (after all sends succeed) ──────────────────────
+        # 7. Mark as sent
         await profile_queries.update_user_profile(
             pool, TELEGRAM_USER_ID, last_briefing_date=today
         )
-        print(f"Morning briefing sent and logged for {today}.", flush=True)
+        print(f"Prioritized morning briefing sent and logged for {today}.", flush=True)
 
-        # ── 8. Interactive Day Plan Flow ──────────────────────────────────
+        # 8. Interactive Day Plan Flow
         from core.state import set_state
-
         await application.bot.send_message(
             chat_id=TELEGRAM_USER_ID,
             text="Cum vrei să-ți arate ziua azi? Spune-mi vocal sau în scris 🗓",
@@ -686,60 +325,177 @@ SKILLS PENDING AZI:
         traceback.print_exc()
         # Try to notify user if possible
         try:
-            if "application" in dir() and hasattr(application, "bot"):
-                await application.bot.send_message(
-                    chat_id=TELEGRAM_USER_ID,
-                    text=f"❌ Eroare la briefing: {str(e)[:200]}",
-                )
+            await application.bot.send_message(
+                chat_id=TELEGRAM_USER_ID,
+                text=f"❌ Eroare la briefing: {str(e)[:200]}",
+            )
         except Exception as notify_error:
             print(f"Could not notify user of error: {notify_error}", flush=True)
 
 
-async def send_eod_reflection(application, pool):
-    """EOD Reflection: Short daily summary + one reflective question. No state."""
+async def check_contextual_nudges(application, pool):
+    """Hourly check for proactive context-based nudges."""
+    try:
+        user_tz = pytz.timezone(TIMEZONE)
+        now = datetime.now(user_tz)
+        today = now.date()
+        hour = now.hour
+
+        # 1. Deadline Tomorrow (Alert at 19:00+)
+        if hour >= 19:
+            if await _should_send_nudge(pool, "deadline_tomorrow"):
+                tomorrow = today + timedelta(days=1)
+                async with pool.acquire() as conn:
+                    tasks = await conn.fetch(
+                        "SELECT title FROM tasks WHERE due_date = $1 AND status != 'done' LIMIT 3",
+                        tomorrow
+                    )
+                    if tasks:
+                        titles = ", ".join([t["title"] for t in tasks])
+                        msg = f"🔔 Reminder: Ai task-uri cu deadline mâine: {titles}. Te ocupi de ele diseară?"
+                        await application.bot.send_message(chat_id=TELEGRAM_USER_ID, text=msg)
+                        await _mark_nudge_sent(pool, "deadline_tomorrow")
+
+        # 2. No expenses logged (48h)
+        if await _should_send_nudge(pool, "no_expenses_48h"):
+            async with pool.acquire() as conn:
+                last_tx = await conn.fetchval("SELECT MAX(created_at) FROM finances")
+                if not last_tx or last_tx < now - timedelta(hours=48):
+                    msg = "💸 Ai uitat să loghezi cheltuielile? Nu am mai văzut nicio activitate de 2 zile."
+                    await application.bot.send_message(chat_id=TELEGRAM_USER_ID, text=msg)
+                    await _mark_nudge_sent(pool, "no_expenses_48h")
+
+        # 3. Workout streak risk (18:00+)
+        if hour >= 18:
+            if await _should_send_nudge(pool, "workout_streak_risk"):
+                async with pool.acquire() as conn:
+                    # Check if any workout logged today
+                    logged_today = await conn.fetchval(
+                        "SELECT EXISTS(SELECT 1 FROM workout_logs WHERE log_date = CURRENT_DATE)"
+                    )
+                    if not logged_today:
+                        # Check if user has any active streak
+                        skills = await conn.fetch("SELECT id FROM skills WHERE name ILIKE '%workout%' OR name ILIKE '%sala%' OR name ILIKE '%sport%'")
+                        for s in skills:
+                            streak = await skill_queries.get_skill_streak(pool, s["id"])
+                            if streak >= 1:
+                                msg = "💪 Streak-ul tău e în pericol! Nu ai logat antrenamentul azi. Mai ai timp pentru o sesiune scurtă."
+                                await application.bot.send_message(chat_id=TELEGRAM_USER_ID, text=msg)
+                                await _mark_nudge_sent(pool, "workout_streak_risk")
+                                break
+
+        # 4. Budget Exceeded
+        if await _should_send_nudge(pool, "budget_exceeded"):
+            budgets = await finance_queries.get_budget_status(pool)
+            for b in budgets:
+                if float(b["current_spent"]) > float(b["monthly_limit"]):
+                    msg = f"⚠️ Atenție: Ai depășit bugetul pentru {b['category']}\! (Limită: {b['monthly_limit']} RON)"
+                    await application.bot.send_message(chat_id=TELEGRAM_USER_ID, text=msg, parse_mode=ParseMode.MARKDOWN_V2)
+                    await _mark_nudge_sent(pool, "budget_exceeded")
+                    break
+
+    except Exception as e:
+        print(f"Error in check_contextual_nudges: {e}", flush=True)
+
+
+async def _should_send_nudge(pool, nudge_type: str) -> bool:
+    async with pool.acquire() as conn:
+        exists = await conn.fetchval(
+            "SELECT EXISTS(SELECT 1 FROM sent_nudges WHERE nudge_type = $1 AND nudge_date = CURRENT_DATE)",
+            nudge_type
+        )
+        return not exists
+
+
+async def _mark_nudge_sent(pool, nudge_type: str):
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO sent_nudges (nudge_type) VALUES ($1) ON CONFLICT DO NOTHING",
+            nudge_type
+        )
+
+
+async def send_eod_reflection(application, pool, force=False):
+    """EOD Reflection: Start interactive flow with Mood question."""
     try:
         user_tz = pytz.timezone(TIMEZONE)
         now = datetime.now(user_tz)
         today = now.date()
 
         profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
-        if profile.get("last_eod_date") == today:
-            print(f"EOD reflection already sent for {today} — skipping.", flush=True)
+        if not force and profile.get("last_eod_date") == today:
             return
 
         name = profile.get("name", "User")
-        print(f"Starting EOD reflection for {today}...", flush=True)
+        print(f"Starting interactive EOD reflection for {today}...", flush=True)
 
-        from db.queries.tasks import get_completed_tasks_today
-
-        v_tasks = await get_completed_tasks_today(pool)
-        task_count = len(v_tasks)
-
-        task_status = (
-            f"{task_count} tasks completate"
-            if task_count > 0
-            else "niciun task completat"
-        )
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        keyboard = [
+            [
+                InlineKeyboardButton("🚀 Productivă", callback_data="eod:mood:great"),
+                InlineKeyboardButton("😐 Medie", callback_data="eod:mood:neutral"),
+                InlineKeyboardButton("📉 Slabă", callback_data="eod:mood:terrible"),
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
 
         message = (
-            f"🌙 *Bună seara, {escape_md(name)}.*\n\n"
-            f"Azi ai {task_status}.\n\n"
-            "_Ce a mers bine azi?_\n\n"
-            "Seară liniștită\\. 🌙"
+            f"🌙 *Bună seara, {escape_md(name)}\!* \n\n"
+            "E timpul pentru o scurtă reflexie\\. *Cum a fost ziua ta azi?*"
         )
 
-        try:
+        await application.bot.send_message(
+            chat_id=TELEGRAM_USER_ID,
+            text=message,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+
+        from core.state import set_state
+        await set_state(pool, "awaiting_eod_mood", "eod", "mood", None)
+
+    except Exception as e:
+        import traceback
+        print(f"CRITICAL error in send_eod_reflection: {e}", flush=True)
+        traceback.print_exc()
+
+
+async def check_eod_timeout(application, pool):
+    """Checks if EOD reflection was completed; marks as skipped if not."""
+    try:
+        from core.state import get_state, clear_state
+        state = await get_state(pool)
+        
+        if state and state.get("module") == "eod":
+            print("EOD Reflection timed out. Marking as skipped.", flush=True)
+            await clear_state(pool)
+            
+            user_tz = pytz.timezone(TIMEZONE)
+            today = datetime.now(user_tz).date()
+            
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO journal_entries (entry_date, skipped)
+                    VALUES ($1, TRUE)
+                    ON CONFLICT (entry_date) DO UPDATE SET skipped = TRUE
+                    """,
+                    today
+                )
+                
+                # Also mark profile so it doesn't trigger again
+                await conn.execute(
+                    "UPDATE user_profile SET last_eod_date = $1 WHERE telegram_id = $2",
+                    today, TELEGRAM_USER_ID
+                )
+            
             await application.bot.send_message(
                 chat_id=TELEGRAM_USER_ID,
-                text=safe_markdown(message),
-                parse_mode=ParseMode.MARKDOWN_V2,
+                text="Sesiunea de reflexie a expirat\\. O seară liniștită\! 🌙",
+                parse_mode=ParseMode.MARKDOWN_V2
             )
-        except Exception as e:
-            print(
-                f"Evening/Journal message MarkdownV2 failed, falling back: {e}",
-                flush=True,
-            )
-            await application.bot.send_message(chat_id=TELEGRAM_USER_ID, text=message)
+    except Exception as e:
+        print(f"Error in check_eod_timeout: {e}", flush=True)
 
         try:
             from bot.tts import text_to_speech
@@ -947,125 +703,80 @@ async def check_class_reminders(application, pool) -> None:
         print(f"Error in check_class_reminders: {e}", flush=True)
 
 
-async def send_weekly_review(application, pool) -> None:
-    """Aggregates weekly data and sends a reflective review on Sunday evening."""
-    from datetime import timedelta, datetime
-    import pytz
-    from core.config import TIMEZONE, TELEGRAM_USER_ID
-    from telegram.constants import ParseMode
-
+async def send_weekly_review(application, pool, force=False):
+    """Generates and sends the automated narrative weekly review."""
+    from bot.formatter import safe_markdown, split_message
+    from core.context import build_weekly_review_context
+    from core.gemini import get_proactive_response
+    
     try:
         user_tz = pytz.timezone(TIMEZONE)
-        today = datetime.now(user_tz).date()
-
-        # 1. Idempotency Check
+        now = datetime.now(user_tz)
+        today = now.date()
+        
+        # Idempotency check
         profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
-        if profile.get("last_weekly_review_date") == today:
+        if not force and profile.get("last_weekly_review_date") == today:
             print(f"Weekly review already sent for {today} — skipping.", flush=True)
             return
 
-        print(f"Starting weekly review for {today}...", flush=True)
-
-        # 2. Date Range (Monday to Sunday)
-        start_date = today - timedelta(days=6)
+        # Period: Last 7 days including today
+        days_to_monday = today.weekday()
+        start_date = today - timedelta(days=days_to_monday)
         end_date = today
+        
+        print(f"Starting narrative weekly review for {start_date} to {end_date}...", flush=True)
 
-        # 3. Aggregated Data Collection
-        task_stats = await task_queries.get_weekly_task_stats(
-            pool, start_date, end_date
-        )
-        events = await event_queries.list_events(pool, start_date, end_date)
+        context_data = await build_weekly_review_context(pool, start_date, end_date)
+        
+        instruction = """Ești Lora, asistenta personală a utilizatorului. Generezi un WEEKLY REVIEW narativ, empatic și inteligent.
+        NU trimite o listă de cifre sec. Transformă datele brute într-o poveste a săptămânii care tocmai se încheie.
+        
+        CONSTRUCȚIE:
+        - Ce a mers bine (realizări, sport, productivitate).
+        - Ce poate fi îmbunătățit (cheltuieli, task-uri amânate).
+        - FOCUS RECOMANDAT: O singură sugestie clară pentru săptămâna care urmează.
+        
+        Ton: Romglish, cald, direct. Fără introduceri lungi.
+        Formatare: MarkdownV2 (fără backslash-uri de escapare inutile la date)."""
 
-        # Concise Finance Section for Sunday Review
-        finance_summary = await finance_queries.get_weekly_finance_summary(
-            pool, start_date, end_date
-        )
-        finance_ctx = (
-            f"Cheltuieli totale săptămâna asta: {int(finance_summary['total'])} RON"
-        )
+        report_content = await get_proactive_response(instruction, json.dumps(context_data, default=str))
+        
+        if not report_content:
+            return
 
-        # Enhanced Mood Section
-        import db.queries.mood as mood_queries
-
-        weekly_moods = await mood_queries.get_weekly_mood_summary(
-            pool, start_date, end_date
-        )
-        mood_total = sum(weekly_moods.values())
-        mood_summary = ""
-        if mood_total > 0:
-            mood_labels = {
-                "great": "super",
-                "good": "bine",
-                "neutral": "ok",
-                "okay": "ok",
-                "bad": "slab",
-                "terrible": "rău",
-                "awful": "rău",
-            }
-            # Combine duplicates (neutral/okay, terrible/awful)
-            combined_moods = {}
-            for m, count in weekly_moods.items():
-                label = mood_labels.get(m.lower(), "ok")
-                combined_moods[label] = combined_moods.get(label, 0) + count
-
-            mood_parts = [
-                f"{count} zile {label}" for label, count in combined_moods.items()
-            ]
-            mood_summary = f"😊 Mood săptămâna asta: {', '.join(mood_parts)}"
-
-        # 3.5 Automated Insights Patterns (corelații)
-        from modules.insights import generate_insights
-
-        patterns = await generate_insights(pool)
-        patterns_section = ""
-        if patterns and "nu am suficiente date" not in patterns.lower():
-            patterns_section = f"\n🧠 *Patterns observate*\n{patterns}\n"
-
-        try:
-            from core.correlations import compute_correlations
-
-            raw_correlations = await compute_correlations(pool)
-            if raw_correlations:
-                corr_lines = ["", "🧬 *Corelații detectate:*"]
-                for c in raw_correlations[:3]:
-                    icon = "🔴" if c.get("strength") == "puternică" else "🟡"
-                    corr_text = c.get("correlation", "")
-                    rec = c.get("recommendation", "")
-                    if corr_text and rec:
-                        corr_lines.append(
-                            f"{icon} *{escape_md(corr_text)}* → {escape_md(rec)}"
-                        )
-                if len(corr_lines) > 1:
-                    patterns_section += "\n".join(corr_lines) + "\n"
-        except Exception:
-            pass
-
-        journals = await journal_queries.get_recent_journal_entries(pool, limit=7)
-
-        # 3.8 Nutrition Weekly Stats
+        # Save to DB
         async with pool.acquire() as conn:
-            nutrition_stats = await conn.fetchrow(
+            await conn.execute(
                 """
-                SELECT 
-                    AVG(total_calories) as avg_cal,
-                    AVG(total_protein) as avg_prot,
-                    COUNT(id) FILTER (WHERE total_protein < (SELECT protein_g * 0.8 FROM nutrition_targets LIMIT 1)) as low_prot_days
-                FROM (
-                    SELECT meal_date, SUM(total_calories) as total_calories, SUM(total_protein) as total_protein
-                    FROM meals WHERE meal_date BETWEEN $1 AND $2
-                    GROUP BY meal_date
-                ) daily
-            """,
-                start_date,
-                end_date,
+                INSERT INTO weekly_reviews (week_start, week_end, content)
+                VALUES ($1, $2, $3)
+                """,
+                start_date, end_date, report_content
             )
-            await conn.fetchrow("SELECT * FROM nutrition_targets LIMIT 1")
+            
+            # Update user profile
+            await conn.execute(
+                "UPDATE user_profile SET last_weekly_review_date = $1 WHERE telegram_id = $2",
+                today, TELEGRAM_USER_ID
+            )
 
-        nutrition_ctx = ""
-        if nutrition_stats and nutrition_stats["avg_cal"]:
-            nutrition_ctx = f"Media calorii: {int(nutrition_stats['avg_cal'])} kcal, Media proteină: {int(nutrition_stats['avg_prot'])}g."
-            if nutrition_stats["low_prot_days"] >= 3:
-                nutrition_ctx += f" Atenție: {nutrition_stats['low_prot_days']} zile sub targetul de proteină."
+        # Send to user
+        header = f"📊 *Weekly Review: {start_date.strftime('%d %b')} — {end_date.strftime('%d %b')}*\\n\\n"
+        final_text = header + safe_markdown(report_content)
+        
+        chunks = split_message(final_text)
+        for chunk in chunks:
+            await application.bot.send_message(
+                chat_id=TELEGRAM_USER_ID,
+                text=chunk,
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
+
+    except Exception as e:
+        print(f"CRITICAL error in send_weekly_review: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
 
         # 3.7 Health & Mood Correlations Data
         health_week = await health_queries.get_health_history(pool, 7)
@@ -1947,6 +1658,17 @@ def setup_scheduler(application, pool):
         args=[application, pool],
     )
 
+    # 3c. EOD Timeout Check - 30 minutes after EOD reflection
+    timeout_time = (datetime.combine(date.today(), time(e_h, e_m)) + timedelta(minutes=30)).time()
+    scheduler.add_job(
+        check_eod_timeout,
+        "cron",
+        hour=timeout_time.hour,
+        minute=timeout_time.minute,
+        misfire_grace_time=3600,
+        args=[application, pool],
+    )
+
     # 3b. Daily Report to Council - at EOD time
     scheduler.add_job(
         send_daily_report,
@@ -2087,6 +1809,27 @@ def setup_scheduler(application, pool):
         "cron",
         hour=9,
         minute=30,
+        misfire_grace_time=3600,
+        args=[application, pool],
+    )
+
+    # Weekly Review - Sunday evening at 21:30
+    scheduler.add_job(
+        send_weekly_review,
+        "cron",
+        day_of_week="sun",
+        hour=21,
+        minute=30,
+        misfire_grace_time=7200,
+        args=[application, pool],
+    )
+
+    # Contextual Nudges - Hourly 10:00 - 20:00
+    scheduler.add_job(
+        check_contextual_nudges,
+        "cron",
+        hour="10-20",
+        minute=0,
         misfire_grace_time=3600,
         args=[application, pool],
     )

@@ -25,6 +25,9 @@ _PROFILE_UPDATABLE_COLUMNS = frozenset(
         "specialization",
         "study_year",
         "study_group",
+        "active_hours_start",
+        "active_hours_end",
+        "preferred_tone",
     }
 )
 

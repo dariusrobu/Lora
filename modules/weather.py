@@ -19,8 +19,8 @@ async def get_weather_summary(city: str = WEATHER_CITY) -> Optional[str]:
                 data = response.json()
                 main = data.get("main", {})
                 weather = data.get("weather", [{}])[0]
-                temp = main.get("temp")
-                feels_like = main.get("feels_like")
+                temp = round(main.get("temp", 0))
+                feels_like = round(main.get("feels_like", 0))
                 desc = weather.get("description", "cer variabil")
 
                 return (

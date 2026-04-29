@@ -15,7 +15,7 @@ async def handle_memory_callback(query, pool, data: str):
             await memory_queries.delete_last_fact(pool)
             await query.answer("Am uitat ultima amintire! 💨")
             # Refresh the view
-            text, markup = await handle_memory_intent(pool, "memory_view", {})
+            text, markup, _ = await handle_memory_intent(pool, "memory_view", {})
             await query.edit_message_text(
                 text, parse_mode="MarkdownV2", reply_markup=markup
             )
@@ -29,7 +29,7 @@ async def handle_memory_callback(query, pool, data: str):
                     InlineKeyboardButton(
                         "✅ Da, șterge tot",
                         callback_data=make_callback_data(
-                            "memory", "clear", "all", "confirmed"
+                            "memory", "clear_all_confirmed"
                         ),
                     ),
                     InlineKeyboardButton(
@@ -49,7 +49,7 @@ async def handle_memory_callback(query, pool, data: str):
             await memory_queries.clear_all_memories(pool)
             await query.answer("Memoria a fost resetată! 🧠✨")
             await query.edit_message_text(
-                "Memoria a fost ștearsă complet.", parse_mode="MarkdownV2"
+                "Memoria a fost ștearsă complet\\.", parse_mode="MarkdownV2"
             )
 
         elif data == "memory:view_categories":
@@ -58,10 +58,24 @@ async def handle_memory_callback(query, pool, data: str):
 
         elif data == "memory:view_back" or data == "chat:main":
             print(f"DEBUG: Processing {data}", flush=True)
-            text, markup = await handle_memory_intent(pool, "memory_view", {})
-            await query.edit_message_text(
-                text, parse_mode="MarkdownV2", reply_markup=markup
-            )
+            from bot.handler import message_handler
+            # Reset to main menu or previous view
+            if data == "chat:main":
+                await query.edit_message_text(
+                    "Principal menu is not directly accessible via memory callback. Returning to dashboard.",
+                    parse_mode="MarkdownV2"
+                )
+                # Actually, better to just show the memory view or trigger a main menu command
+                # For now, let's just go back to memory_view if it was from memory
+                text, markup, _ = await handle_memory_intent(pool, "memory_view", {})
+                await query.edit_message_text(
+                    text, parse_mode="MarkdownV2", reply_markup=markup
+                )
+            else:
+                text, markup, _ = await handle_memory_intent(pool, "memory_view", {})
+                await query.edit_message_text(
+                    text, parse_mode="MarkdownV2", reply_markup=markup
+                )
     except Exception as e:
         print(f"ERROR in handle_memory_callback: {e}")
         import traceback
@@ -79,8 +93,9 @@ async def handle_memory_intent(
         memories = await memory_queries.list_all_memories(pool)
         if not memories:
             return (
-                "Nu am salvat nicio amintire despre tine încă. 🧠",
+                "Nu am salvat nicio amintire despre tine încă\\. 🧠",
                 memory_main_keyboard(),
+                None,
             )
 
         # Group by category
@@ -120,7 +135,7 @@ async def handle_memory_intent(
         text += "💡 _Atinge codul pentru copy-paste_\n"
         text += "🗑 _Ex: 'șterge #03'_"
 
-        return safe_markdown(text), None, None
+        return safe_markdown(text), memory_main_keyboard(), None
 
     elif intent == "memory_delete":
         fact_id = data.get("fact_id")
@@ -168,30 +183,36 @@ async def handle_memory_intent(
 
         results = await search_memory_core(pool, topic, user_id)
 
-        if not results["facts"] and not results["history"]:
-            return (
-                f"Momentan nu am nicio informație salvată despre *{escape_md(topic)}*.",
-                None,
-                None,
-            )
-
-        text = f"🔍 *Ce știu despre {escape_md(topic)}:*\n\n"
-
         if results["facts"]:
-            text += "📌 *Fapte memorate:*\n"
-            for f in results["facts"]:
-                text += f"• {escape_md(f['fact'])}\n"
-            text += "\n"
+            # If we have direct facts, be direct and warm
+            fact_texts = [f['fact'] for f in results["facts"]]
+            main_fact = fact_texts[0]
+            
+            # Clean common prefixes
+            main_fact = main_fact.replace("Utilizatorul ", "").replace("utilizatorul ", "")
+            main_fact = main_fact[0].upper() + main_fact[1:] if main_fact else main_fact
+            
+            text = f"✨ {safe_markdown(main_fact)}"
+            
+            if len(fact_texts) > 1:
+                text += "\n\n💡 _Mai știu și:_ " + ", ".join(fact_texts[1:])
+            
+            return text, None, None
 
         if results["history"]:
-            text += "💬 *Din conversații recente:*\n"
+            text = f"🔍 *Din ce am vorbit recent despre {escape_md(topic)}:*\n\n"
             for h in results["history"][:3]:
                 content = h["content"]
                 if len(content) > 120:
                     content = content[:117] + "..."
                 text += f'• _"{escape_md(content)}"_\n'
+            return safe_markdown(text), None, None
 
-        return safe_markdown(text), None, None
+        return (
+            f"Momentan nu am nicio informație salvată despre *{escape_md(topic)}*.",
+            None,
+            None,
+        )
 
     return "Modulul de memorie a primit o intenție necunoscută.", None, None
 

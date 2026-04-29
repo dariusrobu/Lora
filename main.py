@@ -41,10 +41,13 @@ from bot.handler import (
     projects_command,
     reading_command,
     calendar_command,
+    memory_command,
 )
 from modules.skills import skills_command
 from core.ical import generate_user_calendar
 from api.routes import setup_api_routes
+from core.stats import get_uptime, LAST_MESSAGE_AT
+from core.gemini import _api_available
 
 # 2. Setup Logging — rotating file (2 MB × 3) + stdout stream
 from logging.handlers import RotatingFileHandler
@@ -67,7 +70,32 @@ logger = logging.getLogger(__name__)
 
 
 async def handle_health_check(request):
-    return web.Response(text="OK", status=200)
+    """
+    Detailed health check endpoint.
+    Returns JSON with DB status, Gemini status, and uptime.
+    """
+    pool = request.app.get("pool")
+    db_status = "error"
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                await conn.fetchval("SELECT 1")
+                db_status = "connected"
+        except Exception as e:
+            print(f"Health check DB error: {e}")
+            db_status = "error"
+
+    from core.gemini import _api_available as gemini_available
+    
+    status_data = {
+        "status": "ok",
+        "db": db_status,
+        "gemini": "available" if gemini_available else "unavailable",
+        "uptime_seconds": get_uptime(),
+        "last_message_at": LAST_MESSAGE_AT.isoformat() if LAST_MESSAGE_AT else None
+    }
+    
+    return web.json_response(status_data)
 
 
 async def handle_calendar_request(request):
@@ -187,7 +215,16 @@ async def start_bot():
                 start_date,
             )
 
-    # 3. Build the Application
+    # 3. Module Health Check
+    from core.router import check_module_health
+    health_status = await check_module_health()
+    bad_modules = [m for m, s in health_status.items() if s != "ok"]
+    if bad_modules:
+        print(f"⚠️ Warning: Some modules failed health check: {', '.join(bad_modules)}", flush=True)
+    else:
+        print("✅ All core modules ready.", flush=True)
+
+    # 4. Build the Application
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     application.bot_data["pool"] = pool
 
@@ -225,9 +262,20 @@ async def start_bot():
     application.add_handler(CommandHandler("skills", skills_command))
     application.add_handler(CommandHandler("health", health_command))
     application.add_handler(CommandHandler("finance", finance_command))
+    application.add_handler(CommandHandler("memory", memory_command))
     application.add_handler(CommandHandler("tasks", tasks_command))
     application.add_handler(CommandHandler("projects", projects_command))
     application.add_handler(CommandHandler("reading", reading_command))
+    application.add_handler(
+        CommandHandler(
+            "eod", partial(message_handler, pool=pool, text="/eod")
+        )
+    )
+    application.add_handler(
+        CommandHandler(
+            "lastweek", partial(message_handler, pool=pool, text="/lastweek")
+        )
+    )
     application.add_handler(MessageHandler(filters.VOICE, voice_handler_with_pool))
     application.add_handler(MessageHandler(filters.PHOTO, photo_handler_with_pool))
     application.add_handler(MessageHandler(filters.ALL, msg_handler_with_pool))
@@ -240,12 +288,12 @@ async def start_bot():
     app.router.add_get("/calendar/{token}", handle_calendar_request)
     setup_api_routes(app)
 
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.getenv("HEALTH_CHECK_PORT", 8088))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    print(f"Web server active on port {port} (Health check OK)", flush=True)
+    print(f"Web server active on port {port} (Health check detail enabled)", flush=True)
 
     # 7. Start Telegram Bot (Polling mode)
     # Remove any existing webhook and ensure clean state

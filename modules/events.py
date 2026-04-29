@@ -181,7 +181,7 @@ def parse_reminder_text(text: str) -> Dict[str, Any] | None:
 
 async def handle_event_intent(
     pool, intent: str, data: Dict[str, Any]
-) -> Tuple[str, Any]:
+) -> Tuple[str, Any, Optional[int]]:
     if intent in ("add_event", "add_reminder"):
         is_reminder = intent == "add_reminder"
 
@@ -206,7 +206,7 @@ async def handle_event_intent(
         remind_minutes = data.get("remind_before_minutes", 30) if not is_reminder else 0
 
         if not title or not date_str:
-            return "Care este evenimentul/reminder-ul și când este?", None
+            return "Care este evenimentul/reminder-ul și când este?", None, None
 
         try:
             event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -216,6 +216,7 @@ async def handle_event_intent(
         except Exception:
             return (
                 "Nu am putut parse data sau ora. Te rog folosește formatul YYYY-MM-DD și HH:MM.",
+                None,
                 None,
             )
 
@@ -235,12 +236,13 @@ async def handle_event_intent(
         return (
             f"Done ✅ {type_msg} adăugat: {escape_md(title)} pentru {date_str}{time_msg}",
             None,
+            event_id,
         )
 
     elif intent == "list_events":
         events = await event_queries.list_events(pool, datetime.now().date())
         if not events:
-            return "Nu ai evenimente viitoare\\.", None
+            return "Nu ai evenimente viitoare\\.", None, None
 
         lines = ["📅 *Evenimente Viitoare:*"]
         from bot.formatter import format_date_short
@@ -260,12 +262,12 @@ async def handle_event_intent(
             lines.append(
                 f"• {time_str} — *{escape_md(e['title'])}* (`{format_date_short(e['event_date'])}`){remind}{day_remind}"
             )
-        return "\n".join(lines), None
+        return "\n".join(lines), None, None
 
     elif intent == "list_reminders":
         reminders = await event_queries.list_reminders(pool)
         if not reminders:
-            return "Nu ai reminder-e viitoare\\.", None
+            return "Nu ai reminder-e viitoare\\.", None, None
 
         lines = ["🔔 *Reminder-e Viitoare:*"]
         from bot.formatter import format_date_short
@@ -277,7 +279,7 @@ async def handle_event_intent(
             lines.append(
                 f"• *{escape_md(r['title'])}* — {format_date_short(r['event_date'])}{time_str}"
             )
-        return "\n".join(lines), None
+        return "\n".join(lines), None, None
 
     elif intent in ("delete_event", "delete_reminder"):
         event_id = data.get("id") or data.get("event_id")
@@ -285,14 +287,14 @@ async def handle_event_intent(
 
         if event_id:
             await event_queries.delete_event(pool, event_id)
-            return "Eveniment șters. ✅", None
+            return "Eveniment șters. ✅", None, event_id
 
         if title:
             event_type = "reminder" if intent == "delete_reminder" else "event"
             await event_queries.delete_event_by_title(pool, title, event_type)
-            return f"Șters: *{escape_md(title)}*\\. ✅", None
+            return f"Șters: *{escape_md(title)}*\\. ✅", None, None
 
-        return "Ce eveniment/reminder vrei să ștergi?", None
+        return "Ce eveniment/reminder vrei să ștergi?", None, None
 
     elif intent == "edit_event_reminder":
         event_id = data.get("event_id")
@@ -300,11 +302,11 @@ async def handle_event_intent(
         remind_1day = data.get("remind_1day")
 
         if not event_id:
-            return "Ce eveniment vrei să editezi?", None
+            return "Ce eveniment vrei să editezi?", None, None
 
         if remind_minutes is not None:
             await event_queries.update_event_reminder(pool, event_id, remind_minutes)
-            return f"Reminder actualizat la *{remind_minutes}* minute\\.", None
+            return f"Reminder actualizat la *{remind_minutes}* minute\\.", None, event_id
 
         if remind_1day is not None:
             all_events = await event_queries.list_events(
@@ -316,30 +318,31 @@ async def handle_event_intent(
                     pool, event_id, event["event_date"], remind_1day
                 )
                 status = "activat" if remind_1day else "dezactivat"
-                return f"Reminder 1 zi {status}\\.", None
+                return f"Reminder 1 zi {status}\\.", None, event_id
 
-        return "Trebuie să specifici reminder-ul.", None
+        return "Trebuie să specifici reminder-ul.", None, None
 
     elif intent == "resend_reminder":
         title = data.get("title") or data.get("name")
         if not title:
-            return "Care reminder vrei sa retrimiti?", None
+            return "Care reminder vrei sa retrimiti?", None, None
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 "SELECT id FROM events WHERE LOWER(title) = LOWER($1) AND event_type = 'reminder' ORDER BY id DESC LIMIT 1",
                 title,
             )
             if not row:
-                return f"Nu am gasit reminder '{escape_md(title)}'.", None
+                return f"Nu am gasit reminder '{escape_md(title)}'.", None, None
             await conn.execute(
                 "UPDATE events SET reminded_at = NULL WHERE id = $1", row["id"]
             )
         return (
             f"✅ Retrimis reminder '{escape_md(title)}' - va fi trimis in urmatorul ciclu (5 min).",
             None,
+            None,
         )
 
-    return "Event module is ready!", None
+    return "Event module is ready!", None, None
 
 
 def get_reminder_keyboard(

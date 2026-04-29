@@ -6,7 +6,7 @@ from bot.formatter import escape_md
 
 async def handle_project_intent(
     pool, intent: str, data: Dict[str, Any]
-) -> Tuple[str, Any]:
+) -> Tuple[str, Any, Optional[int]]:
     if intent == "add_project":
         name = data.get("name")
         if not name:
@@ -43,7 +43,7 @@ async def handle_project_intent(
             meta_parts.append(f"📁 {data['category']}")
 
         meta_str = f" ({', '.join(meta_parts)})" if meta_parts else ""
-        return f"Done ✅ Created project *{escape_md(name)}*{meta_str}\\.", None
+        return f"Done ✅ Created project *{escape_md(name)}*{meta_str}\\.", None, project_id
 
     elif intent == "view_project":
         name = data.get("name")
@@ -107,7 +107,7 @@ async def handle_project_intent(
                 )
                 lines.append(f"• {content}")
 
-        return "\n".join(lines), None
+        return "\n".join(lines), None, None
 
     elif intent == "list_projects":
         status_filter = data.get("status")
@@ -122,7 +122,7 @@ async def handle_project_intent(
                 if status_filter
                 else "You have no active projects\\."
             )
-            return msg, None
+            return msg, None, None
 
         header = (
             "🏗 *All Projects:*"
@@ -141,7 +141,7 @@ async def handle_project_intent(
             if progress > 0:
                 task_info += f" 📊{progress}%"
             lines.append(f"• *{escape_md(p['name'])}*{status_str}{task_info}")
-        return "\n".join(lines), None
+        return "\n".join(lines), None, None
 
     elif intent == "update_project":
         project_id = data.get("id")
@@ -174,8 +174,8 @@ async def handle_project_intent(
 
         if update_data:
             await project_queries.update_project(pool, project_id, **update_data)
-            return f"Updated project *{escape_md(name or str(project_id))}* ✅", None
-        return "No changes to apply.", None
+            return f"Updated project *{escape_md(name or str(project_id))}* ✅", None, project_id
+        return "No changes to apply.", None, None
 
     elif intent == "update_progress":
         project_id = data.get("id")
@@ -188,14 +188,14 @@ async def handle_project_intent(
                 project_id = project["id"]
 
         if not project_id:
-            return "Pentru ce proiect?", None
+            return "Pentru ce proiect?", None, None
 
         if progress is not None:
             progress = max(0, min(100, int(progress)))
             await project_queries.update_project(
                 pool, project_id, progress_pct=progress
             )
-            return f"Progress updated to *{progress}%* ✅", None
+            return f"Progress updated to *{progress}%* ✅", None, project_id
 
         current = await project_queries.get_project(pool, project_id)
         if current:
@@ -203,8 +203,9 @@ async def handle_project_intent(
             return (
                 f"Current progress: *{auto_progress}%* (auto\\-calculated from tasks)",
                 None,
+                None,
             )
-        return "Project not found.", None
+        return "Project not found.", None, None
 
     elif intent == "archive_project":
         project_id = data.get("id")
@@ -220,12 +221,13 @@ async def handle_project_intent(
 
         project = await project_queries.get_project(pool, project_id)
         if not project:
-            return "I couldn't find that project\\.", None
+            return "I couldn't find that project\\.", None, None
 
         await project_queries.archive_project(pool, project_id)
         return (
             f"Project *{escape_md(project['name'])}* has been archived 📦\\. All tasks are still there, but it won't show in your active list\\.",
             None,
+            project_id,
         )
 
     elif intent == "delete_project":
@@ -242,7 +244,7 @@ async def handle_project_intent(
 
         project = await project_queries.get_project(pool, project_id)
         if not project:
-            return "I couldn't find that project\\.", None
+            return "I couldn't find that project\\.", None, None
 
         from core.state import set_state
 
@@ -253,20 +255,21 @@ async def handle_project_intent(
         return (
             f"Are you sure you want to delete project *{escape_md(project['name'])}*?\\nTasks linked to it will NOT be deleted\\.",
             confirmation_keyboard("projects", "delete", project_id),
+            project_id,
         )
 
     elif intent == "delete_project_confirmed":
         project_id = data.get("id")
         if not project_id:
-            return "I couldn't find that project\\.", None
+            return "I couldn't find that project\\.", None, None
 
         project = await project_queries.get_project(pool, project_id)
         if project:
             await project_queries.delete_project(pool, project_id)
-            return f"Project *{escape_md(project['name'])}* has been deleted\\.", None
-        return "Project already deleted or not found\\.", None
+            return f"Project *{escape_md(project['name'])}* has been deleted\\.", None, project_id
+        return "Project already deleted or not found\\.", None, None
 
-    return "Modulul de proiecte funcționează corect.", None
+    return "Modulul de proiecte funcționează corect.", None, None
 
 
 async def get_projects_dashboard(pool) -> Tuple[str, Any]:

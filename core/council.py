@@ -6,6 +6,7 @@ Fetches decisions, projects, and translations from the Council multi-agent syste
 import httpx
 from typing import Any, Dict, List
 from core.config import COUNCIL_API_URL, COUNCIL_API_SECRET
+from core.utils import with_retry
 
 
 def _get_headers() -> Dict[str, str]:
@@ -15,6 +16,7 @@ def _get_headers() -> Dict[str, str]:
     return {}
 
 
+@with_retry(max_attempts=3, base_delay=1.0)
 async def get_projects() -> List[Dict[str, Any]]:
     """Fetches strategic projects from the Council API."""
     if not COUNCIL_API_URL:
@@ -33,6 +35,7 @@ async def get_projects() -> List[Dict[str, Any]]:
     return []
 
 
+@with_retry(max_attempts=3, base_delay=1.0)
 async def get_summary() -> Dict[str, Any]:
     """Fetches executive summary from Council API."""
     if not COUNCIL_API_URL:
@@ -51,6 +54,7 @@ async def get_summary() -> Dict[str, Any]:
     return {}
 
 
+@with_retry(max_attempts=3, base_delay=1.0)
 async def get_decisions(project_id: int) -> List[Dict[str, Any]]:
     """Fetches decisions for a specific project from Council API."""
     if not COUNCIL_API_URL:
@@ -69,6 +73,7 @@ async def get_decisions(project_id: int) -> List[Dict[str, Any]]:
     return []
 
 
+@with_retry(max_attempts=3, base_delay=1.0)
 async def get_recent_decisions(limit: int = 5) -> List[Dict[str, Any]]:
     """Fetches recent decisions across all projects."""
     if not COUNCIL_API_URL:
@@ -111,6 +116,7 @@ async def get_strategy_summary() -> str:
     return "\n".join(lines)
 
 
+@with_retry(max_attempts=3, base_delay=1.0)
 async def send_feedback_to_cto(
     difficulty: int, task_title: str, context: str = ""
 ) -> bool:
@@ -136,6 +142,7 @@ async def send_feedback_to_cto(
         return False
 
 
+@with_retry(max_attempts=3, base_delay=1.0)
 async def send_report_to_council(
     project_id: str,
     tasks_completed: List[Dict[str, Any]],

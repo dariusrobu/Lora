@@ -11,4 +11,10 @@ venv/
 *.mp3
 *.ogg
 lora.pid
-bot.log
+*.log
+*.log.*
+*.sql
+!db/migrations/*.sql
+!db/schema.sql
+com.lora.bot.plist
+.DS_Store

@@ -124,7 +124,7 @@ def parse_meal_text(text: str) -> Dict[str, Any] | None:
 
 async def handle_nutrition_intent(
     pool, intent: str, data: Dict[str, Any], bot=None
-) -> Tuple[str, None]:
+) -> Tuple[str, Any, Optional[int]]:
     """Main router for nutrition-related intents."""
 
     if intent == "meal_log":
@@ -192,7 +192,7 @@ async def handle_nutrition_intent(
         else:
             lines.append("\n⚠️ Ai depasit targetul de calorii pe azi.")
 
-        return safe_markdown("\n".join(lines)), None
+        return safe_markdown("\n".join(lines)), None, None
 
     elif intent == "nutrition_summary":
         day_totals = await nutrition_queries.get_daily_totals(pool, date.today())
@@ -220,7 +220,7 @@ async def handle_nutrition_intent(
         lines.insert(2, f"🔥 `{cal_bar}` {cal_pct}%")
         lines.insert(5, f"💪 `{prot_bar}` {prot_pct}%")
 
-        return safe_markdown("\n".join(lines)), None
+        return safe_markdown("\n".join(lines)), None, None
 
     elif intent == "nutrition_target":
         targets = await nutrition_queries.get_nutrition_targets(pool)
@@ -230,6 +230,6 @@ async def handle_nutrition_intent(
             f"💪 Proteina: *{targets['protein_g']}g*\n"
             f"🍞 Carbs: *{targets['carbs_g']}g*\n"
             f"🫒 Grasimi: *{targets['fat_g']}g*"
-        ), None
+        ), None, None
 
-    return safe_markdown("Nu am inteles cererea legata de nutritie. 🤔"), None
+    return safe_markdown("Nu am inteles cererea legata de nutritie. 🤔"), None, None

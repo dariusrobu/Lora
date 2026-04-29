@@ -2,9 +2,38 @@ from typing import Dict, Any, Tuple, Optional
 import logging
 import asyncpg
 from db.queries.log import log_execution
+from core.state import set_state
 
 logger = logging.getLogger("core.router")
 
+
+async def check_module_health() -> Dict[str, str]:
+    """
+    Tests the availability of all critical modules.
+    Returns a dict mapping module name to status ('ok' or error message).
+    """
+    modules_to_test = [
+        "tasks", "projects", "notes", "finance", "events", 
+        "shopping", "goals", "skills", "mood", "insights", 
+        "health", "workout", "reading", "focus", "planner", 
+        "university", "nutrition", "schedule", "memory", "weather",
+        "calendar"
+    ]
+    
+    status = {}
+    for mod in modules_to_test:
+        try:
+            if mod == "tasks": from modules.tasks import handle_task_intent
+            elif mod == "projects": from modules.projects import handle_project_intent
+            elif mod == "finance": from modules.finance import handle_finance_intent
+            elif mod == "university": from modules.university import handle_university_intent
+            # Add more critical ones if needed, but basic import check is usually enough
+            status[mod] = "ok"
+        except Exception as e:
+            status[mod] = str(e)
+            logger.error(f"Module {mod} health check failed: {e}")
+            
+    return status
 
 async def route_intent(pool, intent_response: Any, bot=None):
     """
@@ -45,7 +74,6 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
     clarification_question = intent_response.get("clarification_question")
 
     if confidence < 0.7 or clarification_needed:
-        from core.state import set_state
 
         question = (
             clarification_question
@@ -174,7 +202,6 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
         return (
             "A apărut o eroare: lipsesc date necesare pentru a procesa comanda.",
             None,
-            None,
         )
     except asyncpg.PostgresError as e:
         logger.error(
@@ -184,14 +211,13 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
         return (
             "A apărut o eroare de bază de date. Te rog să încerci din nou.",
             None,
-            None,
         )
     except Exception as e:
         logger.error(
             f"Execution error | intent: {intent} | module: {module} | type: Exception | msg: {e} | data: {data}"
         )
         await log_execution(pool, intent, module, False, "Exception", str(e))
-        return "A apărut o eroare neașteptată la procesarea comenzii.", None, None
+        return "A apărut o eroare neașteptată la procesarea comenzii.", None
 
 
 async def _handle_correct_last(pool, intent_response, bot):
@@ -259,142 +285,142 @@ async def _handle_correct_last(pool, intent_response, bot):
 async def _execute_module_intent(
     pool, module: str, intent: str, data: Dict[str, Any], reply: str, bot=None
 ) -> Tuple[str, Any, Optional[int]]:
-    # Module routing logic
-    if module == "tasks":
-        from modules.tasks import handle_task_intent
+    module_names_ro = {
+        "tasks": "task-uri",
+        "projects": "proiecte",
+        "notes": "note",
+        "finance": "finanțe",
+        "events": "evenimente",
+        "shopping": "cumpărături",
+        "goals": "obiective",
+        "skills": "skill-uri",
+        "mood": "mood",
+        "insights": "insights",
+        "health": "sănătate",
+        "news": "news",
+        "workout": "antrenamente",
+        "reading": "lectură",
+        "focus": "focus",
+        "planner": "planner",
+        "university": "facultate",
+        "nutrition": "nutriție",
+        "schedule": "orar",
+        "memory": "memorie",
+        "weather": "vreme",
+        "calendar": "calendar"
+    }
 
-        return await handle_task_intent(pool, intent, data)
-    elif module == "projects":
-        from modules.projects import handle_project_intent
-
-        res = await handle_project_intent(pool, intent, data)
-        return (res[0], res[1], res[2] if len(res) > 2 else None)
-    elif module == "notes":
-        from modules.notes import handle_note_intent
-
-        res = await handle_note_intent(pool, intent, data)
-        return (res[0], res[1], res[2] if len(res) > 2 else None)
-    elif module == "finance":
-        from modules.finance import handle_finance_intent
-
-        return await handle_finance_intent(pool, intent, data)
-    elif module == "events":
-        from modules.events import handle_event_intent
-
-        return await handle_event_intent(pool, intent, data)
-    elif module == "shopping":
-        from modules.shopping import handle_shopping_intent
-
-        return await handle_shopping_intent(pool, intent, data)
-    elif module == "goals":
-        from modules.goals import handle_goal_intent
-
-        return await handle_goal_intent(pool, intent, data)
-    elif module == "skills":
-        from modules.skills import handle_skill_intent
-
-        return await handle_skill_intent(pool, intent, data)
-    elif module == "mood":
-        from modules.mood import handle_mood_intent
-
-        return await handle_mood_intent(pool, intent, data, bot)
-    elif module == "insights":
-        from modules.insights import generate_insights
-
-        text = await generate_insights(pool)
-        return text, None, None
-    elif module == "health":
-        from modules.health import handle_health_intent
-
-        return await handle_health_intent(pool, intent, data, bot)
-    elif module == "news":
-        from modules.news import fetch_tech_news
-
-        news = await fetch_tech_news()
-        return f"{reply}\n\n{news}", None, None
-    elif module == "workout":
-        from modules.workout import handle_workout_intent
-
-        return await handle_workout_intent(pool, intent, data, bot)
-    elif module == "reading":
-        from modules.reading import handle_reading_intent
-
-        return await handle_reading_intent(pool, intent, data, bot)
-    elif module == "focus":
-        from modules.focus import handle_focus_intent
-
-        return await handle_focus_intent(pool, intent, data, bot)
-    elif module == "planner":
-        from modules.planner import generate_time_block
-
-        res = await generate_time_block(pool)
-        return (res[0], res[1], res[2] if len(res) > 2 else None)
-    elif module == "university":
-        from modules.university import handle_university_intent
-
-        return await handle_university_intent(pool, intent, data, bot)
-    elif module == "nutrition":
-        from modules.nutrition import handle_nutrition_intent
-
-        return await handle_nutrition_intent(pool, intent, data, bot)
-    elif module == "schedule":
-        from modules.schedule import handle_schedule_intent
-
-        return await handle_schedule_intent(pool, intent, data, bot)
-    elif module == "memory":
-        from modules.memory import handle_memory_intent
-        from core.config import TELEGRAM_USER_ID
-
-        data["user_id"] = TELEGRAM_USER_ID
-        return await handle_memory_intent(pool, intent, data)
-    elif module == "weather":
-        from modules.weather import get_weather_summary
-
-        city = data.get("city")
-        weather = (
-            await get_weather_summary(city) if city else await get_weather_summary()
-        )
-        if weather:
-            return f"{reply}\n\n🌤️ {weather}", None, None
-        return reply, None, None
-    elif intent == "trigger_morning_briefing":
-        from scheduler.jobs import send_morning_briefing
-        from core.config import TELEGRAM_USER_ID as TG_UID
-        import db.queries.profile as profile_queries
-        from datetime import date
-
-        today = date.today()
-        profile = await profile_queries.get_user_profile(pool, TG_UID)
-        if profile.get("last_briefing_date") == today:
-            return (
-                "Deja ți-am trimis briefing-ul de dimineață. O zi productivă! ☀️",
-                None,
+    try:
+        # Module routing logic
+        if module == "tasks":
+            from modules.tasks import handle_task_intent
+            return await handle_task_intent(pool, intent, data)
+        elif module == "projects":
+            from modules.projects import handle_project_intent
+            res = await handle_project_intent(pool, intent, data)
+            return (res[0], res[1], res[2] if len(res) > 2 else None)
+        elif module == "notes":
+            from modules.notes import handle_note_intent
+            res = await handle_note_intent(pool, intent, data)
+            return (res[0], res[1], res[2] if len(res) > 2 else None)
+        elif module == "finance":
+            from modules.finance import handle_finance_intent
+            return await handle_finance_intent(pool, intent, data)
+        elif module == "events":
+            from modules.events import handle_event_intent
+            return await handle_event_intent(pool, intent, data)
+        elif module == "shopping":
+            from modules.shopping import handle_shopping_intent
+            return await handle_shopping_intent(pool, intent, data)
+        elif module == "goals":
+            from modules.goals import handle_goal_intent
+            return await handle_goal_intent(pool, intent, data)
+        elif module == "skills":
+            from modules.skills import handle_skill_intent
+            return await handle_skill_intent(pool, intent, data)
+        elif module == "mood":
+            from modules.mood import handle_mood_intent
+            return await handle_mood_intent(pool, intent, data, bot)
+        elif module == "insights":
+            from modules.insights import generate_insights
+            text = await generate_insights(pool)
+            return text, None, None
+        elif module == "health":
+            from modules.health import handle_health_intent
+            return await handle_health_intent(pool, intent, data, bot)
+        elif module == "news":
+            from modules.news import fetch_tech_news
+            news = await fetch_tech_news()
+            return f"{reply}\n\n{news}", None, None
+        elif module == "workout":
+            from modules.workout import handle_workout_intent
+            return await handle_workout_intent(pool, intent, data, bot)
+        elif module == "reading":
+            from modules.reading import handle_reading_intent
+            return await handle_reading_intent(pool, intent, data, bot)
+        elif module == "focus":
+            from modules.focus import handle_focus_intent
+            return await handle_focus_intent(pool, intent, data, bot)
+        elif module == "planner":
+            from modules.planner import generate_time_block
+            res = await generate_time_block(pool)
+            return (res[0], res[1], res[2] if len(res) > 2 else None)
+        elif module == "university":
+            from modules.university import handle_university_intent
+            return await handle_university_intent(pool, intent, data, bot)
+        elif module == "nutrition":
+            from modules.nutrition import handle_nutrition_intent
+            return await handle_nutrition_intent(pool, intent, data, bot)
+        elif module == "schedule":
+            from modules.schedule import handle_schedule_intent
+            return await handle_schedule_intent(pool, intent, data, bot)
+        elif module == "memory":
+            from modules.memory import handle_memory_intent
+            from core.config import TELEGRAM_USER_ID
+            data["user_id"] = TELEGRAM_USER_ID
+            return await handle_memory_intent(pool, intent, data)
+        elif module == "weather":
+            from modules.weather import get_weather_summary
+            city = data.get("city")
+            weather = (
+                await get_weather_summary(city) if city else await get_weather_summary()
             )
-
-        # Create a proper mock application that has what send_morning_briefing needs
-        class MockApp:
-            def __init__(self, bot_instance):
-                self.bot = bot_instance
-
-        if bot:
-            try:
+            if weather:
+                return f"{reply}\n\n🌤️ {weather}", None, None
+            return reply, None, None
+        elif intent == "trigger_morning_briefing":
+            from scheduler.jobs import send_morning_briefing
+            from core.config import TELEGRAM_USER_ID as TG_UID
+            import db.queries.profile as profile_queries
+            from datetime import date
+            today = date.today()
+            profile = await profile_queries.get_user_profile(pool, TG_UID)
+            if profile.get("last_briefing_date") == today:
+                return (
+                    "Deja ți-am trimis briefing-ul de dimineață. O zi productivă! ☀️",
+                    None,
+                )
+            class MockApp:
+                def __init__(self, bot_instance):
+                    self.bot = bot_instance
+            if bot:
                 await send_morning_briefing(MockApp(bot), pool)
-            except Exception as e:
-                import traceback
+                return None, None
+            else:
+                return "Nu am putut iniția briefing-ul manual (lipsă bot context).", None
+        elif module == "calendar":
+            from modules.calendar_module import handle_calendar_intent
+            res = await handle_calendar_intent(pool, intent, data)
+            return (res[0], res[1], res[2] if len(res) > 2 else None)
+    except Exception as e:
+        logger.error(f"Module {module} failure: {e}")
+        import traceback
+        traceback.print_exc()
+        friendly_name = module_names_ro.get(module, module)
+        return f"⚠️ Nu am putut accesa modulul de *{friendly_name}* momentan, dar celelalte funcții sunt disponibile.", None, None
 
-                print(f"Error in trigger_morning_briefing: {e}", flush=True)
-                traceback.print_exc()
-                return f"❌ Eroare: {str(e)[:100]}", None
-            return None, None  # The job sends its own messages
-        else:
-            return "Nu am putut iniția briefing-ul manual (lipsă bot context).", None
-
-    # ━━━ CALENDAR ━━━
-    elif module == "calendar":
-        from modules.calendar_module import handle_calendar_intent
-
-        res = await handle_calendar_intent(pool, intent, data)
-        return (res[0], res[1], res[2] if len(res) > 2 else None)
+    res = await _handle_generic_module(pool, module, intent, data, reply)
+    return (res[0], res[1], res[2] if len(res) > 2 else None)
 
     res = await _handle_generic_module(pool, module, intent, data, reply)
     return (res[0], res[1], res[2] if len(res) > 2 else None)

@@ -182,17 +182,17 @@ async def handle_health_message(update, pool, state: dict, text: str) -> None:
                     "fat": sum(i.get("fat", 0) for i in items),
                     "items": items,
                 }
-                reply, _ = await handle_nutrition_intent(pool, "meal_log", meal_data)
+                reply, _, _ = await handle_nutrition_intent(pool, "meal_log", meal_data)
                 await update.message.reply_text(reply, parse_mode="MarkdownV2")
                 await clear_state(pool)
                 return
             else:
-                reply, _ = await handle_health_intent(pool, "health_log", {})
+                reply, _, _ = await handle_health_intent(pool, "health_log", {})
                 await update.message.reply_text(reply, parse_mode="MarkdownV2")
                 await clear_state(pool)
                 return
 
-        reply, _ = await handle_health_intent(pool, "health_log", data)
+        reply, _, _ = await handle_health_intent(pool, "health_log", data)
         await update.message.reply_text(reply, parse_mode="MarkdownV2")
         await clear_state(pool)
 

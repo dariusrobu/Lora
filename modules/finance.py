@@ -318,7 +318,7 @@ async def handle_finance_message(update, pool, state: dict, text: str) -> None:
             else "expense"
         )
 
-        reply, _ = await handle_finance_intent(pool, "finance_log", data)
+        reply, _, _ = await handle_finance_intent(pool, "finance_log", data)
         await update.message.reply_text(reply, parse_mode="MarkdownV2")
         await clear_state(pool)
 

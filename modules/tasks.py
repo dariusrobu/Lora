@@ -107,9 +107,8 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
             await query.edit_message_text(
                 text, parse_mode="MarkdownV2", reply_markup=markup
             )
-
         elif action == "list_all":
-            text, markup = await handle_task_intent(pool, "list_tasks", {})
+            text, markup, _ = await handle_task_intent(pool, "list_tasks", {})
             await query.edit_message_text(
                 text, parse_mode="MarkdownV2", reply_markup=markup
             )
@@ -149,7 +148,7 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
             await query.answer(f"✅ Bifat: {task_title}")
 
             if is_list:
-                text, markup = await handle_task_intent(pool, "list_tasks", {})
+                text, markup, _ = await handle_task_intent(pool, "list_tasks", {})
                 await query.edit_message_text(
                     text, parse_mode="MarkdownV2", reply_markup=markup
                 )
@@ -166,7 +165,7 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
 
             await set_state(pool, "awaiting_confirmation", "tasks", "delete", task_id)
             await query.edit_message_text(
-                f"Are you sure you want to delete *{escape_md(task_title)}*?",
+                f"Sigur vrei să ștergi task-ul *{escape_md(task_title)}*?",
                 parse_mode="MarkdownV2",
                 reply_markup=tasks_confirm_delete_keyboard(task_id),
             )
@@ -311,7 +310,7 @@ async def handle_task_intent(
                     if not priority and parsed.get("priority"):
                         priority = parsed.get("priority")
             if not title:
-                return "What task should I add? (I didn't catch the title)", None, None
+                return "Ce task vrei să adaugi? (N-am înțeles titlul)", None, None
 
         due_date_str = data.get("due_date")
         due_date = None
@@ -361,7 +360,7 @@ async def handle_task_intent(
 
         from bot.keyboards import task_keyboard
 
-        reply_msg = f"Done ✅ Added *{escape_md(title)}*"
+        reply_msg = f"Am adăugat ✅ *{escape_md(title)}*"
 
         # --- PROACTIVE MEMORY: Find similar tasks ---
         from core.config import TELEGRAM_USER_ID
@@ -369,13 +368,19 @@ async def handle_task_intent(
         similar = await task_queries.find_similar_tasks(pool, title, TELEGRAM_USER_ID)
         if similar:
             s = similar[0]
-            days = s.get("duration_days", 0) or 0
-            date_str = (
-                s["completed_at"].strftime("%Y-%m-%d")
-                if s.get("completed_at")
-                else "trecut"
-            )
-            reply_msg += f"\n\n💡 _Ai mai avut un task similar pe {date_str} — a durat {int(days)} zile\\._"
+            hours = s.get("duration_hours", 0) or 0
+            
+            if hours < 1:
+                duration_str = f"{int(hours * 60)} minute"
+            elif hours < 24:
+                duration_str = f"{int(hours)} ore"
+            else:
+                duration_str = f"{int(hours / 24)} zile"
+            
+            from bot.formatter import format_date_short
+            date_str = format_date_short(s["completed_at"])
+            
+            reply_msg += f"\n\n💡 _Ai mai avut un task similar pe {date_str} — a durat {duration_str}\\._"
 
         return reply_msg, task_keyboard(task_id), task_id
 
@@ -425,11 +430,28 @@ async def handle_task_intent(
             lines.append(f"*{escape_md(group_name)}*")
             for t in group_tasks:
                 prefix: str = ""
-                if t.get("due_date") and t["due_date"] < today:
-                    prefix = "🔴 "
-                elif t.get("priority") == "high":
+                meta: list[str] = []
+                
+                # Priority
+                prio = t.get("priority", "medium")
+                if prio == "high":
                     prefix = "⚠️ "
-                lines.append(f"{prefix}• {escape_md(t['title'])}")
+                    meta.append("🔥")
+                elif prio == "low":
+                    meta.append("🧊")
+                
+                # Due Date
+                if t.get("due_date"):
+                    from bot.formatter import format_date_short
+                    date_str = format_date_short(t["due_date"])
+                    if t["due_date"] < today:
+                        prefix = "🔴 "
+                        meta.append(f"*{escape_md(date_str)}*")
+                    else:
+                        meta.append(f"{escape_md(date_str)}")
+                
+                meta_str = f" \\({', '.join(meta)}\\)" if meta else ""
+                lines.append(f"{prefix}• {escape_md(t['title'])}{meta_str}")
 
         from bot.keyboards import task_list_keyboard
 
@@ -441,20 +463,43 @@ async def handle_task_intent(
 
     elif intent == "complete_task":
         task_id = data.get("id")
-        if not task_id:
-            return "Which task would you like to complete?", None, None
+        title = str(
+            data.get("title")
+            or data.get("name")
+            or data.get("text")
+            or data.get("query")
+            or ""
+        )
 
-        task = await task_queries.get_task(pool, task_id)
-        task_title = task["title"] if task else "Unknown task"
+        if not task_id and title:
+            if title.isdigit():
+                task_id = int(title)
+            else:
+                matches = await task_queries.get_tasks_by_title(pool, title)
+                if len(matches) == 1:
+                    task_id = matches[0]["id"]
+                elif len(matches) > 1:
+                    from bot.keyboards import task_list_keyboard
+
+                    return (
+                        f"Am găsit mai multe task-uri cu *{escape_md(title)}*. Pe care l-ai terminat?",
+                        task_list_keyboard(matches, back_callback="tasks:main"),
+                        None,
+                    )
+
+        if not task_id:
+            return "Ce task ai terminat? (Dă-mi un nume sau bifează-l din listă)", None, None
 
         await task_queries.complete_task(pool, task_id)
+        task = await task_queries.get_task(pool, task_id)
+        task_title = task["title"] if task else "Task necunoscut"
 
         if task and task.get("project_id"):
             decisions = await get_decisions(task["project_id"])
             if decisions:
                 linked_decision = decisions[0]
                 decision_text = linked_decision.get("title", "")[:50]
-                context_msg = f"\n\n💡 Aligned with Council decision: *{decision_text}*"
+                context_msg = f"\n\n💡 Aliniat cu decizia Council: *{decision_text}*"
             else:
                 context_msg = ""
         else:
@@ -463,7 +508,7 @@ async def handle_task_intent(
         feedback_msg = (
             f"✅ *{escape_md(task_title)}* completat\!{context_msg}\n\n"
             "Pe o scară de la 1 la 10, cât de greu a fost? "
-            "Reply with a number or '/done [number]'"
+            "(Răspunde cu un număr)"
         )
         return feedback_msg, None, task_id
 
@@ -493,12 +538,13 @@ async def handle_task_intent(
 
     elif intent == "edit_task":
         task_id = data.get("id")
-        # Try to find task by search term if ID is missing
+        # Try to find task by search term
         search_term = str(
             data.get("query")
             or data.get("search")
             or data.get("old_title")
             or data.get("name")
+            or data.get("title")  # Gemini often puts the target task here
             or ""
         )
 
@@ -511,31 +557,34 @@ async def handle_task_intent(
                     task_id = matches[0]["id"]
                 elif len(matches) > 1:
                     from bot.keyboards import task_list_keyboard
-
                     return (
-                        f"I found multiple tasks matching *{escape_md(search_term)}*. Which one did you mean?",
+                        f"Am găsit mai multe task-uri cu *{escape_md(search_term)}*. Pe care vrei să-l editez?",
                         task_list_keyboard(matches, back_callback="tasks:main"),
                         None,
                     )
 
         if not task_id:
-            return "Which task should I edit?", None, None
+            return "Ce task vrei să editez? (Dă-mi un nume sau bifează-l din listă)", None, None
 
         # Clean up data to only include valid update fields
         upd = {}
-        # If Gemini provided 'new_title', use it. If it provided 'title' and we found the task via search_term, 'title' is likely the new one.
-        new_title = data.get("new_title") or (
-            data.get("title") if search_term else None
-        )
-        if new_title:
-            upd["title"] = new_title
+        # If we have a new title specifically, or if the user specified a new title in the message
+        if data.get("new_title"):
+            upd["title"] = data["new_title"]
 
         for k in ["notes", "priority", "due_date"]:
-            if k in data:
-                upd[k] = data[k]
+            if k in data and data[k] is not None:
+                val = data[k]
+                if k == "due_date" and isinstance(val, str):
+                    try:
+                        val = datetime.strptime(val, "%Y-%m-%d").date()
+                    except Exception:
+                        continue
+                upd[k] = val
 
+        if not upd:
             return (
-                "What should I change about it? (e.g., 'Rename it to X' or 'Set priority to high')",
+                "Ce anume vrei să schimb? (ex: 'Schimbă titlul în X' sau 'Pune prioritate mare')",
                 None,
                 None,
             )
@@ -545,7 +594,7 @@ async def handle_task_intent(
         from bot.keyboards import task_keyboard
 
         return (
-            f"Updated ✅ *{escape_md(task['title'])}*",
+            f"Actualizat ✅ *{escape_md(task['title'])}*",
             task_keyboard(task_id),
             task_id,
         )
@@ -571,19 +620,28 @@ async def handle_task_intent(
                     from bot.keyboards import task_list_keyboard
 
                     return (
-                        f"I found multiple tasks matching *{escape_md(title)}*. Which one did you mean?",
+                        f"Am găsit mai multe task-uri cu *{escape_md(title)}*. Pe care vrei să-l șterg?",
                         task_list_keyboard(matches, back_callback="tasks:main"),
                         None,
                     )
             # if 0 matches, we'll fall through to "Which task..."
 
         if not task_id:
-            return "Which task should I delete?", None, None
+            return "Ce task vrei să șterg?", None, None
 
         task = await task_queries.get_task(pool, task_id)
         if not task:
-            return "I couldn't find that task.", None, None
+            return "Nu am găsit task-ul.", None, None
 
+        from core.state import set_state
+        await set_state(pool, "awaiting_confirmation", "tasks", "delete", task_id)
+        from bot.keyboards import confirmation_keyboard
+
+        return (
+            f"Sigur vrei să ștergi task-ul *{escape_md(task['title'])}*?",
+            confirmation_keyboard("tasks", "delete", task_id),
+            task_id,
+        )
 
 def _build_urgency_suggestion(tasks: list, today: date) -> str | None:
     """Build a contextual suggestion for the most urgent task."""

@@ -10,8 +10,9 @@ async def get_pool():
         try:
             _pool = await asyncpg.create_pool(
                 DATABASE_URL,
-                min_size=1,
+                min_size=0,
                 max_size=5,
+                max_inactive_connection_lifetime=60.0,
                 command_timeout=30,
                 server_settings={"application_name": "lora"},
             )

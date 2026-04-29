@@ -1,5 +1,6 @@
 from bot.callback_utils import make_callback_data
 import traceback
+import json
 from datetime import date
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -15,6 +16,7 @@ from core.context import build_context
 from core.gemini import get_gemini_response
 from core.router import route_intent
 from db.queries.history import save_message, get_recent_history
+from core.stats import update_last_message
 
 
 async def security_check(update: Update) -> bool:
@@ -235,6 +237,7 @@ async def message_handler(
     source: str = "text",
 ):
     try:
+        update_last_message()
         user_id = update.effective_user.id if update.effective_user else "Unknown"
         print(
             f"📥 INCOMING: Update ID {update.update_id} from user_id {user_id}",
@@ -388,14 +391,8 @@ async def message_handler(
                 "🎙️ Generăm podcast-ul tău personal... un moment!"
             )
 
-            from db.queries.profile import update_user_profile
-            from core.config import TELEGRAM_USER_ID
-
             try:
-                await update_user_profile(
-                    pool, TELEGRAM_USER_ID, last_briefing_date=date.today()
-                )
-                await send_morning_briefing(context.application, pool)
+                await send_morning_briefing(context.application, pool, force=True)
             except Exception as e:
                 print(f"Podcast manual trigger error: {e}", flush=True)
                 await update.message.reply_text(
@@ -418,6 +415,36 @@ async def message_handler(
                 await update.message.reply_text(
                     f"❌ Eroare la generarea review-ului: {e}"
                 )
+            return
+
+        # Handle /eod command
+        if text == "/eod":
+            from scheduler.jobs import send_eod_reflection
+
+            try:
+                await send_eod_reflection(context.application, pool, force=True)
+            except Exception as e:
+                print(f"EOD manual trigger error: {e}", flush=True)
+                await update.message.reply_text(f"❌ Eroare la EOD: {e}")
+            return
+
+        # Handle /lastweek command
+        if text == "/lastweek":
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT content, week_start, week_end FROM weekly_reviews ORDER BY created_at DESC LIMIT 1"
+                )
+                if not row:
+                    await update.message.reply_text("Nu am găsit niciun raport săptămânal încă.")
+                    return
+                
+                header = f"📊 *Weekly Review: {row['week_start'].strftime('%d %b')} — {row['week_end'].strftime('%d %b')}*\\n\\n"
+                from bot.formatter import safe_markdown, split_message
+                final_text = header + safe_markdown(row["content"])
+                
+                chunks = split_message(final_text)
+                for chunk in chunks:
+                    await update.message.reply_text(chunk, parse_mode="MarkdownV2")
             return
 
         # Handle /monthlyreview command
@@ -597,17 +624,27 @@ async def message_handler(
 
             elif state["state_type"] == "awaiting_profile_hours":
                 try:
-                    parts = text.split("-")
+                    # Handle different dash types (hyphen, en-dash, em-dash)
+                    import re
+                    parts = re.split(r"[-–—]", text)
+                    if len(parts) < 2:
+                        raise ValueError("Lipsește separatorul '-'")
+                        
                     start_h = parts[0].strip()
                     end_h = parts[1].strip()
+                    
                     # Validate format (basic)
                     if ":" not in start_h or ":" not in end_h:
-                        raise ValueError()
+                        raise ValueError("Format invalid: trebuie să conțină ':'")
+
+                    from datetime import datetime
+                    start_time = datetime.strptime(start_h, "%H:%M").time()
+                    end_time = datetime.strptime(end_h, "%H:%M").time()
 
                     await pool.execute(
                         "UPDATE user_profile SET active_hours_start = $1, active_hours_end = $2 WHERE telegram_id = $3",
-                        start_h,
-                        end_h,
+                        start_time,
+                        end_time,
                         telegram_id,
                     )
                     await clear_state(pool)
@@ -615,7 +652,10 @@ async def message_handler(
                         f"✅ Orele active au fost setate la: *{start_h} \\- {end_h}*",
                         parse_mode="MarkdownV2",
                     )
-                except Exception:
+                except Exception as e:
+                    import traceback
+                    print(f"ERROR updating profile hours: {e}")
+                    traceback.print_exc()
                     await clear_state(pool)
                     await update.message.reply_text(
                         "❌ Format invalid. Încearcă `09:00-21:00`."
@@ -1755,24 +1795,12 @@ Reguli:
         # Special handling for morning briefing - call directly with application
         if intent_response.get("intent") == "trigger_morning_briefing":
             from scheduler.jobs import send_morning_briefing
-            from core.config import TELEGRAM_USER_ID as TG_UID
-            import db.queries.profile as profile_queries
-            from datetime import date as _date
-
-            today = _date.today()
-            profile = await profile_queries.get_user_profile(pool, TG_UID)
-            if profile.get("last_briefing_date") == today:
-                await update.message.reply_text(
-                    "Deja ți-am trimis briefing-ul de dimineață. O zi productivă! ☀️",
-                    parse_mode="MarkdownV2",
-                )
-                return
 
             await update.message.reply_text(
-                "Pregătesc briefing-ul de dimineață. ☕", parse_mode="MarkdownV2"
+                escape_md("Pregătesc briefing-ul de dimineață. ☕"), parse_mode="MarkdownV2"
             )
             try:
-                await send_morning_briefing(context.application, pool)
+                await send_morning_briefing(context.application, pool, force=True)
             except Exception as e:
                 import traceback
 
@@ -1934,7 +1962,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                     pool, "awaiting_profile_hours", "profile", "edit_hours", None
                 )
                 await query.edit_message_text(
-                    "Te rog introdu intervalul de ore active (ex: `09:00-21:00`):",
+                    "Te rog introdu intervalul de ore active \\(ex: `09:00-21:00`\\):",
                     parse_mode="MarkdownV2",
                 )
             return
@@ -1950,7 +1978,19 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
 
             await handle_vision_callback(query, pool, data)
             return
+        if data.startswith("chat:"):
+            # Global chat-related callbacks (like 'Back to Main')
+            if data == "chat:main":
+                from core.router import main_menu_keyboard
+                await query.edit_message_text(
+                    "Meniu Principal 🏠",
+                    reply_markup=main_menu_keyboard()
+                )
+            return
 
+        if data.startswith("eod:"):
+            await handle_eod_callback(query, pool, data)
+            return
         if data.startswith("goals_"):
             from modules.goals import handle_goals_callback
 
@@ -1996,7 +2036,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             from modules.finance import handle_finance_intent
 
             if data == "finance_chart" or action == "finance_chart":
-                result, _ = await handle_finance_intent(pool, "finance_chart", {})
+                result, _, _ = await handle_finance_intent(pool, "finance_chart", {})
                 if isinstance(result, (bytes, io.BytesIO)):
                     await context.bot.send_photo(
                         chat_id=update.effective_chat.id,
@@ -2008,7 +2048,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 return
 
             elif data == "finance_summary" or action == "finance_summary":
-                text, markup = await handle_finance_intent(pool, "finance_summary", {})
+                text, markup, _ = await handle_finance_intent(pool, "finance_summary", {})
                 await query.edit_message_text(
                     text, parse_mode="MarkdownV2", reply_markup=markup
                 )
@@ -2053,7 +2093,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 return
 
             elif data == "finance_categories":
-                text, markup = await handle_finance_intent(pool, "list_categories", {})
+                text, markup, _ = await handle_finance_intent(pool, "list_categories", {})
                 await query.edit_message_text(
                     text, parse_mode="MarkdownV2", reply_markup=markup
                 )
@@ -2717,7 +2757,7 @@ async def health_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     from modules.health import handle_health_intent
 
-    text, markup = await handle_health_intent(
+    text, markup, _ = await handle_health_intent(
         pool, "health_summary", {}, bot=context.bot
     )
     await update.message.reply_text(text, parse_mode="MarkdownV2", reply_markup=markup)
@@ -2731,7 +2771,7 @@ async def finance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     from modules.finance import handle_finance_intent
 
-    text, markup = await handle_finance_intent(pool, "finance_summary", {})
+    text, markup, _ = await handle_finance_intent(pool, "finance_summary", {})
     await update.message.reply_text(text, parse_mode="MarkdownV2", reply_markup=markup)
 
 
@@ -2773,6 +2813,18 @@ async def reading_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from core.config import TELEGRAM_USER_ID
 
     await save_message(pool, TELEGRAM_USER_ID, "assistant", text)
+
+
+async def memory_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles /memory command — opens memory dashboard."""
+    pool = context.bot_data.get("pool")
+    if not await security_check(update):
+        return
+
+    from modules.memory import handle_memory_intent
+
+    text, markup, _ = await handle_memory_intent(pool, "memory_view", {})
+    await update.message.reply_text(text, parse_mode="MarkdownV2", reply_markup=markup)
 
 
 async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
@@ -2824,3 +2876,109 @@ async def _save_prompt_to_conversation(pool, prompt: str) -> None:
     from core.config import TELEGRAM_USER_ID
 
     await save_message(pool, TELEGRAM_USER_ID, "assistant", prompt)
+async def handle_eod_callback(query, pool, data):
+    """Handles EOD interactive flow callbacks."""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    from bot.formatter import escape_md, safe_markdown
+    from core.state import set_state, clear_state
+    
+    parts = data.split(":")
+    action = parts[1] # mood | tasks
+    value = parts[2] # great/neutral/terrible | all/partial/none
+    
+    if action == "mood":
+        # Save mood temporarily in state extra
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE conversation_state SET extra = jsonb_set(COALESCE(extra, '{}'), '{eod_mood}', $1) WHERE state_key = 'current'",
+                json.dumps(value)
+            )
+        
+        # Send Question 2
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Da, toate", callback_data="eod:tasks:all"),
+                InlineKeyboardButton("🌗 Parțial", callback_data="eod:tasks:partial"),
+                InlineKeyboardButton("❌ Nu", callback_data="eod:tasks:none"),
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "Am notat\\! ✍️\\n\n"
+            "*Ai finalizat task\\-urile planificate pentru azi?*",
+            reply_markup=reply_markup,
+            parse_mode="MarkdownV2"
+        )
+        await set_state(pool, "awaiting_eod_tasks", "eod", "tasks", None)
+        
+    elif action == "tasks":
+        # Get mood from state
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT extra FROM conversation_state WHERE state_key = 'current'")
+            extra = row["extra"] if row and row["extra"] else {}
+            mood = extra.get("eod_mood", "neutral")
+        
+        # Save to DB
+        from datetime import date
+        today = date.today()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO journal_entries (entry_date, mood, task_completion)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (entry_date) DO UPDATE SET mood = $2, task_completion = $3, skipped = FALSE
+                """,
+                today, mood, value
+            )
+            
+            # Mark profile as completed
+            from core.config import TELEGRAM_USER_ID
+            await conn.execute(
+                "UPDATE user_profile SET last_eod_date = $1 WHERE telegram_id = $2",
+                today, TELEGRAM_USER_ID
+            )
+        
+        await clear_state(pool)
+        
+        # Generate and send summary
+        await query.edit_message_text("Generez sumarul zilei... 📊")
+        summary = await generate_eod_summary(pool, mood, value)
+        
+        await query.edit_message_text(
+            f"📊 *Rezumatul zilei tale:*\\n\\n{safe_markdown(summary)}\\n\\nNoapte bună\! 🌙",
+            parse_mode="MarkdownV2"
+        )
+
+async def generate_eod_summary(pool, mood, task_completion):
+    """Generates a 2-3 line summary via Gemini based on today's activity."""
+    from db.queries.tasks import get_completed_tasks_today
+    from db.queries.finance import get_daily_transactions
+    from db.queries import workout as workout_queries
+    from datetime import date
+    
+    today = date.today()
+    
+    # Gather data
+    import asyncio
+    tasks = await get_completed_tasks_today(pool)
+    finances = await get_daily_transactions(pool, today)
+    workouts = await workout_queries.get_recent_workouts(pool, days=1)
+    
+    # Prepare context for Gemini
+    context = {
+        "mood": mood,
+        "task_completion": task_completion,
+        "tasks_completed": [t["title"] for t in tasks],
+        "expenses": [{"amount": f.get("amount"), "category": f.get("category")} for f in finances if f.get("type") == "expense"],
+        "workouts": [w.get("type") for w in workouts]
+    }
+    
+    from core.gemini import get_proactive_response
+    instruction = """Ești Lora. Generezi un sumar EXTREM DE CONCIS (MAXIM 3 rânduri) al zilei utilizatorului.
+Include realizările (tasks), mișcarea (sport) și situația financiară scurt.
+Ton: cald, empatic, Romglish.
+Fără bullet points, doar un text cursiv scurt."""
+    
+    summary = await get_proactive_response(instruction, json.dumps(context, default=str))
+    return summary or "O zi plină și productivă! Odihnă plăcută."
