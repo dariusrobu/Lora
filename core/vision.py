@@ -15,12 +15,13 @@ async def analyze_image(
 
     prompt = f"""
     Analizează această imagine. Ești Lora, asistentul inteligent.
-    Avem 4 categorii posibile de imagini:
+    Avem 6 categorii posibile de imagini:
     1. 'receipt' (bon fiscal / chitanță)
     2. 'menu' (meniu de restaurant / cafenea)
     3. 'workout_screenshot' (captură dintr-o aplicație sport / smartwatch)
     4. 'handwritten_notes' (notițe scrise pe hârtie sau ecran)
-    5. 'other' (orice altceva)
+    5. 'food' (poză cu mâncare în farfurie sau produse alimentare)
+    6. 'other' (orice altceva)
     
     {f"Text adițional de la utilizator (caption): {caption}" if caption else ""}
     
@@ -29,10 +30,17 @@ async def analyze_image(
     - Pentru 'menu': nu trebuie să extragi sume, doar identifică dacă e meniu și extrage 3 categorii de mâncare/produse oferite.
     - Pentru 'workout_screenshot': numele sportului/activității, durata în minute (int), calorii (int dacă există), distanța (float dacă există).
     - Pentru 'handwritten_notes': textul brut complet transcris.
+    - Pentru 'food': Identifică ce se află în farfurie. Estimează:
+        * meal_type (mic_dejun|pranz|cina|gustare)
+        * description (string scurt, ex: "Pui la grătar cu orez")
+        * total_calories (float)
+        * total_protein (float)
+        * total_carbs (float)
+        * total_fat (float)
     
     Trebuie să răspunzi DOAR cu un JSON (fără blocuri markdown, scrie JSON-ul direct!):
     {{
-      "type": "receipt" | "menu" | "workout_screenshot" | "handwritten_notes" | "other",
+      "type": "receipt" | "menu" | "workout_screenshot" | "handwritten_notes" | "food" | "other",
       "confidence": float,
       "extracted_data": dict,
       "reply": "Răspunsul tău scurt în română (markdownV2)"
@@ -40,6 +48,7 @@ async def analyze_image(
     
     Exemplu extracted_data receipt: {{"amount": 105.50, "category": "mâncare", "merchant": "Kaufland"}}
     Exemplu extracted_data workout: {{"sport_name": "Alergare", "duration_min": 45, "calories": 400, "distance_km": 5.2}}
+    Exemplu extracted_data food: {{"meal_type": "pranz", "description": "Șnițel de pui cu piure", "total_calories": 650, "total_protein": 35, "total_carbs": 50, "total_fat": 25}}
     Exemplu extracted_data notes: {{"text": "Cumpără lapte, du câinele afară..."}}
     """
 
@@ -164,6 +173,54 @@ async def process_vision_result(
         msg = f"💪 Antrenament salvat din imagine!\n\nSport: *{escape_md(str(sport))}*\nDurată: `{duration} min`\nCalorii: `{calories or 'N/A'}`"
         return msg, None
 
+    elif img_type == "food":
+        calories = data.get("total_calories", 0)
+        protein = data.get("total_protein", 0)
+        carbs = data.get("total_carbs", 0)
+        fat = data.get("total_fat", 0)
+        description = data.get("description", "Masă")
+        meal_type = data.get("meal_type", "masa")
+
+        # Pregătește starea pentru confirmare
+        extra = {
+            "calories": calories,
+            "protein": protein,
+            "carbs": carbs,
+            "fat": fat,
+            "description": description,
+            "meal_type": meal_type,
+        }
+        await set_state(
+            pool,
+            "awaiting_vision_confirmation",
+            "nutrition",
+            "meal_log",
+            None,
+            extra=extra,
+        )
+
+        msg = (
+            f"🥗 Am identificat: *{escape_md(str(description))}*\n\n"
+            f"🔥 Calorii: `{int(calories)} kcal`\n"
+            f"📊 Macros: `{int(protein)}g P` · `{int(carbs)}g C` · `{int(fat)}g F`\n\n"
+            f"_Dorești să înregistrez această masă?_"
+        )
+        keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "✅ Confirmă",
+                        callback_data=make_callback_data("vision", "confirm"),
+                    ),
+                    InlineKeyboardButton(
+                        "❌ Anulează",
+                        callback_data=make_callback_data("vision", "cancel"),
+                    ),
+                ]
+            ]
+        )
+        return msg, keyboard
+
     elif img_type == "handwritten_notes":
         text = data.get("text", "")
         if not text:
@@ -219,6 +276,27 @@ async def handle_vision_callback(query, pool, callback_data: str):
 
             await query.answer("Salvat!")
             await query.edit_message_text("✅ Cheltuială înregistrată cu succes.")
+            return
+
+        if action == "meal_log":
+            from modules.nutrition import handle_nutrition_intent
+
+            # Extract data from state extra
+            meal_data = {
+                "calories": extra.get("calories", 0),
+                "protein": extra.get("protein", 0),
+                "carbs": extra.get("carbs", 0),
+                "fat": extra.get("fat", 0),
+                "description": extra.get("description", "Masă din poză"),
+                "meal_type": extra.get("meal_type", "masa"),
+                "items": [],  # Vision provides totals directly for now
+            }
+
+            reply, _ = await handle_nutrition_intent(pool, "meal_log", meal_data)
+            await clear_state(pool)
+
+            await query.answer("Poftă bună!")
+            await query.edit_message_text(reply, parse_mode="MarkdownV2")
             return
 
     await query.answer("Tip de acțiune necunoscut.")

@@ -48,15 +48,54 @@ async def get_current_week_type(pool) -> str:
     return "odd" if week_number % 2 == 1 else "even"
 
 
+async def get_week_type_for_date(pool, target_date: date) -> str:
+    """Helper to get odd/even week for any date."""
+    async with pool.acquire() as conn:
+        config = await conn.fetchrow(
+            "SELECT semester_start FROM semester_config ORDER BY id DESC LIMIT 1"
+        )
+
+    if not config:
+        return "odd"
+
+    semester_start = config["semester_start"]
+    if target_date < semester_start:
+        return "odd"
+
+    total_days = (target_date - semester_start).days + 1
+    vacations = await get_all_vacations(pool)
+    vacation_days = 0
+    for v in vacations:
+        if v["end_date"] < semester_start:
+            continue
+        if v["start_date"] > target_date:
+            continue
+        v_start = max(v["start_date"], semester_start)
+        v_end = min(v["end_date"], target_date)
+        if v_end >= v_start:
+            vacation_days += (v_end - v_start).days + 1
+
+    effective_days = total_days - vacation_days
+    week_number = (effective_days - 1) // 7 + 1
+    return "odd" if week_number % 2 == 1 else "even"
+
+
 async def get_today_schedule(pool) -> list:
     """Returnează orarul de azi filtrat după săptămână pară/impară."""
-    today = date.today()
-    day_of_week = today.weekday()  # 0=Luni, 4=Vineri
+    return await get_schedule_for_date(pool, date.today())
 
+
+async def get_schedule_for_date(pool, target_date: date) -> list:
+    """Returnează orarul pentru o dată specifică, ținând cont de tipul săptămânii."""
+    day_of_week = target_date.weekday()
     if day_of_week > 4:  # Weekend
         return []
 
-    week_type = await get_current_week_type(pool)
+    # Check if it's vacation
+    if await is_vacation(pool, target_date):
+        return []
+
+    week_type = await get_week_type_for_date(pool, target_date)
 
     async with pool.acquire() as conn:
         rows = await conn.fetch(

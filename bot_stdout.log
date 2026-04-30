@@ -1,0 +1,35 @@
+nohup: python: No such file or directory
+2026-05-01 00:26:11,544 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/deleteWebhook "HTTP/1.1 200 OK"
+Lora is LIVE via Polling 🚀
+2026-05-01 00:26:21,722 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:26:31,782 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:26:41,843 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:26:51,915 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:27:01,987 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:27:12,049 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:27:22,173 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:27:32,289 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:27:42,466 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:27:44,993 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+✅ AUTHORIZED: User ID 6838073664
+2026-05-01 00:27:45,259 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/sendMessage "HTTP/1.1 200 OK"
+2026-05-01 00:27:45,396 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getFile "HTTP/1.1 200 OK"
+2026-05-01 00:27:45,466 - httpx - INFO - HTTP Request: GET https://api.telegram.org/file/bot8497074584%3AAAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/photos/file_2.jpg "HTTP/1.1 200 OK"
+2026-05-01 00:27:45,594 - google_genai.models - INFO - AFC is enabled with max remote calls: 10.
+2026-05-01 00:27:51,243 - httpx - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent "HTTP/1.1 200 OK"
+🔄 set_state called: state_type='awaiting_vision_confirmation', module='nutrition', action='meal_log', item_id=None
+2026-05-01 00:27:51,411 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/editMessageText "HTTP/1.1 200 OK"
+2026-05-01 00:27:55,247 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:28:05,313 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:28:15,388 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:28:25,450 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:28:27,348 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:28:27,550 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+✅ AUTHORIZED: User ID 6838073664
+DEBUG: CALLBACK RECEIVED: action=vision params=['confirm'] from user=6838073664
+ERROR in callback_handler: cannot import name 'log_finance' from 'db.queries.finance' (/Users/robudarius/Lora/db/queries/finance.py)
+2026-05-01 00:28:37,421 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:28:47,487 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:28:57,545 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:29:07,692 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:29:17,753 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"

@@ -715,7 +715,7 @@ async def get_tasks_dashboard(pool) -> Tuple[str, Any]:
 
     from bot.keyboards import tasks_main_keyboard
 
-    return "\n".join(lines), tasks_main_keyboard()
+    return "\n".join(lines), tasks_main_keyboard(), None
 
 
 async def get_projects_list_view(pool) -> Tuple[str, Any]:
@@ -743,7 +743,7 @@ async def get_project_tasks_view(pool, project_id: int) -> Tuple[str, Any]:
 
     project = await project_queries.get_project(pool, project_id)
     if not project:
-        return "Proiectul nu a fost găsit\\.", None
+        return "Proiectul nu a fost găsit\\.", None, None
 
     tasks = await task_queries.list_tasks(pool, project_id=project_id)
 
@@ -800,14 +800,14 @@ async def _save_prompt_to_conversation(pool, prompt: str) -> None:
     await save_message(pool, TELEGRAM_USER_ID, "assistant", prompt)
 
 
-async def undo_last_action(pool, item_id: int) -> str:
+async def undo_last_action(pool, item_id: int) -> Tuple[str, Any, Any]:
     """Rolls back the last task creation."""
-    if not item_id:
-        return "Nu am ce să anulez."
+    row = await task_queries.get_task(pool, item_id)
+    if not row:
+        return "Nu am ce să anulez.", None, None
 
-    task = await task_queries.get_task(pool, item_id)
-    if not task:
-        return "Task-ul a fost deja șters sau nu există."
-
-    await task_queries.delete_task(pool, item_id)
-    return f"🗑️ Am anulat task-ul: *{escape_md(task['title'])}*"
+    try:
+        await pool.execute("DELETE FROM tasks WHERE id = $1", item_id)
+        return f"🗑️ Am anulat task-ul: *{escape_md(row['title'])}*\\.", None, None
+    except Exception:
+        return "Task-ul a fost deja șters sau nu există.", None, None

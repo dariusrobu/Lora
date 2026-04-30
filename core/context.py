@@ -61,7 +61,7 @@ async def build_context(pool, current_message: str = None) -> str:
         ):
             hint_category = "health"
 
-        t_memory = get_context_memory(pool, current_message, hint_category)
+        t_memory = get_context_memory(pool, TELEGRAM_USER_ID, current_message, hint_category)
     else:
 
         async def empty_str():
@@ -230,6 +230,8 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
     from db.queries.events import list_events
     from db.queries.health import get_health_log
     from db.queries.profile import get_user_profile
+    from db.queries.university import get_upcoming_exams
+    from core.council import get_summary as get_council_summary
 
     # 1. Gather all raw data in parallel
     results = await asyncio.gather(
@@ -243,11 +245,14 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
         get_health_log(pool, today),
         get_user_profile(pool, TELEGRAM_USER_ID),
         get_current_week_type(pool),
+        get_upcoming_exams(pool, days=7),
+        get_council_summary(),
     )
 
     (
         tasks, skills, finance_summary, budget_status, 
-        weather, schedule, events, health, profile, week_type
+        weather, schedule, events, health, profile, week_type,
+        exams, council_summary
     ) = results
 
     # 2. Process tasks
@@ -306,7 +311,9 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
         "health_status": {
             "sleep": health.get("sleep_hours") if health else None,
             "water": health.get("water_ml") if health else None
-        }
+        },
+        "upcoming_exams": [{"subject": e["subject_name"], "date": str(e["exam_date"]), "type": e["exam_type"]} for e in exams],
+        "council_updates": council_summary
     }
 
 

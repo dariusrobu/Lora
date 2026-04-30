@@ -143,10 +143,10 @@ async def handle_nutrition_intent(
                 {
                     "name": item.get("name", "Unknown"),
                     "quantity_g": float(item.get("quantity_g", 0)),
-                    "calories": 0,
-                    "protein": 0,
-                    "carbs": 0,
-                    "fat": 0,
+                    "calories": float(item.get("calories", 0)),
+                    "protein": float(item.get("protein", 0)),
+                    "carbs": float(item.get("carbs", 0)),
+                    "fat": float(item.get("fat", 0)),
                 }
             )
 
@@ -197,11 +197,22 @@ async def handle_nutrition_intent(
     elif intent == "nutrition_summary":
         day_totals = await nutrition_queries.get_daily_totals(pool, date.today())
         targets = await nutrition_queries.get_nutrition_targets(pool)
+        meals = await nutrition_queries.get_daily_meals(pool, date.today())
 
         if day_totals["calories"] == 0:
-            return safe_markdown("Nu ai logat nicio masa azi. 🍎"), None
+            return safe_markdown("Nu ai logat nicio masă azi. 🍎"), None
 
-        lines = ["🍽 *Nutritie Azi*\n"]
+        lines = ["🍽 *Nutriție Azi*\n"]
+        
+        # Add list of meals
+        for m in meals:
+            desc = m.get("description", "Masă")
+            # Truncate long descriptions
+            if len(desc) > 40:
+                desc = desc[:37] + "..."
+            lines.append(f"• `{int(m['total_calories'])} kcal` — {desc}")
+        
+        lines.append("")
         lines.append(
             f"🔥 Calorii: *{int(day_totals['calories'])}* / {targets['calories']} kcal"
         )
@@ -214,11 +225,17 @@ async def handle_nutrition_intent(
         cal_pct = min(int((day_totals["calories"] / targets["calories"]) * 100), 100)
         prot_pct = min(int((day_totals["protein"] / targets["protein_g"]) * 100), 100)
 
-        cal_bar = "█" * (cal_pct // 10) + "░" * (10 - cal_pct // 10)
-        prot_bar = "█" * (prot_pct // 10) + "░" * (10 - prot_pct // 10)
+        cal_bar = "█" * (cal_pct // 10) + "░" * (10 - (cal_pct // 10))
+        prot_bar = "█" * (prot_pct // 10) + "░" * (10 - (prot_pct // 10))
 
-        lines.insert(2, f"🔥 `{cal_bar}` {cal_pct}%")
-        lines.insert(5, f"💪 `{prot_bar}` {prot_pct}%")
+        # Insert bars after total lines
+        # Total calories is at lines index (len(meals) + 2)
+        idx_cal = len(meals) + 2
+        lines.insert(idx_cal + 1, f"🔥 `{cal_bar}` {cal_pct}%")
+        
+        # Protein is 2 lines after calorie bar
+        idx_prot = idx_cal + 3
+        lines.insert(idx_prot + 1, f"💪 `{prot_bar}` {prot_pct}%")
 
         return safe_markdown("\n".join(lines)), None, None
 

@@ -42,11 +42,23 @@ async def handle_finance_intent(
         res_text, res_markup = await _set_budget(pool, data)
         return res_text, res_markup, None
 
-    return (
-        escape_md("Nu sunt sigură cum să procesez această cerere pentru finanțe. 💸"),
-        None,
-        None,
-    )
+    elif intent == "finance_undo":
+        # item_id might come from data if we are being specific, or we can try to get it from state
+        from db.queries.finance import get_last_transaction_id
+        last_id = data.get("item_id") or data.get("id") or await get_last_transaction_id(pool)
+        if last_id:
+            return await undo_last_action(pool, int(last_id))
+        return "Nu am găsit nicio tranzacție recentă de anulat.", None, None
+
+    elif intent == "delete_finance" or intent == "delete_transaction":
+        tx_id = data.get("id") or data.get("item_id")
+        if not tx_id:
+            return "Te rog să specifici ID-ul tranzacției de șters.", None, None
+        from db.queries.finance import delete_transaction
+        success = await delete_transaction(pool, int(tx_id))
+        if success:
+            return f"✅ Tranzacția cu ID {tx_id} a fost ștearsă.", None, tx_id
+        return f"❌ Nu am găsit tranzacția cu ID {tx_id}.", None, None
 
 
 async def _handle_log_expense(
@@ -78,7 +90,7 @@ async def _list_categories(pool) -> Tuple[str, Any]:
     """Lists all finance categories."""
     categories = await finance_queries.list_categories(pool)
     if not categories:
-        return "Nu ai nicio categorie. 💸", None
+        return "Nu ai nicio categorie. 💸", None, None
 
     lines = ["📁 *Categorii de cheltuieli:*\n"]
     for cat in categories:
@@ -111,7 +123,7 @@ async def _add_category(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
     keywords = data.get("keywords", [])
 
     if not name:
-        return "Ce nume pentru categorie?", None
+        return "Ce nume pentru categorie?", None, None
 
     try:
         await finance_queries.add_category(pool, name, icon, keywords)
@@ -124,7 +136,7 @@ async def _delete_category(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
     """Deletes a finance category."""
     name = data.get("name")
     if not name:
-        return "Ce categorie să șterg?", None
+        return "Ce categorie să șterg?", None, None
 
     success = await finance_queries.delete_category(pool, name)
     if success:
@@ -146,7 +158,7 @@ async def _set_budget(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
     try:
         limit = float(limit)
     except (ValueError, TypeError):
-        return "Suma trebuie să fie un număr.", None
+        return "Suma trebuie să fie un număr.", None, None
 
     from db.queries.finance import set_budget_limit
 
@@ -339,9 +351,12 @@ async def undo_last_action(pool, item_id: int) -> str:
             "SELECT amount, category, description FROM finances WHERE id = $1", item_id
         )
         if not row:
-            return "Tranzacția a fost deja ștearsă sau nu există."
+            return "Nu am ce să anulez.", None, None
 
-        await conn.execute("DELETE FROM finances WHERE id = $1", item_id)
-
-        desc = f" ({row['description']})" if row["description"] else ""
-        return f"🗑️ Am anulat tranzacția: *{row['amount']} RON* la *{row['category']}*{escape_md(desc)}\\."
+    try:
+        await pool.execute("DELETE FROM finances WHERE id = $1", item_id)
+        desc = f" ({row['description']})" if row.get("description") else ""
+        return f"🗑️ Am anulat tranzacția: *{row['amount']} RON* la *{row['category']}*{escape_md(desc)}\\.", None, None
+    except Exception as e:
+        print(f"DEBUG: Undo finance failed: {e}")
+        return "Tranzacția a fost deja ștearsă sau nu există.", None, None

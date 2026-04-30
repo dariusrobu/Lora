@@ -129,10 +129,16 @@ def check_pid_lock():
     if os.path.exists(PID_FILE):
         try:
             with open(PID_FILE) as f:
-                existing_pid = int(f.read().strip())
+                content = f.read().strip()
+                if not content:
+                    existing_pid = -1
+                else:
+                    existing_pid = int(content)
+            
             if existing_pid == os.getpid():
-                print("PID matches current process (likely restarted via execl).")
-            else:
+                return
+            
+            try:
                 # Signal 0 checks if the process is alive without killing it
                 os.kill(existing_pid, 0)
                 # Process is alive — another instance is running, abort
@@ -140,19 +146,17 @@ def check_pid_lock():
                     f"FATAL: Another Lora instance is already running (PID {existing_pid}). Exiting."
                 )
                 sys.exit(1)
-        except (ProcessLookupError, ValueError):
-            # Process not found or PID file corrupt — safe to continue
-            print(
-                f"Removed stale PID file (process {existing_pid if 'existing_pid' in dir() else '?'} is gone)."
-            )
-            os.remove(PID_FILE)
+            except ProcessLookupError:
+                pass
+        except (ValueError, Exception):
+            pass
 
     with open(PID_FILE, "w") as f:
         f.write(str(os.getpid()))
 
 
-# Prevent multiple bot instances from running
-check_pid_lock()
+
+# 10. Start the bot
 
 
 async def start_bot():
@@ -288,7 +292,7 @@ async def start_bot():
     app.router.add_get("/calendar/{token}", handle_calendar_request)
     setup_api_routes(app)
 
-    port = int(os.getenv("HEALTH_CHECK_PORT", 8088))
+    port = int(os.environ.get("PORT", 8082))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
@@ -335,5 +339,8 @@ if __name__ == "__main__":
 
     sys.stdout.reconfigure(line_buffering=True)
     sys.stderr.reconfigure(line_buffering=True)
+
+    # Prevent multiple bot instances from running
+    # check_pid_lock()
 
     asyncio.run(start_bot())

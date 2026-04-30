@@ -1,6 +1,20 @@
+from typing import Optional, Dict, Any, Tuple
 import httpx
-from typing import Optional
 from core.config import OPENWEATHER_API_KEY, WEATHER_CITY
+
+
+async def handle_weather_intent(
+    pool, intent: str, data: Dict[str, Any]
+) -> Tuple[str, Any, Optional[int]]:
+    """Handler principal pentru modulul de vreme."""
+    if intent == "get_weather":
+        city = data.get("city", WEATHER_CITY)
+        reply = await get_weather_summary(city)
+        if not reply:
+            return "Nu am putut accesa datele meteo. Verifică API KEY-ul.", None, None
+        return reply, None, None
+
+    return "Modulul weather este pregătit!", None, None
 
 
 async def get_weather_summary(city: str = WEATHER_CITY) -> Optional[str]:

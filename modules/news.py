@@ -1,7 +1,19 @@
 import feedparser
 import httpx
 import asyncio
-from typing import List
+from typing import List, Optional, Dict, Any, Tuple
+
+
+async def handle_news_intent(
+    pool, intent: str, data: Dict[str, Any]
+) -> Tuple[str, Any, Optional[int]]:
+    """Handler principal pentru modulul de știri."""
+    if intent == "get_news":
+        limit = data.get("limit", 3)
+        reply = await fetch_tech_news(limit)
+        return reply, None, None
+
+    return "Modulul news este pregătit!", None, None
 
 RSS_FEEDS = {
     "tech": "https://feeds.feedburner.com/TechCrunch/",

@@ -11,7 +11,7 @@ async def extract_and_save_facts(
     """Analyzes the message exchange and extracts new facts to store in long-term memory."""
     try:
         # Get some context to avoid duplicates
-        existing_facts_text = await get_context_memory(pool, user_message)
+        existing_facts_text = await get_context_memory(pool, user_id, user_message)
 
         prompt = f"""
 Analyze the following exchange between a User and their AI Assistant (Lora).
@@ -79,7 +79,7 @@ Do NOT extract trivial strings like "User said hello".
 
 
 async def get_context_memory(
-    pool, current_message: str, category_hint: str = None
+    pool, user_id: int, current_message: str, category_hint: str = None
 ) -> str:
     """Retrieves relevant facts from long-term memory to include in the context.
 

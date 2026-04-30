@@ -1,10 +1,19 @@
-# modules/planner.py
-
-from typing import Tuple
+from typing import Tuple, Dict, Any, Optional
 from datetime import datetime
 import pytz
 from core.config import TIMEZONE
 from bot.formatter import safe_markdown
+
+
+async def handle_planner_intent(
+    pool, intent: str, data: Dict[str, Any]
+) -> Tuple[str, Any, Optional[int]]:
+    """Handler principal pentru modulul de planificare."""
+    if intent == "time_block":
+        reply, keyboard = await generate_time_block(pool)
+        return reply, keyboard, None
+
+    return "Modulul planner este pregătit!", None, None
 
 
 async def generate_time_block(pool) -> Tuple[str, None]:

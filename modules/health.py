@@ -26,7 +26,7 @@ async def handle_health_intent(
     elif intent == "log_water":
         water_ml = data.get("water_ml")
         if not water_ml:
-            return "Câți ml ai băut? 💧", None
+            return "Câți ml ai băut? 💧", None, None
 
         new_total = await health_queries.add_water(pool, today, water_ml)
         target = await _get_water_target(pool)
@@ -497,7 +497,10 @@ async def undo_last_action(pool, item_id: int) -> str:
             "SELECT log_date FROM health_logs WHERE id = $1", item_id
         )
         if not row:
-            return "Log-ul de sănătate a fost deja șters sau nu există."
+            return "Nu am ce să anulez.", None, None
 
-        await conn.execute("DELETE FROM health_logs WHERE id = $1", item_id)
-        return f"🗑️ Am anulat log-ul de sănătate din data de *{row['log_date']}*\\."
+    try:
+        await pool.execute("DELETE FROM health_logs WHERE id = $1", item_id)
+        return f"🗑️ Am anulat log-ul de sănătate din data de *{row['log_date']}*\\.", None, None
+    except Exception:
+        return "Log-ul de sănătate a fost deja șters sau nu există.", None, None

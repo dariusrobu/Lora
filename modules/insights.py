@@ -1,7 +1,16 @@
-# modules/insights.py
-
+from typing import Optional, Dict, Any, Tuple
 import asyncio
-from typing import Optional
+
+
+async def handle_insights_intent(
+    pool, intent: str, data: Dict[str, Any]
+) -> Tuple[str, Any, Optional[int]]:
+    """Handler principal pentru modulul de insights."""
+    if intent in ("get_insights", "ask_insights"):
+        reply = await generate_insights(pool)
+        return reply, None, None
+
+    return "Modulul insights este pregătit!", None, None
 
 
 async def get_recent_insight_types(pool, days=5) -> set:

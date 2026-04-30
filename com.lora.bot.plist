@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lora.bot</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/robudarius/Lora/venv/bin/python3</string>
+        <string>/Users/robudarius/Lora/main.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/robudarius/Lora</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/robudarius/Lora/bot_stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/robudarius/Lora/bot_stderr.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin</string>
+    </dict>
+</dict>
+</plist>

@@ -8,7 +8,12 @@ from google.genai import types
 from db.queries.tasks import list_tasks
 from db.queries.events import list_events
 from db.queries.health import get_health_log
-from db.queries.finance import get_daily_transactions
+from db.queries.finance import (
+    get_daily_transactions,
+    get_monthly_summary,
+    get_budget_status,
+    get_monthly_category_totals,
+)
 from db.queries.goals import get_all_goals
 from db.queries.schedule import get_today_schedule
 from db.queries.university import list_subjects
@@ -18,6 +23,7 @@ from db.queries.focus import get_weekly_focus_stats
 from db.queries.mood import get_monthly_mood_data
 from db.queries.projects import list_projects
 from db.queries.workout import get_recent_workouts
+from db.queries.skills import get_all_skills
 from core.config import TIMEZONE
 
 # Tools definition for Gemini
@@ -38,12 +44,30 @@ agent_tools = types.Tool(
             ),
         ),
         types.FunctionDeclaration(
-            name="tool_get_events_today",
-            description="Returns all events and calendar appointments scheduled for the current day.",
+            name="tool_get_events",
+            description="Returns all events and calendar appointments for a specific date (YYYY-MM-DD).",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "date": types.Schema(
+                        type=types.Type.STRING,
+                        description="Date in YYYY-MM-DD format (default is today)",
+                    )
+                },
+            ),
         ),
         types.FunctionDeclaration(
-            name="tool_get_health_today",
-            description="Returns the health metrics logged today (sleep, water, nutrition, weight).",
+            name="tool_get_health",
+            description="Returns health metrics (sleep, water, nutrition, weight) for a specific date.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "date": types.Schema(
+                        type=types.Type.STRING,
+                        description="Date in YYYY-MM-DD format (default is today)",
+                    )
+                },
+            ),
         ),
         types.FunctionDeclaration(
             name="tool_get_goals_progress",
@@ -51,11 +75,33 @@ agent_tools = types.Tool(
         ),
         types.FunctionDeclaration(
             name="tool_get_finance_summary",
-            description="Returns expenses and total spendings for today.",
+            description="Returns expenses and total spendings for a specific period (today or a specific month).",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "period": types.Schema(
+                        type=types.Type.STRING,
+                        description="Period to query: 'today' or 'current_month' (default is 'today')",
+                    )
+                },
+            ),
+        ),
+        types.FunctionDeclaration(
+            name="tool_get_budget_status",
+            description="Returns current month spending vs budget limits for all categories that have a limit set.",
         ),
         types.FunctionDeclaration(
             name="tool_get_university_schedule",
-            description="Returns the university schedule for today (classes, seminars).",
+            description="Returns the university schedule for a specific date (classes, seminars).",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "date": types.Schema(
+                        type=types.Type.STRING,
+                        description="Date in YYYY-MM-DD format (default is today)",
+                    )
+                },
+            ),
         ),
         types.FunctionDeclaration(
             name="tool_get_university_attendance",
@@ -112,11 +158,51 @@ agent_tools = types.Tool(
                 },
             ),
         ),
+        types.FunctionDeclaration(
+            name="tool_get_skills",
+            description="Returns all skills and habits with their current streaks and last log dates.",
+        ),
+        types.FunctionDeclaration(
+            name="tool_system_action",
+            description="Executes a modification action (write) in a specific module. Use this to add, update, delete, or log data (e.g. add_task, finance_log, meal_log, health_log).",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "module": types.Schema(
+                        type=types.Type.STRING,
+                        description="The target module (e.g. tasks, finance, health, university, workout)",
+                    ),
+                    "intent": types.Schema(
+                        type=types.Type.STRING,
+                        description="The specific intent (e.g. add_task, finance_log, workout_log)",
+                    ),
+                    "data": types.Schema(
+                        type=types.Type.OBJECT,
+                        description="The data payload for the intent (e.g. {'amount': 50, 'category': 'food'})",
+                    ),
+                },
+                required=["module", "intent", "data"],
+            ),
+        ),
+        types.FunctionDeclaration(
+            name="tool_undo",
+            description="Undoes the last action performed in a specific module. Use this when the user says 'nu asta', 'am greșit', 'anulează'.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "module": types.Schema(
+                        type=types.Type.STRING,
+                        description="The module to undo in (e.g. tasks, finance, health)",
+                    )
+                },
+                required=["module"],
+            ),
+        ),
     ]
 )
 
 
-async def _execute_tool(pool, call_name: str, args: Dict[str, Any]) -> str:
+async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) -> str:
     """Executes the mapped function and returns JSON string result."""
     from datetime import datetime
 
@@ -124,16 +210,38 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any]) -> str:
 
     try:
         if call_name == "tool_get_tasks":
-            # For simplicity, returning all pending tasks for agent string matching
-            tasks = await list_tasks(pool, status="pending")
+            project_name = args.get("project_name")
+            project_id = None
+            if project_name:
+                from db.queries.projects import get_project_by_name
+                proj = await get_project_by_name(pool, project_name)
+                if proj:
+                    project_id = proj["id"]
+            
+            tasks = await list_tasks(pool, status="pending", project_id=project_id)
             return json.dumps(tasks, default=str)
 
-        elif call_name == "tool_get_events_today":
-            events = await list_events(pool, today)
+        elif call_name == "tool_get_events":
+            target_date_str = args.get("date")
+            target_date = today
+            if target_date_str:
+                try:
+                    target_date = date.fromisoformat(target_date_str)
+                except ValueError:
+                    target_date = today
+            
+            events = await list_events(pool, target_date, target_date)
             return json.dumps(events, default=str)
 
-        elif call_name == "tool_get_health_today":
-            health = await get_health_log(pool, today)
+        elif call_name == "tool_get_health":
+            target_date_str = args.get("date")
+            target_date = today
+            if target_date_str:
+                try:
+                    target_date = date.fromisoformat(target_date_str)
+                except ValueError:
+                    target_date = today
+            health = await get_health_log(pool, target_date)
             return json.dumps(health, default=str) if health else "{}"
 
         elif call_name == "tool_get_goals_progress":
@@ -141,11 +249,30 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any]) -> str:
             return json.dumps(goals, default=str)
 
         elif call_name == "tool_get_finance_summary":
-            fin = await get_daily_transactions(pool, today)
-            return json.dumps(fin, default=str)
+            period = args.get("period", "today")
+            if period == "current_month":
+                summary = await get_monthly_summary(pool, today.month, today.year)
+                cat_totals = await get_monthly_category_totals(pool, today.month, today.year)
+                return json.dumps({"summary": summary, "category_totals": cat_totals}, default=str)
+            else:
+                fin = await get_daily_transactions(pool, today)
+                return json.dumps(fin, default=str)
+
+        elif call_name == "tool_get_budget_status":
+            status = await get_budget_status(pool)
+            return json.dumps(status, default=str)
 
         elif call_name == "tool_get_university_schedule":
-            sched = await get_today_schedule(pool)
+            target_date_str = args.get("date")
+            target_date = today
+            if target_date_str:
+                try:
+                    target_date = date.fromisoformat(target_date_str)
+                except ValueError:
+                    target_date = today
+            
+            from db.queries.schedule import get_schedule_for_date
+            sched = await get_schedule_for_date(pool, target_date)
             return json.dumps(sched, default=str)
 
         elif call_name == "tool_get_university_attendance":
@@ -183,12 +310,51 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any]) -> str:
             workouts = await get_recent_workouts(pool, days)
             return json.dumps(workouts, default=str)
 
+        elif call_name == "tool_get_skills":
+            skills = await get_all_skills(pool)
+            return json.dumps(skills, default=str)
+
+        elif call_name == "tool_system_action":
+            from core.dispatcher import execute_module_intent
+            module = args.get("module")
+            intent = args.get("intent")
+            data = args.get("data", {})
+            
+            # Execute via dispatcher
+            reply_text, markup, item_id = await execute_module_intent(
+                pool, module, intent, data, reply="", bot=bot
+            )
+            return json.dumps({
+                "confirmation": reply_text,
+                "item_id": item_id,
+                "status": "success"
+            }, default=str)
+
+        elif call_name == "tool_undo":
+            from core.state import get_state
+            state = await get_state(pool)
+            if not state or state["module"] != args.get("module"):
+                return json.dumps({"error": "Nu am găsit nicio acțiune recentă de anulat în acest modul."})
+            
+            module = state["module"]
+            last_id = state["item_id"]
+            
+            import importlib
+            try:
+                mod = importlib.import_module(f"modules.{module}")
+                if hasattr(mod, "undo_last_action"):
+                    res = await mod.undo_last_action(pool, last_id)
+                    return json.dumps({"confirmation": res if isinstance(res, str) else res[0]}, default=str)
+                return json.dumps({"error": f"Modulul {module} nu suportă anularea."})
+            except Exception as e:
+                return json.dumps({"error": f"Eroare la anulare: {str(e)}"})
+
         return json.dumps({"error": f"Unknown tool: {call_name}"})
     except Exception as e:
         return json.dumps({"error": str(e)})
 
 
-async def run_agent(pool, client, user_query: str, max_steps: int = 5) -> str:
+async def run_agent(pool, client, user_query: str, bot=None, max_steps: int = 10) -> str:
     """Runs a ReAct loop with Gemini, executing DB tools dynamically."""
 
     print(f"🤖 AGENTIC MODE TRIGGERED: '{user_query}'", flush=True)
@@ -196,13 +362,18 @@ async def run_agent(pool, client, user_query: str, max_steps: int = 5) -> str:
     date_str = date.today().strftime("%Y-%m-%d")
 
     system_instruction = f"""
-Ești Lora, într-un mod analitic (Agentic Mode).
+Ești Lora, într-un mod TOTAL AGENTIC.
 Data curentă: {date_str}.
-Trebuie să rezolvi o interogare complexă a utilizatorului.
-Ai acces la tools pentru a interoga baza de date (task-uri, evenimente, sănătate, obiective, finanțe).
-Folosește tools-urile pe rând dacă e nevoie de răspunsuri combinate.
-Când ai toate datele necesare, sintetizează un răspuns FINAL, util și clar în limba română folosind MarkdownV2.
-Nu menționa procesul tău intern ("Am folosit tool-ul x..."), dă-i direct soluția/analiza.
+Trebuie să gestionezi ORICE cerere a utilizatorului.
+Ai acces la tools pentru a INTEROGA (read) și pentru a EXECUTA ACȚIUNI (write/system_action) în baza de date.
+
+REGULI IMPORTANTE:
+1. Dacă utilizatorul vrea să STEARGĂ ceva (ex: "șterge tranzacția cu ID 10"), folosește `tool_system_action` cu module='finance', intent='delete_finance', data={{'id': 10}}.
+2. Dacă utilizatorul spune ce a mâncat, ESTIMEAZĂ TU caloriile/macro (P/C/F) și loghează-le folosind `tool_system_action` cu module='nutrition', intent='meal_log', data={{'calories': X, 'protein': Y, 'carbs': Z, 'fat': W, 'description': '...'}}.
+3. Poți face acțiuni multiple secvențial (ex: caută ID-urile, apoi șterge-le pe rând).
+4. Nu te limita la "undo" dacă ai ID-ul specific.
+5. Când ai terminat acțiunile, sintetizează un răspuns FINAL, cald și organizat în limba română (MarkdownV2).
+6. Nu menționa procesul tău intern, dă-i direct rezultatul final sau confirmarea.
 """
 
     contents = [
@@ -245,10 +416,10 @@ Nu menționa procesul tău intern ("Am folosit tool-ul x..."), dă-i direct solu
         # Execute tools and return FunctionResponses
         func_responses_parts = []
         for fc in function_calls:
-            print(f"   ⚙️ Agent calling tool: {fc.name}", flush=True)
             args = {k: v for k, v in fc.args.items()} if fc.args else {}
+            print(f"   ⚙️ Agent calling tool: {fc.name} with args: {args}", flush=True)
 
-            result_str = await _execute_tool(pool, fc.name, args)
+            result_str = await _execute_tool(pool, fc.name, args, bot=bot)
 
             # Format according to genai SDK requirements
             fr_part = types.Part.from_function_response(

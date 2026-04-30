@@ -206,3 +206,18 @@ async def set_budget_limit(pool, category: str, limit: float):
             category,
             limit,
         )
+
+
+async def get_last_transaction_id(pool) -> Optional[int]:
+    """Returns the ID of the most recently created transaction."""
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT id FROM finances ORDER BY created_at DESC LIMIT 1"
+        )
+
+
+async def delete_transaction(pool, tx_id: int) -> bool:
+    """Deletes a specific transaction by ID."""
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM finances WHERE id = $1", tx_id)
+        return result != "DELETE 0"

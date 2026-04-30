@@ -1,10 +1,10 @@
 from bot.callback_utils import make_callback_data
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from datetime import datetime, timedelta
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 import re
 import db.queries.events as event_queries
-from bot.formatter import escape_md
+from bot.formatter import escape_md, safe_markdown
 
 
 def parse_add_event_text(text: str) -> Dict[str, Any] | None:
@@ -104,6 +104,8 @@ def parse_reminder_text(text: str) -> Dict[str, Any] | None:
         date_str = today.strftime("%Y-%m-%d")
     elif "mâine" in text or "tomorrow" in text:
         date_str = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+    elif "poimâine" in text:
+        date_str = (today + timedelta(days=2)).strftime("%Y-%m-%d")
     elif "duminică" in text:
         # Find next Sunday
         days_until_sunday = (6 - today.weekday()) % 7
@@ -161,10 +163,12 @@ def parse_reminder_text(text: str) -> Dict[str, Any] | None:
     # Remove date/time patterns from title
     title = re.sub(r"\d{1,2}:\d{2}(?::\d{2})?", "", title).strip()
     title = re.sub(
-        r"(azi|mâine|duminică|luni|marți|miercuri|joi|vineri|sâmbătă)", "", title
+        r"(azi|astăzi|mâine|poimâine|duminică|luni|marți|miercuri|joi|vineri|sâmbătă)", "", title
     ).strip()
-    title = re.sub(r"\s+at\s+", " ", title).strip()
-    title = re.sub(r"\s+la\s+", " ", title).strip()
+    # Clean up common Romanian time prefixes
+    title = re.sub(r"\b(la ora|la|ora|at)\b", "", title, flags=re.IGNORECASE).strip()
+    # Normalize multiple spaces
+    title = re.sub(r"\s+", " ", title).strip()
 
     # Clean up: remove trailing "test reminder" or similar
     # and get the meaningful part
@@ -279,7 +283,7 @@ async def handle_event_intent(
             lines.append(
                 f"• *{escape_md(r['title'])}* — {format_date_short(r['event_date'])}{time_str}"
             )
-        return "\n".join(lines), None, None
+        return safe_markdown("\n".join(lines)), None, None
 
     elif intent in ("delete_event", "delete_reminder"):
         event_id = data.get("id") or data.get("event_id")

@@ -260,7 +260,29 @@ REGULI STRICTE:
 2. Răspunde ÎNTOTDEAUNA în limba română (sunt permiși termeni tech: task, meeting, gym).
 3. ZERO FILLER PHRASES: Interzis să folosești "Sigur!", "Cu plăcere!", "Bineînțeles!", "Desigur!", "Am notat că", "Iată".
 4. Confirmi scurt. Acțiuni simple (add_task, log_skill) = MAX 1 propoziție + emoji.
-5. Pentru `correct_last`, confirmă scurt că anulezi sau corectezi (ex: "Am anulat ultima acțiune. Ce facem în schimb?").
+5. Pentru `correct_last` sau când utilizatorul se corectează în același mesaj (ex: "X... de fapt Y"), folosește `tool_undo` pentru prima parte și apoi înregistrează noua valoare.
+6. DACĂ un mesaj conține atât o eroare cât și o corecție, Agentul trebuie să apeleze succesiv tool-urile necesare pentru a remedia situația fără a întreba din nou.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REGULI PENTRU MULTI-INTENT & DATA EXTRACTION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. DACĂ mesajul conține mai multe acțiuni (ex: "arată-mi X apoi adaugă Y"), extrage TOATE intențiile.
+2. FIECARE obiect de tip intent (atât cel principal cât și cele din `additional_intents`) TREBUIE să aibă câmpul `data` COMPLET POPULAT.
+3. ESTE INTERZIS să returnezi `data: {{}}` dacă în mesaj există informații relevante (titlu, sumă, dată, timp).
+4. REȚINE: Fiecare intent din listă este o acțiune de sine stătătoare. Extrage datele specifice pentru FIECARE.
+5. Exemplu: "arată-mi taskurile și adaugă reminder diseară la 21:00 să învăț"
+   - add_reminder: data={{"title": "să învăț", "event_time": "21:00", ...}}
+   - list_tasks: data={{}}
+6. Titlul unui reminder/task TREBUIE să fie scurt și să conțină DOAR acțiunea (ex: "să învăț", NU "reminder la ora 21:00 să învăț").
+7. DACĂ utilizatorul folosește cuvinte de legătură între intenții (apoi, după, la final), acestea NU trebuie să apară în `data`.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FINANCE DISAMBIGUATION — ATENȚIE SPORITĂ:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. NU interpreta NICIODATĂ orele (ex: "la 21:00", "ora 20") ca sume de bani (21 RON, 20 RON).
+2. Sumele de bani sunt de obicei marcate de monedă (lei, ron, euro) sau context clar de plată/cumpărare.
+3. Dacă un număr face parte dintr-o oră, acesta aparține unui reminder/eveniment, NU finanțelor.
+4. "Pizza de 60 RON" -> amount: 60. "La ora 21:00" -> NU este sumă.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 INSTRUCȚIUNI TEHNICE:
@@ -270,23 +292,11 @@ INSTRUCȚIUNI TEHNICE:
    - Dacă mesajul e ambiguu sau `confidence < 0.7`, setează `clarification_needed = true`.
    - Pune în `clarification_question` O SINGURĂ întrebare, directă, MAXIM 10 CUVINTE.
    - NU ghici niciodată sume, date, nume de proiecte sau categorii — mai bine întreabă.
-   - Exemple CORECTE de clarification_question:
-     * "Pe ce ai cheltuit banii?"
-     * "Care e titlul task-ului?"
-     * "La ce proiect îl adaugi?"
-     * "Ce sport ai practicat?"
-   - Exemple GREȘITE (prea lungi sau vagi):
-     * "Poți să îmi dai mai multe detalii despre ce ai cheltuit?" ❌
-     * "Am nevoie de informații suplimentare." ❌
-3. CLARIFICATION RESPONSE (HINT): Dacă hint-ul conține "răspunde la o întrebare de clarificare" și "Intent-ul anterior":
-   - Combină datele parțiale din hint cu răspunsul utilizatorului.
-   - Setează `confidence = 1.0` și `clarification_needed = false`.
-   - Returnează intent-ul complet și executabil.
-4. TIMP ȘI DATE: Tot ce ține de timp se formatează stric în ISO 8601 ("YYYY-MM-DD" sau "HH:MM"). "Azi" = {now.strftime("%Y-%m-%d")}, "mâine" = {tomorrow}.
-5. STT / VOCE: Conversațiile pot vin din Voice to Text și pot avea typo-uri majore ("adamga" = adaugă, "saldă" = sală). Extrage intenția corectă, trecând peste greșelile de tipar.
-6. MULTI-INTENT: Dacă mesajul conține MAI MULTE acțiuni distincte (ex: "adaugă task și loghează 50 lei pe mâncare"):
+3. TIMP ȘI DATE: Tot ce ține de timp se formatează stric în ISO 8601 ("YYYY-MM-DD" sau "HH:MM"). "Azi" = {now.strftime("%Y-%m-%d")}, "mâine" = {tomorrow}.
+4. MULTI-INTENT:
     - Intent-ul PRINCIPAL merge în câmpurile de bază (intent, module, data, reply).
     - Toate celelalte acțiuni merg în lista `additional_intents`.
+<<<<<<< HEAD
 7. TYPO TOLERANCE: Utilizatorul poate scrie în română cu diacritice lipsă, greșeli de tastare, sau prescurtări. Interpretează intenția, nu forma exactă.
    - Fiecare obiect din `additional_intents` are propriul intent, module, data, reply (confirmare scurtă).
    - `additional_intents` e null dacă mesajul conține O SINGURĂ acțiune.
@@ -302,6 +312,15 @@ INSTRUCȚIUNI TEHNICE:
 10. PROACTIVE MEMORY: Dacă există fapte relevante în secțiunea MEMORIE din context, menționează-le scurt în `reply` când e cazul (ex: "Data trecută ai menționat că...", "Știu că preferi..."). Fii natural, nu forța.
 11. MEMORY SEARCH: Dacă utilizatorul întreabă ce știi despre un anumit subiect (ex: "ce știi despre sănătatea mea?", "ce știi despre Ana?", "adu-mi aminte ce am discutat despre X"), returnează `intent="memory_search"` și `data={{"topic": "subiectul extras"}}`.
 12. ACTIVE HOURS: Dacă în CONTEXT CURENT sunt specificate "Ore active", ține cont de ele când sugerezi task-uri sau planifici ziua. Nu propune activități noi în afara acestui interval decât dacă utilizatorul cere explicit.
+=======
+    - DACĂ utilizatorul cere o listă (ex: "arată-mi taskurile") ȘI o acțiune de modificare (ex: "apoi adaugă un reminder"), acțiunea de modificare (add_reminder) este de obicei intent-ul PRINCIPAL.
+5. TYPO TOLERANCE: Interpretează intenția, nu forma exactă.
+6. ACTIVE MEMORY: Detectează informații noi despre utilizator și returnează-le în `memory_extracts`.
+7. PROACTIVE MEMORY: Dacă există fapte relevante în secțiunea MEMORIE, menționează-le scurt.
+8. MEMORY SEARCH: Dacă utilizatorul întreabă ce știi, returnează `intent="memory_search"`.
+9. BUDGET & FORECAST: Dacă utilizatorul cere analize, previziuni sau trenduri financiare (ex: "îmi ajung banii?", "cheltuiesc prea mult?"), folosește Agentic Mode (`needs_agent: true`).
+10. TOTAL AGENTIC MODE: Setează ÎNTOTDEAUNA `needs_agent: true` pentru absolut orice mesaj.
+>>>>>>> fd432ea (agentic Lora)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONTEXT:
@@ -371,7 +390,15 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - intent="edit_task" — "schimbă data la X", "pune prioritate mare la Y".
     - intent="add_project" — "creează proiectul X", "proiect nou: Y".
     - intent="list_projects" sau "view_projects" — "ce proiecte am", "vezi proiectele", "dashboard proiecte".
-15. Goals: module="goals":
+20. Finance: module="finance":
+    - intent="finance_log" — "am cheltuit X pe Y", "venit X din Z".
+      Data: {{"amount": float, "type": "expense|income", "category": string, "description": string}}
+    - intent="finance_summary" — "cum stau cu banii", "sumar finanțe", "bugetul meu". 
+      Returnează tranzacțiile de azi cu ID-uri.
+    - intent="delete_finance" — "șterge cheltuiala cu ID X", "șterge tranzacția X".
+      Data: {{"id": integer}}
+    - intent="finance_undo" — "șterge ultima tranzacție", "am greșit suma".
+21. Goals: module="goals":
     - intent="add_goal" — "vreau să îmi setez un goal", "adaugă obiectiv: X"
     - intent="update_goal" — "am progresat la goal-ul X", "actualizează goal-ul Y"
     - intent="complete_goal" — "am terminat goal-ul X", "marchează X ca completat"
@@ -425,11 +452,12 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - intent="uni_attendance_warning" pentru verificarea prezenței ("cum stau cu prezențele", "am probleme cu prezența").
 25. Nutrition: module="nutrition":
     - intent="meal_log" pentru logarea unei mese ("am mâncat la prânz 150g pui", "mic dejun: 3 ouă").
-        * REGULI EXTRA calorie/macro:
-        - Estimează calorii și macro-uri (P/C/F) pentru TOATE elementele menționate.
-        - Dacă lipsește cantitatea, folosește porții medii (ex: o felie pâine = 30g, un măr = 150g, o ciorbă = 350ml).
-        - Folosește specificul românesc pentru mâncăruri tradiționale (ciorbă, mămăligă, sarmale etc.).
-        - "description" va conține textul brut al utilizatorului.
+        * data={{ "meal_type": "mic_dejun|pranz|cina|gustare", "description": string, "calories": float, "protein": float, "carbs": float, "fat": float }}
+        * REGULI EXPERT NUTRIȚIE:
+        - Estimează calorii și macro-uri (P/C/F) cu precizie de expert (P: 4kcal/g, C: 4kcal/g, F: 9kcal/g).
+        - Dacă lipsește cantitatea, folosește porții medii standard.
+        - ÎNTOTDEAUNA calculează valorile pentru `calories`, `protein`, `carbs`, `fat`. NU returna null/zero.
+        - Mesajul `reply` trebuie să fie scurt și să includă totalul (ex: "Prânz înregistrat: 540 kcal, 45g P ✅").
     - intent="nutrition_summary" pentru sumarul zilei ("ce am mâncat azi", "nutriție azi", "macros azi").
     - intent="nutrition_target" pentru targeturi ("ce target am", "câte proteine trebuie").
 
@@ -476,6 +504,7 @@ EXEMPLE DE CLASIFICARE CORECTĂ (FEW-SHOT):
 
 *** ADD_TASK ***
 U: "adaugă task să trimit mailul la contabilitate azi"
+<<<<<<< HEAD
 A: intent="add_task", module="tasks", data={{ "title": "să trimit mailul la contabilitate", "due_date": "{now.strftime('%Y-%m-%d')}" }}, reply="Task adăugat ✅"
 U: "pune la proiectul Freelance task prioritate high rezolvă bug-ul de login"
 A: intent="add_task", module="tasks", data={{ "title": "rezolvă bug-ul de login", "project": "Freelance", "priority": "high" }}, reply="Bug-ul a fost adăugat la Freelance ✅"
@@ -491,13 +520,35 @@ U: "am dat 45 ron pe un uber"
 A: intent="finance_log", module="finance", data={{ "amount": 45, "type": "expense", "category": "transport", "description": "uber" }}, reply="💸 `45 RON` — transport înregistrat."
 U: "mi-a intrat salariul 6000 lei"
 A: intent="finance_log", module="finance", data={{ "amount": 6000, "type": "income", "category": "salariu" }}, reply="💰 `6000 RON` — salariu adăugat!"
+=======
+A: intent="add_task", module="tasks", data={{"title": "să trimit mailul la contabilitate", "due_date": "{now.strftime('%Y-%m-%d')}"}}, reply="Task adăugat ✅"
+U: "pune la proiectul Freelance task prioritate high rezolvă bug-ul de login"
+A: intent="add_task", module="tasks", data={{"title": "rezolvă bug-ul de login", "project": "Freelance", "priority": "high"}}, reply="Bug-ul a fost adăugat la Freelance ✅"
 
-*** FINANCE_SUMMARY ***
+*** COMPLETE_TASK ***
+U: "gata, am terminat task-ul cu raportul"
+A: intent="complete_task", module="tasks", data={{"title": "raportul"}}, reply="Excelent, raportul e bifat! ✅"
+U: "bifează antrenamentul de ieri"
+A: intent="complete_task", module="tasks", data={{"title": "antrenamentul de ieri"}}, reply="Bifat! 💪"
+
+*** FINANCE_LOG ***
+U: "am dat 45 ron pe un uber"
+A: intent="finance_log", module="finance", data={{"amount": 45, "type": "expense", "category": "transport", "description": "uber"}}, reply="💸 `45 RON` — transport înregistrat."
+U: "mi-a intrat salariul 6000 lei"
+A: intent="finance_log", module="finance", data={{"amount": 6000, "type": "income", "category": "salariu"}}, reply="💰 `6000 RON` — salariu adăugat!"
+>>>>>>> fd432ea (agentic Lora)
+
+*** FINANCE_SUMMARY / ANALIZĂ BUGET ***
+U: "mai am bani de o pizza de 60 lei?"
+A: intent="finance_summary", module="finance", data={{}}, reply="Verific bugetul pentru pizza. 🍕"
 U: "cum stau cu banii luna asta?"
 A: intent="finance_summary", module="finance", data={{}}, reply="Generez situația financiară..."
-U: "fă-mi un rezumat la cheltuieli"
-A: intent="finance_summary", module="finance", data={{}}, reply="Imediat, scot raportul."
+U: "crezi că îmi depășesc bugetul de mâncare săptămâna asta?"
+A: intent="finance_summary", module="finance", data={{}}, reply="Analizez cheltuielile și bugetul...", needs_agent=true
+U: "Amintește-mi ce am discutat despre șah și spune-mi progresul."
+A: intent="memory_search", module="memory", data={{"query": "sah"}}, reply="Caut în memorie discuțiile despre șah și verific progresul tău...", needs_agent=true
 
+<<<<<<< HEAD
 *** LOG_SKILL ***
 U: "am mai băgat 30 de minute de spaniolă"
 A: intent="log_skill", module="skills", data={{ "skill_name": "spaniolă", "value": 30 }}, reply="✅ 30 salvat pentru *spaniolă*."
@@ -527,6 +578,11 @@ U: "vreau să îmi setez obiectivul să termin licența anul ăsta"
 A: intent="add_goal", module="goals", data={{ "title": "să termin licența anul ăsta", "category": "Academice" }}, reply="Obiectiv adăugat. Hai să-l spargem în sub-tasks! 🎯"
 U: "adaugă goal nou: slăbesc 5 kg"
 A: intent="add_goal", module="goals", data={{ "title": "slăbesc 5 kg", "category": "Sănătate" }}, reply="Obiectiv înregistrat cu succes! 🎯"
+=======
+*** COMPLEX CHAIN (TASK + REMINDER + FINANCE) ***
+U: "arată task-urile la Licență, apoi adaugă reminder la 21:00 să învăț și zi-mi dacă am bani de pizza de 50 lei"
+A: intent="add_reminder", module="events", data={{"title": "să învăț", "event_time": "21:00", "date": "{now.strftime('%Y-%m-%d')}"}}, reply="Reminder setat pentru 21:00. 🔔", additional_intents=[{{"intent":"list_tasks", "module":"tasks", "data":{{"project":"Licență"}}, "reply":"Iată task-urile tale."}}, {{"intent":"finance_summary", "module":"finance", "data":{{}}, "reply":"Verific dacă ai bani de pizza."}}]
+>>>>>>> fd432ea (agentic Lora)
 """
 
     contents = []
@@ -580,6 +636,7 @@ A: intent="add_goal", module="goals", data={{ "title": "slăbesc 5 kg", "categor
         )
 
     try:
+<<<<<<< HEAD
         async def call_gen():
             return await asyncio.wait_for(
                 asyncio.to_thread(
@@ -591,6 +648,52 @@ A: intent="add_goal", module="goals", data={{ "title": "slăbesc 5 kg", "categor
                         response_mime_type="application/json",
                         temperature=0.3,
                         max_output_tokens=4000,
+=======
+        raw_text = None
+        for attempt in range(2):
+            try:
+                # Gemini 2.5 API does not support additionalProperties: false
+                # Manually defining schema to avoid Pydantic's recursive/complex schema issues
+                response_schema = {
+                    "type": "OBJECT",
+                    "properties": {
+                        "intent": {"type": "STRING"},
+                        "module": {"type": "STRING", "nullable": True},
+                        "data": {"type": "OBJECT"},
+                        "reply": {"type": "STRING"},
+                        "needs_confirmation": {"type": "BOOLEAN"},
+                        "needs_agent": {"type": "BOOLEAN"},
+                        "additional_intents": {
+                            "type": "ARRAY",
+                            "items": {
+                                "type": "OBJECT",
+                                "properties": {
+                                    "intent": {"type": "STRING"},
+                                    "module": {"type": "STRING", "nullable": True},
+                                    "data": {"type": "OBJECT"},
+                                    "reply": {"type": "STRING"}
+                                },
+                                "required": ["intent", "module", "data", "reply"]
+                            },
+                            "nullable": True
+                        }
+                    },
+                    "required": ["intent", "module", "data", "reply", "needs_confirmation", "needs_agent"]
+                }
+                
+                response = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        client.models.generate_content,
+                        model="gemini-2.5-flash",
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_prompt,
+                            response_mime_type="application/json",
+                            response_schema=response_schema,
+                            temperature=0.3,
+                            max_output_tokens=4000,
+                        ),
+>>>>>>> fd432ea (agentic Lora)
                     ),
                 ),
                 timeout=30.0,
@@ -620,9 +723,13 @@ A: intent="add_goal", module="goals", data={{ "title": "slăbesc 5 kg", "categor
         loop = asyncio.get_event_loop()
         loop.call_soon_threadsafe(
             asyncio.ensure_future,
+<<<<<<< HEAD
             extract_and_save_facts(
                 pool, client, user_id, user_message, parsed.get("reply", "")
             ),
+=======
+            extract_and_save_facts(pool, client, user_id, user_message, parsed.get("reply", "")),
+>>>>>>> fd432ea (agentic Lora)
         )
 
         return parsed

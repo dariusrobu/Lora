@@ -263,13 +263,18 @@ async def message_handler(
             low_text = low_text.replace("şt", "st")
             low_text = low_text.replace("ţ", "t")
 
-            # Handle duplicate text from STT (e.g., "text.text")
-            if low_text.count(".") > 1:
+            # Handle duplicate text from STT (e.g., "text. text")
+            if low_text.count(".") == 1:
                 parts = low_text.split(".")
-                # Keep first non-empty part
-                low_text = next((p.strip() for p in parts if p.strip()), parts[0])
-                # For STT consistency, we update text too if it was likely a duplicate voice result
-                text = low_text
+                if len(parts) == 2 and parts[0].strip() == parts[1].strip():
+                    low_text = parts[0].strip()
+                    text = low_text
+            elif low_text.count(".") > 1:
+                # Only truncate if first two parts are identical
+                parts = [p.strip() for p in low_text.split(".") if p.strip()]
+                if len(parts) >= 2 and parts[0] == parts[1]:
+                    low_text = parts[0]
+                    text = low_text
 
             if low_text != original_text.lower():
                 print(f"🔧 STT FIX: '{original_text}' -> '{low_text}'")
@@ -537,7 +542,7 @@ async def message_handler(
                 "data": {"_original_reply": "Generăm graficul tău... 📊"},
                 "reply": "Generăm graficul tău... 📊",
             }
-            final_reply, reply_markup = await route_intent(
+            final_reply, reply_markup, _ = await route_intent(
                 pool, intent_response, bot=context.bot
             )
             if final_reply:
@@ -606,7 +611,7 @@ async def message_handler(
                         "needs_confirmation": False,
                     }
                     await clear_state(pool)
-                    final_reply, reply_markup = await route_intent(
+                    final_reply, reply_markup, _ = await route_intent(
                         pool, intent_response, bot=context.bot
                     )
                     await update.message.reply_text(
@@ -686,6 +691,7 @@ async def message_handler(
 
                 intent_response = await get_gemini_response(
                     pool,
+                    telegram_id,
                     user_message=text,
                     user_name=profile.get("name", "User"),
                     tone=profile.get("tone", "warm"),
@@ -707,7 +713,7 @@ async def message_handler(
                     intent_response["clarification_needed"] = False
 
                 await clear_state(pool)
-                final_reply, reply_markup = await route_intent(
+                final_reply, reply_markup, _ = await route_intent(
                     pool, intent_response, bot=context.bot
                 )
                 await update.message.reply_text(
@@ -1207,7 +1213,7 @@ Returnează EXCLUSIV JSON valid:
                     "needs_agent": False,
                 }
                 await clear_state(pool)
-                final_reply, reply_markup = await route_intent(
+                final_reply, reply_markup, _ = await route_intent(
                     pool, intent_response, bot=context.bot
                 )
                 await update.message.reply_text(
@@ -1222,6 +1228,7 @@ Returnează EXCLUSIV JSON valid:
 
                 intent_response = await get_gemini_response(
                     pool,
+                    telegram_id,
                     user_message=edit_prompt,
                     user_name=profile.get("name", "User"),
                     tone=profile.get("tone", "warm"),
@@ -1232,7 +1239,7 @@ Returnează EXCLUSIV JSON valid:
                 )
 
                 await clear_state(pool)
-                final_reply, reply_markup = await route_intent(
+                final_reply, reply_markup, _ = await route_intent(
                     pool, intent_response, bot=context.bot
                 )
                 await update.message.reply_text(
@@ -1543,202 +1550,10 @@ Reguli:
                 # Fall through to Gemini if not returned by handlers
                 await clear_state(pool)
 
-        # 4. Try regex parser first for simple add_task / add_event patterns
+
+
         intent_response = None
         low_text = text.lower()
-
-        # Try task patterns
-        if any(
-            low_text.startswith(p) and "task" in low_text
-            for p in ["adaug", "add", "create"]
-        ):
-            from modules.tasks import parse_add_task_text
-
-            parsed = parse_add_task_text(text)
-            if parsed and parsed.get("title"):
-                intent_response = {
-                    "intent": "add_task",
-                    "module": "tasks",
-                    "data": parsed,
-                    "reply": "",
-                    "needs_confirmation": False,
-                }
-                print(f"🔧 TASK REGEX: {parsed}")
-
-        # Try event patterns
-        elif any(
-            (
-                low_text.startswith(p)
-                and ("event" in low_text or "eveniment" in low_text)
-            )
-            for p in ["adaug", "add", "create"]
-        ):
-            from modules.events import parse_add_event_text
-
-            parsed = parse_add_event_text(text)
-            if parsed and parsed.get("title"):
-                intent_response = {
-                    "intent": "add_event",
-                    "module": "events",
-                    "data": parsed,
-                    "reply": "",
-                    "needs_confirmation": False,
-                }
-                print(f"🔧 EVENT REGEX: {parsed}")
-
-        # Try habit shortcut patterns (bifat X, done X, check X)
-        elif any(
-            low_text.startswith(p)
-            for p in ["bifat ", "done ", "check ", "facut ", "făcut ", "gata "]
-        ):
-            from modules.skills import handle_skill_intent
-
-            habit_name = None
-            for prefix in [
-                "bifat ",
-                "bifat:",
-                "done ",
-                "done:",
-                "check ",
-                "check:",
-                "facut ",
-                "făcut ",
-                "gata ",
-            ]:
-                if low_text.startswith(prefix):
-                    habit_name = text[len(prefix) :].strip()
-                    break
-
-            if habit_name:
-                reply, _ = await handle_skill_intent(
-                    pool, "log_habit", {"name": habit_name, "value": 1}
-                )
-                await update.message.reply_text(reply, parse_mode="MarkdownV2")
-                return
-
-        # Try meal logging patterns
-        elif any(
-            w in low_text
-            for w in [
-                "mancat",
-                "mâncat",
-                "masa",
-                "mic dejun",
-                "pranz",
-                "prânz",
-                "cina",
-                "cină",
-                "gustare",
-                "snack",
-            ]
-        ):
-            from modules.nutrition import parse_meal_text
-
-            parsed = parse_meal_text(text)
-            if parsed and parsed.get("description"):
-                intent_response = {
-                    "intent": "meal_log",
-                    "module": "nutrition",
-                    "data": parsed,
-                    "reply": "",
-                    "needs_confirmation": False,
-                }
-                print(f"🔧 MEAL REGEX: {parsed}")
-
-        # Try reminder patterns (remintește-mi, uită-mă, etc.)
-        elif any(
-            w in low_text
-            for w in [
-                "remintește-mi",
-                "uită-mă",
-                "uitamă",
-                "amintește-mi",
-                "reapă-mă",
-                "reapămă",
-                "să mă reapă",
-                "setează reminder",
-                "adu-mi aminte",
-                "adumă aminte",
-                "aminteste-mi",
-            ]
-        ):
-            from modules.events import parse_reminder_text
-
-            parsed = parse_reminder_text(text)
-            if parsed and parsed.get("title"):
-                intent_response = {
-                    "intent": "add_reminder",
-                    "module": "events",
-                    "data": parsed,
-                    "reply": "",
-                    "needs_confirmation": False,
-                }
-                print(f"🔧 REMINDER REGEX: {parsed}")
-
-            # escape special markdown chars in reply to avoid BadRequest
-            # (moved to final handler)
-
-        # Try finance logging patterns
-        elif any(
-            w in low_text
-            for w in [
-                "ron",
-                "lei",
-                "cheltuit",
-                "am dat",
-                "platit",
-                "pe ",
-                "expense",
-                "ban",
-            ]
-        ):
-            import re
-
-            amount_match = re.search(r"(\d+(?:[.,]\d+)?)", text.replace(",", "."))
-            if amount_match:
-                amount = float(amount_match.group(1).replace(",", "."))
-
-                category = "altele"
-                if any(
-                    w in low_text
-                    for w in ["mancare", "mâncare", "restaurant", "pizza", "shaorma"]
-                ):
-                    category = "mâncare"
-                elif any(
-                    w in low_text for w in ["uber", "taxi", "benzin", "metrou", "bus"]
-                ):
-                    category = "transport"
-                elif any(
-                    w in low_text
-                    for w in ["chirie", "internet", "curent", "gaz", "utilitat"]
-                ):
-                    category = "utilități"
-                elif any(w in low_text for w in ["medicament", "doctor", "farmacie"]):
-                    category = "sănătate"
-                elif any(w in low_text for w in ["haine", "magazin", "amazon"]):
-                    category = "shopping"
-                elif any(w in low_text for w in ["cinema", "bar", "concert"]):
-                    category = "distracție"
-
-                tx_type = (
-                    "income"
-                    if any(w in low_text for w in ["venit", "salariu", "am primit"])
-                    else "expense"
-                )
-
-                intent_response = {
-                    "intent": "finance_log",
-                    "module": "finance",
-                    "data": {
-                        "amount": amount,
-                        "category": category,
-                        "type": tx_type,
-                        "description": text,
-                    },
-                    "reply": "",
-                    "needs_confirmation": False,
-                }
-                print(f"🔧 FINANCE REGEX: amount={amount}, category={category}")
 
         # 5. Fall back to Gemini if regex didn't match
         if not intent_response:
@@ -1771,7 +1586,11 @@ Reguli:
 
             intent_response = await get_gemini_response(
                 pool,
+<<<<<<< HEAD
                 user_id=telegram_id,
+=======
+                telegram_id,
+>>>>>>> fd432ea (agentic Lora)
                 user_message=text,
                 user_name=profile.get("name", "User"),
                 tone=profile.get("tone", "warm"),
@@ -1795,9 +1614,27 @@ Reguli:
         # Special handling for morning briefing - call directly with application
         if intent_response.get("intent") == "trigger_morning_briefing":
             from scheduler.jobs import send_morning_briefing
+<<<<<<< HEAD
 
             await update.message.reply_text(
                 escape_md("Pregătesc briefing-ul de dimineață. ☕"), parse_mode="MarkdownV2"
+=======
+            from core.config import TELEGRAM_USER_ID as TG_UID
+            import db.queries.profile as profile_queries
+            from datetime import date as _date
+
+            today = _date.today()
+            profile = await profile_queries.get_user_profile(pool, TG_UID)
+            if profile.get("last_briefing_date") == today:
+                await update.message.reply_text(
+                    safe_markdown("Deja ți-am trimis briefing-ul de dimineață. O zi productivă! ☀️"),
+                    parse_mode="MarkdownV2",
+                )
+                return
+
+            await update.message.reply_text(
+                safe_markdown("Pregătesc briefing-ul de dimineață. ☕"), parse_mode="MarkdownV2"
+>>>>>>> fd432ea (agentic Lora)
             )
             try:
                 await send_morning_briefing(context.application, pool, force=True)
@@ -1807,7 +1644,7 @@ Reguli:
                 print(f"ERROR in morning briefing: {e}", flush=True)
                 traceback.print_exc()
                 await update.message.reply_text(
-                    f"❌ Eroare la briefing: {str(e)[:200]}", parse_mode="MarkdownV2"
+                    safe_markdown(f"❌ Eroare la briefing: {str(e)[:200]}"), parse_mode="MarkdownV2"
                 )
             return
 
@@ -1854,7 +1691,7 @@ Reguli:
 
         # 7. Route intent and get final reply + keyboard
         intent_response["_user_message"] = text
-        final_reply, reply_markup = await route_intent(
+        final_reply, reply_markup, _ = await route_intent(
             pool, intent_response, bot=context.bot
         )
         print(f"📡 ROUTER: Reply length={len(final_reply) if final_reply else 0}")

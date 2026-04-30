@@ -1,11 +1,15 @@
 from typing import Dict, Any, Tuple, Optional
 import logging
+<<<<<<< HEAD
 import asyncpg
 from db.queries.log import log_execution
+=======
+>>>>>>> fd432ea (agentic Lora)
 from core.state import set_state
 
 logger = logging.getLogger("core.router")
 
+<<<<<<< HEAD
 
 async def check_module_health() -> Dict[str, str]:
     """
@@ -35,33 +39,58 @@ async def check_module_health() -> Dict[str, str]:
             
     return status
 
+=======
+>>>>>>> fd432ea (agentic Lora)
 async def route_intent(pool, intent_response: Any, bot=None):
     """
     Routes the Gemini intent(s) to the appropriate module(s).
-    Supports single dict or list of dicts.
-    Returns the reply text and an optional keyboard.
+    In FULL AGENTIC mode, we divert the original user message to the agent loop.
     """
-    if isinstance(intent_response, list):
-        replies = []
-        last_markup = None
-        for item in intent_response:
-            r, m = await _route_single_intent(pool, item, bot)
-            if r:
-                replies.append(r)
-            if m:
-                last_markup = m
-        return "\n\n".join(replies), last_markup
+    # Extract the original user message if available
+    user_message = ""
+    if isinstance(intent_response, list) and len(intent_response) > 0:
+        user_message = intent_response[0].get("_user_message", "")
+    elif isinstance(intent_response, dict):
+        user_message = intent_response.get("_user_message", "")
 
-    return await _route_single_intent(pool, intent_response, bot)
+    if not user_message:
+        # Fallback to normal routing if no user message (e.g. internal calls)
+        if isinstance(intent_response, list):
+            replies = []
+            last_markup = None
+            last_id = None
+            for item in intent_response:
+                r, m, i = await _route_single_intent_legacy(pool, item, bot)
+                if r:
+                    replies.append(r)
+                if m:
+                    last_markup = m
+                if i:
+                    last_id = i
+            return "\n\n".join(replies), last_markup, last_id
+        return await _route_single_intent_legacy(pool, intent_response, bot)
+
+    # FULL AGENTIC DIVERSION
+    from core.agent import run_agent
+    from core.gemini import client
+
+    print(f"🤖 FULL AGENTIC MODE: Diverting query -> {user_message}", flush=True)
+    agent_reply = await run_agent(pool, client, user_message, bot=bot)
+    if agent_reply is None:
+        return "Îmi pare rău, dar agentul meu a întâmpinat o eroare internă.", None, None
+    return agent_reply, None, None
 
 
-async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None):
+async def _route_single_intent_legacy(pool, intent_response: Dict[str, Any], bot=None):
+    """
+    Legacy router for cases where agent is not used or fallback is needed.
+    """
     module = intent_response.get("module")
     intent = intent_response.get("intent")
-    data = intent_response.get("data") or {}  # Guard: Gemini may return null for data
-    reply = intent_response.get("reply", "Hmm, I'm not sure how to respond to that.")
-    user_message = intent_response.get("_user_message", "")
+    data = intent_response.get("data") or {}
+    reply = intent_response.get("reply", "")
 
+<<<<<<< HEAD
     print(f"DEBUG ROUTER: module={module}, intent={intent}, data_type={type(data)}")
 
     # Inject original reply and user message so modules can use them
@@ -432,3 +461,10 @@ async def _handle_generic_module(pool, module, intent, data, reply):
         None,
         None,
     )
+=======
+    if not module:
+        return reply, None, None
+
+    from core.dispatcher import execute_module_intent
+    return await execute_module_intent(pool, module, intent, data, reply, bot)
+>>>>>>> fd432ea (agentic Lora)
