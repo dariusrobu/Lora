@@ -10,7 +10,7 @@ from bot.onboarding import (
     handle_onboarding,
 )
 from db.queries.profile import is_onboarding_complete, get_user_profile
-from bot.formatter import escape_md, safe_markdown
+from bot.formatter import escape_md, safe_markdown, split_message
 
 from core.context import build_context
 from core.gemini import get_gemini_response

@@ -291,7 +291,7 @@ async def start_bot():
     app.router.add_get("/calendar/{token}", handle_calendar_request)
     setup_api_routes(app)
 
-    port = int(os.environ.get("PORT", 8082))
+    port = int(os.environ.get("PORT", 8083))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
