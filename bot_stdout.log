@@ -28,3 +28,8 @@ DEBUG RAW TEXT: '{"intent": "memory_search", "module": "memory", "data": {}, "re
 📤 SENDING chunk 1/1: 'Din ceea ce știu, îți place cafeaua fără zahăr.'...
 2026-05-01 00:36:18,977 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/sendMessage "HTTP/1.1 200 OK"
 2026-05-01 00:36:24,766 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:36:34,903 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:36:45,043 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:36:55,087 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:37:05,134 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-01 00:37:15,176 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
