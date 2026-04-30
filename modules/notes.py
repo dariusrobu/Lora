@@ -1,4 +1,4 @@
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 import db.queries.notes as note_queries
 from bot.formatter import escape_md
 

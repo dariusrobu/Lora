@@ -58,7 +58,6 @@ async def handle_memory_callback(query, pool, data: str):
 
         elif data == "memory:view_back" or data == "chat:main":
             print(f"DEBUG: Processing {data}", flush=True)
-            from bot.handler import message_handler
             # Reset to main menu or previous view
             if data == "chat:main":
                 await query.edit_message_text(

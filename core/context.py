@@ -1,5 +1,6 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+from typing import Dict, Any
 import pytz
 from core.config import TIMEZONE
 import db.queries.tasks as task_queries
@@ -325,7 +326,6 @@ async def build_weekly_review_context(pool, start_date: date, end_date: date) ->
     from db.queries import finance as finance_queries
     from db.queries import workout as workout_queries
     from db.queries import skills as skill_queries
-    from db.queries import notes as note_queries
 
     results = await asyncio.gather(
         task_queries.get_weekly_task_stats(pool, start_date, end_date),

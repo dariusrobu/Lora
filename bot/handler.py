@@ -10,7 +10,7 @@ from bot.onboarding import (
     handle_onboarding,
 )
 from db.queries.profile import is_onboarding_complete, get_user_profile
-from bot.formatter import escape_md, safe_markdown, split_message
+from bot.formatter import escape_md, safe_markdown
 
 from core.context import build_context
 from core.gemini import get_gemini_response
@@ -1586,11 +1586,7 @@ Reguli:
 
             intent_response = await get_gemini_response(
                 pool,
-<<<<<<< HEAD
-                user_id=telegram_id,
-=======
                 telegram_id,
->>>>>>> fd432ea (agentic Lora)
                 user_message=text,
                 user_name=profile.get("name", "User"),
                 tone=profile.get("tone", "warm"),
@@ -1614,11 +1610,6 @@ Reguli:
         # Special handling for morning briefing - call directly with application
         if intent_response.get("intent") == "trigger_morning_briefing":
             from scheduler.jobs import send_morning_briefing
-<<<<<<< HEAD
-
-            await update.message.reply_text(
-                escape_md("Pregătesc briefing-ul de dimineață. ☕"), parse_mode="MarkdownV2"
-=======
             from core.config import TELEGRAM_USER_ID as TG_UID
             import db.queries.profile as profile_queries
             from datetime import date as _date
@@ -1634,7 +1625,6 @@ Reguli:
 
             await update.message.reply_text(
                 safe_markdown("Pregătesc briefing-ul de dimineață. ☕"), parse_mode="MarkdownV2"
->>>>>>> fd432ea (agentic Lora)
             )
             try:
                 await send_morning_briefing(context.application, pool, force=True)
@@ -2027,7 +2017,6 @@ async def show_uni_dashboard(message_or_query, pool, send_new: bool = False):
     from db.queries.schedule import get_current_week_type
     from db.queries.university import get_general_average, get_attendance_warnings
     from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-    from datetime import date
 
     week_type = await get_current_week_type(pool)
     week_label = "impară" if week_type == "odd" else "pară"
@@ -2716,7 +2705,7 @@ async def _save_prompt_to_conversation(pool, prompt: str) -> None:
 async def handle_eod_callback(query, pool, data):
     """Handles EOD interactive flow callbacks."""
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-    from bot.formatter import escape_md, safe_markdown
+    from bot.formatter import safe_markdown
     from core.state import set_state, clear_state
     
     parts = data.split(":")
@@ -2792,12 +2781,10 @@ async def generate_eod_summary(pool, mood, task_completion):
     from db.queries.tasks import get_completed_tasks_today
     from db.queries.finance import get_daily_transactions
     from db.queries import workout as workout_queries
-    from datetime import date
     
     today = date.today()
     
     # Gather data
-    import asyncio
     tasks = await get_completed_tasks_today(pool)
     finances = await get_daily_transactions(pool, today)
     workouts = await workout_queries.get_recent_workouts(pool, days=1)

@@ -1,9 +1,9 @@
 from bot.callback_utils import make_callback_data
+import json
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from core.icloud import (
     sync_events_table_to_calendar,
     sync_tasks_with_deadlines,
-    fetch_all_calendars_events,
 )
 from datetime import datetime, timedelta, date, time
 import pytz
@@ -23,9 +23,7 @@ import db.queries.tasks as task_queries
 import db.queries.skills as skill_queries
 import db.queries.events as event_queries
 import db.queries.finance as finance_queries
-import db.queries.notes as note_queries
 import db.queries.health as health_queries
-import db.queries.journal as journal_queries
 
 
 async def send_daily_report(application, pool):
@@ -389,7 +387,7 @@ async def check_contextual_nudges(application, pool):
             budgets = await finance_queries.get_budget_status(pool)
             for b in budgets:
                 if float(b["current_spent"]) > float(b["monthly_limit"]):
-                    msg = f"⚠️ Atenție: Ai depășit bugetul pentru {b['category']}\! (Limită: {b['monthly_limit']} RON)"
+                    msg = f"⚠️ Atenție: Ai depășit bugetul pentru {b['category']}\\! (Limită: {b['monthly_limit']} RON)"
                     await application.bot.send_message(chat_id=TELEGRAM_USER_ID, text=msg, parse_mode=ParseMode.MARKDOWN_V2)
                     await _mark_nudge_sent(pool, "budget_exceeded")
                     break
@@ -440,7 +438,7 @@ async def send_eod_reflection(application, pool, force=False):
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         message = (
-            f"🌙 *Bună seara, {escape_md(name)}\!* \n\n"
+            f"🌙 *Bună seara, {escape_md(name)}\\!* \n\n"
             "E timpul pentru o scurtă reflexie\\. *Cum a fost ziua ta azi?*"
         )
 
@@ -491,29 +489,11 @@ async def check_eod_timeout(application, pool):
             
             await application.bot.send_message(
                 chat_id=TELEGRAM_USER_ID,
-                text="Sesiunea de reflexie a expirat\\. O seară liniștită\! 🌙",
+                text="Sesiunea de reflexie a expirat\\. O seară liniștită\\! 🌙",
                 parse_mode=ParseMode.MARKDOWN_V2
             )
     except Exception as e:
         print(f"Error in check_eod_timeout: {e}", flush=True)
-
-        try:
-            from bot.tts import text_to_speech
-            import os
-
-            tts_text = f"Bună seara, {name}. {task_status}. Seară liniștită."
-            voice_file = await text_to_speech(tts_text)
-            with open(voice_file, "rb") as f:
-                await application.bot.send_voice(
-                    chat_id=TELEGRAM_USER_ID,
-                    voice=f,
-                    caption="🎙️ *Lora: Bună seara*",
-                    parse_mode=ParseMode.MARKDOWN_V2,
-                )
-            if os.path.exists(voice_file):
-                os.remove(voice_file)
-        except Exception as e:
-            print(f"EOD TTS failed: {e}", flush=True)
 
         await profile_queries.update_user_profile(
             pool, TELEGRAM_USER_ID, last_eod_date=today
@@ -778,105 +758,9 @@ async def send_weekly_review(application, pool, force=False):
         import traceback
         traceback.print_exc()
 
-        # 3.7 Health & Mood Correlations Data
-        health_week = await health_queries.get_health_history(pool, 7)
-        mood_week = await note_queries.get_weekly_mood_data(pool, start_date, end_date)
-        tasks_per_day = await task_queries.get_completed_tasks_per_day(
-            pool, start_date, end_date
-        )
+        pass
 
-        # Restore Formatting for Context
 
-        event_ctx = [e["title"] for e in events]
-
-        health_ctx = ""
-        if health_week:
-            health_lines = []
-            for h in health_week:
-                health_lines.append(
-                    f"{h['log_date']}: Sleep {h['sleep_hours']}h, Water {h['water_ml']}ml, Nutrition {h['nutrition']}"
-                )
-            health_ctx = "\n".join(health_lines)
-
-        mood_map = {"great": 5, "good": 4, "neutral": 3, "bad": 2, "terrible": 1}
-        mood_ctx = "\n".join(
-            [f"{m['date']}: {mood_map.get(m['mood'].lower(), 3)}" for m in mood_week]
-        )
-        tasks_ctx = "\n".join(
-            [f"{t['date']}: {t['count']} tasks" for t in tasks_per_day]
-        )
-
-        # Format journals for context
-        journal_moods = [j["mood"] for j in journals if j.get("mood")]
-
-        data_summary = f"""
-SĂPTĂMÂNA: {start_date} — {end_date}
-TASKS: {task_stats["completed"]} completate din {task_stats["added"]} adăugate săptămâna asta.
-FINANCE BREAKDOWN:
-{finance_ctx}
-MOOD SUMMARY: {mood_summary}
-PATTERNS: {patterns_section}
-EVENTS: {", ".join(event_ctx)}
-JOURNALS (MOODS): {", ".join(journal_moods)}
-NUTRITION STATS: {nutrition_ctx}
-
---- HEALTH CORRELATION DATA ---
-Date health săptămână:
-{health_ctx}
-Date mood săptămână:
-{mood_ctx}
-Tasks completate pe zi:
-{tasks_ctx}
-"""
-
-        # 4. Gemini Review Generation
-        from core.gemini import get_proactive_response
-
-        system_instruction = f"""
-Ești Lora, asistenta personală a lui {profile.get("name", "User")}. 
-Generează un weekly review structurat în română.
-Tone: reflectiv, direct, calm, fără hype. 
-Interzis: bravos, vibes, wins, achievements.
-
-Structură FIXĂ (MarkdownV2):
-📊 *Săptămâna {start_date.strftime("%d.%m")} — {end_date.strftime("%d.%m")}*
-
-✅ *Tasks*: {task_stats["completed"]} completate din {task_stats["added"]}
-
-💰 *Finanțe*
-{finance_ctx}
-
-{mood_summary}
-{patterns_section}
-
-📈 *Highlight*: [cel mai important lucru realizat — ales de tine din date]
-
-🔍 *Pattern observat*: [Dacă există corelații health semnificative conform instrucțiunilor de mai jos]
-
-INSTRUCȚIUNI PATTERN:
-Verifică corelații și adaugă secțiunea "🔍 *Pattern observat*" DOAR dacă:
-- somn mediu < 6.5h → menționează impactul pe tasks completate
-- zile cu apă < 1.5L → corelează cu mood dacă pattern clar
-- nutriție "bad"/"terrible" în 3+ zile → menționează
-- corelație somn-productivitate semnificativă (diferență > 30% tasks în zile bune vs proaste)
-
-Dacă nu există pattern semnificativ sau date health: OMITĂ complet secțiunea.
-MAX 2 propoziții, ton factual, fără laudă.
-
-Maxim 200 cuvinte.
-DOAR textul review-ului, fără introducere/concluzie extra.
-"""
-        review_text = await get_proactive_response(system_instruction, data_summary)
-
-        if not review_text:
-            review_text = f"📊 *Săptămâna {start_date} — {end_date}*\n\nReview-ul tău nu a putut fi generat, dar ai completat {task_stats['completed']} task-uri! 🚀"
-
-        # 5. Send Text Message
-        await application.bot.send_message(
-            chat_id=TELEGRAM_USER_ID,
-            text=safe_markdown(review_text),
-            parse_mode=ParseMode.MARKDOWN_V2,
-        )
 
         # 6. Send Voice Version (TTS)
         try:
@@ -885,7 +769,7 @@ DOAR textul review-ului, fără introducere/concluzie extra.
 
             # Clean text for TTS
             tts_clean = (
-                review_text.replace("*", "")
+                report_content.replace("*", "")
                 .replace("📊", "")
                 .replace("✅", "")
                 .replace("🔁", "")

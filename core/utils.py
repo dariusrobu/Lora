@@ -3,7 +3,7 @@ import asyncio
 import functools
 import logging
 import random
-from typing import Callable, Any
+from typing import Callable
 
 logger = logging.getLogger("core.utils")
 

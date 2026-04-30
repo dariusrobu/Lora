@@ -1,5 +1,4 @@
 from typing import List, Dict, Any
-import asyncpg
 
 async def save_feedback(pool, intent_used: str, user_correction: str):
     """Saves negative feedback to the database."""

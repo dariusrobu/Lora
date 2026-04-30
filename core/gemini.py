@@ -151,7 +151,8 @@ IntentResponse.model_rebuild()
 
 async def _log_api_downtime(pool, error_type: str, user_id: int = None):
     """Logs API downtime to execution_log."""
-    if not pool: return
+    if not pool:
+        return
     try:
         async with pool.acquire() as conn:
             await conn.execute(
@@ -171,14 +172,11 @@ async def _call_gemini_with_retry(pool, user_id, api_func, *args, **kwargs):
     for i in range(len(delays) + 1):
         try:
             # Execute the actual call
-            # Note: client calls are usually blocking, so we use to_thread inside the actual functions 
-            # OR we expect api_func to be a coroutine.
-            # In our case, we wrap the call to genai.Client
             response = await api_func(*args, **kwargs)
             
             recovery_prefix = ""
             if not _api_available:
-                recovery_prefix = "Sunt din nou online\! 🚀\\n\n"
+                recovery_prefix = "Sunt din nou online\\! 🚀\\n\n"
                 print("Gemini API recovered! 🚀")
             
             _api_available = True
@@ -203,7 +201,8 @@ async def _call_gemini_with_retry(pool, user_id, api_func, *args, **kwargs):
             if _failure_count >= 3:
                 _api_available = False
             
-            await _log_api_downtime(pool, "api_unavailable", user_id)
+            if pool:
+                await _log_api_downtime(pool, "api_unavailable", user_id)
             raise last_err
 
 async def get_gemini_response(
@@ -296,31 +295,13 @@ INSTRUCȚIUNI TEHNICE:
 4. MULTI-INTENT:
     - Intent-ul PRINCIPAL merge în câmpurile de bază (intent, module, data, reply).
     - Toate celelalte acțiuni merg în lista `additional_intents`.
-<<<<<<< HEAD
-7. TYPO TOLERANCE: Utilizatorul poate scrie în română cu diacritice lipsă, greșeli de tastare, sau prescurtări. Interpretează intenția, nu forma exactă.
-   - Fiecare obiect din `additional_intents` are propriul intent, module, data, reply (confirmare scurtă).
-   - `additional_intents` e null dacă mesajul conține O SINGURĂ acțiune.
-8. CORRECTION & UNDO (correct_last): Dacă user-ul indică o greșeală, vrea să anuleze ultima acțiune sau să o corecteze (ex: "nu 30, ci 50", "anulează", "nu asta"), returnează `intent="correct_last"`.
-   - Pune în `data["correction_text"]` mesajul utilizatorului.
-   - EXEMPLU — mesaj: "adaugă task revizuire cod și am dat 30 lei pe taxi":
-     * principal: intent="add_task", module="tasks", data={{"title":"revizuire cod"}}, reply="Task adăugat ✅"
-     * additional_intents: [{{"intent":"finance_log","module":"finance","data":{{"amount":30,"type":"expense","category":"transport","description":"taxi"}},"reply":"💸 30 RON taxi înregistrat.",...}}]
+7. TYPO TOLERANCE: Interpretează intenția, nu forma exactă. Utilizatorul poate scrie în română cu diacritice lipsă sau prescurtări.
+8. CORRECTION & UNDO (correct_last): Dacă user-ul indică o greșeală sau vrea să anuleze ultima acțiune, returnează `intent="correct_last"`.
 9. ACTIVE MEMORY: Detectează informații noi despre utilizator și returnează-le în `memory_extracts`.
-   - Ce extragi: preferințe ("îmi place pizza"), info personale ("numele câinelui meu e Rex"), pattern-uri ("merg la sală luni și joi"), decizii ("nu mai vreau remindere pentru cafea").
-   - Structură obiect: {{"fact": "descriere scurtă în română", "category": "preference|personal|pattern|decision", "confidence": 0.0-1.0}}.
-   - Setează `confidence > 0.8` doar dacă ești sigur. `expires_at` (ISO date) e opțional pentru info temporare.
-10. PROACTIVE MEMORY: Dacă există fapte relevante în secțiunea MEMORIE din context, menționează-le scurt în `reply` când e cazul (ex: "Data trecută ai menționat că...", "Știu că preferi..."). Fii natural, nu forța.
-11. MEMORY SEARCH: Dacă utilizatorul întreabă ce știi despre un anumit subiect (ex: "ce știi despre sănătatea mea?", "ce știi despre Ana?", "adu-mi aminte ce am discutat despre X"), returnează `intent="memory_search"` și `data={{"topic": "subiectul extras"}}`.
-12. ACTIVE HOURS: Dacă în CONTEXT CURENT sunt specificate "Ore active", ține cont de ele când sugerezi task-uri sau planifici ziua. Nu propune activități noi în afara acestui interval decât dacă utilizatorul cere explicit.
-=======
-    - DACĂ utilizatorul cere o listă (ex: "arată-mi taskurile") ȘI o acțiune de modificare (ex: "apoi adaugă un reminder"), acțiunea de modificare (add_reminder) este de obicei intent-ul PRINCIPAL.
-5. TYPO TOLERANCE: Interpretează intenția, nu forma exactă.
-6. ACTIVE MEMORY: Detectează informații noi despre utilizator și returnează-le în `memory_extracts`.
-7. PROACTIVE MEMORY: Dacă există fapte relevante în secțiunea MEMORIE, menționează-le scurt.
-8. MEMORY SEARCH: Dacă utilizatorul întreabă ce știi, returnează `intent="memory_search"`.
-9. BUDGET & FORECAST: Dacă utilizatorul cere analize, previziuni sau trenduri financiare (ex: "îmi ajung banii?", "cheltuiesc prea mult?"), folosește Agentic Mode (`needs_agent: true`).
-10. TOTAL AGENTIC MODE: Setează ÎNTOTDEAUNA `needs_agent: true` pentru absolut orice mesaj.
->>>>>>> fd432ea (agentic Lora)
+10. PROACTIVE MEMORY: Dacă există fapte relevante în secțiunea MEMORIE, menționează-le scurt.
+11. MEMORY SEARCH: Dacă utilizatorul întreabă ce știi, returnează `intent="memory_search"`.
+12. BUDGET & FORECAST: Dacă utilizatorul cere analize, previziuni sau trenduri financiare, folosește Agentic Mode (`needs_agent: true`).
+13. TOTAL AGENTIC MODE: Setează ÎNTOTDEAUNA `needs_agent: true` pentru absolut orice mesaj.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONTEXT:
@@ -504,7 +485,6 @@ EXEMPLE DE CLASIFICARE CORECTĂ (FEW-SHOT):
 
 *** ADD_TASK ***
 U: "adaugă task să trimit mailul la contabilitate azi"
-<<<<<<< HEAD
 A: intent="add_task", module="tasks", data={{ "title": "să trimit mailul la contabilitate", "due_date": "{now.strftime('%Y-%m-%d')}" }}, reply="Task adăugat ✅"
 U: "pune la proiectul Freelance task prioritate high rezolvă bug-ul de login"
 A: intent="add_task", module="tasks", data={{ "title": "rezolvă bug-ul de login", "project": "Freelance", "priority": "high" }}, reply="Bug-ul a fost adăugat la Freelance ✅"
@@ -520,23 +500,6 @@ U: "am dat 45 ron pe un uber"
 A: intent="finance_log", module="finance", data={{ "amount": 45, "type": "expense", "category": "transport", "description": "uber" }}, reply="💸 `45 RON` — transport înregistrat."
 U: "mi-a intrat salariul 6000 lei"
 A: intent="finance_log", module="finance", data={{ "amount": 6000, "type": "income", "category": "salariu" }}, reply="💰 `6000 RON` — salariu adăugat!"
-=======
-A: intent="add_task", module="tasks", data={{"title": "să trimit mailul la contabilitate", "due_date": "{now.strftime('%Y-%m-%d')}"}}, reply="Task adăugat ✅"
-U: "pune la proiectul Freelance task prioritate high rezolvă bug-ul de login"
-A: intent="add_task", module="tasks", data={{"title": "rezolvă bug-ul de login", "project": "Freelance", "priority": "high"}}, reply="Bug-ul a fost adăugat la Freelance ✅"
-
-*** COMPLETE_TASK ***
-U: "gata, am terminat task-ul cu raportul"
-A: intent="complete_task", module="tasks", data={{"title": "raportul"}}, reply="Excelent, raportul e bifat! ✅"
-U: "bifează antrenamentul de ieri"
-A: intent="complete_task", module="tasks", data={{"title": "antrenamentul de ieri"}}, reply="Bifat! 💪"
-
-*** FINANCE_LOG ***
-U: "am dat 45 ron pe un uber"
-A: intent="finance_log", module="finance", data={{"amount": 45, "type": "expense", "category": "transport", "description": "uber"}}, reply="💸 `45 RON` — transport înregistrat."
-U: "mi-a intrat salariul 6000 lei"
-A: intent="finance_log", module="finance", data={{"amount": 6000, "type": "income", "category": "salariu"}}, reply="💰 `6000 RON` — salariu adăugat!"
->>>>>>> fd432ea (agentic Lora)
 
 *** FINANCE_SUMMARY / ANALIZĂ BUGET ***
 U: "mai am bani de o pizza de 60 lei?"
@@ -548,41 +511,9 @@ A: intent="finance_summary", module="finance", data={{}}, reply="Analizez cheltu
 U: "Amintește-mi ce am discutat despre șah și spune-mi progresul."
 A: intent="memory_search", module="memory", data={{"query": "sah"}}, reply="Caut în memorie discuțiile despre șah și verific progresul tău...", needs_agent=true
 
-<<<<<<< HEAD
-*** LOG_SKILL ***
-U: "am mai băgat 30 de minute de spaniolă"
-A: intent="log_skill", module="skills", data={{ "skill_name": "spaniolă", "value": 30 }}, reply="✅ 30 salvat pentru *spaniolă*."
-U: "loghează o oră de citit"
-A: intent="log_skill", module="skills", data={{ "skill_name": "citit", "value": 60 }}, reply="✅ 60 salvat pentru *citit*."
-
-*** HEALTH_LOG ***
-U: "am dormit 8h aseară, super bine"
-A: intent="health_log", module="health", data={{ "sleep_hours": 8.0, "sleep_quality": "great" }}, reply="8h somn excelent salvate. 😴"
-U: "bagă 1 litru de apă și 79.5 kg pe cântar"
-A: intent="health_log", module="health", data={{ "water_ml": 1000, "weight_kg": 79.5 }}, reply="Apă și greutate actualizate. 💧⚖️"
-
-*** WORKOUT_LOG ***
-U: "am fost 1h la sală, push day"
-A: intent="workout_log", module="workout", data={{ "sport_name": "Gym", "duration_min": 60, "notes": "push day" }}, reply="Gym 60min salvat. 💪"
-U: "alergare 45 minute în parc"
-A: intent="workout_log", module="workout", data={{ "sport_name": "Alergare", "duration_min": 45 }}, reply="Alergare 45min notată. 🏃"
-
-*** UNI_LOG_ATTENDANCE ***
-U: "am fost la seminar la mate"
-A: intent="uni_log_attendance", module="university", data={{ "subject": "mate", "attended": True, "date": "{now.strftime('%Y-%m-%d')}" }}, reply="Mate — prezent ✅"
-U: "n-am mers azi la curs la baze de date"
-A: intent="uni_log_attendance", module="university", data={{ "subject": "baze de date", "attended": False, "date": "{now.strftime('%Y-%m-%d')}" }}, reply="Baze de date — absent ❌"
-
-*** ADD_GOAL ***
-U: "vreau să îmi setez obiectivul să termin licența anul ăsta"
-A: intent="add_goal", module="goals", data={{ "title": "să termin licența anul ăsta", "category": "Academice" }}, reply="Obiectiv adăugat. Hai să-l spargem în sub-tasks! 🎯"
-U: "adaugă goal nou: slăbesc 5 kg"
-A: intent="add_goal", module="goals", data={{ "title": "slăbesc 5 kg", "category": "Sănătate" }}, reply="Obiectiv înregistrat cu succes! 🎯"
-=======
 *** COMPLEX CHAIN (TASK + REMINDER + FINANCE) ***
 U: "arată task-urile la Licență, apoi adaugă reminder la 21:00 să învăț și zi-mi dacă am bani de pizza de 50 lei"
-A: intent="add_reminder", module="events", data={{"title": "să învăț", "event_time": "21:00", "date": "{now.strftime('%Y-%m-%d')}"}}, reply="Reminder setat pentru 21:00. 🔔", additional_intents=[{{"intent":"list_tasks", "module":"tasks", "data":{{"project":"Licență"}}, "reply":"Iată task-urile tale."}}, {{"intent":"finance_summary", "module":"finance", "data":{{}}, "reply":"Verific dacă ai bani de pizza."}}]
->>>>>>> fd432ea (agentic Lora)
+A: intent="add_reminder", module="events", data={{ "title": "să învăț", "event_time": "21:00", "date": "{now.strftime('%Y-%m-%d')}" }}, reply="Reminder setat pentru 21:00. 🔔", additional_intents=[{{ "intent":"list_tasks", "module":"tasks", "data":{{ "project":"Licență" }}, "reply":"Iată task-urile tale." }}, {{ "intent":"finance_summary", "module":"finance", "data":{{}}, "reply":"Verific dacă ai bani de pizza." }}]
 """
 
     contents = []
@@ -636,8 +567,50 @@ A: intent="add_reminder", module="events", data={{"title": "să învăț", "even
         )
 
     try:
-<<<<<<< HEAD
         async def call_gen():
+            response_schema = {
+                "type": "OBJECT",
+                "properties": {
+                    "intent": {"type": "STRING"},
+                    "module": {"type": "STRING", "nullable": True},
+                    "data": {"type": "OBJECT"},
+                    "reply": {"type": "STRING"},
+                    "needs_confirmation": {"type": "BOOLEAN"},
+                    "needs_agent": {"type": "BOOLEAN"},
+                    "confidence": {"type": "NUMBER"},
+                    "clarification_needed": {"type": "BOOLEAN"},
+                    "clarification_question": {"type": "STRING", "nullable": True},
+                    "memory_extracts": {
+                        "type": "ARRAY",
+                        "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "fact": {"type": "STRING"},
+                                "category": {"type": "STRING"},
+                                "confidence": {"type": "NUMBER"}
+                            },
+                            "required": ["fact", "category", "confidence"]
+                        },
+                        "nullable": True
+                    },
+                    "additional_intents": {
+                        "type": "ARRAY",
+                        "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "intent": {"type": "STRING"},
+                                "module": {"type": "STRING", "nullable": True},
+                                "data": {"type": "OBJECT"},
+                                "reply": {"type": "STRING"}
+                            },
+                            "required": ["intent", "module", "data", "reply"]
+                        },
+                        "nullable": True
+                    }
+                },
+                "required": ["intent", "module", "data", "reply", "needs_confirmation", "needs_agent", "confidence"]
+            }
+            
             return await asyncio.wait_for(
                 asyncio.to_thread(
                     client.models.generate_content,
@@ -646,54 +619,9 @@ A: intent="add_reminder", module="events", data={{"title": "să învăț", "even
                     config=types.GenerateContentConfig(
                         system_instruction=system_prompt,
                         response_mime_type="application/json",
+                        response_schema=response_schema,
                         temperature=0.3,
                         max_output_tokens=4000,
-=======
-        raw_text = None
-        for attempt in range(2):
-            try:
-                # Gemini 2.5 API does not support additionalProperties: false
-                # Manually defining schema to avoid Pydantic's recursive/complex schema issues
-                response_schema = {
-                    "type": "OBJECT",
-                    "properties": {
-                        "intent": {"type": "STRING"},
-                        "module": {"type": "STRING", "nullable": True},
-                        "data": {"type": "OBJECT"},
-                        "reply": {"type": "STRING"},
-                        "needs_confirmation": {"type": "BOOLEAN"},
-                        "needs_agent": {"type": "BOOLEAN"},
-                        "additional_intents": {
-                            "type": "ARRAY",
-                            "items": {
-                                "type": "OBJECT",
-                                "properties": {
-                                    "intent": {"type": "STRING"},
-                                    "module": {"type": "STRING", "nullable": True},
-                                    "data": {"type": "OBJECT"},
-                                    "reply": {"type": "STRING"}
-                                },
-                                "required": ["intent", "module", "data", "reply"]
-                            },
-                            "nullable": True
-                        }
-                    },
-                    "required": ["intent", "module", "data", "reply", "needs_confirmation", "needs_agent"]
-                }
-                
-                response = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        client.models.generate_content,
-                        model="gemini-2.5-flash",
-                        contents=contents,
-                        config=types.GenerateContentConfig(
-                            system_instruction=system_prompt,
-                            response_mime_type="application/json",
-                            response_schema=response_schema,
-                            temperature=0.3,
-                            max_output_tokens=4000,
-                        ),
->>>>>>> fd432ea (agentic Lora)
                     ),
                 ),
                 timeout=30.0,
@@ -720,17 +648,7 @@ A: intent="add_reminder", module="events", data={{"title": "să învăț", "even
             parsed["reply"] = recovery_prefix + parsed.get("reply", "")
 
         # Fire-and-forget: extract personal facts in background without blocking
-        loop = asyncio.get_event_loop()
-        loop.call_soon_threadsafe(
-            asyncio.ensure_future,
-<<<<<<< HEAD
-            extract_and_save_facts(
-                pool, client, user_id, user_message, parsed.get("reply", "")
-            ),
-=======
-            extract_and_save_facts(pool, client, user_id, user_message, parsed.get("reply", "")),
->>>>>>> fd432ea (agentic Lora)
-        )
+        asyncio.create_task(extract_and_save_facts(pool, client, user_id, user_message, parsed.get("reply", "")))
 
         return parsed
     except Exception as e:
@@ -791,7 +709,6 @@ FORMATARE:
         response, recovery_prefix = await _call_gemini_with_retry(None, None, call_gen)
         text = response.text.strip()
         if recovery_prefix:
-            from bot.formatter import safe_markdown
             return recovery_prefix + text
         return text
     except Exception as e:

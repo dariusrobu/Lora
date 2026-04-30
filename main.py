@@ -47,7 +47,6 @@ from modules.skills import skills_command
 from core.ical import generate_user_calendar
 from api.routes import setup_api_routes
 from core.stats import get_uptime, LAST_MESSAGE_AT
-from core.gemini import _api_available
 
 # 2. Setup Logging — rotating file (2 MB × 3) + stdout stream
 from logging.handlers import RotatingFileHandler

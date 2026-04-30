@@ -15,7 +15,6 @@ from db.queries.finance import (
     get_monthly_category_totals,
 )
 from db.queries.goals import get_all_goals
-from db.queries.schedule import get_today_schedule
 from db.queries.university import list_subjects
 from db.queries.notes import search_notes
 from db.queries.shopping import list_shopping_items

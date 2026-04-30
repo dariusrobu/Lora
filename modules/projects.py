@@ -1,4 +1,4 @@
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from datetime import date
 import db.queries.projects as project_queries
 from bot.formatter import escape_md

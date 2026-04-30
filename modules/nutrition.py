@@ -1,6 +1,6 @@
 # modules/nutrition.py
 
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from bot.formatter import safe_markdown
 from datetime import date
 import re
