@@ -85,7 +85,7 @@ async def handle_memory_callback(query, pool, data: str):
 
 async def handle_memory_intent(
     pool, intent: str, data: Dict[str, Any]
-) -> Tuple[str, Any]:
+) -> Tuple[str, Any, Optional[int]]:
     """Handles memory-related intents: viewing and deleting facts."""
 
     if intent == "memory_view":

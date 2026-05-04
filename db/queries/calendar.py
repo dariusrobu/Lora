@@ -2,15 +2,23 @@ from typing import Optional, Dict, Any
 
 
 async def get_sync_record(
-    pool, lora_type: str, lora_id: int
+    pool, lora_type: str, lora_id: int, ical_uid: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
     """Checks if a Lora item has already been synced to iCloud."""
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT * FROM calendar_sync WHERE lora_type = $1 AND lora_id = $2",
-            lora_type,
-            lora_id,
-        )
+        if ical_uid:
+            row = await conn.fetchrow(
+                "SELECT * FROM calendar_sync WHERE lora_type = $1 AND lora_id = $2 AND ical_uid = $3",
+                lora_type,
+                lora_id,
+                ical_uid,
+            )
+        else:
+            row = await conn.fetchrow(
+                "SELECT * FROM calendar_sync WHERE lora_type = $1 AND lora_id = $2",
+                lora_type,
+                lora_id,
+            )
         return dict(row) if row else None
 
 

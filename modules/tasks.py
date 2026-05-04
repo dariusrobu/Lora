@@ -2,6 +2,7 @@ from bot.callback_utils import make_callback_data
 from typing import Dict, Any, Tuple, Optional
 from datetime import datetime, date, timedelta
 import re
+import asyncio
 import db.queries.tasks as task_queries
 from bot.formatter import escape_md
 from core.council import get_decisions, send_feedback_to_cto
@@ -146,6 +147,13 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
             await task_queries.complete_task(pool, task_id)
             task_title = task["title"] if task else "Task"
             await query.answer(f"✅ Bifat: {task_title}")
+
+            # Immediate sync to Reminders
+            try:
+                from core.icloud import sync_tasks_to_reminders
+                asyncio.create_task(sync_tasks_to_reminders(pool))
+            except Exception as e:
+                print(f"Error triggering task sync: {e}")
 
             if is_list:
                 text, markup, _ = await handle_task_intent(pool, "list_tasks", {})
@@ -358,6 +366,13 @@ async def handle_task_intent(
             recurrence=data.get("recurrence"),
         )
 
+        # Immediate sync to Reminders
+        try:
+            from core.icloud import sync_tasks_to_reminders
+            asyncio.create_task(sync_tasks_to_reminders(pool))
+        except Exception as e:
+            print(f"Error triggering task sync: {e}")
+
         from bot.keyboards import task_keyboard
 
         reply_msg = f"Am adăugat ✅ *{escape_md(title)}*"
@@ -491,6 +506,14 @@ async def handle_task_intent(
             return "Ce task ai terminat? (Dă-mi un nume sau bifează-l din listă)", None, None
 
         await task_queries.complete_task(pool, task_id)
+        
+        # Immediate sync to Reminders
+        try:
+            from core.icloud import sync_tasks_to_reminders
+            asyncio.create_task(sync_tasks_to_reminders(pool))
+        except Exception as e:
+            print(f"Error triggering task sync: {e}")
+            
         task = await task_queries.get_task(pool, task_id)
         task_title = task["title"] if task else "Task necunoscut"
 
@@ -590,6 +613,14 @@ async def handle_task_intent(
             )
 
         await task_queries.update_task(pool, task_id, **upd)
+        
+        # Immediate sync to Reminders
+        try:
+            from core.icloud import sync_tasks_to_reminders
+            asyncio.create_task(sync_tasks_to_reminders(pool))
+        except Exception as e:
+            print(f"Error triggering task sync: {e}")
+            
         task = await task_queries.get_task(pool, task_id)
         from bot.keyboards import task_keyboard
 
@@ -715,7 +746,7 @@ async def get_tasks_dashboard(pool) -> Tuple[str, Any]:
 
     from bot.keyboards import tasks_main_keyboard
 
-    return "\n".join(lines), tasks_main_keyboard(), None
+    return "\n".join(lines), tasks_main_keyboard()
 
 
 async def get_projects_list_view(pool) -> Tuple[str, Any]:
@@ -743,7 +774,7 @@ async def get_project_tasks_view(pool, project_id: int) -> Tuple[str, Any]:
 
     project = await project_queries.get_project(pool, project_id)
     if not project:
-        return "Proiectul nu a fost găsit\\.", None, None
+        return "Proiectul nu a fost găsit\\.", None
 
     tasks = await task_queries.list_tasks(pool, project_id=project_id)
 

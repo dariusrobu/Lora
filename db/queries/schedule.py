@@ -6,50 +6,13 @@ import pytz
 
 async def get_current_week_type(pool) -> str:
     """Returnează 'odd' sau 'even' bazat pe săptămâna curentă din semestru.
-
-    Ține cont de vacanțe — zilele de vacanță nu sunt numărate în calculul săptămânii.
+    Garantează că paritatea se schimbă doar Lunea.
     """
-    async with pool.acquire() as conn:
-        config = await conn.fetchrow(
-            "SELECT semester_start FROM semester_config ORDER BY id DESC LIMIT 1"
-        )
-
-    if not config:
-        return "odd"
-
-    today = date.today()
-    semester_start = config["semester_start"]
-
-    if today < semester_start:
-        return "odd"
-
-    # Calculează zilele totale din semestru
-    total_days = (today - semester_start).days + 1
-
-    # Scade zilele de vacanță care au trecut
-    vacations = await get_all_vacations(pool)
-    vacation_days = 0
-    for v in vacations:
-        if v["end_date"] < semester_start:
-            continue
-        if v["start_date"] > today:
-            continue
-
-        # Perioada se suprapune cu semestru până azi
-        v_start = max(v["start_date"], semester_start)
-        v_end = min(v["end_date"], today)
-        if v_end >= v_start:
-            vacation_days += (v_end - v_start).days + 1
-
-    # Săptămâna efectivă de curs
-    effective_days = total_days - vacation_days
-    week_number = effective_days // 7 + 1
-
-    return "odd" if week_number % 2 == 1 else "even"
+    return await get_week_type_for_date(pool, date.today())
 
 
 async def get_week_type_for_date(pool, target_date: date) -> str:
-    """Helper to get odd/even week for any date."""
+    """Helper to get odd/even week for any date, aligned to Monday."""
     async with pool.acquire() as conn:
         config = await conn.fetchrow(
             "SELECT semester_start FROM semester_config ORDER BY id DESC LIMIT 1"
@@ -62,22 +25,41 @@ async def get_week_type_for_date(pool, target_date: date) -> str:
     if target_date < semester_start:
         return "odd"
 
-    total_days = (target_date - semester_start).days + 1
+    # Aliniem ambele date la Lunea săptămânii respective
+    sem_start_monday = semester_start - timedelta(days=semester_start.weekday())
+    target_monday = target_date - timedelta(days=target_date.weekday())
+
+    # Zile calendaristice între lunea de start și lunea țintă
+    total_days = (target_monday - sem_start_monday).days
+
+    # Calculăm zilele de vacanță (doar săptămânile întregi sau decalajele)
+    # Pentru simplitate și aliniere la calendar, numărăm câte zile de vacanță 
+    # au existat între luni_start și luni_țintă.
     vacations = await get_all_vacations(pool)
     vacation_days = 0
     for v in vacations:
-        if v["end_date"] < semester_start:
+        # Ignorăm vacanțele care s-au terminat înainte de startul semestrului
+        if v["end_date"] < sem_start_monday:
             continue
-        if v["start_date"] > target_date:
+        # Ignorăm vacanțele care încep după lunea țintă
+        if v["start_date"] >= target_monday:
             continue
-        v_start = max(v["start_date"], semester_start)
-        v_end = min(v["end_date"], target_date)
+
+        v_start = max(v["start_date"], sem_start_monday)
+        v_end = min(v["end_date"], target_monday - timedelta(days=1))
+        
         if v_end >= v_start:
+            # Adăugăm zilele de vacanță. 
+            # Dacă vacanța e o săptămână întreagă (7 zile), va reduce week_number cu 1.
             vacation_days += (v_end - v_start).days + 1
 
     effective_days = total_days - vacation_days
-    week_number = (effective_days - 1) // 7 + 1
+    # Deoarece ambele sunt luni, effective_days va fi mereu multiplu de 7 
+    # DACĂ vacanțele sunt de săptămâni întregi.
+    week_number = (effective_days // 7) + 1
+
     return "odd" if week_number % 2 == 1 else "even"
+
 
 
 async def get_today_schedule(pool) -> list:

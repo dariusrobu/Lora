@@ -587,7 +587,7 @@ Cerințe:
 Fișiere de modificat: `bot/handler.py`, `main.py`
 ```
 
----
+--- NU
 
 ### 7.4 — Formatare Consistentă MarkdownV2
 

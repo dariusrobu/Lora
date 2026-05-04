@@ -79,25 +79,9 @@ async def handle_university_intent(
         if not subject_name:
             return "La ce materie?", None
 
-        # Check if it's a "curs" (we only track seminars)
-        query_text = (data.get("raw_text") or "").lower()
-        if "curs" in query_text:
-            return (
-                "Lora trackează prezența *doar la seminare*\\. La cursuri nu este necesar\\. 📖",
-                None,
-            )
-
         subject = await uni_queries.get_subject_by_name(pool, subject_name)
         if not subject:
             return f"Materia *{escape_md(subject_name)}* nu e în listă\\.", None
-
-        # Verify subject has seminars in schedule
-        has_seminar = await uni_queries.check_subject_has_seminar(pool, subject["name"])
-        if not has_seminar:
-            return (
-                f"Materia *{escape_md(subject['name'])}* nu are seminare în orar, deci nu trackăm prezența\\. 📚",
-                None,
-            )
 
         if isinstance(class_date, str):
             from datetime import datetime
@@ -108,9 +92,10 @@ async def handle_university_intent(
 
         status = "prezent ✅" if attended else "absent ❌"
         return (
-            f"*{escape_md(subject['name'])}* \\(seminar\\) — {status} înregistrat\\.",
+            f"*{escape_md(subject['name'])}* — {status} înregistrat\\.",
             None,
         )
+
 
     elif intent == "uni_add_grade":
         subject_name = data.get("subject", "")

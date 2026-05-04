@@ -86,19 +86,25 @@ async def handle_calendar_intent(
     elif intent == "calendar_sync":
         # Manual sync trigger
         results = await asyncio.gather(
+            calendar_core.cleanup_calendar_orphans(pool),
             calendar_core.sync_university_schedule_to_calendar(pool),
             calendar_core.sync_events_table_to_calendar(pool),
             calendar_core.sync_tasks_with_deadlines(pool),
+            calendar_core.sync_exams_to_calendar(pool),
+            calendar_core.sync_from_icloud_to_lora(pool), # Bi-directional
         )
 
-        s_stats, e_stats, t_stats = results
-        total_created = s_stats["created"] + e_stats["created"] + t_stats["created"]
+        c_stats, s_stats, e_stats, t_stats, ex_stats, b_stats = results
+        total_created = s_stats["created"] + e_stats["created"] + t_stats["created"] + ex_stats["created"]
 
         msg = (
             f"🔄 *Sincronizare Apple Calendar completă*\n\n"
             f"• 🎓 Cursuri: {s_stats['created']} noi\n"
-            f"• 📅 Evenimente: {e_stats['created']} noi\n"
+            f"• 🎓 Examene: {ex_stats['created']} noi\n"
+            f"• 📅 Evenimente/Reminders: {e_stats['created']} noi\n"
             f"• 📋 Task\\-uri: {t_stats['created']} noi\n"
+            f"• 🧹 Curățate: {c_stats['deleted']} elemente șterse\n"
+            f"• 📥 Actualizate din iCloud: {b_stats['updated']} modificări preluate\n"
             f"\nTotal exportat: {total_created} elemente ✓"
         )
         return msg, None

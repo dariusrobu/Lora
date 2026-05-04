@@ -235,6 +235,13 @@ async def handle_event_intent(
             event_type="reminder" if is_reminder else "event",
         )
 
+        # Immediate sync to iCloud
+        try:
+            from core.icloud import sync_events_table_to_calendar
+            asyncio.create_task(sync_events_table_to_calendar(pool))
+        except Exception as e:
+            print(f"Error triggering immediate sync: {e}")
+
         time_msg = f" la {time_str}" if event_time else ""
         type_msg = "🔔 Reminder" if is_reminder else "📅 Eveniment"
         return (

@@ -40,11 +40,9 @@ from bot.handler import (
     tasks_command,
     projects_command,
     reading_command,
-    calendar_command,
     memory_command,
 )
 from modules.skills import skills_command
-from core.ical import generate_user_calendar
 from api.routes import setup_api_routes
 from core.stats import get_uptime, LAST_MESSAGE_AT
 
@@ -97,27 +95,7 @@ async def handle_health_check(request):
     return web.json_response(status_data)
 
 
-async def handle_calendar_request(request):
-    """HTTP endpoint to serve the .ics calendar."""
-    # Secure token comparison — never derived from the public bot ID
-    token = request.match_info.get("token")
-    if not token or token != CALENDAR_SECRET:
-        return web.Response(text="Unauthorized", status=403)
 
-    pool = request.app["pool"]
-    try:
-        ics_bytes = await generate_user_calendar(pool)
-        return web.Response(
-            body=ics_bytes,
-            content_type="text/calendar",
-            headers={"Content-Disposition": 'attachment; filename="lora_calendar.ics"'},
-        )
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        print(f"Error serving calendar: {e}")
-        return web.Response(text=f"Error generating calendar: {e}", status=500)
 
 
 PID_FILE = "lora.pid"
@@ -242,7 +220,6 @@ async def start_bot():
     voice_handler_with_pool = partial(voice_handler, pool=pool)
     photo_handler_with_pool = partial(photo_handler, pool=pool)
 
-    application.add_handler(CommandHandler("calendar", calendar_command))
     application.add_handler(
         CommandHandler("profile", partial(profile_handler, pool=pool))
     )
@@ -287,8 +264,7 @@ async def start_bot():
     # 6. Web Server for Health Check & Calendar (runs in background)
     app = web.Application()
     app["pool"] = pool
-    app.router.add_get("/", handle_health_check)
-    app.router.add_get("/calendar/{token}", handle_calendar_request)
+    app.router.add_get("/api/health", handle_health_check)
     setup_api_routes(app)
 
     port = int(os.environ.get("PORT", 8083))

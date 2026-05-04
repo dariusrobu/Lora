@@ -263,6 +263,19 @@ agent_tools = types.Tool(
                 required=["project_id", "summary"],
             ),
         ),
+        types.FunctionDeclaration(
+            name="tool_get_apple_calendar",
+            description="Fetches real-time events directly from all Apple Calendar (iCloud) calendars. Use this for the most up-to-date schedule.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "days_ahead": types.Schema(
+                        type=types.Type.INTEGER,
+                        description="Number of days to look ahead (default 1)",
+                    )
+                },
+            ),
+        ),
     ]
 )
 
@@ -295,7 +308,30 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
                 except ValueError:
                     target_date = today
             
-            events = await list_events(pool, target_date, target_date)
+            # Get from DB
+            db_events = await list_events(pool, target_date, target_date)
+            
+            # Also get from iCloud for real-time (optional, but good for "what events do I have" questions)
+            from core.icloud import fetch_all_calendars_events
+            days = (target_date - today).days
+            if days < 0: days = 0
+            icloud_events = await fetch_all_calendars_events(days_ahead=days+1)
+            
+            # Filter iCloud events for that specific day
+            icloud_today = [
+                e for e in icloud_events 
+                if e["start"].date() == target_date
+            ]
+            
+            return json.dumps({
+                "database_events": db_events,
+                "icloud_events": icloud_today
+            }, default=str)
+
+        elif call_name == "tool_get_apple_calendar":
+            days = args.get("days_ahead", 1)
+            from core.icloud import fetch_all_calendars_events
+            events = await fetch_all_calendars_events(days_ahead=days)
             return json.dumps(events, default=str)
 
         elif call_name == "tool_get_health":

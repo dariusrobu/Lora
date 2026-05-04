@@ -37,6 +37,7 @@ def preprocess_text(text: str) -> str:
         r"\bcheltuiala\b": "cheltuială",
         r"\bcat\b": "cât",
         r"\bsa\b": "să",
+        r"\bsutn\b": "sunt",
         r"\bsun\b": "sun",  # no change but for boundary testing
     }
 
@@ -302,6 +303,7 @@ INSTRUCȚIUNI TEHNICE:
 11. MEMORY SEARCH: Dacă utilizatorul întreabă ce știi, returnează `intent="memory_search"`.
 12. BUDGET & FORECAST: Dacă utilizatorul cere analize, previziuni sau trenduri financiare, folosește Agentic Mode (`needs_agent: true`).
 13. TOTAL AGENTIC MODE: Setează ÎNTOTDEAUNA `needs_agent: true` pentru absolut orice mesaj.
+14. QUESTIONS VS COMMANDS: Mesaje de tipul "care sunt...", "ce am...", "arată-mi..." sunt ÎNTREBĂRI, nu comenzi de adăugare. Folosește `tool_get_events`, `tool_get_tasks` etc. NU adăuga task-uri/note cu titlul întrebării.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONTEXT:
