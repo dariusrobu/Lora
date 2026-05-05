@@ -186,9 +186,25 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
             await task_queries.delete_task(pool, task_id)
             await query.answer("🗑️ Task șters.")
             await clear_state(pool)
+
+            from bot.keyboards import tasks_undo_delete_keyboard
+
+            await query.edit_message_text(
+                f"🗑️ Am șters task-ul: *{escape_md(task_title)}*",
+                parse_mode="MarkdownV2",
+                reply_markup=tasks_undo_delete_keyboard(task_id),
+            )
+
+        elif action == "undo_delete":
+            task_id = int(parts[2])
+            await task_queries.restore_task(pool, task_id)
+            task = await task_queries.get_task(pool, task_id)
+            task_title = task["title"] if task else "Task"
+            await query.answer("↩️ Task restaurat.")
+
             text, markup = await get_tasks_dashboard(pool)
             await query.edit_message_text(
-                f"🗑️ Task șters: *{escape_md(task_title)}*\n\n{text}",
+                f"↩️ Am restaurat task-ul: *{escape_md(task_title)}*\n\n{text}",
                 parse_mode="MarkdownV2",
                 reply_markup=markup,
             )

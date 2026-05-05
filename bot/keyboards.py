@@ -25,20 +25,45 @@ def task_keyboard(task_id: int) -> InlineKeyboardMarkup:
 def task_list_keyboard(
     tasks: list, back_callback: str = "tasks:main"
 ) -> InlineKeyboardMarkup:
-    # Multiple tasks, each with a 'Done' button
+    # Use a grid layout (2 buttons per row) for better aesthetics
     keyboard = []
-    for t in tasks:
-        # One row per task: [ Title (Done) ]
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    f"✅ {t['title'][:25]}",
-                    callback_data=make_callback_data(
-                        "tasks", "complete", t["id"], "list"
-                    ),
-                )
-            ]
+    
+    # Limit to top 10 tasks to avoid "button spam"
+    display_tasks = tasks[:10]
+    
+    for i in range(0, len(display_tasks), 2):
+        row = []
+        # First button in row
+        t1 = display_tasks[i]
+        label1 = f"✅ {t1['title'][:18]}.." if len(t1['title']) > 18 else f"✅ {t1['title']}"
+        row.append(
+            InlineKeyboardButton(
+                label1,
+                callback_data=make_callback_data("tasks", "complete", t1["id"], "list"),
+            )
         )
+        
+        # Second button in row (if exists)
+        if i + 1 < len(display_tasks):
+            t2 = display_tasks[i+1]
+            label2 = f"✅ {t2['title'][:18]}.." if len(t2['title']) > 18 else f"✅ {t2['title']}"
+            row.append(
+                InlineKeyboardButton(
+                    label2,
+                    callback_data=make_callback_data("tasks", "complete", t2["id"], "list"),
+                )
+            )
+        keyboard.append(row)
+
+    # Add a "View More in Dashboard" button if we truncated the list
+    if len(tasks) > 10:
+        keyboard.append([
+            InlineKeyboardButton(
+                "➕ Vezi toate (Dashboard)", 
+                web_app=WebAppInfo(url=os.getenv("DASHBOARD_URL", ""))
+            )
+        ])
+
     keyboard.append([InlineKeyboardButton("◀️ Înapoi", callback_data=back_callback)])
     return InlineKeyboardMarkup(keyboard)
 
@@ -127,6 +152,19 @@ def tasks_confirm_delete_keyboard(task_id: int) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(
                     "❌ Anulează", callback_data=make_callback_data("tasks", "cancel")
                 ),
+            ]
+        ]
+    )
+
+
+def tasks_undo_delete_keyboard(task_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "↩️ Undo (Anulează ștergerea)",
+                    callback_data=make_callback_data("tasks", "undo_delete", task_id),
+                )
             ]
         ]
     )
@@ -498,22 +536,20 @@ def goals_category_keyboard(context: str = "new") -> InlineKeyboardMarkup:
 
 def goals_list_keyboard(goals: list) -> InlineKeyboardMarkup:
     keyboard = []
-    for g in goals:
-        label = f"🎯 {g['title']} ({g.get('progress', 0)}%)"
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    label, callback_data=make_callback_data(f"goals_detail_{g['id']}")
-                )
-            ]
-        )
-    keyboard.append(
-        [
-            InlineKeyboardButton(
-                "◀️ Înapoi", callback_data=make_callback_data("goals_cancel")
-            )
-        ]
-    )
+    display_goals = goals[:10]
+    for i in range(0, len(display_goals), 2):
+        row = []
+        g1 = display_goals[i]
+        label1 = f"🎯 {g1['title'][:15]}.." if len(g1['title']) > 15 else f"🎯 {g1['title']}"
+        row.append(InlineKeyboardButton(label1, callback_data=make_callback_data(f"goals_detail_{g1['id']}")))
+        
+        if i + 1 < len(display_goals):
+            g2 = display_goals[i+1]
+            label2 = f"🎯 {g2['title'][:15]}.." if len(g2['title']) > 15 else f"🎯 {g2['title']}"
+            row.append(InlineKeyboardButton(label2, callback_data=make_callback_data(f"goals_detail_{g2['id']}")))
+        keyboard.append(row)
+    
+    keyboard.append([InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("goals_cancel"))])
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -637,31 +673,17 @@ def skills_list_keyboard(
     skills: list, action_prefix: str = "skills_detail_"
 ) -> InlineKeyboardMarkup:
     keyboard = []
-    for s in skills:
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    f"{s['name']}",
-                    callback_data=make_callback_data(f"{action_prefix}{s['id']}"),
-                )
-            ]
-        )
+    for i in range(0, len(skills), 2):
+        row = []
+        s1 = skills[i]
+        row.append(InlineKeyboardButton(s1['name'], callback_data=make_callback_data(f"{action_prefix}{s1['id']}")))
+        if i + 1 < len(skills):
+            s2 = skills[i+1]
+            row.append(InlineKeyboardButton(s2['name'], callback_data=make_callback_data(f"{action_prefix}{s2['id']}")))
+        keyboard.append(row)
 
-    keyboard.append(
-        [
-            InlineKeyboardButton(
-                "➕ Adaugă Skill Nou",
-                callback_data=make_callback_data("skills_add_new"),
-            )
-        ]
-    )
-    keyboard.append(
-        [
-            InlineKeyboardButton(
-                "◀️ Înapoi", callback_data=make_callback_data("skills_cancel")
-            )
-        ]
-    )
+    keyboard.append([InlineKeyboardButton("➕ Skill Nou", callback_data=make_callback_data("skills_add_new"))])
+    keyboard.append([InlineKeyboardButton("◀️ Înapoi", callback_data=make_callback_data("skills_cancel"))])
     return InlineKeyboardMarkup(keyboard)
 
 

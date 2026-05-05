@@ -60,10 +60,15 @@ async def get_tasks(request):
     try:
         pool = request.app["pool"]
         project_id = request.query.get("project_id")
+        status = request.query.get("status", "pending")
+        
+        if status == "all":
+            status = None
+            
         if project_id:
             project_id = int(project_id)
-
-        tasks = await task_queries.list_tasks(pool, project_id=project_id)
+            
+        tasks = await task_queries.list_tasks(pool, status=status, project_id=project_id)
         serialized_tasks = [serialize_dic(dict(t)) for t in tasks]
         return web.json_response(serialized_tasks)
     except Exception as e:

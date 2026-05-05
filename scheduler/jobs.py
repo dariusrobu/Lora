@@ -372,7 +372,7 @@ async def check_contextual_nudges(application, pool):
                 tomorrow = today + timedelta(days=1)
                 async with pool.acquire() as conn:
                     tasks = await conn.fetch(
-                        "SELECT title FROM tasks WHERE due_date = $1 AND status != 'done' LIMIT 3",
+                        "SELECT title FROM tasks WHERE due_date = $1 AND status != 'done' AND deleted_at IS NULL LIMIT 3",
                         tomorrow,
                     )
                     if tasks:
@@ -1417,7 +1417,7 @@ async def check_task_deadline_reminders(application, pool) -> None:
                 SELECT t.id, t.title, t.due_date, t.priority, p.name as project_name
                 FROM tasks t
                 LEFT JOIN projects p ON t.project_id = p.id
-                WHERE t.status = 'pending'
+                WHERE t.status = 'pending' AND t.deleted_at IS NULL
                   AND t.due_date IS NOT NULL
                   AND t.due_date <= CURRENT_DATE + INTERVAL '1 day'
                 ORDER BY 

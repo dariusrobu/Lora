@@ -134,7 +134,7 @@ async def generate_suggestions(pool, user_id: int) -> List[str]:
 
         # Check upcoming tasks
         upcoming_tasks = await conn.fetch(
-            "SELECT title, due_date FROM tasks WHERE user_id = $1 AND status = 'pending' AND due_date = CURRENT_DATE + INTERVAL '1 day' LIMIT 1",
+            "SELECT title, due_date FROM tasks WHERE user_id = $1 AND status = 'pending' AND due_date = CURRENT_DATE + INTERVAL '1 day' AND deleted_at IS NULL LIMIT 1",
             user_id,
         )
         for task in upcoming_tasks:

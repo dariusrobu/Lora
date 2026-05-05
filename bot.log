@@ -21333,3 +21333,907 @@ telegram.error.Conflict: Conflict: terminated by other getUpdates request; make 
 2026-05-05 23:04:31,218 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
 2026-05-05 23:04:41,353 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
 2026-05-05 23:04:51,410 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:05:01,486 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:05:11,565 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:05:21,699 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:05:31,767 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:05:41,870 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:05:52,010 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:06:02,103 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:06:12,162 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:06:22,238 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:06:32,311 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:06:42,388 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:06:52,530 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:07:02,588 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:07:12,646 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:07:22,702 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:07:32,759 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:07:43,040 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:07:53,152 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:08:03,290 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:08:13,568 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:08:14,646 - apscheduler.executors.default - INFO - Running job "check_class_reminders (trigger: interval[0:05:00], next run at: 2026-05-05 23:13:14 EEST)" (scheduled at 2026-05-05 23:08:14.642435+03:00)
+2026-05-05 23:08:14,649 - apscheduler.executors.default - INFO - Running job "check_event_reminders (trigger: interval[0:05:00], next run at: 2026-05-05 23:13:14 EEST)" (scheduled at 2026-05-05 23:08:14.642500+03:00)
+2026-05-05 23:08:14,668 - apscheduler.executors.default - INFO - Job "check_event_reminders (trigger: interval[0:05:00], next run at: 2026-05-05 23:13:14 EEST)" executed successfully
+2026-05-05 23:08:14,673 - apscheduler.executors.default - INFO - Job "check_class_reminders (trigger: interval[0:05:00], next run at: 2026-05-05 23:13:14 EEST)" executed successfully
+2026-05-05 23:08:23,668 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:08:33,804 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:08:43,862 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:08:53,978 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:09:04,117 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:09:14,176 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:09:24,290 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:09:34,428 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:09:44,566 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:09:54,714 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:10:04,840 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:10:14,899 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:10:25,013 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:10:35,152 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:10:45,294 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:10:55,428 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:11:05,574 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:11:15,703 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:11:25,841 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:11:35,979 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:11:46,117 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:11:56,198 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:12:06,295 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:12:16,356 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:12:26,462 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:12:36,519 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:12:46,615 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:12:56,673 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:13:06,840 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:13:14,646 - apscheduler.executors.default - INFO - Running job "check_class_reminders (trigger: interval[0:05:00], next run at: 2026-05-05 23:18:14 EEST)" (scheduled at 2026-05-05 23:13:14.642435+03:00)
+2026-05-05 23:13:14,649 - apscheduler.executors.default - INFO - Running job "check_event_reminders (trigger: interval[0:05:00], next run at: 2026-05-05 23:18:14 EEST)" (scheduled at 2026-05-05 23:13:14.642500+03:00)
+2026-05-05 23:13:14,651 - apscheduler.executors.default - INFO - Running job "sync_calendar_job (trigger: interval[0:15:00], next run at: 2026-05-05 23:28:14 EEST)" (scheduled at 2026-05-05 23:13:14.642972+03:00)
+2026-05-05 23:13:14,671 - apscheduler.executors.default - INFO - Job "check_event_reminders (trigger: interval[0:05:00], next run at: 2026-05-05 23:18:14 EEST)" executed successfully
+2026-05-05 23:13:14,680 - apscheduler.executors.default - INFO - Job "check_class_reminders (trigger: interval[0:05:00], next run at: 2026-05-05 23:18:14 EEST)" executed successfully
+2026-05-05 23:13:14,695 - apscheduler.executors.default - INFO - Job "sync_calendar_job (trigger: interval[0:15:00], next run at: 2026-05-05 23:28:14 EEST)" executed successfully
+2026-05-05 23:13:16,916 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:13:27,120 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:13:37,223 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:13:47,283 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:13:57,394 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:14:07,450 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:14:17,864 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:14:28,014 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:14:38,243 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:14:48,442 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:14:58,628 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:15:08,769 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:15:19,008 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:15:29,146 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:15:39,202 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:15:41,703 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:15:41,782 - google_genai.models - INFO - AFC is enabled with max remote calls: 10.
+2026-05-05 23:15:43,462 - httpx - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent "HTTP/1.1 200 OK"
+2026-05-05 23:15:43,477 - google_genai.models - INFO - AFC is enabled with max remote calls: 10.
+2026-05-05 23:15:43,668 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/sendMessage "HTTP/1.1 200 OK"
+2026-05-05 23:15:44,511 - httpx - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent "HTTP/1.1 200 OK"
+2026-05-05 23:15:51,779 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:16:01,827 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:16:11,931 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:16:22,060 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:16:32,114 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:16:42,236 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:16:52,300 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:17:02,357 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:17:12,551 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:17:22,675 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:17:32,732 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:17:42,850 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:17:52,987 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:18:03,130 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:18:13,278 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:18:14,644 - apscheduler.executors.default - INFO - Running job "check_class_reminders (trigger: interval[0:05:00], next run at: 2026-05-05 23:23:14 EEST)" (scheduled at 2026-05-05 23:18:14.642435+03:00)
+2026-05-05 23:18:14,653 - apscheduler.executors.default - INFO - Running job "check_event_reminders (trigger: interval[0:05:00], next run at: 2026-05-05 23:23:14 EEST)" (scheduled at 2026-05-05 23:18:14.642500+03:00)
+2026-05-05 23:18:14,663 - apscheduler.executors.default - INFO - Job "check_event_reminders (trigger: interval[0:05:00], next run at: 2026-05-05 23:23:14 EEST)" executed successfully
+2026-05-05 23:18:14,666 - apscheduler.executors.default - INFO - Job "check_class_reminders (trigger: interval[0:05:00], next run at: 2026-05-05 23:23:14 EEST)" executed successfully
+2026-05-05 23:18:23,401 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:18:33,459 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:18:43,516 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:18:53,605 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:19:03,664 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:19:13,722 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:19:23,778 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:19:33,863 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:19:43,989 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:19:54,046 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:20:04,106 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:20:14,286 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:20:24,358 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:20:34,416 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:20:44,480 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:20:54,538 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:21:04,679 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:21:11,234 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:21:11,484 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/sendMessage "HTTP/1.1 200 OK"
+2026-05-05 23:21:17,202 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:21:17,390 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:21:17,491 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/editMessageText "HTTP/1.1 200 OK"
+2026-05-05 23:21:21,891 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:21:21,968 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:21:22,068 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:21:24,620 - caldav - WARNING - Ical data was modified to avoid compatibility issues
+(Your calendar server breaks the icalendar standard)
+This is probably harmless, particularly if not editing events or tasks
+(error count: 1 - this error is ratelimited)
+--- 
++++ 
+@@ -4,6 +4,7 @@
+ DTSTART;VALUE=DATE:20260505
+ DTEND;VALUE=DATE:20260505
+ UID:lora-task-cal-27-1778012484@lora
++DTSTAMP:20260505T202124Z
+ END:VEVENT
+ END:VCALENDAR
+ 
+2026-05-05 23:21:25,193 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/editMessageText "HTTP/1.1 200 OK"
+2026-05-05 23:21:25,201 - caldav - WARNING - Ical data was modified to avoid compatibility issues
+(Your calendar server breaks the icalendar standard)
+This is probably harmless, particularly if not editing events or tasks
+(error count: 2 - this error is ratelimited)
+--- 
++++ 
+@@ -4,6 +4,7 @@
+ DTSTART;VALUE=DATE:20260505
+ DTEND;VALUE=DATE:20260505
+ UID:lora-task-cal-30-1778012485@lora
++DTSTAMP:20260505T202125Z
+ END:VEVENT
+ END:VCALENDAR
+ 
+2026-05-05 23:21:26,246 - caldav - WARNING - Ical data was modified to avoid compatibility issues
+(Your calendar server breaks the icalendar standard)
+This is probably harmless, particularly if not editing events or tasks
+(error count: 4 - this error is ratelimited)
+--- 
++++ 
+@@ -4,6 +4,7 @@
+ DTSTART;VALUE=DATE:20260505
+ DTEND;VALUE=DATE:20260505
+ UID:lora-task-cal-32-1778012486@lora
++DTSTAMP:20260505T202126Z
+ END:VEVENT
+ END:VCALENDAR
+ 
+2026-05-05 23:21:28,264 - caldav - WARNING - Ical data was modified to avoid compatibility issues
+(Your calendar server breaks the icalendar standard)
+This is probably harmless, particularly if not editing events or tasks
+(error count: 8 - this error is ratelimited)
+--- 
++++ 
+@@ -4,6 +4,7 @@
+ DTSTART;VALUE=DATE:20260505
+ DTEND;VALUE=DATE:20260505
+ UID:lora-task-cal-39-1778012488@lora
++DTSTAMP:20260505T202128Z
+ END:VEVENT
+ END:VCALENDAR
+ 
+2026-05-05 23:21:32,244 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:21:32,772 - caldav - WARNING - Ical data was modified to avoid compatibility issues
+(Your calendar server breaks the icalendar standard)
+This is probably harmless, particularly if not editing events or tasks
+(error count: 16 - this error is ratelimited)
+--- 
++++ 
+@@ -5,6 +5,7 @@
+ DTSTART;VALUE=DATE:20260505
+ DTEND;VALUE=DATE:20260505
+ UID:lora-task-cal-51-1778012492@lora
++DTSTAMP:20260505T202132Z
+ END:VEVENT
+ END:VCALENDAR
+ 
+2026-05-05 23:21:36,834 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:21:37,878 - bot.handler - ERROR - ERROR in message_handler: duplicate key value violates unique constraint "message_history_pkey"
+DETAIL:  Key (id)=(1) already exists.
+Traceback (most recent call last):
+  File "/Users/robudarius/Lora/bot/handler.py", line 527, in message_handler
+    # Phase 8: State Check (Confirmations / Edits)
+  File "/Users/robudarius/Lora/db/queries/history.py", line 9, in save_message
+    await conn.execute(
+    ...<7 lines>...
+    )
+  File "/Users/robudarius/Lora/venv/lib/python3.14/site-packages/asyncpg/connection.py", line 357, in execute
+    _, status, _ = await self._execute(
+                   ^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "/Users/robudarius/Lora/venv/lib/python3.14/site-packages/asyncpg/connection.py", line 1873, in _execute
+    result, _ = await self.__execute(
+                ^^^^^^^^^^^^^^^^^^^^^
+    ...<7 lines>...
+    )
+    ^
+  File "/Users/robudarius/Lora/venv/lib/python3.14/site-packages/asyncpg/connection.py", line 1970, in __execute
+    result, stmt = await self._do_execute(
+                   ^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "/Users/robudarius/Lora/venv/lib/python3.14/site-packages/asyncpg/connection.py", line 2036, in _do_execute
+    result = await executor(stmt, timeout)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "asyncpg/protocol/protocol.pyx", line 205, in bind_execute
+asyncpg.exceptions.UniqueViolationError: duplicate key value violates unique constraint "message_history_pkey"
+DETAIL:  Key (id)=(1) already exists.
+
+2026-05-05 23:21:39,170 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/sendMessage "HTTP/1.1 200 OK"
+2026-05-05 23:21:46,901 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:21:57,008 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:22:03,466 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:22:03 +0200] "GET / HTTP/1.1" 200 236 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:22:03,570 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:22:03 +0200] "GET /assets/index-Bg1HBDmb.css HTTP/1.1" 200 238 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:22:03,609 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:22:03 +0200] "GET /assets/index-DkGj35dL.js HTTP/1.1" 200 247 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:22:03,963 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:22:03 +0200] "GET /api/tasks HTTP/1.1" 200 10584 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:22:03,974 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:22:03 +0200] "GET /api/university/summary HTTP/1.1" 200 1333 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:22:04,017 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:22:04 +0200] "GET /api/workout/stats HTTP/1.1" 200 347 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:22:04,020 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:22:04 +0200] "GET /api/health/summary HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:22:04,022 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:22:04 +0200] "GET /api/shopping HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:22:04,025 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:22:04 +0200] "GET /api/skills HTTP/1.1" 200 657 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:22:04,028 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:22:04 +0200] "GET /api/notes HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:22:04,031 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:22:04 +0200] "GET /api/finances/summary HTTP/1.1" 200 643 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:22:04,034 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:22:04 +0200] "GET /api/calendar/today HTTP/1.1" 200 1007 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:22:07,152 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:22:17,382 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:22:27,524 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:22:37,579 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:22:47,697 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:22:57,835 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:23:07,972 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:23:14,643 - apscheduler.executors.default - INFO - Running job "check_class_reminders (trigger: interval[0:05:00], next run at: 2026-05-05 23:28:14 EEST)" (scheduled at 2026-05-05 23:23:14.642435+03:00)
+2026-05-05 23:23:14,645 - apscheduler.executors.default - INFO - Running job "check_event_reminders (trigger: interval[0:05:00], next run at: 2026-05-05 23:28:14 EEST)" (scheduled at 2026-05-05 23:23:14.642500+03:00)
+2026-05-05 23:23:14,664 - apscheduler.executors.default - INFO - Job "check_event_reminders (trigger: interval[0:05:00], next run at: 2026-05-05 23:28:14 EEST)" executed successfully
+2026-05-05 23:23:14,671 - apscheduler.executors.default - INFO - Job "check_class_reminders (trigger: interval[0:05:00], next run at: 2026-05-05 23:28:14 EEST)" executed successfully
+2026-05-05 23:23:18,029 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:23:28,088 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:23:38,182 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:23:48,317 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:23:48,482 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:23:48,644 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:23:48,729 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:23:50,930 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/editMessageText "HTTP/1.1 200 OK"
+2026-05-05 23:23:58,544 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:23:59,191 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:23:59,422 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/sendMessage "HTTP/1.1 200 OK"
+2026-05-05 23:24:03,302 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:24:03,377 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:24:03,476 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/editMessageText "HTTP/1.1 200 OK"
+2026-05-05 23:24:13,445 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:24:23,545 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:24:33,610 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:24:38,474 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:24:38 +0200] "GET /api/tasks HTTP/1.1" 200 10673 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:24:38,505 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:24:38 +0200] "GET /api/health/summary HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:24:38,508 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:24:38 +0200] "GET /api/notes HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:24:38,511 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:24:38 +0200] "GET /api/shopping HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:24:38,522 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:24:38 +0200] "GET /api/finances/summary HTTP/1.1" 200 643 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:24:38,523 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:24:38 +0200] "GET /api/university/summary HTTP/1.1" 200 1333 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:24:38,525 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:24:38 +0200] "GET /api/workout/stats HTTP/1.1" 200 347 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:24:38,526 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:24:38 +0200] "GET /api/skills HTTP/1.1" 200 657 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:24:38,529 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:24:38 +0200] "GET /api/calendar/today HTTP/1.1" 200 1007 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:24:43,716 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:24:53,773 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:24:56,984 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:24:57,145 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:24:57,244 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/editMessageText "HTTP/1.1 200 OK"
+2026-05-05 23:24:59,081 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:24:59,346 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:24:59,559 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:25:02,139 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/editMessageText "HTTP/1.1 200 OK"
+2026-05-05 23:25:03,422 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:25:04,655 - bot.handler - ERROR - ERROR in message_handler: duplicate key value violates unique constraint "message_history_pkey"
+DETAIL:  Key (id)=(2) already exists.
+Traceback (most recent call last):
+  File "/Users/robudarius/Lora/bot/handler.py", line 527, in message_handler
+    # Phase 8: State Check (Confirmations / Edits)
+  File "/Users/robudarius/Lora/db/queries/history.py", line 9, in save_message
+    await conn.execute(
+    ...<7 lines>...
+    )
+  File "/Users/robudarius/Lora/venv/lib/python3.14/site-packages/asyncpg/connection.py", line 357, in execute
+    _, status, _ = await self._execute(
+                   ^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "/Users/robudarius/Lora/venv/lib/python3.14/site-packages/asyncpg/connection.py", line 1873, in _execute
+    result, _ = await self.__execute(
+                ^^^^^^^^^^^^^^^^^^^^^
+    ...<7 lines>...
+    )
+    ^
+  File "/Users/robudarius/Lora/venv/lib/python3.14/site-packages/asyncpg/connection.py", line 1970, in __execute
+    result, stmt = await self._do_execute(
+                   ^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "/Users/robudarius/Lora/venv/lib/python3.14/site-packages/asyncpg/connection.py", line 2036, in _do_execute
+    result = await executor(stmt, timeout)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "asyncpg/protocol/protocol.pyx", line 205, in bind_execute
+asyncpg.exceptions.UniqueViolationError: duplicate key value violates unique constraint "message_history_pkey"
+DETAIL:  Key (id)=(2) already exists.
+
+2026-05-05 23:25:04,918 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/sendMessage "HTTP/1.1 200 OK"
+2026-05-05 23:25:13,477 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:25:24,649 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,649 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,649 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,649 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,649 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,649 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,649 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,649 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,649 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,649 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,649 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,649 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,650 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,650 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,650 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,650 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,650 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,650 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,650 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,650 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,650 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,650 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,650 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "check_wake_time_and_schedule" to job store "default"
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "cleanup_history_job" to job store "default"
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "update_profile_job" to job store "default"
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "send_eod_reflection" to job store "default"
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "check_eod_timeout" to job store "default"
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "send_daily_report" to job store "default"
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "send_journal_night" to job store "default"
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "send_weekly_review" to job store "default"
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "send_monthly_review" to job store "default"
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "send_weekly_finance_summary" to job store "default"
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "reset_budget_alerts" to job store "default"
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "check_proactive_insights" to job store "default"
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "check_class_reminders" to job store "default"
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "check_event_reminders" to job store "default"
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "check_event_day_reminders" to job store "default"
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "check_habit_reminders" to job store "default"
+2026-05-05 23:25:24,651 - apscheduler.scheduler - INFO - Added job "check_task_deadline_reminders" to job store "default"
+2026-05-05 23:25:24,652 - apscheduler.scheduler - INFO - Added job "check_budget_forecast" to job store "default"
+2026-05-05 23:25:24,652 - apscheduler.scheduler - INFO - Added job "check_proactive_insights" to job store "default"
+2026-05-05 23:25:24,652 - apscheduler.scheduler - INFO - Added job "send_weekly_review" to job store "default"
+2026-05-05 23:25:24,652 - apscheduler.scheduler - INFO - Added job "check_contextual_nudges" to job store "default"
+2026-05-05 23:25:24,652 - apscheduler.scheduler - INFO - Added job "sync_calendar_job" to job store "default"
+2026-05-05 23:25:24,652 - apscheduler.scheduler - INFO - Added job "daily_shopping_cleanup" to job store "default"
+2026-05-05 23:25:24,652 - apscheduler.scheduler - INFO - Scheduler started
+2026-05-05 23:25:24,815 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/deleteWebhook "HTTP/1.1 200 OK"
+2026-05-05 23:25:24,867 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getMe "HTTP/1.1 200 OK"
+2026-05-05 23:25:24,940 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/setChatMenuButton "HTTP/1.1 200 OK"
+2026-05-05 23:25:24,942 - apscheduler.scheduler - INFO - Scheduler started
+2026-05-05 23:25:24,943 - telegram.ext.Application - INFO - Application started
+2026-05-05 23:25:26,997 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/deleteWebhook "HTTP/1.1 200 OK"
+2026-05-05 23:25:37,169 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:25:47,219 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:25:57,268 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:26:07,318 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:26:17,416 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:26:27,472 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:26:37,789 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:26:47,927 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:26:48,581 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:26:48,816 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:26:48,938 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:26:51,478 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/editMessageText "HTTP/1.1 200 OK"
+2026-05-05 23:26:52,721 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:26:52,966 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/sendMessage "HTTP/1.1 200 OK"
+2026-05-05 23:26:53,961 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,961 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,961 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,961 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,961 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,961 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,961 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,961 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,961 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,961 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,961 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,961 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,962 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,962 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,962 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,962 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,962 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,962 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,962 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,962 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,962 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,962 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,962 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:26:53,962 - apscheduler.scheduler - INFO - Added job "check_wake_time_and_schedule" to job store "default"
+2026-05-05 23:26:53,962 - apscheduler.scheduler - INFO - Added job "cleanup_history_job" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "update_profile_job" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "send_eod_reflection" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "check_eod_timeout" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "send_daily_report" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "send_journal_night" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "send_weekly_review" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "send_monthly_review" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "send_weekly_finance_summary" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "reset_budget_alerts" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "check_proactive_insights" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "check_class_reminders" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "check_event_reminders" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "check_event_day_reminders" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "check_habit_reminders" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "check_task_deadline_reminders" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "check_budget_forecast" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "check_proactive_insights" to job store "default"
+2026-05-05 23:26:53,963 - apscheduler.scheduler - INFO - Added job "send_weekly_review" to job store "default"
+2026-05-05 23:26:53,964 - apscheduler.scheduler - INFO - Added job "check_contextual_nudges" to job store "default"
+2026-05-05 23:26:53,964 - apscheduler.scheduler - INFO - Added job "sync_calendar_job" to job store "default"
+2026-05-05 23:26:53,964 - apscheduler.scheduler - INFO - Added job "daily_shopping_cleanup" to job store "default"
+2026-05-05 23:26:53,964 - apscheduler.scheduler - INFO - Scheduler started
+2026-05-05 23:26:54,119 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/deleteWebhook "HTTP/1.1 200 OK"
+2026-05-05 23:26:54,172 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getMe "HTTP/1.1 200 OK"
+2026-05-05 23:26:54,237 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/setChatMenuButton "HTTP/1.1 200 OK"
+2026-05-05 23:26:54,238 - apscheduler.scheduler - INFO - Scheduler started
+2026-05-05 23:26:54,239 - telegram.ext.Application - INFO - Application started
+2026-05-05 23:26:56,289 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/deleteWebhook "HTTP/1.1 200 OK"
+2026-05-05 23:27:06,566 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:27:07,104 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:27:07,341 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/sendMessage "HTTP/1.1 200 OK"
+2026-05-05 23:27:09,052 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:27:09,158 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:27:09,280 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/editMessageText "HTTP/1.1 200 OK"
+2026-05-05 23:27:12,004 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:27:12,123 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:27:12,234 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:27:14,811 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/editMessageText "HTTP/1.1 200 OK"
+2026-05-05 23:27:15,626 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:27:15,890 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:27:16,908 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:27:19,217 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/editMessageText "HTTP/1.1 200 OK"
+2026-05-05 23:27:25,933 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:27:36,569 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:27:46,703 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:27:56,845 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:28:04,369 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:28:04,551 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:28:04,634 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:28:07,058 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/editMessageText "HTTP/1.1 200 OK"
+2026-05-05 23:28:14,674 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:28:23,492 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,492 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,492 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,492 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,492 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,493 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,493 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,493 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,493 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,493 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,493 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,493 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,493 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,493 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,493 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,493 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,493 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,493 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,493 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,493 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,494 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,494 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,494 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:23,494 - apscheduler.scheduler - INFO - Added job "check_wake_time_and_schedule" to job store "default"
+2026-05-05 23:28:23,494 - apscheduler.scheduler - INFO - Added job "cleanup_history_job" to job store "default"
+2026-05-05 23:28:23,494 - apscheduler.scheduler - INFO - Added job "update_profile_job" to job store "default"
+2026-05-05 23:28:23,494 - apscheduler.scheduler - INFO - Added job "send_eod_reflection" to job store "default"
+2026-05-05 23:28:23,494 - apscheduler.scheduler - INFO - Added job "check_eod_timeout" to job store "default"
+2026-05-05 23:28:23,494 - apscheduler.scheduler - INFO - Added job "send_daily_report" to job store "default"
+2026-05-05 23:28:23,494 - apscheduler.scheduler - INFO - Added job "send_journal_night" to job store "default"
+2026-05-05 23:28:23,494 - apscheduler.scheduler - INFO - Added job "send_weekly_review" to job store "default"
+2026-05-05 23:28:23,494 - apscheduler.scheduler - INFO - Added job "send_monthly_review" to job store "default"
+2026-05-05 23:28:23,494 - apscheduler.scheduler - INFO - Added job "send_weekly_finance_summary" to job store "default"
+2026-05-05 23:28:23,494 - apscheduler.scheduler - INFO - Added job "reset_budget_alerts" to job store "default"
+2026-05-05 23:28:23,494 - apscheduler.scheduler - INFO - Added job "check_proactive_insights" to job store "default"
+2026-05-05 23:28:23,495 - apscheduler.scheduler - INFO - Added job "check_class_reminders" to job store "default"
+2026-05-05 23:28:23,495 - apscheduler.scheduler - INFO - Added job "check_event_reminders" to job store "default"
+2026-05-05 23:28:23,495 - apscheduler.scheduler - INFO - Added job "check_event_day_reminders" to job store "default"
+2026-05-05 23:28:23,495 - apscheduler.scheduler - INFO - Added job "check_habit_reminders" to job store "default"
+2026-05-05 23:28:23,495 - apscheduler.scheduler - INFO - Added job "check_task_deadline_reminders" to job store "default"
+2026-05-05 23:28:23,495 - apscheduler.scheduler - INFO - Added job "check_budget_forecast" to job store "default"
+2026-05-05 23:28:23,495 - apscheduler.scheduler - INFO - Added job "check_proactive_insights" to job store "default"
+2026-05-05 23:28:23,495 - apscheduler.scheduler - INFO - Added job "send_weekly_review" to job store "default"
+2026-05-05 23:28:23,495 - apscheduler.scheduler - INFO - Added job "check_contextual_nudges" to job store "default"
+2026-05-05 23:28:23,495 - apscheduler.scheduler - INFO - Added job "sync_calendar_job" to job store "default"
+2026-05-05 23:28:23,495 - apscheduler.scheduler - INFO - Added job "daily_shopping_cleanup" to job store "default"
+2026-05-05 23:28:23,495 - apscheduler.scheduler - INFO - Scheduler started
+2026-05-05 23:28:23,671 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/deleteWebhook "HTTP/1.1 200 OK"
+2026-05-05 23:28:23,726 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getMe "HTTP/1.1 200 OK"
+2026-05-05 23:28:23,801 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/setChatMenuButton "HTTP/1.1 200 OK"
+2026-05-05 23:28:23,803 - apscheduler.scheduler - INFO - Scheduler started
+2026-05-05 23:28:23,803 - telegram.ext.Application - INFO - Application started
+2026-05-05 23:28:25,876 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/deleteWebhook "HTTP/1.1 200 OK"
+2026-05-05 23:28:36,063 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:28:45,028 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,028 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,028 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,028 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,028 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,028 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,028 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,028 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,028 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,028 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,028 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,029 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,029 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,029 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,029 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,029 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,029 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,029 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,029 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,029 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,029 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,029 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,029 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:28:45,029 - apscheduler.scheduler - INFO - Added job "check_wake_time_and_schedule" to job store "default"
+2026-05-05 23:28:45,029 - apscheduler.scheduler - INFO - Added job "cleanup_history_job" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "update_profile_job" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "send_eod_reflection" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "check_eod_timeout" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "send_daily_report" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "send_journal_night" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "send_weekly_review" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "send_monthly_review" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "send_weekly_finance_summary" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "reset_budget_alerts" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "check_proactive_insights" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "check_class_reminders" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "check_event_reminders" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "check_event_day_reminders" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "check_habit_reminders" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "check_task_deadline_reminders" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "check_budget_forecast" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "check_proactive_insights" to job store "default"
+2026-05-05 23:28:45,030 - apscheduler.scheduler - INFO - Added job "send_weekly_review" to job store "default"
+2026-05-05 23:28:45,031 - apscheduler.scheduler - INFO - Added job "check_contextual_nudges" to job store "default"
+2026-05-05 23:28:45,031 - apscheduler.scheduler - INFO - Added job "sync_calendar_job" to job store "default"
+2026-05-05 23:28:45,031 - apscheduler.scheduler - INFO - Added job "daily_shopping_cleanup" to job store "default"
+2026-05-05 23:28:45,031 - apscheduler.scheduler - INFO - Scheduler started
+2026-05-05 23:28:45,176 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/deleteWebhook "HTTP/1.1 200 OK"
+2026-05-05 23:28:45,224 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getMe "HTTP/1.1 200 OK"
+2026-05-05 23:28:45,288 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/setChatMenuButton "HTTP/1.1 200 OK"
+2026-05-05 23:28:45,289 - apscheduler.scheduler - INFO - Scheduler started
+2026-05-05 23:28:45,289 - telegram.ext.Application - INFO - Application started
+2026-05-05 23:28:47,343 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/deleteWebhook "HTTP/1.1 200 OK"
+2026-05-05 23:28:57,505 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:29:07,604 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:29:17,742 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:29:27,468 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:29:27,676 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/sendMessage "HTTP/1.1 200 OK"
+2026-05-05 23:29:29,567 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:29:29,635 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:29:29,724 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/editMessageText "HTTP/1.1 200 OK"
+2026-05-05 23:29:33,004 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:29:33 +0200] "GET / HTTP/1.1" 304 178 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:29:33,260 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:29:33 +0200] "GET /assets/index-Bg1HBDmb.css HTTP/1.1" 304 179 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:29:33,359 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:29:33 +0200] "GET /assets/index-DkGj35dL.js HTTP/1.1" 304 180 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:29:33,660 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:29:33 +0200] "GET /api/shopping HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:29:33,669 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:29:33 +0200] "GET /api/tasks HTTP/1.1" 200 8469 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:29:33,791 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:29:33 +0200] "GET /api/finances/summary HTTP/1.1" 200 643 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:29:33,791 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:29:33 +0200] "GET /api/health/summary HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:29:33,792 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:29:33 +0200] "GET /api/notes HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:29:33,795 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:29:33 +0200] "GET /api/workout/stats HTTP/1.1" 200 347 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:29:33,795 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:29:33 +0200] "GET /api/skills HTTP/1.1" 200 657 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:29:33,797 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:29:33 +0200] "GET /api/university/summary HTTP/1.1" 200 1333 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:29:33,797 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:29:33 +0200] "GET /api/calendar/today HTTP/1.1" 200 1007 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:29:39,623 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:29:49,808 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:29:59,930 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:30:10,068 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:30:20,222 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:30:30,342 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:30:40,402 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:30:50,517 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:31:00,568 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:31:10,622 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:31:14,246 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,246 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,246 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,246 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,246 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,246 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,246 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,246 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,247 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,247 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,247 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,247 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,247 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,247 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,247 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,247 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,247 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,247 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,247 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Added job "check_wake_time_and_schedule" to job store "default"
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Added job "cleanup_history_job" to job store "default"
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Added job "update_profile_job" to job store "default"
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Added job "send_eod_reflection" to job store "default"
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Added job "check_eod_timeout" to job store "default"
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Added job "send_daily_report" to job store "default"
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Added job "send_journal_night" to job store "default"
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Added job "send_weekly_review" to job store "default"
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Added job "send_monthly_review" to job store "default"
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Added job "send_weekly_finance_summary" to job store "default"
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Added job "reset_budget_alerts" to job store "default"
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Added job "check_proactive_insights" to job store "default"
+2026-05-05 23:31:14,248 - apscheduler.scheduler - INFO - Added job "check_class_reminders" to job store "default"
+2026-05-05 23:31:14,249 - apscheduler.scheduler - INFO - Added job "check_event_reminders" to job store "default"
+2026-05-05 23:31:14,249 - apscheduler.scheduler - INFO - Added job "check_event_day_reminders" to job store "default"
+2026-05-05 23:31:14,249 - apscheduler.scheduler - INFO - Added job "check_habit_reminders" to job store "default"
+2026-05-05 23:31:14,249 - apscheduler.scheduler - INFO - Added job "check_task_deadline_reminders" to job store "default"
+2026-05-05 23:31:14,249 - apscheduler.scheduler - INFO - Added job "check_budget_forecast" to job store "default"
+2026-05-05 23:31:14,249 - apscheduler.scheduler - INFO - Added job "check_proactive_insights" to job store "default"
+2026-05-05 23:31:14,249 - apscheduler.scheduler - INFO - Added job "send_weekly_review" to job store "default"
+2026-05-05 23:31:14,249 - apscheduler.scheduler - INFO - Added job "check_contextual_nudges" to job store "default"
+2026-05-05 23:31:14,249 - apscheduler.scheduler - INFO - Added job "sync_calendar_job" to job store "default"
+2026-05-05 23:31:14,249 - apscheduler.scheduler - INFO - Added job "daily_shopping_cleanup" to job store "default"
+2026-05-05 23:31:14,249 - apscheduler.scheduler - INFO - Scheduler started
+2026-05-05 23:31:14,407 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/deleteWebhook "HTTP/1.1 200 OK"
+2026-05-05 23:31:14,459 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getMe "HTTP/1.1 200 OK"
+2026-05-05 23:31:14,531 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/setChatMenuButton "HTTP/1.1 200 OK"
+2026-05-05 23:31:14,532 - apscheduler.scheduler - INFO - Scheduler started
+2026-05-05 23:31:14,532 - telegram.ext.Application - INFO - Application started
+2026-05-05 23:31:16,658 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/deleteWebhook "HTTP/1.1 200 OK"
+2026-05-05 23:31:26,869 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:31:37,007 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:31:47,119 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:31:47,393 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:31:47,591 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/sendMessage "HTTP/1.1 200 OK"
+2026-05-05 23:31:48,335 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,335 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,335 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,335 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,336 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,336 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,336 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,336 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,336 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,336 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,336 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,336 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,336 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,336 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,336 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,336 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,336 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,336 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,337 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,337 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,337 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,337 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,337 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:31:48,337 - apscheduler.scheduler - INFO - Added job "check_wake_time_and_schedule" to job store "default"
+2026-05-05 23:31:48,337 - apscheduler.scheduler - INFO - Added job "cleanup_history_job" to job store "default"
+2026-05-05 23:31:48,337 - apscheduler.scheduler - INFO - Added job "update_profile_job" to job store "default"
+2026-05-05 23:31:48,337 - apscheduler.scheduler - INFO - Added job "send_eod_reflection" to job store "default"
+2026-05-05 23:31:48,337 - apscheduler.scheduler - INFO - Added job "check_eod_timeout" to job store "default"
+2026-05-05 23:31:48,337 - apscheduler.scheduler - INFO - Added job "send_daily_report" to job store "default"
+2026-05-05 23:31:48,337 - apscheduler.scheduler - INFO - Added job "send_journal_night" to job store "default"
+2026-05-05 23:31:48,337 - apscheduler.scheduler - INFO - Added job "send_weekly_review" to job store "default"
+2026-05-05 23:31:48,337 - apscheduler.scheduler - INFO - Added job "send_monthly_review" to job store "default"
+2026-05-05 23:31:48,337 - apscheduler.scheduler - INFO - Added job "send_weekly_finance_summary" to job store "default"
+2026-05-05 23:31:48,338 - apscheduler.scheduler - INFO - Added job "reset_budget_alerts" to job store "default"
+2026-05-05 23:31:48,338 - apscheduler.scheduler - INFO - Added job "check_proactive_insights" to job store "default"
+2026-05-05 23:31:48,338 - apscheduler.scheduler - INFO - Added job "check_class_reminders" to job store "default"
+2026-05-05 23:31:48,338 - apscheduler.scheduler - INFO - Added job "check_event_reminders" to job store "default"
+2026-05-05 23:31:48,338 - apscheduler.scheduler - INFO - Added job "check_event_day_reminders" to job store "default"
+2026-05-05 23:31:48,338 - apscheduler.scheduler - INFO - Added job "check_habit_reminders" to job store "default"
+2026-05-05 23:31:48,338 - apscheduler.scheduler - INFO - Added job "check_task_deadline_reminders" to job store "default"
+2026-05-05 23:31:48,338 - apscheduler.scheduler - INFO - Added job "check_budget_forecast" to job store "default"
+2026-05-05 23:31:48,338 - apscheduler.scheduler - INFO - Added job "check_proactive_insights" to job store "default"
+2026-05-05 23:31:48,338 - apscheduler.scheduler - INFO - Added job "send_weekly_review" to job store "default"
+2026-05-05 23:31:48,338 - apscheduler.scheduler - INFO - Added job "check_contextual_nudges" to job store "default"
+2026-05-05 23:31:48,338 - apscheduler.scheduler - INFO - Added job "sync_calendar_job" to job store "default"
+2026-05-05 23:31:48,338 - apscheduler.scheduler - INFO - Added job "daily_shopping_cleanup" to job store "default"
+2026-05-05 23:31:48,338 - apscheduler.scheduler - INFO - Scheduler started
+2026-05-05 23:31:48,504 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/deleteWebhook "HTTP/1.1 200 OK"
+2026-05-05 23:31:48,559 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getMe "HTTP/1.1 200 OK"
+2026-05-05 23:31:48,639 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/setChatMenuButton "HTTP/1.1 200 OK"
+2026-05-05 23:31:48,641 - apscheduler.scheduler - INFO - Scheduler started
+2026-05-05 23:31:48,641 - telegram.ext.Application - INFO - Application started
+2026-05-05 23:31:50,706 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/deleteWebhook "HTTP/1.1 200 OK"
+2026-05-05 23:31:56,459 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:31:56,688 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/sendMessage "HTTP/1.1 200 OK"
+2026-05-05 23:31:59,123 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:31:59,194 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-05-05 23:31:59,312 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/editMessageText "HTTP/1.1 200 OK"
+2026-05-05 23:32:01,292 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:01 +0200] "GET / HTTP/1.1" 200 236 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:01,529 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:01 +0200] "GET /assets/index-Ca0zavMP.js HTTP/1.1" 200 247 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:01,605 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:01 +0200] "GET /assets/index-DyXqEhkJ.css HTTP/1.1" 200 238 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:02,409 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:02 +0200] "GET /api/university/summary HTTP/1.1" 200 1333 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:02,415 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:02 +0200] "GET /api/tasks HTTP/1.1" 200 8469 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:02,509 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:02 +0200] "GET /api/notes HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:02,515 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:02 +0200] "GET /api/health/summary HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:02,520 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:02 +0200] "GET /api/shopping HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:02,524 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:02 +0200] "GET /api/workout/stats HTTP/1.1" 200 347 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:02,526 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:02 +0200] "GET /api/skills HTTP/1.1" 200 657 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:02,528 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:02 +0200] "GET /api/finances/summary HTTP/1.1" 200 643 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:02,534 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:02 +0200] "GET /api/calendar/today HTTP/1.1" 200 1007 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:09,179 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:32:09,233 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:09 +0200] "PATCH /api/tasks/51 HTTP/1.1" 200 180 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:09,479 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:09 +0200] "GET /api/tasks HTTP/1.1" 200 8025 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:09,484 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:09 +0200] "GET /api/shopping HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:09,486 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:09 +0200] "GET /api/health/summary HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:09,490 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:09 +0200] "GET /api/notes HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:09,494 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:09 +0200] "GET /api/university/summary HTTP/1.1" 200 1333 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:09,494 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:09 +0200] "GET /api/finances/summary HTTP/1.1" 200 643 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:09,495 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:09 +0200] "GET /api/workout/stats HTTP/1.1" 200 347 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:09,498 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:09 +0200] "GET /api/skills HTTP/1.1" 200 657 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:09,501 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:32:09 +0200] "GET /api/calendar/today HTTP/1.1" 200 1007 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:32:19,398 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:32:29,460 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:32:39,565 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:32:49,711 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:32:59,767 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:33:09,819 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:33:19,821 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:33:29,876 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:33:33,004 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,004 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,005 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,005 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,005 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,005 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,005 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,005 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,005 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,005 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,005 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,005 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,005 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,005 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,005 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,005 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,006 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,006 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,006 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,006 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,006 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,006 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,006 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-05 23:33:33,006 - apscheduler.scheduler - INFO - Added job "check_wake_time_and_schedule" to job store "default"
+2026-05-05 23:33:33,006 - apscheduler.scheduler - INFO - Added job "cleanup_history_job" to job store "default"
+2026-05-05 23:33:33,006 - apscheduler.scheduler - INFO - Added job "update_profile_job" to job store "default"
+2026-05-05 23:33:33,006 - apscheduler.scheduler - INFO - Added job "send_eod_reflection" to job store "default"
+2026-05-05 23:33:33,006 - apscheduler.scheduler - INFO - Added job "check_eod_timeout" to job store "default"
+2026-05-05 23:33:33,006 - apscheduler.scheduler - INFO - Added job "send_daily_report" to job store "default"
+2026-05-05 23:33:33,006 - apscheduler.scheduler - INFO - Added job "send_journal_night" to job store "default"
+2026-05-05 23:33:33,006 - apscheduler.scheduler - INFO - Added job "send_weekly_review" to job store "default"
+2026-05-05 23:33:33,006 - apscheduler.scheduler - INFO - Added job "send_monthly_review" to job store "default"
+2026-05-05 23:33:33,007 - apscheduler.scheduler - INFO - Added job "send_weekly_finance_summary" to job store "default"
+2026-05-05 23:33:33,007 - apscheduler.scheduler - INFO - Added job "reset_budget_alerts" to job store "default"
+2026-05-05 23:33:33,007 - apscheduler.scheduler - INFO - Added job "check_proactive_insights" to job store "default"
+2026-05-05 23:33:33,007 - apscheduler.scheduler - INFO - Added job "check_class_reminders" to job store "default"
+2026-05-05 23:33:33,007 - apscheduler.scheduler - INFO - Added job "check_event_reminders" to job store "default"
+2026-05-05 23:33:33,007 - apscheduler.scheduler - INFO - Added job "check_event_day_reminders" to job store "default"
+2026-05-05 23:33:33,007 - apscheduler.scheduler - INFO - Added job "check_habit_reminders" to job store "default"
+2026-05-05 23:33:33,007 - apscheduler.scheduler - INFO - Added job "check_task_deadline_reminders" to job store "default"
+2026-05-05 23:33:33,007 - apscheduler.scheduler - INFO - Added job "check_budget_forecast" to job store "default"
+2026-05-05 23:33:33,007 - apscheduler.scheduler - INFO - Added job "check_proactive_insights" to job store "default"
+2026-05-05 23:33:33,007 - apscheduler.scheduler - INFO - Added job "send_weekly_review" to job store "default"
+2026-05-05 23:33:33,007 - apscheduler.scheduler - INFO - Added job "check_contextual_nudges" to job store "default"
+2026-05-05 23:33:33,007 - apscheduler.scheduler - INFO - Added job "sync_calendar_job" to job store "default"
+2026-05-05 23:33:33,007 - apscheduler.scheduler - INFO - Added job "daily_shopping_cleanup" to job store "default"
+2026-05-05 23:33:33,007 - apscheduler.scheduler - INFO - Scheduler started
+2026-05-05 23:33:33,163 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/deleteWebhook "HTTP/1.1 200 OK"
+2026-05-05 23:33:33,214 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getMe "HTTP/1.1 200 OK"
+2026-05-05 23:33:33,280 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/setChatMenuButton "HTTP/1.1 200 OK"
+2026-05-05 23:33:33,281 - apscheduler.scheduler - INFO - Scheduler started
+2026-05-05 23:33:33,281 - telegram.ext.Application - INFO - Application started
+2026-05-05 23:33:35,328 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/deleteWebhook "HTTP/1.1 200 OK"
+2026-05-05 23:33:45,569 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:33:55,634 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:34:05,841 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:34:15,892 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:34:19,853 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:34:19 +0200] "GET / HTTP/1.1" 200 236 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:34:19,966 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:34:19 +0200] "GET /assets/index-Dcy31280.js HTTP/1.1" 200 247 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:34:20,009 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:34:20 +0200] "GET /assets/index-Cz6CZpQq.css HTTP/1.1" 200 238 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:34:20,437 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:34:20 +0200] "GET /api/university/summary HTTP/1.1" 200 1333 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:34:20,443 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:34:20 +0200] "GET /api/tasks?status=all HTTP/1.1" 200 26699 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:34:20,478 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:34:20 +0200] "GET /api/finances/summary HTTP/1.1" 200 643 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:34:20,495 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:34:20 +0200] "GET /api/shopping HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:34:20,496 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:34:20 +0200] "GET /api/notes HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:34:20,496 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:34:20 +0200] "GET /api/workout/stats HTTP/1.1" 200 347 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:34:20,498 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:34:20 +0200] "GET /api/skills HTTP/1.1" 200 657 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:34:20,504 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:34:20 +0200] "GET /api/calendar/today HTTP/1.1" 200 1007 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:34:20,513 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:34:20 +0200] "GET /api/health/summary HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:34:26,013 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:34:36,169 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:34:46,248 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:34:52,267 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:34:52,313 - google_genai.models - INFO - AFC is enabled with max remote calls: 10.
+2026-05-05 23:35:02,333 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:35:06,563 - httpx - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent "HTTP/1.1 200 OK"
+2026-05-05 23:35:08,898 - google_genai.models - INFO - AFC is enabled with max remote calls: 10.
+2026-05-05 23:35:11,200 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/sendMessage "HTTP/1.1 200 OK"
+2026-05-05 23:35:11,530 - httpx - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent "HTTP/1.1 200 OK"
+2026-05-05 23:35:12,550 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:35:13,648 - caldav - WARNING - Ical data was modified to avoid compatibility issues
+(Your calendar server breaks the icalendar standard)
+This is probably harmless, particularly if not editing events or tasks
+(error count: 1 - this error is ratelimited)
+--- 
++++ 
+@@ -4,6 +4,7 @@
+ DTSTART;VALUE=DATE:20260505
+ DTEND;VALUE=DATE:20260505
+ UID:lora-task-cal-61-1778013313@lora
++DTSTAMP:20260505T203513Z
+ END:VEVENT
+ END:VCALENDAR
+ 
+2026-05-05 23:35:22,639 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:35:32,689 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:35:42,813 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:35:51,001 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:35:51,028 - google_genai.models - INFO - AFC is enabled with max remote calls: 10.
+2026-05-05 23:35:53,874 - httpx - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent "HTTP/1.1 200 OK"
+2026-05-05 23:35:53,907 - google_genai.models - INFO - AFC is enabled with max remote calls: 10.
+2026-05-05 23:35:54,961 - httpx - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent "HTTP/1.1 200 OK"
+2026-05-05 23:35:56,185 - caldav - WARNING - Ical data was modified to avoid compatibility issues
+(Your calendar server breaks the icalendar standard)
+This is probably harmless, particularly if not editing events or tasks
+(error count: 2 - this error is ratelimited)
+--- 
++++ 
+@@ -11,6 +11,7 @@
+  leta
+ TRIGGER:-P1D
+ END:VALARM
++DTSTAMP:20260505T203556Z
+ END:VEVENT
+ END:VCALENDAR
+ 
+2026-05-05 23:35:58,250 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/sendMessage "HTTP/1.1 200 OK"
+2026-05-05 23:36:00,516 - caldav - WARNING - Ical data was modified to avoid compatibility issues
+(Your calendar server breaks the icalendar standard)
+This is probably harmless, particularly if not editing events or tasks
+(error count: 4 - this error is ratelimited)
+--- 
++++ 
+@@ -5,6 +5,7 @@
+ DTEND;TZID=Europe/Bucharest:20260506T093000
+ UID:lora-event-12@lora
+ DESCRIPTION:să mă pregătesc pentru dentist
++DTSTAMP:20260505T203600Z
+ END:VEVENT
+ END:VCALENDAR
+ 
+2026-05-05 23:36:01,052 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:36:11,134 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:36:11,391 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:36:11 +0200] "GET / HTTP/1.1" 200 236 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:36:11,503 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:36:11 +0200] "GET /assets/index-Dcy31280.js HTTP/1.1" 200 247 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:36:11,548 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:36:11 +0200] "GET /assets/index-Cz6CZpQq.css HTTP/1.1" 200 238 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:36:11,933 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:36:11 +0200] "GET /api/tasks?status=all HTTP/1.1" 200 27080 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:36:11,939 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:36:11 +0200] "GET /api/finances/summary HTTP/1.1" 200 643 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:36:11,975 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:36:11 +0200] "GET /api/shopping HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:36:11,981 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:36:11 +0200] "GET /api/university/summary HTTP/1.1" 200 1333 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:36:11,984 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:36:11 +0200] "GET /api/notes HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:36:11,986 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:36:11 +0200] "GET /api/health/summary HTTP/1.1" 200 160 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:36:11,992 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:36:11 +0200] "GET /api/skills HTTP/1.1" 200 657 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:36:11,992 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:36:11 +0200] "GET /api/workout/stats HTTP/1.1" 200 347 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:36:11,994 - aiohttp.access - INFO - 127.0.0.1 [05/May/2026:22:36:11 +0200] "GET /api/calendar/today HTTP/1.1" 200 1007 "https://7312ebab0c83b990-82-79-225-205.serveousercontent.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+2026-05-05 23:36:21,214 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:36:31,267 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"
+2026-05-05 23:36:41,418 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8497074584:AAGtpjl_1ftfTIFIw0X5jSDN03kF6y7kSTs/getUpdates "HTTP/1.1 200 OK"

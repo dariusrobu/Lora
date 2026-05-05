@@ -43,7 +43,7 @@ async def get_tasks_by_title(pool, title: str) -> List[Dict[str, Any]]:
         # Search for case-insensitive and diacritic-insensitive partial match
         # Requires 'unaccent' extension in Postgres
         rows = await conn.fetch(
-            "SELECT * FROM tasks WHERE (unaccent(title) ILIKE unaccent($1)) AND status = 'pending'",
+            "SELECT * FROM tasks WHERE (unaccent(title) ILIKE unaccent($1)) AND status = 'pending' AND deleted_at IS NULL",
             f"%{title}%",
         )
         return [dict(r) for r in rows]
@@ -69,24 +69,37 @@ async def update_task(pool, task_id: int, **kwargs):
 @with_retry(max_attempts=3, base_delay=1.0)
 async def delete_task(pool, task_id: int):
     async with pool.acquire() as conn:
-        await conn.execute("DELETE FROM tasks WHERE id = $1", task_id)
+        await conn.execute("UPDATE tasks SET deleted_at = NOW() WHERE id = $1", task_id)
+
+
+@with_retry(max_attempts=3, base_delay=1.0)
+async def restore_task(pool, task_id: int):
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE tasks SET deleted_at = NULL WHERE id = $1", task_id)
 
 
 async def list_tasks(
-    pool, status: str = "pending", project_id: Optional[int] = None
+    pool, status: Optional[str] = "pending", project_id: Optional[int] = None
 ) -> List[Dict[str, Any]]:
     async with pool.acquire() as conn:
         query = """
             SELECT t.*, p.name AS project_name 
             FROM tasks t 
             LEFT JOIN projects p ON t.project_id = p.id 
-            WHERE t.status = $1
+            WHERE t.deleted_at IS NULL
         """
-        args = [status]
+        args = []
+        param_idx = 1
+
+        if status:
+            query += f" AND t.status = ${param_idx}"
+            args.append(status)
+            param_idx += 1
 
         if project_id:
-            query += " AND t.project_id = $2"
+            query += f" AND t.project_id = ${param_idx}"
             args.append(project_id)
+            param_idx += 1
 
         query += """ ORDER BY p.name ASC NULLS LAST,
             CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END,

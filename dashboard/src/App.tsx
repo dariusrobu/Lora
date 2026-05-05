@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 const API_SECRET = '73860b29fd5d087fd78a1e59fb23254ed1692139e933a9465de82ed709b7f70e';
 const HEADERS = { 'X-Internal-Secret': API_SECRET, 'Content-Type': 'application/json' };
 
-type View = 'home' | 'map' | 'uni' | 'gym' | 'skills' | 'shop' | 'notes' | 'health' | 'calendar' | 'finance';
+type View = 'home' | 'map' | 'uni' | 'gym' | 'skills' | 'shop' | 'notes' | 'health' | 'calendar' | 'finance' | 'tasks';
 
 // --- Shared Components ---
 const GlassCard = ({ children, className = "", onClick }: any) => (
@@ -82,7 +82,7 @@ function App() {
   const fetchData = async () => {
     try {
       const [t, f, u, g, s, shop, n, h, c] = await Promise.all([
-        fetch('/api/tasks', { headers: HEADERS }).then(r => r.json()),
+        fetch('/api/tasks?status=all', { headers: HEADERS }).then(r => r.json()),
         fetch('/api/finances/summary', { headers: HEADERS }).then(r => r.json()),
         fetch('/api/university/summary', { headers: HEADERS }).then(r => r.json()),
         fetch('/api/workout/stats', { headers: HEADERS }).then(r => r.json()),
@@ -201,7 +201,7 @@ function App() {
               </h3>
               <div className="space-y-3">
                 {tasks.filter(t => t.priority === 'high' && t.status !== 'done').slice(0, 3).map(t => (
-                  <GlassCard key={t.id} className="p-4 flex items-center gap-4 border-l-4 border-l-red-500" onClick={() => fetch(`/api/tasks/${t.id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ status: 'done' }) }).then(fetchData)}>
+                  <GlassCard key={t.id} className="p-4 flex items-center gap-4 border-l-4 border-l-red-500" onClick={() => fetch(`/api/tasks/${t.id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ action: 'complete' }) }).then(fetchData)}>
                     <div className="w-5 h-5 rounded-full border-2 border-red-500/30 flex items-center justify-center">
                       <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]" />
                     </div>
@@ -220,6 +220,7 @@ function App() {
             {/* Module Hub */}
             <div className="grid grid-cols-4 gap-4">
               {[
+                { id: 'tasks', icon: CheckCircle2, label: 'Tasks', color: 'text-emerald-400' },
                 { id: 'map', icon: Navigation, label: 'Hartă', color: 'text-blue-500' },
                 { id: 'uni', icon: GraduationCap, label: 'Academic', color: 'text-orange-500' },
                 { id: 'gym', icon: Dumbbell, label: 'Sală', color: 'text-red-500' },
@@ -605,6 +606,68 @@ function App() {
                    </div>
                 </div>
              </div>
+          </ViewContainer>
+        )}
+
+        {view === 'tasks' && (
+          <ViewContainer title="Tasks & Proiecte" onBack={() => setView('home')}>
+             <div className="space-y-10 pb-24">
+                {/* Pending Tasks Grouped by Project */}
+                {Object.entries(
+                  tasks.filter(t => t.status !== 'done').reduce((acc: any, t) => {
+                    const p = t.project_name || 'Fără proiect';
+                    if (!acc[p]) acc[p] = [];
+                    acc[p].push(t);
+                    return acc;
+                  }, {})
+                ).map(([proj, projTasks]: [string, any]) => (
+                  <section key={proj} className="space-y-4">
+                     <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 px-2 flex justify-between items-center">
+                        <span>{proj}</span>
+                        <span className="bg-white/5 px-2 py-0.5 rounded text-[8px] opacity-50">{projTasks.length}</span>
+                     </h3>
+                     <div className="space-y-3">
+                        {projTasks.map((t: any) => (
+                          <GlassCard key={t.id} className={`p-4 flex items-center gap-4 ${t.priority === 'high' ? 'border-l-2 border-red-500' : ''}`} onClick={() => fetch(`/api/tasks/${t.id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ action: 'complete' }) }).then(fetchData)}>
+                            <div className={`w-6 h-6 rounded-lg border-2 ${t.priority === 'high' ? 'border-red-500/30' : 'border-white/10'} flex items-center justify-center`}>
+                               <div className={`w-2.5 h-2.5 rounded-full ${t.priority === 'high' ? 'bg-red-500' : 'bg-gray-700'}`} />
+                            </div>
+                            <div className="flex-1">
+                               <p className="font-bold text-sm leading-tight">{t.title}</p>
+                            </div>
+                            {t.due_date && <span className="text-[9px] font-black text-gray-600">{new Date(t.due_date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' })}</span>}
+                          </GlassCard>
+                        ))}
+                     </div>
+                  </section>
+                ))}
+
+                {tasks.filter(t => t.status !== 'done').length === 0 && (
+                  <div className="py-20 text-center space-y-4">
+                     <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto">
+                        <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                     </div>
+                     <p className="text-xs text-gray-600 font-bold italic">Toate task-urile sunt rezolvate. ✨</p>
+                  </div>
+                )}
+
+                <section className="space-y-4">
+                   <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-500 px-2 opacity-50">Finalizate recent</h3>
+                   <div className="space-y-2 opacity-50">
+                      {tasks.filter(t => t.status === 'done').slice(0, 10).map(t => (
+                        <div key={t.id} className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex items-center gap-4">
+                           <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                           <p className="text-sm font-medium line-through text-gray-600">{t.title}</p>
+                        </div>
+                      ))}
+                   </div>
+                </section>
+             </div>
+             
+             {/* Float Add Button */}
+             <button onClick={() => setIsAddingTask(true)} className="fixed bottom-8 right-8 w-16 h-16 rounded-full bg-blue-600 shadow-[0_10px_30px_rgba(37,99,235,0.4)] flex items-center justify-center active:scale-95 transition-transform z-[110]">
+                <Plus className="w-8 h-8" />
+             </button>
           </ViewContainer>
         )}
 

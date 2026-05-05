@@ -842,7 +842,7 @@ async def sync_from_icloud_to_lora(pool) -> dict:
 
                             async with pool.acquire() as conn:
                                 current = await conn.fetchrow(
-                                    "SELECT title, due_date, status FROM tasks WHERE id = $1",
+                                    "SELECT title, due_date, status FROM tasks WHERE id = $1 AND deleted_at IS NULL",
                                     lora_id,
                                 )
                                 if current:
@@ -894,7 +894,7 @@ async def sync_tasks_to_reminders(pool) -> dict:
                 SELECT t.id, t.title, t.due_date, t.notes, p.name as project_name
                 FROM tasks t
                 LEFT JOIN projects p ON t.project_id = p.id
-                WHERE t.status = 'pending'
+                WHERE t.status = 'pending' AND t.deleted_at IS NULL
             """)
 
         for t in tasks:
@@ -968,7 +968,7 @@ async def sync_tasks_to_reminders(pool) -> dict:
             )
             for s in synced_tasks:
                 task = await conn.fetchrow(
-                    "SELECT id FROM tasks WHERE id = $1 AND status = 'pending'",
+                    "SELECT id FROM tasks WHERE id = $1 AND status = 'pending' AND deleted_at IS NULL",
                     s["lora_id"],
                 )
                 if not task:

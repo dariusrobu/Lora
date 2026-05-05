@@ -32554,3 +32554,9 @@ Traceback (most recent call last):
 OSError: [Errno 48] error while attempting to bind on address ('0.0.0.0', 8083): [errno 48] address already in use
 /Users/robudarius/Lora/bot/handler.py:2812: SyntaxWarning: "\!" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\!"? A raw string is also an option.
   f"📊 *Rezumatul zilei tale:*\\n\\n{safe_markdown(summary)}\\n\\nNoapte bună\! 🌙",
+/Users/robudarius/Lora/modules/tasks.py:547: SyntaxWarning: "\!" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\!"? A raw string is also an option.
+  f"✅ *{escape_md(task_title)}* completat\!{context_msg}\n\n"
+/Users/robudarius/Lora/bot/handler.py:2867: SyntaxWarning: "\!" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\!"? A raw string is also an option.
+  f"📊 *Rezumatul zilei tale:*\\n\\n{safe_markdown(summary)}\\n\\nNoapte bună\! 🌙",
+/Users/robudarius/Lora/modules/tasks.py:563: SyntaxWarning: "\!" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\!"? A raw string is also an option.
+  f"✅ *{escape_md(task_title)}* completat\!{context_msg}\n\n"
