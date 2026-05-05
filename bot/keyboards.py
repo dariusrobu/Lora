@@ -1,5 +1,6 @@
+import os
 from bot.callback_utils import make_callback_data
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from bot.formatter import escape_md
 
 
@@ -66,6 +67,12 @@ def tasks_main_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(
                 "✅ Recent încheiate",
                 callback_data=make_callback_data("tasks", "recent_done"),
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🚀 Open Dashboard",
+                web_app=WebAppInfo(url=os.getenv("DASHBOARD_URL", "https://lora-dashboard.railway.app/dashboard")),
             )
         ],
     ]

@@ -2633,6 +2633,23 @@ async def tasks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode="MarkdownV2", reply_markup=markup)
 
 
+async def debug_app_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Debugs the Mini App URL and state."""
+    if not await security_check(update):
+        return
+    url = os.getenv("DASHBOARD_URL", "Not set")
+    secret = os.getenv("LORA_API_SECRET", "Not set")
+
+    msg = (
+        f"🔍 *Mini App Debug Info*\\:\n\n"
+        f"• *URL*\\: `{escape_md(url)}`\n"
+        f"• *Secret Length*\\: {len(secret) if secret != 'Not set' else 0}\n"
+        f"• *Bot Username*\\: {context.bot.username}\n\n"
+        f"If the button doesn't work, ensure the URL is accessible from your phone and ends with `/dashboard/`\\."
+    )
+    await update.message.reply_text(msg, parse_mode="MarkdownV2")
+
+
 async def projects_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles /projects command — opens projects dashboard."""
     pool = context.bot_data.get("pool")

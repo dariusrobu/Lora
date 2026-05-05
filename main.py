@@ -2,15 +2,18 @@ import asyncio
 import sys
 import logging
 import os
-from datetime import date
+import traceback
+from datetime import date, datetime
 from functools import partial
 from aiohttp import web
+from telegram import Update, MenuButtonWebApp, WebAppInfo
 from telegram.ext import (
     ApplicationBuilder,
     MessageHandler,
     CallbackQueryHandler,
     CommandHandler,
     filters,
+    ContextTypes,
 )
 
 # 1. Internal Modules
@@ -38,6 +41,7 @@ from bot.handler import (
     health_command,
     finance_command,
     tasks_command,
+    debug_app_command,
     projects_command,
     reading_command,
     memory_command,
@@ -244,6 +248,7 @@ async def start_bot():
     application.add_handler(CommandHandler("finance", finance_command))
     application.add_handler(CommandHandler("memory", memory_command))
     application.add_handler(CommandHandler("tasks", tasks_command))
+    application.add_handler(CommandHandler("debug_app", debug_app_command))
     application.add_handler(CommandHandler("projects", projects_command))
     application.add_handler(CommandHandler("reading", reading_command))
     application.add_handler(
@@ -261,11 +266,37 @@ async def start_bot():
     application.add_handler(MessageHandler(filters.ALL, msg_handler_with_pool))
     application.add_handler(CallbackQueryHandler(cb_handler_with_pool))
 
-    # 6. Web Server for Health Check & Calendar (runs in background)
-    app = web.Application()
+    @web.middleware
+    async def log_middleware(request, handler):
+        response = await handler(request)
+        print(f"🌐 {request.method} {request.path} -> {response.status}", flush=True)
+        return response
+
+    # 6. Web Server for Health Check & Dashboard (runs in background)
+    app = web.Application(middlewares=[log_middleware])
     app["pool"] = pool
     app.router.add_get("/api/health", handle_health_check)
     setup_api_routes(app)
+
+    # Serve static files for the dashboard
+    dist_path = os.path.join(os.path.dirname(__file__), "dashboard", "dist")
+    
+    async def serve_dashboard_index(request):
+        index_file = os.path.join(dist_path, "index.html")
+        if os.path.exists(index_file):
+            return web.FileResponse(index_file)
+        return web.Response(text="Dashboard build not found. Run 'npm run build' in dashboard folder.", status=404)
+
+    if os.path.exists(dist_path):
+        app.router.add_get("/", serve_dashboard_index)
+        app.router.add_static("/assets", os.path.join(dist_path, "assets"), name="dashboard_assets")
+        # Also map other possible root files
+        for f in ["favicon.ico", "favicon.svg", "manifest.json"]:
+            if os.path.exists(os.path.join(dist_path, f)):
+                app.router.add_get(f"/{f}", lambda r, f=f: web.FileResponse(os.path.join(dist_path, f)))
+        print(f"✅ Serving dashboard assets from {dist_path}/assets at /assets", flush=True)
+    else:
+        print(f"⚠️ Warning: Dashboard dist folder not found at {dist_path}", flush=True)
 
     port = int(os.environ.get("PORT", 8083))
     runner = web.AppRunner(app)
@@ -283,6 +314,22 @@ async def start_bot():
         print(f"Warning: webhook delete failed: {e}", flush=True)
 
     await application.initialize()
+    
+    # Set the Main Menu Button to open the Dashboard
+    dashboard_url = os.getenv("DASHBOARD_URL")
+    if dashboard_url:
+        try:
+            from telegram import MenuButtonWebApp, WebAppInfo
+            await application.bot.set_chat_menu_button(
+                menu_button=MenuButtonWebApp(
+                    text="Dashboard",
+                    web_app=WebAppInfo(url=dashboard_url)
+                )
+            )
+            print(f"✅ Main Menu Button set to {dashboard_url}", flush=True)
+        except Exception as e:
+            print(f"❌ Failed to set Menu Button: {e}", flush=True)
+
     await application.start()
 
     # Small delay to avoid conflict with old instances
