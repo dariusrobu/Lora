@@ -24,7 +24,7 @@ async def handle_health_intent(
         return await _handle_upsert(pool, intent, data, today)
 
     elif intent == "log_water":
-        water_ml = data.get("water_ml")
+        water_ml = data.get("water_ml") or data.get("amount_ml")
         if not water_ml:
             return "Câți ml ai băut? 💧", None, None
 

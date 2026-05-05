@@ -239,6 +239,8 @@ CREATE TABLE IF NOT EXISTS goals (
     deadline DATE,
     progress INT DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
     status VARCHAR(20) DEFAULT 'active',  -- active, completed, paused, abandoned
+    time_horizon VARCHAR(20) DEFAULT 'month', -- week, month, quarter, year
+    linked_keywords JSONB DEFAULT '[]'::jsonb, -- task keywords that advance this goal
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -250,6 +252,15 @@ CREATE TABLE IF NOT EXISTS goal_tasks (
     is_completed BOOLEAN DEFAULT FALSE,
     completed_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ── Proactive Nudges ───────────────────────────────────────
+CREATE TABLE IF NOT EXISTS sent_nudges (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    nudge_type VARCHAR(50) NOT NULL,
+    sent_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(user_id, nudge_type, sent_at)
 );
 -- ── Health Monitoring ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS health_logs (

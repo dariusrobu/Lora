@@ -15,13 +15,14 @@ async def analyze_image(
 
     prompt = f"""
     Analizează această imagine. Ești Lora, asistentul inteligent.
-    Avem 6 categorii posibile de imagini:
+    Avem 7 categorii posibile de imagini:
     1. 'receipt' (bon fiscal / chitanță)
     2. 'menu' (meniu de restaurant / cafenea)
     3. 'workout_screenshot' (captură dintr-o aplicație sport / smartwatch)
     4. 'handwritten_notes' (notițe scrise pe hârtie sau ecran)
     5. 'food' (poză cu mâncare în farfurie sau produse alimentare)
-    6. 'other' (orice altceva)
+    6. 'book_cover' (coperta unei cărți sau ebook)
+    7. 'other' (orice altceva)
     
     {f"Text adițional de la utilizator (caption): {caption}" if caption else ""}
     
@@ -37,10 +38,13 @@ async def analyze_image(
         * total_protein (float)
         * total_carbs (float)
         * total_fat (float)
+    - Pentru 'book_cover': Extrage titlul cărții și autorul.
+        * title (string)
+        * author (string)
     
     Trebuie să răspunzi DOAR cu un JSON (fără blocuri markdown, scrie JSON-ul direct!):
     {{
-      "type": "receipt" | "menu" | "workout_screenshot" | "handwritten_notes" | "food" | "other",
+      "type": "receipt" | "menu" | "workout_screenshot" | "handwritten_notes" | "food" | "book_cover" | "other",
       "confidence": float,
       "extracted_data": dict,
       "reply": "Răspunsul tău scurt în română (markdownV2)"
@@ -50,6 +54,7 @@ async def analyze_image(
     Exemplu extracted_data workout: {{"sport_name": "Alergare", "duration_min": 45, "calories": 400, "distance_km": 5.2}}
     Exemplu extracted_data food: {{"meal_type": "pranz", "description": "Șnițel de pui cu piure", "total_calories": 650, "total_protein": 35, "total_carbs": 50, "total_fat": 25}}
     Exemplu extracted_data notes: {{"text": "Cumpără lapte, du câinele afară..."}}
+    Exemplu extracted_data book_cover: {{"title": "Atomic Habits", "author": "James Clear"}}
     """
 
     try:
@@ -231,6 +236,19 @@ async def process_vision_result(
         await note_queries.add_note(pool, content=text, note_type="note")
 
         return safe_markdown(f"✍️ Notiță salvată cu succes:\n\n_{text}_"), None
+
+    elif img_type == "book_cover":
+        title = data.get("title")
+        author = data.get("author", "Autor Necunoscut")
+        
+        if not title:
+            return safe_markdown("Am detectat o copertă de carte, dar nu am putut citi clar titlul."), None
+            
+        import db.queries.reading as reading_queries
+        
+        await reading_queries.add_book(pool, title=title, author=author)
+        
+        return safe_markdown(f"📚 Cartea *{title}* de {author} a fost adăugată în lista de citit!"), None
 
     else:
         # 'other' or error

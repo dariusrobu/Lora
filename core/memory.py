@@ -16,15 +16,20 @@ async def extract_and_save_facts(
         prompt = f"""
 Analyze the following exchange between a User and their AI Assistant (Lora).
 Extract any new, noteworthy facts about the user that should be remembered long-term.
-Facts should be personal, significant, or related to preferences, patterns, achievements, and people.
 
-EXTRACT PEOPLE: If the user mentions any person's name (first name, full name, nickname),
-extract it with the context. Examples:
-- "Am vorbit cu Ana despre proiect" → {{"category": "people", "fact": "A discutat cu Ana despre un proiect"}}
-- "Mihai e prietenul meu cel mai bun" → {{"category": "people", "fact": "Prietenul lui e Mihai"}}
-- "Am întâlnit-o pe Elena la conferință" → {{"category": "people", "fact": "A întâlnit-o pe Elena la o conferință"}}
+CATEGORIES:
+- "preference" — ce îi place/nu îi place (mâncare, muzică, stil de lucru)
+- "pattern" — obiceiuri recurente, rutine, comportamente
+- "personal" — informații personale (vârstă, oraș, job, studii)
+- "achievement" — realizări, reușite, milestone-uri
+- "people" — persoane menționate și relația cu userul
+- "opinion" — păreri puternice despre subiecte (politică, tech, viață)
+- "goal" — obiective, planuri de viitor, aspirații
+- "relationship" — detalii despre relații (partener, familie, prieteni)
 
-EXISTING KNOWLEDGE (Do NOT repeat these):
+EXTRACT PEOPLE: If the user mentions any person's name, extract it with the relationship context.
+
+EXISTING KNOWLEDGE (Do NOT repeat these — if a fact is already known, skip it):
 {existing_facts_text}
 
 USER MESSAGE:
@@ -33,17 +38,25 @@ USER MESSAGE:
 ASSISTANT REPLY:
 {assistant_reply}
 
-RETURN ONLY a JSON list of objects (no markdown fences):
+RULES:
+1. Extract ONLY meaningful, long-term-relevant facts.
+2. DO NOT extract: greetings, trivial statements, bot commands, questions about the bot itself.
+3. DO NOT extract facts about the assistant (Lora). Only about the USER.
+4. Each fact must be in Romanian, third-person, concise (max 15 words).
+5. Confidence: 1.0 for explicit statements, 0.8 for inferred, 0.6 for uncertain.
+6. If the user shares an OPINION during chat, capture it as category "opinion".
+7. If the user mentions FUTURE PLANS, capture as category "goal".
+
+RETURN ONLY a JSON list (no markdown fences):
 [
   {{
-    "category": "preference" | "pattern" | "personal" | "achievement" | "people",
-    "fact": "The fact in Romanian (direct, concise, third-person e.g. 'Îi place...', 'Locuiește...', 'A discutat cu...')",
-    "is_update": boolean (true if this updates an existing fact),
+    "category": "...",
+    "fact": "...",
+    "is_update": boolean,
     "confidence": 0.0 - 1.0
   }}
 ]
-If no new facts are found, return an empty list [].
-Do NOT extract trivial strings like "User said hello".
+If no new facts → return []
 """
         response = await asyncio.to_thread(
             client.models.generate_content,
@@ -69,13 +82,47 @@ Do NOT extract trivial strings like "User said hello".
             source = fact_data.get("source", "user_stated")
             confidence = fact_data.get("confidence", 1.0)
 
-            if fact:
-                await save_memory_fact(pool, user_id, category, fact, source, confidence)
-                print(f"🧠 MEMORY SAVED: [{category}] {fact}")
+            if not fact or confidence < 0.6:
+                continue
+
+            # Deduplication: check if a similar fact already exists
+            is_duplicate = await _is_duplicate_fact(pool, user_id, fact, category)
+            if is_duplicate:
+                print(f"🔁 MEMORY SKIP (duplicate): [{category}] {fact}")
+                continue
+
+            await save_memory_fact(pool, user_id, category, fact, source, confidence)
+            print(f"🧠 MEMORY SAVED: [{category}] {fact}")
 
     except Exception as e:
         print(f"ERROR in extract_and_save_facts: {e}")
         traceback.print_exc()
+
+
+async def _is_duplicate_fact(pool, user_id: int, new_fact: str, category: str) -> bool:
+    """Checks if a similar fact already exists in memory using fuzzy matching."""
+    try:
+        # Normalize: lowercase, strip, take first 40 chars as prefix
+        prefix = new_fact[:40].strip().lower()
+        async with pool.acquire() as conn:
+            # Check for exact or near-prefix match in same category
+            existing = await conn.fetchval(
+                """
+                SELECT id FROM memory_facts
+                WHERE user_id = $1
+                AND (category = $2 OR category = $3)
+                AND (LOWER(fact) ILIKE $4 OR LOWER(fact) ILIKE $5)
+                LIMIT 1
+                """,
+                user_id,
+                category,
+                category + "s" if not category.endswith("s") else category[:-1],  # handle plural variants
+                f"{prefix}%",
+                f"%{prefix}%",
+            )
+            return existing is not None
+    except Exception:
+        return False
 
 
 async def get_context_memory(

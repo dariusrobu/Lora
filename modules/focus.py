@@ -27,7 +27,7 @@ async def handle_focus_intent(
                     module = 'focus',
                     action = 'complete',
                     item_id = $1,
-                    updated_at = NOW()
+                    created_at = NOW()
                 WHERE state_key = 'current'
             """,
                 session_id,
@@ -149,7 +149,7 @@ async def send_focus_end(bot, pool, session_id: int, duration: int) -> None:
                     module = 'focus',
                     action = 'complete',
                     item_id = $1,
-                    updated_at = NOW()
+                    created_at = NOW()
                 WHERE state_key = 'current'
             """,
                 session_id,

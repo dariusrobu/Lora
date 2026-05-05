@@ -41,18 +41,22 @@ async def get_completed_goals(pool) -> List[Dict[str, Any]]:
 
 
 async def add_goal(
-    pool, title: str, description: Optional[str], category: str
+    pool, title: str, description: Optional[str], category: str, time_horizon: str = 'month', linked_keywords: list = None
 ) -> Dict[str, Any]:
+    import json
+    kw_json = json.dumps(linked_keywords) if linked_keywords else '[]'
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO goals (title, description, category, status, progress)
-            VALUES ($1, $2, $3, 'active', 0)
+            INSERT INTO goals (title, description, category, status, progress, time_horizon, linked_keywords)
+            VALUES ($1, $2, $3, 'active', 0, $4, $5::jsonb)
             RETURNING *
             """,
             title,
             description,
             category,
+            time_horizon,
+            kw_json
         )
         return dict(row)
 
@@ -190,3 +194,26 @@ async def get_goals_overview(pool) -> Dict[str, Any]:
             "total_risk": at_risk,
             "categories": [dict(c) for c in cats],
         }
+
+async def check_goal_alignment(pool, user_id: int) -> Optional[str]:
+    """Checks if there's a goal that needs alignment and returns a recommendation string."""
+    async with pool.acquire() as conn:
+        # Find active goals with linked_keywords
+        goals = await conn.fetch(
+            "SELECT title, linked_keywords FROM goals WHERE status = 'active' ORDER BY updated_at ASC LIMIT 5"
+        )
+        if not goals:
+            return None
+            
+        import json
+        for goal in goals:
+            try:
+                keywords = json.loads(goal['linked_keywords'])
+                if keywords and isinstance(keywords, list):
+                    return f"Azi poți avansa spre obiectivul '{goal['title']}': adaugă un task legat de {', '.join(keywords[:2])}."
+            except Exception:
+                pass
+                
+        # Fallback to the most neglected goal
+        return f"Azi poți avansa spre obiectivul '{goals[0]['title']}'. Nu l-ai mai actualizat demult."
+

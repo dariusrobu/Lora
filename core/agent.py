@@ -281,13 +281,14 @@ agent_tools = types.Tool(
 
 
 async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) -> str:
-    """Executes the mapped function and returns JSON string result."""
-    from datetime import datetime
-
-    today = datetime.now(pytz.timezone(TIMEZONE)).date()
+    """Dispatches a tool call to the correct DB query or system action."""
+    today = date.today()
+    
+    # Strip 'tool_' prefix if present for robust matching
+    normalized_name = call_name[5:] if call_name.startswith("tool_") else call_name
 
     try:
-        if call_name == "tool_get_tasks":
+        if normalized_name == "get_tasks":
             project_name = args.get("project_name")
             project_id = None
             if project_name:
@@ -299,7 +300,7 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
             tasks = await list_tasks(pool, status="pending", project_id=project_id)
             return json.dumps(tasks, default=str)
 
-        elif call_name == "tool_get_events":
+        elif normalized_name == "get_events":
             target_date_str = args.get("date")
             target_date = today
             if target_date_str:
@@ -328,13 +329,13 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
                 "icloud_events": icloud_today
             }, default=str)
 
-        elif call_name == "tool_get_apple_calendar":
+        elif normalized_name == "get_apple_calendar":
             days = args.get("days_ahead", 1)
             from core.icloud import fetch_all_calendars_events
             events = await fetch_all_calendars_events(days_ahead=days)
             return json.dumps(events, default=str)
 
-        elif call_name == "tool_get_health":
+        elif normalized_name == "get_health":
             target_date_str = args.get("date")
             target_date = today
             if target_date_str:
@@ -345,26 +346,26 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
             health = await get_health_log(pool, target_date)
             return json.dumps(health, default=str) if health else "{}"
 
-        elif call_name == "tool_get_goals_progress":
+        elif normalized_name == "get_goals_progress":
             goals = await get_all_goals(pool)
             return json.dumps(goals, default=str)
 
-        elif call_name == "tool_search_memory":
+        elif normalized_name == "search_memory":
             query = args.get("query")
             facts = await semantic_search_memories(pool, TELEGRAM_USER_ID, query)
             return json.dumps(facts, default=str)
 
-        elif call_name == "tool_add_memory":
+        elif normalized_name == "add_memory":
             fact = args.get("fact")
             cat = args.get("category", "general")
             fact_id = await save_memory_fact(pool, TELEGRAM_USER_ID, cat, fact, "agent")
             return json.dumps({"status": "saved", "id": fact_id})
 
-        elif call_name == "tool_get_insights":
+        elif normalized_name == "get_insights":
             timeline = await get_insight_data(pool, days=30)
             return json.dumps(timeline, default=str)
 
-        elif call_name == "tool_get_council_status":
+        elif normalized_name == "get_council_status":
             projects = await get_projects()
             summary = await get_summary()
             decisions = await get_recent_decisions(limit=5)
@@ -374,7 +375,7 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
                 "recent_decisions": decisions
             }, default=str)
 
-        elif call_name == "tool_send_council_report":
+        elif normalized_name == "send_council_report":
             project_id = args.get("project_id")
             summary = args.get("summary")
             task_titles = args.get("completed_task_titles", [])
@@ -385,7 +386,7 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
             success = await send_report_to_council(project_id, tasks_data, summary)
             return json.dumps({"status": "sent" if success else "failed"})
 
-        elif call_name == "tool_get_finance_summary":
+        elif normalized_name == "get_finance_summary":
             period = args.get("period", "today")
             if period == "current_month":
                 summary = await get_monthly_summary(pool, today.month, today.year)
@@ -395,11 +396,11 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
                 fin = await get_daily_transactions(pool, today)
                 return json.dumps(fin, default=str)
 
-        elif call_name == "tool_get_budget_status":
+        elif normalized_name == "get_budget_status":
             status = await get_budget_status(pool)
             return json.dumps(status, default=str)
 
-        elif call_name == "tool_get_university_schedule":
+        elif normalized_name == "get_university_schedule":
             target_date_str = args.get("date")
             target_date = today
             if target_date_str:
@@ -412,46 +413,46 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
             sched = await get_schedule_for_date(pool, target_date)
             return json.dumps(sched, default=str)
 
-        elif call_name == "tool_get_university_attendance":
+        elif normalized_name == "get_university_attendance":
             subs = await list_subjects(pool)
             return json.dumps(subs, default=str)
 
-        elif call_name == "tool_search_notes":
+        elif normalized_name == "search_notes":
             query = args.get("query", "")
             notes = await search_notes(pool, query)
             return json.dumps(notes, default=str)
 
-        elif call_name == "tool_get_shopping_list":
+        elif normalized_name == "get_shopping_list":
             items = await list_shopping_items(pool)
             return json.dumps(items, default=str)
 
-        elif call_name == "tool_get_focus_stats":
+        elif normalized_name == "get_focus_stats":
             today = datetime.now(pytz.timezone(TIMEZONE)).date()
             start = today - timedelta(days=today.weekday())
             stats = await get_weekly_focus_stats(pool, start, today)
             return json.dumps(stats, default=str)
 
-        elif call_name == "tool_get_mood_trend":
+        elif normalized_name == "get_mood_trend":
             days = args.get("days", 30)
             today = datetime.now(pytz.timezone(TIMEZONE)).date()
             start = today - timedelta(days=days)
             mood = await get_monthly_mood_data(pool, start, today)
             return json.dumps(mood, default=str)
 
-        elif call_name == "tool_get_projects":
+        elif normalized_name == "get_projects":
             projects = await list_projects(pool)
             return json.dumps(projects, default=str)
 
-        elif call_name == "tool_get_workouts":
+        elif normalized_name == "get_workouts":
             days = args.get("days", 7)
             workouts = await get_recent_workouts(pool, days)
             return json.dumps(workouts, default=str)
 
-        elif call_name == "tool_get_skills":
+        elif normalized_name == "get_skills":
             skills = await get_all_skills(pool)
             return json.dumps(skills, default=str)
 
-        elif call_name == "tool_system_action":
+        elif normalized_name == "system_action":
             from core.dispatcher import execute_module_intent
             module = args.get("module")
             intent = args.get("intent")
@@ -467,7 +468,7 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
                 "status": "success"
             }, default=str)
 
-        elif call_name == "tool_undo":
+        elif normalized_name == "undo":
             from core.state import get_state
             state = await get_state(pool)
             if not state or state["module"] != args.get("module"):

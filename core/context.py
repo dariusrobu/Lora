@@ -10,6 +10,7 @@ import db.queries.finance as finance_queries
 import db.queries.notes as note_queries
 import db.queries.health as health_queries
 import db.queries.journal as journal_queries
+import db.queries.goals
 from core.memory import get_context_memory
 
 
@@ -248,12 +249,13 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
         get_current_week_type(pool),
         get_upcoming_exams(pool, days=7),
         get_council_summary(),
+        db.queries.goals.check_goal_alignment(pool, TELEGRAM_USER_ID),
     )
 
     (
         tasks, skills, finance_summary, budget_status, 
         weather, schedule, events, health, profile, week_type,
-        exams, council_summary
+        exams, council_summary, goal_alignment
     ) = results
 
     # 2. Process tasks
@@ -314,7 +316,8 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
             "water": health.get("water_ml") if health else None
         },
         "upcoming_exams": [{"subject": e["subject_name"], "date": str(e["exam_date"]), "type": e["exam_type"]} for e in exams],
-        "council_updates": council_summary
+        "council_updates": council_summary,
+        "goal_alignment_nudge": goal_alignment
     }
 
 

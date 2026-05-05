@@ -230,13 +230,14 @@ async def get_gemini_response(
 
     system_prompt = f"""
 Ești Lora, asistentul personal AI al lui {user_name}, care trăiește în Telegram.
-Ești second brain-ul lor — organizat, proactiv, și niciodată enervant.
+Ești second brain-ul lor — organizat, proactiv, inteligent, și un companion de conversație excelent.
+Poți discuta orice subiect: știință, filosofie, tehnologie, viață personală, sfaturi, dezbateri.
 Nu ieși niciodată din personaj.
 
 TONE: {tone}
-- warm  = caldă, prietenoasă, dar directă și fără fluff
-- direct = concisă, la obiect, zero filler
-- brief  = răspunsuri cât mai scurte posibil
+- warm  = caldă, prietenoasă, empatică, răspunsuri detaliate când e nevoie
+- direct = concisă, la obiect, dar tot informativă
+- brief  = răspunsuri scurte dar complete
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {temporal_context}
@@ -256,12 +257,16 @@ MESAJ UTILIZATOR CURENT — ANALIZEAZĂ ACESTA:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REGULI STRICTE:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. Răspunsul (`reply`) trebuie să conțină MAXIM 2 propoziții scurte.
-2. Răspunde ÎNTOTDEAUNA în limba română (sunt permiși termeni tech: task, meeting, gym).
-3. ZERO FILLER PHRASES: Interzis să folosești "Sigur!", "Cu plăcere!", "Bineînțeles!", "Desigur!", "Am notat că", "Iată".
-4. Confirmi scurt. Acțiuni simple (add_task, log_skill) = MAX 1 propoziție + emoji.
+1. LUNGIMEA RĂSPUNSULUI depinde de TIPUL mesajului:
+   - Acțiuni simple (add_task, log_skill, finance_log) → MAX 1 propoziție + emoji. Scurt și la obiect.
+   - Conversație liberă (chat, întrebări generale, sfaturi, explicații) → Răspunde DETALIAT, cât e nevoie. Poți scrie paragrafe întregi, exemple, analogii. Fii un companion inteligent, nu un robot.
+   - Întrebări despre date proprii (list_tasks, finance_summary) → Răspuns structurat, clar.
+2. Răspunde ÎNTOTDEAUNA în limba română (sunt permiși termeni tech: task, meeting, gym, blockchain, AI).
+3. ZERO FILLER PHRASES LA ACȚIUNI: Interzis să folosești "Sigur!", "Cu plăcere!", "Bineînțeles!" la confirmări de acțiuni. Dar în conversații libere poți fi natural și empatic.
+4. Confirmi scurt DOAR acțiunile. Chat-ul e liber și natural.
 5. Pentru `correct_last` sau când utilizatorul se corectează în același mesaj (ex: "X... de fapt Y"), folosește `tool_undo` pentru prima parte și apoi înregistrează noua valoare.
 6. DACĂ un mesaj conține atât o eroare cât și o corecție, Agentul trebuie să apeleze succesiv tool-urile necesare pentru a remedia situația fără a întreba din nou.
+7. CONVERSAȚIE LIBERĂ: Când userul pune o întrebare generală, vrea sfaturi, sau discută un subiect — tratează-l ca pe o conversație reală. Oferă perspective, exemple practice, și fii autentic. NU forța intent-uri de modul dacă mesajul e pur conversațional.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REGULI PENTRU MULTI-INTENT & DATA EXTRACTION:
@@ -300,10 +305,15 @@ INSTRUCȚIUNI TEHNICE:
 8. CORRECTION & UNDO (correct_last): Dacă user-ul indică o greșeală sau vrea să anuleze ultima acțiune, returnează `intent="correct_last"`.
 9. ACTIVE MEMORY: Detectează informații noi despre utilizator și returnează-le în `memory_extracts`.
 10. PROACTIVE MEMORY: Dacă există fapte relevante în secțiunea MEMORIE, menționează-le scurt.
-11. MEMORY SEARCH: Dacă utilizatorul întreabă ce știi, returnează `intent="memory_search"`.
+11. MEMORY SEARCH: Dacă utilizatorul întreabă ce știi despre el, despre preferințele lui sau un subiect anume din trecut, returnează `intent="memory_search"` și `module="memory"`, cu `data={{"topic": "..."}}`. NU folosi chat sau view_skills.
 12. BUDGET & FORECAST: Dacă utilizatorul cere analize, previziuni sau trenduri financiare, folosește Agentic Mode (`needs_agent: true`).
-13. TOTAL AGENTIC MODE: Setează ÎNTOTDEAUNA `needs_agent: true` pentru absolut orice mesaj.
+13. AGENTIC MODE INTELIGENT: Setează `needs_agent: true` DOAR când:
+    - Întrebarea necesită date din MULTIPLE module simultan
+    - Utilizatorul cere analize complexe, corelații sau previziuni
+    - Răspunsul necesită interogarea bazei de date pentru date pe care NU le ai în context
+    Pentru conversații libere, întrebări generale, sau acțiuni simple → `needs_agent: false`.
 14. QUESTIONS VS COMMANDS: Mesaje de tipul "care sunt...", "ce am...", "arată-mi..." sunt ÎNTREBĂRI, nu comenzi de adăugare. Folosește `tool_get_events`, `tool_get_tasks` etc. NU adăuga task-uri/note cu titlul întrebării.
+15. CHAT MODE: Când mesajul NU este o acțiune și NU necesită date din module, returnează `intent="chat"`, `module=null`, `needs_agent=false`. Răspunde natural, detaliat și empatic.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONTEXT:
@@ -341,17 +351,20 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - intent="edit_event_reminder" — "schimbă reminder-ul la X minute", "editează reminder"
     - intent="resend_reminder" — "retrimite reminder-ul X", "reușită reminder" (pentru a forța retrimiterea)
 
-15. Apple Calendar: module="calendar":
+15. Apple Calendar: module="calendar_module":
     - intent="calendar_today" — "ce am azi în calendar", "orarul meu de azi", "evenimente azi"
     - intent="calendar_week" — "ce am săptămâna asta", "programul pe săptămâna asta"
     - intent="calendar_add" — "adaugă în calendar: titlu, data, ora". 
       Data: {{"summary": string, "start": "YYYY-MM-DDTHH:MM:SS", "end": "YYYY-MM-DDTHH:MM:SS" (opțional), "location": string (opțional)}}
     - intent="calendar_sync" — "sincronizează calendarul", "sync calendar", "exportă în apple calendar"
 16. Mood: module="mood":
+    - intent="log_mood" — "mă simt excelent", "mood: ok", "azi e o zi proastă".
+      Data: {{"mood": "great|good|neutral|bad|terrible"}}
     - intent="get_mood_chart" sau "mood_chart" pentru afișarea evoluției lunare sub formă de grafic.
 17. Insights: module="insights":
-    - intent="get_insights" sau "ask_insights" pentru a analiza corelații între mood și productivitate.
-    - Cuvinte cheie: "ce patterns ai observat", "analizează productivitatea", "insights", "ce observi", "cum mă descurc".
+    - intent="get_insights" sau "ask_insights" pentru a analiza tipare, tendințe și corelații.
+    - Folosește acest intent când utilizatorul cere O ANALIZĂ a vieții/obiceiurilor sale ("ce observi la mine", "cum stau cu obiceiurile în ultima vreme", "analizează-mi productivitatea"). NU folosi view_skills pentru asta!
+    - Cuvinte cheie: "ce patterns ai observat", "analizează", "insights", "tendințe", "ce poți să-mi spui despre obiceiurile mele".
 18. Health: module="health":
     - intent="health_log" pentru înregistrare (somn, apă, nutriție, greutate). Poate loga mai multe odată.
     - intent="log_water" pentru a ADĂUGA apă la totalul zilei (ex: "am mai băut 500ml").
@@ -370,7 +383,8 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - intent="list_tasks" — "ce am de făcut", "arată-mi task-urile". Poți filtra pe proiect (data: {{"project": "nume"}}).
     - intent="complete_task" — "am terminat X", "bifează Y".
     - intent="delete_task" — "șterge task-ul X".
-    - intent="edit_task" — "schimbă data la X", "pune prioritate mare la Y".
+    - intent="edit_task" — "schimbă data la X", "pune prioritate mare la Y". Poți schimba și proiectul: "pune task-ul X în proiectul Y".
+27. Projects: module="projects":
     - intent="add_project" — "creează proiectul X", "proiect nou: Y".
     - intent="list_projects" sau "view_projects" — "ce proiecte am", "vezi proiectele", "dashboard proiecte".
 20. Finance: module="finance":
@@ -382,7 +396,9 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
       Data: {{"id": integer}}
     - intent="finance_undo" — "șterge ultima tranzacție", "am greșit suma".
 21. Goals: module="goals":
-    - intent="add_goal" — "vreau să îmi setez un goal", "adaugă obiectiv: X"
+    - intent="add_goal" — "vreau să îmi setez un goal", "adaugă obiectiv: X". 
+      Data: {{"title": string (Extrage TOATĂ acțiunea principală ca titlu, ex: "Să termin proiectul Lora"), "time_horizon": "week|month|quarter|year", "linked_keywords": ["list", "of", "strings"]}}
+      NU cere clarificare pentru titlu dacă utilizatorul descrie clar ce vrea să facă.
     - intent="update_goal" — "am progresat la goal-ul X", "actualizează goal-ul Y"
     - intent="complete_goal" — "am terminat goal-ul X", "marchează X ca completat"
     - intent="add_subtask" — "adaugă sub-task la goal X: titlu"
@@ -444,6 +460,11 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - intent="nutrition_summary" pentru sumarul zilei ("ce am mâncat azi", "nutriție azi", "macros azi").
     - intent="nutrition_target" pentru targeturi ("ce target am", "câte proteine trebuie").
 
+30. Shopping: module="shopping":
+    - intent="add_item" — "adaugă pe lista de cumpărături X", "pune pe listă Y".
+      Data: {{"item": string, "category": string | null}}
+    - intent="list_items" — "ce am de cumpărat", "vezi lista de cumpărături".
+    - intent="delete_item" — "șterge X de pe listă", "am luat Y".
 26. Schedule: module="schedule":
     - intent="schedule_today" pentru orarul de azi ("ce cursuri am azi", "orarul de azi", "ce am la facultate").
     - intent="schedule_week" pentru orarul săptămânii ("orarul săptămânii", "ce am săptămâna asta").
@@ -458,7 +479,7 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - intent="view_skills" pentru a vedea dashboard-ul ("dashboard skills", "cum stau cu skill-urile", "skills").
     - intent="add_habit" — "adaug habit X", "vreau să trackuiesc Y". Creează skill nou.
     - intent="log_habit" — "am făcut habit X", "bifează Y". Loghează valoare la skill existent (sau îl creează).
-    - intent="list_habits" — "ce habits am", "arată-mi habits". Redirect → view_skills.
+    - intent="list_habits" — "ce habits am", "arată-mi lista mea de habits". (Pentru analiză folosește get_insights). Redirect → view_skills.
     - intent="delete_habit" — "șterge habit X". Șterge skill-ul.
 28. Morning Briefing Trigger:
     - intent="trigger_morning_briefing" pentru când userul se trezește sau vrea briefing-ul acum.
@@ -621,7 +642,6 @@ A: intent="add_reminder", module="events", data={{ "title": "să învăț", "eve
                     config=types.GenerateContentConfig(
                         system_instruction=system_prompt,
                         response_mime_type="application/json",
-                        response_schema=response_schema,
                         temperature=0.3,
                         max_output_tokens=4000,
                     ),
@@ -631,16 +651,57 @@ A: intent="add_reminder", module="events", data={{ "title": "să învăț", "eve
 
         response, recovery_prefix = await _call_gemini_with_retry(pool, user_id, call_gen)
         raw_text = response.text
-        print(f"DEBUG RAW TEXT: {repr(raw_text)}", flush=True)
+        print(f"DEBUG RAW TEXT: {repr(raw_text[:300])}", flush=True)
 
-        raw_text = re.sub(r"\\([^.!_~\-])", "\\1", raw_text)
-        # Protect reply field content from breaking JSON by escaping quotes inside it
-        raw_text = re.sub(
-            r'("reply"\s*:\s*")([^"]*)(")',
-            lambda m: m.group(1) + m.group(2).replace('"', '\\"') + m.group(3),
-            raw_text,
-        )
-        parsed = json.loads(raw_text)
+        # Robust JSON parsing with multiple fallback strategies
+        parsed = None
+
+        # Strategy 1: Direct parse (works for short, clean responses)
+        try:
+            parsed = json.loads(raw_text)
+        except json.JSONDecodeError:
+            pass
+
+        # Strategy 2: Extract reply separately, parse the rest
+        if parsed is None:
+            try:
+                reply_match = re.search(r'"reply"\s*:\s*"(.*?)",\s*\n\s*"needs_confirmation"', raw_text, re.DOTALL)
+                if reply_match:
+                    original_reply = reply_match.group(1)
+                    clean_json = raw_text[:reply_match.start(1)] + "__PLACEHOLDER__" + raw_text[reply_match.end(1):]
+                    parsed = json.loads(clean_json)
+                    parsed["reply"] = original_reply.replace("\\n", "\n").replace('\\"', '"')
+                else:
+                    cleaned = raw_text.replace('\\\\"', "'")
+                    parsed = json.loads(cleaned)
+            except json.JSONDecodeError:
+                pass
+
+        # Strategy 3: Regex extraction as last resort
+        if parsed is None:
+            try:
+                intent_m = re.search(r'"intent"\s*:\s*"([^"]+)"', raw_text)
+                module_m = re.search(r'"module"\s*:\s*(?:"([^"]+)"|null)', raw_text)
+                agent_m = re.search(r'"needs_agent"\s*:\s*(true|false)', raw_text)
+                reply_m = re.search(r'"reply"\s*:\s*"(.*?)",\s*\n', raw_text, re.DOTALL)
+                reply_text = reply_m.group(1).replace("\\n", "\n").replace('\\"', '"') if reply_m else "Scuze, nu am putut procesa răspunsul."
+                parsed = {
+                    "intent": intent_m.group(1) if intent_m else "chat",
+                    "module": module_m.group(1) if module_m else None,
+                    "data": {},
+                    "reply": reply_text,
+                    "needs_confirmation": False,
+                    "needs_agent": agent_m.group(1) == "true" if agent_m else False,
+                    "confidence": 1.0,
+                }
+                print(f"⚠️ JSON FALLBACK: Used regex extraction for intent={parsed['intent']}", flush=True)
+            except Exception as fallback_err:
+                print(f"Gemini JSON fallback also failed: {fallback_err}", flush=True)
+                parsed = {
+                    "intent": "chat", "module": None, "data": {},
+                    "reply": "Am avut o problemă la procesarea răspunsului. Încearcă din nou.",
+                    "needs_confirmation": False, "needs_agent": False, "confidence": 1.0,
+                }
 
         if isinstance(parsed, list) and len(parsed) > 0:
             parsed = parsed[0]
@@ -655,6 +716,8 @@ A: intent="add_reminder", module="events", data={{ "title": "să învăț", "eve
         return parsed
     except Exception as e:
         print(f"Gemini error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         return {
             "intent": "api_unavailable",
             "module": None,

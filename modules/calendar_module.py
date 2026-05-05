@@ -5,7 +5,7 @@ from bot.formatter import escape_md
 import asyncio
 
 
-async def handle_calendar_intent(
+async def handle_calendar_module_intent(
     pool, intent: str, data: Dict[str, Any]
 ) -> Tuple[str, Optional[Any]]:
     """Handler for calendar-related intents."""

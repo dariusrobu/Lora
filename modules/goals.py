@@ -10,10 +10,14 @@ async def handle_goal_intent(
 ) -> Tuple[str, Optional[InlineKeyboardMarkup]]:
     if intent == "add_goal":
         title = data.get("title")
+        if not title:
+            return "❌ Te rog să specifici un titlu clar pentru obiectiv.", None
         description = data.get("description")
         category = data.get("category", "Personal")
+        time_horizon = data.get("time_horizon", "month")
+        linked_keywords = data.get("linked_keywords", [])
 
-        goal = await goal_queries.add_goal(pool, title, description, category)
+        goal = await goal_queries.add_goal(pool, title, description, category, time_horizon, linked_keywords)
         return f"🎯 Obiectiv adăugat: *{escape_md(goal['title'])}*", None
 
     elif intent == "view_goals":
@@ -182,6 +186,7 @@ async def get_goal_detail(pool, goal_id: int) -> Tuple[str, Any]:
         f"🎯 *{title}*",
         "━━━━━━━━━━━━━━━",
         f"Categorie: *{category}*",
+        f"Orizont de timp: *{goal_data.get('time_horizon', 'N/A')}*",
         f"Progres: `{bar}` {progress}%",
     ]
     if total_tasks > 0:

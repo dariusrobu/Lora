@@ -376,6 +376,11 @@ async def handle_task_intent(
         from bot.keyboards import task_keyboard
 
         reply_msg = f"Am adăugat ✅ *{escape_md(title)}*"
+        if due_date:
+            from bot.formatter import format_date_short
+            reply_msg += f" (până pe {format_date_short(due_date)})"
+        if project_name:
+            reply_msg += f" în proiectul *{escape_md(project_name)}*"
 
         # --- PROACTIVE MEMORY: Find similar tasks ---
         from core.config import TELEGRAM_USER_ID
@@ -605,6 +610,20 @@ async def handle_task_intent(
                         continue
                 upd[k] = val
 
+        # Handle project reassignment
+        project_name = data.get("project") or data.get("project_name")
+        if project_name:
+            import db.queries.projects as project_queries
+            project = await project_queries.get_project_by_name(pool, project_name)
+            if project:
+                upd["project_id"] = project["id"]
+                # For the reply message
+                data["project"] = project["name"]
+            else:
+                # Optional: Handle project not found? 
+                # For now just log it or ignore
+                pass
+
         if not upd:
             return (
                 "Ce anume vrei să schimb? (ex: 'Schimbă titlul în X' sau 'Pune prioritate mare')",
@@ -673,6 +692,8 @@ async def handle_task_intent(
             confirmation_keyboard("tasks", "delete", task_id),
             task_id,
         )
+
+    return "Modulul de task-uri funcționează corect.", None, None
 
 def _build_urgency_suggestion(tasks: list, today: date) -> str | None:
     """Build a contextual suggestion for the most urgent task."""

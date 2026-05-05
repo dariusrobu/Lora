@@ -1,5 +1,5 @@
 from bot.callback_utils import make_callback_data
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 import db.queries.memory as memory_queries
 from bot.formatter import escape_md, safe_markdown
 from bot.keyboards import memory_main_keyboard

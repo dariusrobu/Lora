@@ -78,17 +78,16 @@ async def get_subject_by_id(pool, subject_id: int) -> dict | None:
         return dict(row) if row else None
 
 
-async def log_attendance(pool, subject_id, attended, class_date, notes=None) -> None:
+async def log_attendance(pool, subject_id, attended, class_date) -> None:
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO attendances (subject_id, attended, class_date, notes)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO attendances (subject_id, attended, class_date)
+            VALUES ($1, $2, $3)
         """,
             subject_id,
             attended,
             class_date,
-            notes,
         )
 
 

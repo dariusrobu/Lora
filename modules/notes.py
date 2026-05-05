@@ -6,8 +6,8 @@ from bot.formatter import escape_md
 async def handle_note_intent(
     pool, intent: str, data: Dict[str, Any]
 ) -> Tuple[str, Any, Optional[int]]:
-    if intent == "add_note":
-        content = data.get("content")
+    if intent in ("add_note", "notes_add"):
+        content = data.get("content") or data.get("title") or data.get("text")
         if not content:
             return "Ce anume vrei să notez? ✍️", None, None
 
