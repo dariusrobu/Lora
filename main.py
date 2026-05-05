@@ -28,6 +28,7 @@ from bot.handler import (
     voice_handler,
     photo_handler,
     profile_handler,
+    location_handler,
     focus_command,
     stopfocus_command,
     timeblock_command,
@@ -219,6 +220,7 @@ async def start_bot():
     cb_handler_with_pool = partial(callback_handler, pool=pool)
     voice_handler_with_pool = partial(voice_handler, pool=pool)
     photo_handler_with_pool = partial(photo_handler, pool=pool)
+    location_handler_with_pool = partial(location_handler, pool=pool)
 
     application.add_handler(
         CommandHandler("profile", partial(profile_handler, pool=pool))
@@ -257,6 +259,7 @@ async def start_bot():
     )
     application.add_handler(MessageHandler(filters.VOICE, voice_handler_with_pool))
     application.add_handler(MessageHandler(filters.PHOTO, photo_handler_with_pool))
+    application.add_handler(MessageHandler(filters.LOCATION, location_handler_with_pool))
     application.add_handler(MessageHandler(filters.ALL, msg_handler_with_pool))
     application.add_handler(CallbackQueryHandler(cb_handler_with_pool))
 

@@ -56,6 +56,18 @@ async def get_project_by_id(request):
 
 
 @require_auth
+async def get_profile(request):
+    try:
+        pool = request.app["pool"]
+        from db.queries.profile import get_user_profile
+        from core.config import TELEGRAM_USER_ID
+        profile = await get_user_profile(pool, TELEGRAM_USER_ID)
+        return web.json_response(serialize_dic(profile))
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@require_auth
 async def get_tasks(request):
     try:
         pool = request.app["pool"]
@@ -117,6 +129,18 @@ async def get_finance_summary(request):
                 "budget_alerts": budget_alerts,
             }
         )
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@require_auth
+async def get_finance_history(request):
+    try:
+        pool = request.app["pool"]
+        limit = int(request.query.get("limit", 20))
+        transactions = await finance_queries.get_recent_transactions(pool, limit=limit)
+        serialized = [serialize_dic(dict(t)) for t in transactions]
+        return web.json_response(serialized)
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
@@ -356,15 +380,26 @@ async def get_weather(request):
         lat = request.query.get("lat")
         lon = request.query.get("lon")
 
-        from core.config import OPENWEATHER_API_KEY
+        from core.config import OPENWEATHER_API_KEY, WEATHER_CITY
+        from db.queries.profile import get_user_profile
+        from core.config import TELEGRAM_USER_ID
         import httpx
 
         if not lat or not lon:
-            return web.json_response({"error": "Missing coordinates"}, status=400)
+            # Try to get from profile
+            pool = request.app["pool"]
+            profile = await get_user_profile(pool, TELEGRAM_USER_ID)
+            lat = profile.get("latitude")
+            lon = profile.get("longitude")
 
-        url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric&lang=ro"
+        if lat and lon:
+            url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric&lang=ro"
+        else:
+            # Fallback to city
+            url = f"https://api.openweathermap.org/data/2.5/weather?q={WEATHER_CITY}&appid={OPENWEATHER_API_KEY}&units=metric&lang=ro"
+
         async with httpx.AsyncClient() as client:
-            res = await client.get(url)
+            res = await client.get(url, timeout=10.0)
             if res.status_code == 200:
                 return web.json_response(res.json())
             else:
@@ -683,10 +718,12 @@ def setup_api_routes(app):
     app.router.add_get("/api/projects", get_projects)
     app.router.add_get("/api/projects/{project_id}", get_project_by_id)
     app.router.add_get("/api/tasks", get_tasks)
+    app.router.add_get("/api/profile", get_profile)
     app.router.add_post("/api/tasks", post_task)
     app.router.add_patch("/api/tasks/{task_id}", patch_task)
     app.router.add_get("/api/finances/summary", get_finance_summary)
     app.router.add_get("/api/finances/chart", get_finance_chart)
+    app.router.add_get("/api/finances/history", get_finance_history)
     app.router.add_post("/api/finances", post_finance)
     app.router.add_get("/api/university/summary", get_uni_summary)
     app.router.add_get("/api/shopping", get_shopping)

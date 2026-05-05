@@ -8,8 +8,19 @@ async def handle_weather_intent(
 ) -> Tuple[str, Any, Optional[int]]:
     """Handler principal pentru modulul de vreme."""
     if intent == "get_weather":
-        city = data.get("city", WEATHER_CITY)
-        reply = await get_weather_summary(city)
+        from db.queries.profile import get_user_profile
+        from core.config import TELEGRAM_USER_ID
+        
+        profile = await get_user_profile(pool, TELEGRAM_USER_ID)
+        lat = profile.get("latitude")
+        lon = profile.get("longitude")
+        
+        if lat and lon:
+            reply = await get_weather_summary(lat=float(lat), lon=float(lon))
+        else:
+            city = data.get("city", WEATHER_CITY)
+            reply = await get_weather_summary(city=city)
+            
         if not reply:
             return "Nu am putut accesa datele meteo. Verifică API KEY-ul.", None, None
         return reply, None, None
@@ -17,14 +28,18 @@ async def handle_weather_intent(
     return "Modulul weather este pregătit!", None, None
 
 
-async def get_weather_summary(city: str = WEATHER_CITY) -> Optional[str]:
+async def get_weather_summary(city: str = None, lat: float = None, lon: float = None) -> Optional[str]:
     """
-    Fetches weather data from OpenWeatherMap and returns a text summary.
+    Fetches weather data from OpenWeatherMap using city name or coordinates.
     """
     if not OPENWEATHER_API_KEY:
         return None
 
-    url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={OPENWEATHER_API_KEY}&units=metric&lang=ro"
+    if lat is not None and lon is not None:
+        url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric&lang=ro"
+    else:
+        target_city = city or WEATHER_CITY
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={target_city}&appid={OPENWEATHER_API_KEY}&units=metric&lang=ro"
 
     try:
         async with httpx.AsyncClient() as client:
@@ -33,12 +48,13 @@ async def get_weather_summary(city: str = WEATHER_CITY) -> Optional[str]:
                 data = response.json()
                 main = data.get("main", {})
                 weather = data.get("weather", [{}])[0]
+                name = data.get("name", "locația ta")
                 temp = round(main.get("temp", 0))
                 feels_like = round(main.get("feels_like", 0))
                 desc = weather.get("description", "cer variabil")
 
                 return (
-                    f"Vremea în {city}: {desc}, {temp}°C (se simte ca {feels_like}°C)."
+                    f"Vremea în {name}: {desc}, {temp}°C (se simte ca {feels_like}°C)."
                 )
             else:
                 print(f"Weather API error: {response.status_code} - {response.text}")

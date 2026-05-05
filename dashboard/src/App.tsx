@@ -4,7 +4,7 @@ import {
   Dumbbell, Wallet, ArrowLeft, Loader2, Settings,
   Calendar, ShoppingCart, Heart, Flame, Brain, Play, Pause, RotateCcw,
   TrendingUp, Star, AlertTriangle, Moon, Droplets, Scale,
-  Pin, MapPin, Search
+  Pin, MapPin, Search, Sun, Cloud, CloudRain, CloudDrizzle, CloudSnow, CloudLightning
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -55,6 +55,9 @@ function App() {
   const [notes, setNotes] = useState<any[]>([]);
   const [healthLogs, setHealthLogs] = useState<any[]>([]);
   const [calendarToday, setCalendarToday] = useState<any>(null);
+  const [financeHistory, setFinanceHistory] = useState<any[]>([]);
+  const [profile, setProfile] = useState<any>(null);
+  const [weather, setWeather] = useState<any>(null);
   const [selectedSkill, setSelectedSkill] = useState<any>(null);
   const [logValue, setLogValue] = useState('');
   const [loading, setLoading] = useState(true);
@@ -81,7 +84,7 @@ function App() {
 
   const fetchData = async () => {
     try {
-      const [t, f, u, g, s, shop, n, h, c] = await Promise.all([
+      const [t, f, u, g, s, shop, n, h, c, f_hist, prof, w] = await Promise.all([
         fetch('/api/tasks?status=all', { headers: HEADERS }).then(r => r.json()),
         fetch('/api/finances/summary', { headers: HEADERS }).then(r => r.json()),
         fetch('/api/university/summary', { headers: HEADERS }).then(r => r.json()),
@@ -90,7 +93,10 @@ function App() {
         fetch('/api/shopping', { headers: HEADERS }).then(r => r.json()),
         fetch('/api/notes', { headers: HEADERS }).then(r => r.json()),
         fetch('/api/health/summary', { headers: HEADERS }).then(r => r.json()),
-        fetch('/api/calendar/today', { headers: HEADERS }).then(r => r.json())
+        fetch('/api/calendar/today', { headers: HEADERS }).then(r => r.json()),
+        fetch('/api/finances/history', { headers: HEADERS }).then(r => r.json()),
+        fetch('/api/profile', { headers: HEADERS }).then(r => r.json()),
+        fetch('/api/weather', { headers: HEADERS }).then(r => r.json())
       ]);
       setTasks(Array.isArray(t) ? t : []);
       setFinance(f);
@@ -101,6 +107,9 @@ function App() {
       setNotes(Array.isArray(n) ? n : []);
       setHealthLogs(Array.isArray(h) ? h : []);
       setCalendarToday(c);
+      setFinanceHistory(Array.isArray(f_hist) ? f_hist : []);
+      setProfile(prof);
+      setWeather(w);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -134,7 +143,7 @@ function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="p-6 pb-20 space-y-8 max-w-md mx-auto"
+            className="p-6 pb-20 space-y-8 max-w-7xl mx-auto"
           >
             <header className="flex justify-between items-end">
               <div className="space-y-1">
@@ -171,93 +180,186 @@ function App() {
                 </div>
               </GlassCard>
             </div>
-
-            {/* Focus & Add Task */}
-            <div className="grid grid-cols-2 gap-4">
-              <GlassCard className="h-44 flex flex-col justify-between border-blue-500/20">
-                <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Focus OS</p>
-                <div className="text-center space-y-2">
-                  <p className="text-3xl font-black tracking-tighter">{formatTime(timeLeft)}</p>
-                  <div className="flex justify-center gap-2">
-                    <button onClick={() => setTimerActive(!timerActive)} className="p-2 bg-blue-500/10 rounded-full">{timerActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}</button>
-                    <button onClick={() => setTimeLeft(25 * 60)} className="p-2 bg-white/5 rounded-full"><RotateCcw className="w-4 h-4" /></button>
-                  </div>
-                </div>
-              </GlassCard>
-              <GlassCard className="h-44 flex flex-col justify-between" onClick={() => setIsAddingTask(true)}>
-                <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Flux Nou</p>
-                <div className="flex flex-col items-center gap-2">
-                   <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.4)]"><Plus className="w-6 h-6" /></div>
-                   <p className="text-[10px] font-black uppercase text-blue-500">Adaugă Task</p>
-                </div>
-              </GlassCard>
-            </div>
-
-            {/* High Priorities Section */}
-            <div className="space-y-4">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 px-2 flex justify-between items-center">
-                <span>Priorități Critice</span>
-                <span className="bg-red-500/10 text-red-500 px-2 py-0.5 rounded text-[8px]">{tasks.filter(t => t.priority === 'high' && t.status !== 'done').length}</span>
-              </h3>
-              <div className="space-y-3">
-                {tasks.filter(t => t.priority === 'high' && t.status !== 'done').slice(0, 3).map(t => (
-                  <GlassCard key={t.id} className="p-4 flex items-center gap-4 border-l-4 border-l-red-500" onClick={() => fetch(`/api/tasks/${t.id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ action: 'complete' }) }).then(fetchData)}>
-                    <div className="w-5 h-5 rounded-full border-2 border-red-500/30 flex items-center justify-center">
-                      <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]" />
+            
+            {/* Weather Bento */}
+            {weather && weather.main && (
+              <section className="mt-8 mb-4">
+                <GlassCard className="flex items-center justify-between p-6 overflow-hidden relative group border-blue-500/10">
+                  <div className="relative z-10">
+                    <div className="flex items-center gap-2 mb-1">
+                      <MapPin className="w-3 h-3 text-blue-500" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{weather.name}</span>
                     </div>
-                    <div className="flex-1">
-                      <p className="font-bold text-sm leading-tight">{t.title}</p>
-                      {t.project_name && <p className="text-[9px] text-gray-500 font-bold uppercase mt-1">Proiect: {t.project_name}</p>}
+                    <div className="flex items-end gap-2">
+                      <h3 className="text-5xl font-black text-white leading-none">{Math.round(weather.main?.temp)}°</h3>
+                      <p className="text-xs font-bold text-gray-500 uppercase pb-1">{weather.weather?.[0]?.description}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="relative z-10 text-right">
+                    {weather.weather?.[0]?.main === 'Clear' && <Sun className="w-14 h-14 text-yellow-500 drop-shadow-[0_0_15px_rgba(234,179,8,0.5)]" />}
+                    {weather.weather?.[0]?.main === 'Clouds' && <Cloud className="w-14 h-14 text-blue-300 drop-shadow-[0_0_15px_rgba(147,197,253,0.5)]" />}
+                    {weather.weather?.[0]?.main === 'Rain' && <CloudRain className="w-14 h-14 text-blue-500" />}
+                    {weather.weather?.[0]?.main === 'Drizzle' && <CloudDrizzle className="w-14 h-14 text-blue-400" />}
+                    {weather.weather?.[0]?.main === 'Snow' && <CloudSnow className="w-14 h-14 text-white" />}
+                    {['Thunderstorm', 'Mist', 'Fog', 'Haze'].includes(weather.weather?.[0]?.main) && <CloudLightning className="w-14 h-14 text-purple-400" />}
+                  </div>
+
+                  {/* Decorative circle */}
+                  <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all duration-700" />
+                </GlassCard>
+              </section>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              
+              {/* Left Column: Modules & Focus (Desktop) */}
+              <div className="lg:col-span-4 space-y-8">
+                {/* Module Hub (Desktop: Sidebar-ish, Mobile: Grid) */}
+                <section className="space-y-4">
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 px-2">Sisteme Lora</h3>
+                  <div className="grid grid-cols-4 lg:grid-cols-2 gap-4">
+                    {[
+                      { id: 'tasks', icon: CheckCircle2, label: 'Tasks', color: 'text-emerald-400' },
+                      { id: 'map', icon: MapPin, label: 'Hartă', color: 'text-blue-500' },
+                      { id: 'finance', icon: Wallet, label: 'Bani', color: 'text-emerald-500' },
+                      { id: 'uni', icon: GraduationCap, label: 'Academic', color: 'text-orange-500' },
+                      { id: 'gym', icon: Dumbbell, label: 'Sală', color: 'text-red-500' },
+                      { id: 'skills', icon: Flame, label: 'Skills', color: 'text-yellow-500' },
+                      { id: 'shop', icon: ShoppingCart, label: 'Shop', color: 'text-purple-500' },
+                      { id: 'notes', icon: Brain, label: 'Brain', color: 'text-emerald-500' },
+                      { id: 'health', icon: Heart, label: 'Sănătate', color: 'text-pink-500' },
+                      { id: 'calendar', icon: Calendar, label: 'Plan', color: 'text-blue-400' }
+                    ].map(m => (
+                      <button key={m.id} onClick={() => setView(m.id as View)} className="flex lg:flex-row flex-col items-center gap-3 p-3 lg:bg-white/[0.03] lg:border lg:border-white/5 lg:rounded-2xl hover:bg-white/10 transition-all">
+                        <div className="w-10 h-10 lg:w-8 lg:h-8 rounded-xl bg-white/[0.05] flex items-center justify-center">
+                          <m.icon className={`w-5 h-5 lg:w-4 lg:h-4 ${m.color}`} />
+                        </div>
+                        <span className="text-[8px] lg:text-[10px] font-black uppercase tracking-widest text-gray-400">{m.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
+                <GlassCard className="h-44 flex flex-col justify-between border-blue-500/20 bg-gradient-to-br from-blue-500/5 to-transparent">
+                  <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Focus OS</p>
+                  <div className="text-center space-y-2">
+                    <p className="text-3xl font-black tracking-tighter">{formatTime(timeLeft)}</p>
+                    <div className="flex justify-center gap-2">
+                      <button onClick={() => setTimerActive(!timerActive)} className="p-2 bg-blue-500/10 rounded-full">{timerActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}</button>
+                      <button onClick={() => setTimeLeft(25 * 60)} className="p-2 bg-white/5 rounded-full"><RotateCcw className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                </GlassCard>
+              </div>
+
+              {/* Middle Column: Priorities & Add Task */}
+              <div className="lg:col-span-5 space-y-8">
+                <GlassCard className="h-44 flex flex-col justify-between bg-blue-600 shadow-[0_20px_50px_rgba(37,99,235,0.2)] border-none" onClick={() => setIsAddingTask(true)}>
+                  <p className="text-[8px] font-black uppercase tracking-widest text-blue-100">Quick Entry</p>
+                  <div className="flex items-center gap-6">
+                    <div className="w-16 h-16 rounded-3xl bg-white/20 backdrop-blur-md flex items-center justify-center"><Plus className="w-8 h-8" /></div>
+                    <div>
+                      <p className="text-2xl font-black leading-none">Ceva nou?</p>
+                      <p className="text-[10px] font-bold text-blue-100 uppercase tracking-widest mt-2">Adaugă un task sau o idee</p>
+                    </div>
+                  </div>
+                </GlassCard>
+
+                <section className="space-y-4">
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 px-2 flex justify-between items-center">
+                    <span>{tasks.filter(t => t.priority === 'high' && t.status !== 'done').length > 0 ? 'Priorități Critice' : 'Project Pulse / Overview'}</span>
+                    <span className="bg-blue-500/10 text-blue-500 px-2 py-0.5 rounded text-[8px]">{tasks.filter(t => t.status !== 'done').length} Total</span>
+                  </h3>
+                  
+                  <div className="space-y-3">
+                    {tasks.filter(t => t.priority === 'high' && t.status !== 'done').length > 0 ? (
+                      // --- CRISIS MODE: High Priority Tasks ---
+                      tasks.filter(t => t.priority === 'high' && t.status !== 'done').slice(0, 5).map(t => (
+                        <GlassCard key={t.id} className="p-5 flex items-center gap-4 border-l-4 border-l-red-500 hover:bg-white/[0.04]" onClick={() => fetch(`/api/tasks/${t.id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ action: 'complete' }) }).then(fetchData)}>
+                          <div className="w-6 h-6 rounded-full border-2 border-red-500/20 flex items-center justify-center">
+                            <div className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_12px_#ef4444]" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-bold text-base leading-tight">{t.title}</p>
+                            {t.project_name && <p className="text-[10px] text-gray-500 font-bold uppercase mt-1">Proiect: {t.project_name}</p>}
+                          </div>
+                        </GlassCard>
+                      ))
+                    ) : (
+                      // --- OVERVIEW MODE: Project Summary ---
+                      <div className="grid grid-cols-1 gap-3">
+                        {Object.entries(
+                          tasks.filter(t => t.status !== 'done').reduce((acc: any, t) => {
+                            const p = t.project_name || 'Fără proiect';
+                            acc[p] = (acc[p] || 0) + 1;
+                            return acc;
+                          }, {})
+                        ).map(([proj, count]: [string, any]) => (
+                          <div key={proj} className="p-4 bg-white/[0.03] border border-white/5 rounded-3xl flex justify-between items-center hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setView('tasks')}>
+                            <div className="flex items-center gap-3">
+                               <div className="w-1.5 h-6 bg-blue-500 rounded-full" />
+                               <p className="font-bold text-sm">{proj}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                               <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Active:</span>
+                               <span className="text-sm font-black text-blue-500">{count}</span>
+                            </div>
+                          </div>
+                        ))}
+                        {tasks.filter(t => t.status !== 'done').length === 0 && (
+                          <div className="py-12 text-center space-y-4 bg-white/[0.02] rounded-[32px] border border-dashed border-white/10">
+                             <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto opacity-50" />
+                             <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">Toate sistemele sunt nominale.</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </div>
+
+              {/* Right Column: Schedule & Context */}
+              <div className="lg:col-span-3 space-y-8">
+                <section className="space-y-4">
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 px-2">Program Azi</h3>
+                  <div className="space-y-3">
+                    {calendarToday?.schedule?.map((s: any) => (
+                      <div key={s.id} className="flex gap-4 items-center bg-white/[0.03] border border-white/5 p-4 rounded-3xl hover:bg-white/10 transition-colors">
+                        <div className="w-10 text-center">
+                           <p className="text-[10px] font-black text-blue-500">{s.start_time.slice(0, 5)}</p>
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-black text-xs">{s.subject_name}</p>
+                          <p className="text-[9px] text-gray-500 font-bold uppercase">{s.room}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {(!calendarToday?.schedule || calendarToday.schedule.length === 0) && (
+                       <p className="text-center text-xs text-gray-600 font-bold py-10 bg-white/[0.02] rounded-3xl">Weekend Mode / Relax. ☕</p>
+                    )}
+                  </div>
+                </section>
+
+                {/* Secondary View Links (Desktop only) */}
+                <div className="hidden lg:grid grid-cols-1 gap-4">
+                  <GlassCard className="p-4 flex gap-3 items-center border-emerald-500/20" onClick={() => setView('finance')}>
+                    <Wallet className="w-5 h-5 text-emerald-500" />
+                    <div>
+                      <p className="text-[9px] font-black uppercase text-gray-500">Finance</p>
+                      <p className="text-xs font-black">{finance?.balance || 0} Lei</p>
                     </div>
                   </GlassCard>
-                ))}
-                {tasks.filter(t => t.priority === 'high' && t.status !== 'done').length === 0 && (
-                  <p className="text-center text-xs text-gray-600 font-bold py-2 italic">Toate prioritățile sunt sub control. ✨</p>
-                )}
-              </div>
-            </div>
-
-            {/* Module Hub */}
-            <div className="grid grid-cols-4 gap-4">
-              {[
-                { id: 'tasks', icon: CheckCircle2, label: 'Tasks', color: 'text-emerald-400' },
-                { id: 'map', icon: Navigation, label: 'Hartă', color: 'text-blue-500' },
-                { id: 'uni', icon: GraduationCap, label: 'Academic', color: 'text-orange-500' },
-                { id: 'gym', icon: Dumbbell, label: 'Sală', color: 'text-red-500' },
-                { id: 'skills', icon: Flame, label: 'Skills', color: 'text-yellow-500' },
-                { id: 'shop', icon: ShoppingCart, label: 'Shop', color: 'text-purple-500' },
-                { id: 'notes', icon: Brain, label: 'Brain', color: 'text-emerald-500' },
-                { id: 'health', icon: Heart, label: 'Sănătate', color: 'text-pink-500' },
-                { id: 'calendar', icon: Calendar, label: 'Plan', color: 'text-blue-400' }
-              ].map(m => (
-                <button key={m.id} onClick={() => setView(m.id as View)} className="flex flex-col items-center gap-2">
-                  <div className="w-14 h-14 rounded-2xl bg-white/[0.03] border border-white/5 flex items-center justify-center hover:bg-white/10 transition-colors">
-                    <m.icon className={`w-5 h-5 ${m.color}`} />
-                  </div>
-                  <span className="text-[8px] font-black uppercase tracking-widest text-gray-600">{m.label}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Today's Plan Preview */}
-            <div className="space-y-4">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 px-2">Program Azi</h3>
-              <div className="space-y-3">
-                {calendarToday?.schedule?.slice(0, 2).map((s: any) => (
-                  <div key={s.id} className="flex gap-4 items-center bg-white/[0.03] border border-white/5 p-4 rounded-2xl">
-                    <div className="w-12 text-center">
-                       <p className="text-[10px] font-black text-blue-500">{s.start_time.slice(0, 5)}</p>
+                  <GlassCard className="p-4 flex gap-3 items-center border-pink-500/20" onClick={() => setView('health')}>
+                    <Heart className="w-5 h-5 text-pink-500" />
+                    <div>
+                      <p className="text-[9px] font-black uppercase text-gray-500">Health</p>
+                      <p className="text-xs font-black">{healthLogs[0]?.sleep_hours || 8}h Somn</p>
                     </div>
-                    <div className="flex-1">
-                      <p className="font-bold text-sm">{s.subject_name}</p>
-                      <p className="text-[9px] text-gray-500 font-bold uppercase">{s.class_type} | {s.room}</p>
-                    </div>
-                  </div>
-                ))}
-                {(!calendarToday?.schedule || calendarToday.schedule.length === 0) && (
-                   <p className="text-center text-xs text-gray-600 font-bold py-4">Fără cursuri azi. Enjoy! ☕</p>
-                )}
+                  </GlassCard>
+                </div>
               </div>
+
             </div>
           </motion.div>
         )}
@@ -415,16 +517,32 @@ function App() {
         )}
 
         {view === 'map' && (
-           <ViewContainer title="Hartă Lora" onBack={() => setView('home')}>
-              <div className="relative w-full h-[70vh] rounded-[36px] overflow-hidden border border-white/10 bg-white/[0.02]">
-                 <div className="absolute inset-0 flex flex-col items-center justify-center space-y-4">
-                    <MapPin className="w-12 h-12 text-blue-500 animate-bounce" />
-                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-500">Localizare Neurală Activă</p>
-                    <div className="w-48 h-1 bg-white/5 rounded-full overflow-hidden">
-                       <motion.div initial={{ x: -100 }} animate={{ x: 100 }} transition={{ repeat: Infinity, duration: 1.5 }} className="w-20 h-full bg-blue-500 shadow-[0_0_10px_#3b82f6]" />
+            <ViewContainer title="Sistem Localizare" onBack={() => setView('home')}>
+               <div className="relative w-full h-[65vh] rounded-[36px] overflow-hidden border border-white/10 bg-white/[0.02]">
+                  {profile?.latitude && profile?.longitude ? (
+                    <iframe 
+                      title="Lora Map"
+                      width="100%" 
+                      height="100%" 
+                      frameBorder="0" 
+                      scrolling="no" 
+                      marginHeight={0} 
+                      marginWidth={0} 
+                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${profile.longitude-0.01}%2C${profile.latitude-0.01}%2C${profile.longitude+0.01}%2C${profile.latitude+0.01}&layer=mapnik&marker=${profile.latitude}%2C${profile.longitude}`}
+                      style={{ filter: 'invert(90%) hue-rotate(180deg) brightness(0.8) contrast(1.2)' }}
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center space-y-4">
+                      <div className="w-20 h-20 rounded-full bg-blue-500/10 flex items-center justify-center">
+                        <MapPin className="w-10 h-10 text-blue-500 animate-pulse" />
+                      </div>
+                      <p className="font-black text-sm uppercase tracking-widest text-gray-400">Locație Ne-sincronizată</p>
+                      <p className="text-[10px] text-gray-500 font-bold leading-relaxed">
+                        Trimite locația ta Lorei pe Telegram pentru a activa hărțile interactive și vremea locală exactă.
+                      </p>
                     </div>
-                 </div>
-              </div>
+                  )}
+               </div>
               <div className="mt-6 grid grid-cols-2 gap-4">
                  <GlassCard className="p-4 flex gap-3 items-center">
                     <Navigation className="w-4 h-4 text-blue-500" />
@@ -589,22 +707,66 @@ function App() {
         )}
 
         {view === 'finance' && (
-          <ViewContainer title="Finanțe" onBack={() => setView('home')}>
-             <div className="space-y-6">
-                <GlassCard className="bg-emerald-500/5">
-                   <p className="text-4xl font-black tabular-nums">{finance?.balance || 0} <span className="text-xs">Lei</span></p>
-                   <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mt-2">Fonduri Disponibile</p>
+          <ViewContainer title="Finanțe Lora" onBack={() => setView('home')}>
+             <div className="space-y-8 pb-20">
+                {/* Balance Hero */}
+                <GlassCard className="bg-gradient-to-br from-emerald-500/10 to-transparent p-8 text-center relative overflow-hidden">
+                   <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl -mr-16 -mt-16" />
+                   <p className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-500 mb-2">Balanță Totală</p>
+                   <p className="text-5xl font-black tabular-nums tracking-tighter">{finance?.balance || 0} <span className="text-sm font-bold opacity-50">LEI</span></p>
                 </GlassCard>
+
+                {/* Summary Grid */}
                 <div className="grid grid-cols-2 gap-4">
-                   <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                      <p className="text-xs font-bold text-emerald-400">Venituri (30z)</p>
-                      <p className="text-lg font-black">{finance?.income_30d || 0} Lei</p>
+                   <div className="p-5 bg-white/[0.03] border border-white/5 rounded-3xl space-y-1">
+                      <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Venituri (30z)</p>
+                      <p className="text-xl font-black">+{finance?.total_income || 0}</p>
                    </div>
-                   <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                      <p className="text-xs font-bold text-red-400">Cheltuieli (30z)</p>
-                      <p className="text-lg font-black">{finance?.expenses_30d || 0} Lei</p>
+                   <div className="p-5 bg-white/[0.03] border border-white/5 rounded-3xl space-y-1">
+                      <p className="text-[8px] font-black text-red-500 uppercase tracking-widest">Cheltuieli (30z)</p>
+                      <p className="text-xl font-black">-{finance?.total_expenses || 0}</p>
                    </div>
                 </div>
+
+                {/* Top Spending Category */}
+                {finance?.top_categories?.length > 0 && (
+                  <GlassCard className="flex items-center justify-between">
+                     <div>
+                        <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Top Cheltuieli</p>
+                        <p className="text-lg font-black uppercase">{finance.top_categories[0].category}</p>
+                     </div>
+                     <div className="text-right">
+                        <p className="text-lg font-black text-red-500">-{finance.top_categories[0].amount} Lei</p>
+                        <div className="w-20 h-1 bg-white/5 rounded-full mt-1 overflow-hidden">
+                           <div className="w-full h-full bg-red-500 shadow-[0_0_10px_#ef4444]" />
+                        </div>
+                     </div>
+                  </GlassCard>
+                )}
+
+                {/* Transaction History */}
+                <section className="space-y-4">
+                   <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 px-2">Istoric Tranzacții</h3>
+                   <div className="space-y-3">
+                      {financeHistory.map((tx: any) => (
+                        <div key={tx.id} className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex justify-between items-center hover:bg-white/[0.05] transition-colors">
+                           <div className="flex gap-4 items-center">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === 'income' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                                 {tx.type === 'income' ? <TrendingUp className="w-5 h-5" /> : <Wallet className="w-5 h-5" />}
+                              </div>
+                              <div>
+                                 <p className="font-bold text-sm">{tx.description || tx.category}</p>
+                                 <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">{tx.category} • {new Date(tx.tx_date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' })}</p>
+                              </div>
+                           </div>
+                           <p className={`font-black tabular-nums ${tx.type === 'income' ? 'text-emerald-500' : 'text-white'}`}>
+                              {tx.type === 'income' ? '+' : '-'}{tx.amount}
+                           </p>
+                        </div>
+                      ))}
+                      {financeHistory.length === 0 && <p className="text-center py-10 text-xs text-gray-600 font-bold italic">Nicio tranzacție logată recent.</p>}
+                   </div>
+                </section>
              </div>
           </ViewContainer>
         )}

@@ -16,7 +16,7 @@ async def analyze_image(
     prompt = f"""
     Analizează această imagine. Ești Lora, asistentul inteligent.
     Avem 7 categorii posibile de imagini:
-    1. 'receipt' (bon fiscal / chitanță)
+    1. 'receipt' (bon fiscal / chitanță) - caută cuvinte cheie precum "TOTAL", "REST DE PLATĂ", "TOTAL BON", "SUMA", "LEI", "RON".
     2. 'menu' (meniu de restaurant / cafenea)
     3. 'workout_screenshot' (captură dintr-o aplicație sport / smartwatch)
     4. 'handwritten_notes' (notițe scrise pe hârtie sau ecran)
@@ -27,20 +27,12 @@ async def analyze_image(
     {f"Text adițional de la utilizator (caption): {caption}" if caption else ""}
     
     Extrage datele relevante pe baza tipului:
-    - Pentru 'receipt': suma totală (amount) ca FLOAT și o categorie sugerată (mâncare, transport, utilități, sănătate, ieșiri, shopping, altele), plus numele comerciantului.
-    - Pentru 'menu': nu trebuie să extragi sume, doar identifică dacă e meniu și extrage 3 categorii de mâncare/produse oferite.
+    - Pentru 'receipt': suma totală (amount) ca FLOAT (caută valoarea de lângă "TOTAL"), o categorie sugerată (mâncare, transport, utilități, sănătate, ieșiri, shopping, altele) și numele comerciantului (merchant).
+    - Pentru 'menu': identifică dacă e meniu și extrage 3 categorii de mâncare/produse oferite.
     - Pentru 'workout_screenshot': numele sportului/activității, durata în minute (int), calorii (int dacă există), distanța (float dacă există).
     - Pentru 'handwritten_notes': textul brut complet transcris.
-    - Pentru 'food': Identifică ce se află în farfurie. Estimează:
-        * meal_type (mic_dejun|pranz|cina|gustare)
-        * description (string scurt, ex: "Pui la grătar cu orez")
-        * total_calories (float)
-        * total_protein (float)
-        * total_carbs (float)
-        * total_fat (float)
+    - Pentru 'food': Identifică ce se află în farfurie și estimează calorii/macros.
     - Pentru 'book_cover': Extrage titlul cărții și autorul.
-        * title (string)
-        * author (string)
     
     Trebuie să răspunzi DOAR cu un JSON (fără blocuri markdown, scrie JSON-ul direct!):
     {{
@@ -263,7 +255,7 @@ async def process_vision_result(
 
 async def handle_vision_callback(query, pool, callback_data: str):
     """Handles the 'vision:confirm/cancel' buttons for actions requiring user review."""
-    from db.queries.finance import log_finance
+    from db.queries.finance import log_transaction
     from core.state import get_state, clear_state
 
     state = await get_state(pool)
@@ -291,7 +283,7 @@ async def handle_vision_callback(query, pool, callback_data: str):
             category = extra.get("category")
             desc = extra.get("description")
 
-            await log_finance(
+            await log_transaction(
                 pool, "expense", amount, category=category, description=desc
             )
             await clear_state(pool)

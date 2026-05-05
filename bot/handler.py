@@ -180,6 +180,45 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
             pass
 
 
+async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
+    """Handles incoming location messages to sync user's current position."""
+    if not await security_check(update):
+        return
+
+    try:
+        from db.queries.profile import update_user_profile
+        from core.config import OPENWEATHER_API_KEY
+        import httpx
+        
+        location = update.message.location
+        lat, lon = location.latitude, location.longitude
+        
+        # Reverse Geocoding (get city name)
+        city_name = "Locație necunoscută"
+        if OPENWEATHER_API_KEY:
+            try:
+                url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric&lang=ro"
+                async with httpx.AsyncClient() as client:
+                    res = await client.get(url, timeout=5.0)
+                    if res.status_code == 200:
+                        city_name = res.json().get("name", city_name)
+            except Exception as e:
+                print(f"Reverse geocoding error: {e}")
+
+        # Persist coordinates and city
+        await update_user_profile(pool, update.effective_user.id, latitude=lat, longitude=lon, city_name=city_name)
+        
+        print(f"📍 LOCATION SYNCED: {lat}, {lon} ({city_name})")
+        
+        msg = f"📍 *Locație sincronizată\\!*\\n\nAcum suntem în *{city_name}*\\. Îți voi oferi date meteo și sugestii exacte pentru zona ta\\. 🌐"
+        await update.message.reply_text(msg, parse_mode="MarkdownV2")
+        
+    except Exception as e:
+        print(f"ERROR in location_handler: {e}")
+        traceback.print_exc()
+        await update.message.reply_text("Nu am putut procesa locația.")
+
+
 async def message_handler(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,

@@ -28,6 +28,9 @@ _PROFILE_UPDATABLE_COLUMNS = frozenset(
         "active_hours_start",
         "active_hours_end",
         "preferred_tone",
+        "latitude",
+        "longitude",
+        "city_name",
     }
 )
 

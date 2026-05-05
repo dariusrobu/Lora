@@ -394,6 +394,12 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
 20. Finance: module="finance":
     - intent="finance_log" — "am cheltuit X pe Y", "venit X din Z".
       Data: {{"amount": float, "type": "expense|income", "category": string, "description": string}}
+      Reguli Categorii:
+      - Folosește categorii semantice dacă userul nu e specific.
+      - "cafea", "suc", "bere" → categoria "iesiri si distractii" sau "mâncare" (dacă e grocery).
+      - "vuse", "glo", "iqos", "țigări" → categoria "tigari".
+      - "uber", "bolt", "benzina" → categoria "transport".
+      - Dacă nu ești sigur, folosește obiectul ca și categorie (ex: "cafea").
     - intent="finance_summary" — "cum stau cu banii", "sumar finanțe", "bugetul meu". 
       Returnează tranzacțiile de azi cu ID-uri.
     - intent="delete_finance" — "șterge cheltuiala cu ID X", "șterge tranzacția X".
@@ -526,6 +532,10 @@ A: intent="complete_task", module="tasks", data={{ "title": "antrenamentul de ie
 *** FINANCE_LOG ***
 U: "am dat 45 ron pe un uber"
 A: intent="finance_log", module="finance", data={{ "amount": 45, "type": "expense", "category": "transport", "description": "uber" }}, reply="💸 `45 RON` — transport înregistrat."
+U: "am cheltuit 17 lei pe cafea"
+A: intent="finance_log", module="finance", data={{ "amount": 17, "type": "expense", "category": "iesiri si distractii", "description": "cafea" }}, reply="☕ `17 RON` — cafea înregistrată la ieșiri."
+U: "am dat 20 de lei pe vuse"
+A: intent="finance_log", module="finance", data={{ "amount": 20, "type": "expense", "category": "tigari", "description": "vuse" }}, reply="🚬 `20 RON` — vuse înregistrat la țigări."
 U: "mi-a intrat salariul 6000 lei"
 A: intent="finance_log", module="finance", data={{ "amount": 6000, "type": "income", "category": "salariu" }}, reply="💰 `6000 RON` — salariu adăugat!"
 

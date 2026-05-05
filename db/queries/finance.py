@@ -216,6 +216,21 @@ async def get_last_transaction_id(pool) -> Optional[int]:
         )
 
 
+async def get_recent_transactions(pool, limit: int = 20) -> List[Dict[str, Any]]:
+    """Retrieves the most recent transactions across all categories."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, type, amount, category, description, tx_date, created_at
+            FROM finances
+            ORDER BY created_at DESC
+            LIMIT $1
+            """,
+            limit,
+        )
+        return [dict(r) for r in rows]
+
+
 async def delete_transaction(pool, tx_id: int) -> bool:
     """Deletes a specific transaction by ID."""
     async with pool.acquire() as conn:
