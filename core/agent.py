@@ -1,7 +1,7 @@
 # core/agent.py
 import json
 import asyncio
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Dict, Any
 import pytz
 from google.genai import types
@@ -25,7 +25,12 @@ from db.queries.workout import get_recent_workouts
 from db.queries.skills import get_all_skills
 from db.queries.memory import semantic_search_memories, save_memory_fact
 from db.queries.insights import get_insight_data
-from core.council import send_report_to_council, get_projects, get_summary, get_recent_decisions
+from core.council import (
+    send_report_to_council,
+    get_projects,
+    get_summary,
+    get_recent_decisions,
+)
 from core.config import TIMEZONE, TELEGRAM_USER_ID
 
 # Tools definition for Gemini
@@ -283,7 +288,7 @@ agent_tools = types.Tool(
 async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) -> str:
     """Dispatches a tool call to the correct DB query or system action."""
     today = date.today()
-    
+
     # Strip 'tool_' prefix if present for robust matching
     normalized_name = call_name[5:] if call_name.startswith("tool_") else call_name
 
@@ -293,10 +298,11 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
             project_id = None
             if project_name:
                 from db.queries.projects import get_project_by_name
+
                 proj = await get_project_by_name(pool, project_name)
                 if proj:
                     project_id = proj["id"]
-            
+
             tasks = await list_tasks(pool, status="pending", project_id=project_id)
             return json.dumps(tasks, default=str)
 
@@ -308,30 +314,32 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
                     target_date = date.fromisoformat(target_date_str)
                 except ValueError:
                     target_date = today
-            
+
             # Get from DB
             db_events = await list_events(pool, target_date, target_date)
-            
+
             # Also get from iCloud for real-time (optional, but good for "what events do I have" questions)
             from core.icloud import fetch_all_calendars_events
+
             days = (target_date - today).days
-            if days < 0: days = 0
-            icloud_events = await fetch_all_calendars_events(days_ahead=days+1)
-            
+            if days < 0:
+                days = 0
+            icloud_events = await fetch_all_calendars_events(days_ahead=days + 1)
+
             # Filter iCloud events for that specific day
             icloud_today = [
-                e for e in icloud_events 
-                if e["start"].date() == target_date
+                e for e in icloud_events if e["start"].date() == target_date
             ]
-            
-            return json.dumps({
-                "database_events": db_events,
-                "icloud_events": icloud_today
-            }, default=str)
+
+            return json.dumps(
+                {"database_events": db_events, "icloud_events": icloud_today},
+                default=str,
+            )
 
         elif normalized_name == "get_apple_calendar":
             days = args.get("days_ahead", 1)
             from core.icloud import fetch_all_calendars_events
+
             events = await fetch_all_calendars_events(days_ahead=days)
             return json.dumps(events, default=str)
 
@@ -369,20 +377,23 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
             projects = await get_projects()
             summary = await get_summary()
             decisions = await get_recent_decisions(limit=5)
-            return json.dumps({
-                "projects": projects,
-                "summary": summary,
-                "recent_decisions": decisions
-            }, default=str)
+            return json.dumps(
+                {
+                    "projects": projects,
+                    "summary": summary,
+                    "recent_decisions": decisions,
+                },
+                default=str,
+            )
 
         elif normalized_name == "send_council_report":
             project_id = args.get("project_id")
             summary = args.get("summary")
             task_titles = args.get("completed_task_titles", [])
-            
+
             # Map titles to mock dicts for the existing send_report_to_council
             tasks_data = [{"title": t} for t in task_titles]
-            
+
             success = await send_report_to_council(project_id, tasks_data, summary)
             return json.dumps({"status": "sent" if success else "failed"})
 
@@ -390,8 +401,12 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
             period = args.get("period", "today")
             if period == "current_month":
                 summary = await get_monthly_summary(pool, today.month, today.year)
-                cat_totals = await get_monthly_category_totals(pool, today.month, today.year)
-                return json.dumps({"summary": summary, "category_totals": cat_totals}, default=str)
+                cat_totals = await get_monthly_category_totals(
+                    pool, today.month, today.year
+                )
+                return json.dumps(
+                    {"summary": summary, "category_totals": cat_totals}, default=str
+                )
             else:
                 fin = await get_daily_transactions(pool, today)
                 return json.dumps(fin, default=str)
@@ -408,8 +423,9 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
                     target_date = date.fromisoformat(target_date_str)
                 except ValueError:
                     target_date = today
-            
+
             from db.queries.schedule import get_schedule_for_date
+
             sched = await get_schedule_for_date(pool, target_date)
             return json.dumps(sched, default=str)
 
@@ -454,35 +470,44 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
 
         elif normalized_name == "system_action":
             from core.dispatcher import execute_module_intent
+
             module = args.get("module")
             intent = args.get("intent")
             data = args.get("data", {})
-            
+
             # Execute via dispatcher
             reply_text, markup, item_id = await execute_module_intent(
                 pool, module, intent, data, reply="", bot=bot
             )
-            return json.dumps({
-                "confirmation": reply_text,
-                "item_id": item_id,
-                "status": "success"
-            }, default=str)
+            return json.dumps(
+                {"confirmation": reply_text, "item_id": item_id, "status": "success"},
+                default=str,
+            )
 
         elif normalized_name == "undo":
             from core.state import get_state
+
             state = await get_state(pool)
             if not state or state["module"] != args.get("module"):
-                return json.dumps({"error": "Nu am găsit nicio acțiune recentă de anulat în acest modul."})
-            
+                return json.dumps(
+                    {
+                        "error": "Nu am găsit nicio acțiune recentă de anulat în acest modul."
+                    }
+                )
+
             module = state["module"]
             last_id = state["item_id"]
-            
+
             import importlib
+
             try:
                 mod = importlib.import_module(f"modules.{module}")
                 if hasattr(mod, "undo_last_action"):
                     res = await mod.undo_last_action(pool, last_id)
-                    return json.dumps({"confirmation": res if isinstance(res, str) else res[0]}, default=str)
+                    return json.dumps(
+                        {"confirmation": res if isinstance(res, str) else res[0]},
+                        default=str,
+                    )
                 return json.dumps({"error": f"Modulul {module} nu suportă anularea."})
             except Exception as e:
                 return json.dumps({"error": f"Eroare la anulare: {str(e)}"})
@@ -492,7 +517,9 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
         return json.dumps({"error": str(e)})
 
 
-async def run_agent(pool, client, user_query: str, bot=None, max_steps: int = 10) -> str:
+async def run_agent(
+    pool, client, user_query: str, bot=None, max_steps: int = 10
+) -> str:
     """Runs a ReAct loop with Gemini, executing DB tools dynamically."""
 
     print(f"🤖 AGENTIC MODE TRIGGERED: '{user_query}'", flush=True)

@@ -41,10 +41,16 @@ async def get_completed_goals(pool) -> List[Dict[str, Any]]:
 
 
 async def add_goal(
-    pool, title: str, description: Optional[str], category: str, time_horizon: str = 'month', linked_keywords: list = None
+    pool,
+    title: str,
+    description: Optional[str],
+    category: str,
+    time_horizon: str = "month",
+    linked_keywords: list = None,
 ) -> Dict[str, Any]:
     import json
-    kw_json = json.dumps(linked_keywords) if linked_keywords else '[]'
+
+    kw_json = json.dumps(linked_keywords) if linked_keywords else "[]"
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -56,7 +62,7 @@ async def add_goal(
             description,
             category,
             time_horizon,
-            kw_json
+            kw_json,
         )
         return dict(row)
 
@@ -195,6 +201,7 @@ async def get_goals_overview(pool) -> Dict[str, Any]:
             "categories": [dict(c) for c in cats],
         }
 
+
 async def check_goal_alignment(pool, user_id: int) -> Optional[str]:
     """Checks if there's a goal that needs alignment and returns a recommendation string."""
     async with pool.acquire() as conn:
@@ -204,16 +211,16 @@ async def check_goal_alignment(pool, user_id: int) -> Optional[str]:
         )
         if not goals:
             return None
-            
+
         import json
+
         for goal in goals:
             try:
-                keywords = json.loads(goal['linked_keywords'])
+                keywords = json.loads(goal["linked_keywords"])
                 if keywords and isinstance(keywords, list):
                     return f"Azi poți avansa spre obiectivul '{goal['title']}': adaugă un task legat de {', '.join(keywords[:2])}."
             except Exception:
                 pass
-                
+
         # Fallback to the most neglected goal
         return f"Azi poți avansa spre obiectivul '{goals[0]['title']}'. Nu l-ai mai actualizat demult."
-

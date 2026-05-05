@@ -62,7 +62,7 @@ async def handle_memory_callback(query, pool, data: str):
             if data == "chat:main":
                 await query.edit_message_text(
                     "Principal menu is not directly accessible via memory callback. Returning to dashboard.",
-                    parse_mode="MarkdownV2"
+                    parse_mode="MarkdownV2",
                 )
                 # Actually, better to just show the memory view or trigger a main menu command
                 # For now, let's just go back to memory_view if it was from memory
@@ -184,18 +184,20 @@ async def handle_memory_intent(
 
         if results["facts"]:
             # If we have direct facts, be direct and warm
-            fact_texts = [f['fact'] for f in results["facts"]]
+            fact_texts = [f["fact"] for f in results["facts"]]
             main_fact = fact_texts[0]
-            
+
             # Clean common prefixes
-            main_fact = main_fact.replace("Utilizatorul ", "").replace("utilizatorul ", "")
+            main_fact = main_fact.replace("Utilizatorul ", "").replace(
+                "utilizatorul ", ""
+            )
             main_fact = main_fact[0].upper() + main_fact[1:] if main_fact else main_fact
-            
+
             text = f"✨ {safe_markdown(main_fact)}"
-            
+
             if len(fact_texts) > 1:
                 text += "\n\n💡 _Mai știu și:_ " + ", ".join(fact_texts[1:])
-            
+
             return text, None, None
 
         if results["history"]:

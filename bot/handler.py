@@ -5,8 +5,6 @@ import logging
 from datetime import date
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 import os
-import sys
-import re
 from telegram.ext import ContextTypes
 from core.config import TELEGRAM_USER_ID
 from bot.onboarding import (
@@ -126,8 +124,6 @@ async def workout_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text, markup = await get_workout_dashboard(pool)
     await update.message.reply_text(text, parse_mode="MarkdownV2", reply_markup=markup)
-
-
 
 
 async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
@@ -395,13 +391,15 @@ async def message_handler(
                     "SELECT content, week_start, week_end FROM weekly_reviews ORDER BY created_at DESC LIMIT 1"
                 )
                 if not row:
-                    await update.message.reply_text("Nu am găsit niciun raport săptămânal încă.")
+                    await update.message.reply_text(
+                        "Nu am găsit niciun raport săptămânal încă."
+                    )
                     return
-                
+
                 header = f"📊 *Weekly Review: {row['week_start'].strftime('%d %b')} — {row['week_end'].strftime('%d %b')}*\\n\\n"
                 pass
                 final_text = header + safe_markdown(row["content"])
-                
+
                 chunks = split_message(final_text)
                 for chunk in chunks:
                     await update.message.reply_text(chunk, parse_mode="MarkdownV2")
@@ -586,18 +584,20 @@ async def message_handler(
                 try:
                     # Handle different dash types (hyphen, en-dash, em-dash)
                     import re
+
                     parts = re.split(r"[-–—]", text)
                     if len(parts) < 2:
                         raise ValueError("Lipsește separatorul '-'")
-                        
+
                     start_h = parts[0].strip()
                     end_h = parts[1].strip()
-                    
+
                     # Validate format (basic)
                     if ":" not in start_h or ":" not in end_h:
                         raise ValueError("Format invalid: trebuie să conțină ':'")
 
                     from datetime import datetime
+
                     start_time = datetime.strptime(start_h, "%H:%M").time()
                     end_time = datetime.strptime(end_h, "%H:%M").time()
 
@@ -1320,7 +1320,7 @@ Reguli:
                         clean = (
                             clean.split("```")[1].lstrip("json").strip().rstrip("```")
                         )
-                    extracted = _json.loads(clean)
+                    extracted = json.loads(clean)
                     reflection_text = extracted.get("reflection_text", text[:500])
                     mood = extracted.get("mood", "neutral")
                     tomorrow_plan = extracted.get("tomorrow_plan", "")
@@ -1505,8 +1505,6 @@ Reguli:
                 # Fall through to Gemini if not returned by handlers
                 await clear_state(pool)
 
-
-
         intent_response = None
         low_text = text.lower()
 
@@ -1573,13 +1571,16 @@ Reguli:
             profile = await profile_queries.get_user_profile(pool, TG_UID)
             if profile.get("last_briefing_date") == today:
                 await update.message.reply_text(
-                    safe_markdown("Deja ți-am trimis briefing-ul de dimineață. O zi productivă! ☀️"),
+                    safe_markdown(
+                        "Deja ți-am trimis briefing-ul de dimineață. O zi productivă! ☀️"
+                    ),
                     parse_mode="MarkdownV2",
                 )
                 return
 
             await update.message.reply_text(
-                safe_markdown("Pregătesc briefing-ul de dimineață. ☕"), parse_mode="MarkdownV2"
+                safe_markdown("Pregătesc briefing-ul de dimineață. ☕"),
+                parse_mode="MarkdownV2",
             )
             try:
                 await send_morning_briefing(context.application, pool, force=True)
@@ -1589,7 +1590,8 @@ Reguli:
                 print(f"ERROR in morning briefing: {e}", flush=True)
                 traceback.print_exc()
                 await update.message.reply_text(
-                    safe_markdown(f"❌ Eroare la briefing: {str(e)[:200]}"), parse_mode="MarkdownV2"
+                    safe_markdown(f"❌ Eroare la briefing: {str(e)[:200]}"),
+                    parse_mode="MarkdownV2",
                 )
             return
 
@@ -1764,9 +1766,9 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             # Global chat-related callbacks (like 'Back to Main')
             if data == "chat:main":
                 from core.router import main_menu_keyboard
+
                 await query.edit_message_text(
-                    "Meniu Principal 🏠",
-                    reply_markup=main_menu_keyboard()
+                    "Meniu Principal 🏠", reply_markup=main_menu_keyboard()
                 )
             return
 
@@ -1815,6 +1817,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
 
         if data.startswith("attendance:"):
             from db.queries.university import log_attendance_by_schedule
+
             # Format: attendance:present:schedule_id
             if len(params) >= 2:
                 status = params[0] == "present"
@@ -1846,7 +1849,9 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 return
 
             elif data == "finance_summary" or action == "finance_summary":
-                text, markup, _ = await handle_finance_intent(pool, "finance_summary", {})
+                text, markup, _ = await handle_finance_intent(
+                    pool, "finance_summary", {}
+                )
                 await query.edit_message_text(
                     text, parse_mode="MarkdownV2", reply_markup=markup
                 )
@@ -1891,7 +1896,9 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 return
 
             elif data == "finance_categories":
-                text, markup, _ = await handle_finance_intent(pool, "list_categories", {})
+                text, markup, _ = await handle_finance_intent(
+                    pool, "list_categories", {}
+                )
                 await query.edit_message_text(
                     text, parse_mode="MarkdownV2", reply_markup=markup
                 )
@@ -2110,7 +2117,9 @@ async def handle_uni_callback(query, pool, data: str):
                     start = c["start_time"].strftime("%H:%M")
                     icon = "📖" if c["class_type"] == "curs" else "✏️"
                     room = f" · {escape_md(c['room'])}" if c.get("room") else ""
-                    lines.append(f"{icon} `{start}` {escape_md(c['subject_name'])}{room}")
+                    lines.append(
+                        f"{icon} `{start}` {escape_md(c['subject_name'])}{room}"
+                    )
             else:
                 lines.append("✅ Nu ai cursuri azi\\.")
 
@@ -2133,76 +2142,97 @@ async def handle_uni_callback(query, pool, data: str):
 
                 subjects = await list_subjects(pool)
 
-                lines = ["📚 *Materii*\n", "Alege o materie pentru detalii sau ștergere:"]
-                
+                lines = [
+                    "📚 *Materii*\n",
+                    "Alege o materie pentru detalii sau ștergere:",
+                ]
+
                 keyboard_rows = []
                 for s in subjects:
                     name = s["name"]
                     # Scurtăm numele dacă e prea lung pentru buton
                     btn_text = (name[:25] + "..") if len(name) > 27 else name
-                    keyboard_rows.append([
-                        InlineKeyboardButton(
-                            btn_text,
-                            callback_data=make_callback_data("uni", "subjects", "view", s["id"])
-                        )
-                    ])
-                
-                # Adăugăm butonul de adăugare la final
-                keyboard_rows.append([
-                    InlineKeyboardButton(
-                        "➕ Adaugă materie nouă",
-                        callback_data=make_callback_data("uni", "subjects", "add")
+                    keyboard_rows.append(
+                        [
+                            InlineKeyboardButton(
+                                btn_text,
+                                callback_data=make_callback_data(
+                                    "uni", "subjects", "view", s["id"]
+                                ),
+                            )
+                        ]
                     )
-                ])
+
+                # Adăugăm butonul de adăugare la final
+                keyboard_rows.append(
+                    [
+                        InlineKeyboardButton(
+                            "➕ Adaugă materie nouă",
+                            callback_data=make_callback_data("uni", "subjects", "add"),
+                        )
+                    ]
+                )
                 keyboard_rows.append([back_btn])
 
                 await query.edit_message_text(
-                    "\n".join(lines), parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup(keyboard_rows)
+                    "\n".join(lines),
+                    parse_mode="MarkdownV2",
+                    reply_markup=InlineKeyboardMarkup(keyboard_rows),
                 )
 
             elif action == "view" and item_id:
                 from db.queries.university import get_subject_by_id, get_subject_details
-                
+
                 subject = await get_subject_by_id(pool, item_id)
                 if not subject:
                     await query.answer("Materia nu a fost găsită.")
                     return
-                
+
                 details = await get_subject_details(pool, item_id)
-                
+
                 lines = [f"📚 *{escape_md(subject['name'])}*\n"]
-                if subject['professor']:
+                if subject["professor"]:
                     lines.append(f"👨‍🏫 Prof: {escape_md(subject['professor'])}")
-                if subject['credits']:
+                if subject["credits"]:
                     lines.append(f"💎 Credite: {subject['credits']}")
-                
+
                 att = details.get("attendance", {})
                 attended = att.get("attended", 0)
                 total = att.get("total", 0)
                 lines.append(f"\n✅ Prezențe: {attended}/{total}")
-                
+
                 avg = details.get("avg_grade")
                 if avg:
                     lines.append(f"⭐ Medie: {avg}")
 
-                keyboard = InlineKeyboardMarkup([
+                keyboard = InlineKeyboardMarkup(
                     [
-                        InlineKeyboardButton("🗑️ Șterge", callback_data=make_callback_data("uni", "subjects", "delete", item_id)),
-                        InlineKeyboardButton("🔙 Înapoi", callback_data=make_callback_data("uni", "subjects"))
+                        [
+                            InlineKeyboardButton(
+                                "🗑️ Șterge",
+                                callback_data=make_callback_data(
+                                    "uni", "subjects", "delete", item_id
+                                ),
+                            ),
+                            InlineKeyboardButton(
+                                "🔙 Înapoi",
+                                callback_data=make_callback_data("uni", "subjects"),
+                            ),
+                        ]
                     ]
-                ])
-                
+                )
+
                 await query.edit_message_text(
                     "\n".join(lines), parse_mode="MarkdownV2", reply_markup=keyboard
                 )
 
             elif action == "delete" and item_id:
                 from db.queries.university import delete_subject, get_subject_by_id
-                
+
                 subject = await get_subject_by_id(pool, item_id)
                 await delete_subject(pool, item_id)
-                
-                await query.answer(f"Materia a fost ștearsă.")
+
+                await query.answer("Materia a fost ștearsă.")
                 # Redirijăm către listă
                 await handle_uni_callback(query, pool, "uni:subjects")
 
@@ -2249,7 +2279,9 @@ async def handle_uni_callback(query, pool, data: str):
                         [
                             InlineKeyboardButton(
                                 "➕ Adaugă oră",
-                                callback_data=make_callback_data("uni", "schedule", "add"),
+                                callback_data=make_callback_data(
+                                    "uni", "schedule", "add"
+                                ),
                             )
                         ],
                         [back_btn],
@@ -2295,7 +2327,9 @@ async def handle_uni_callback(query, pool, data: str):
                         subject = escape_md(e["subject_name"])
                         type_str = escape_md(e.get("exam_type", "examen"))
                         loc = f" · {escape_md(e['room'])}" if e.get("room") else ""
-                        lines.append(f"• *{date_str}* — {subject} \\({type_str}\\){loc}")
+                        lines.append(
+                            f"• *{date_str}* — {subject} \\({type_str}\\){loc}"
+                        )
                     text_msg = "\n".join(lines)
 
                 keyboard = InlineKeyboardMarkup(
@@ -2316,7 +2350,9 @@ async def handle_uni_callback(query, pool, data: str):
             elif action == "add":
                 from core.state import set_state
 
-                await set_state(pool, "awaiting_uni_input", "university", "add_exam", None)
+                await set_state(
+                    pool, "awaiting_uni_input", "university", "add_exam", None
+                )
                 keyboard = InlineKeyboardMarkup([[back_btn]])
                 prompt = (
                     "🎓 *Adaugă examen*\n\n"
@@ -2395,7 +2431,9 @@ async def handle_uni_callback(query, pool, data: str):
             elif action == "add_grade":
                 from core.state import set_state
 
-                await set_state(pool, "awaiting_uni_input", "university", "add_grade", None)
+                await set_state(
+                    pool, "awaiting_uni_input", "university", "add_grade", None
+                )
                 keyboard = InlineKeyboardMarkup([[back_btn]])
                 prompt = "📝 *Adaugă notă*\n\nFormat: `Materie, notă, tip`\nExemplu: `Statistică, 8\\.5, partial`"
                 await query.edit_message_text(
@@ -2546,7 +2584,11 @@ Dacă nu sunt suficiente date: spune direct.
                 from core.state import set_state
 
                 await set_state(
-                    pool, "awaiting_uni_input", "university", "import_schedule_photo", None
+                    pool,
+                    "awaiting_uni_input",
+                    "university",
+                    "import_schedule_photo",
+                    None,
                 )
                 keyboard = InlineKeyboardMarkup([[back_btn]])
                 await query.edit_message_text(
@@ -2559,7 +2601,11 @@ Dacă nu sunt suficiente date: spune direct.
                 from core.state import set_state
 
                 await set_state(
-                    pool, "awaiting_uni_input", "university", "import_structure_pdf", None
+                    pool,
+                    "awaiting_uni_input",
+                    "university",
+                    "import_structure_pdf",
+                    None,
                 )
                 keyboard = InlineKeyboardMarkup([[back_btn]])
                 await query.edit_message_text(
@@ -2573,9 +2619,9 @@ Dacă nu sunt suficiente date: spune direct.
         try:
             await query.message.reply_text(
                 safe_markdown(f"A apărut o eroare internă: {str(e)[:100]}"),
-                parse_mode="MarkdownV2"
+                parse_mode="MarkdownV2",
             )
-        except:
+        except Exception:
             pass
 
 
@@ -2696,6 +2742,7 @@ async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
         return
 
     from modules.profile import get_user_profile_full
+
     pass
     from bot.formatter import escape_md
 
@@ -2739,24 +2786,26 @@ async def _save_prompt_to_conversation(pool, prompt: str) -> None:
     from core.config import TELEGRAM_USER_ID
 
     await save_message(pool, TELEGRAM_USER_ID, "assistant", prompt)
+
+
 async def handle_eod_callback(query, pool, data):
     """Handles EOD interactive flow callbacks."""
     pass
     pass
     from core.state import set_state, clear_state
-    
+
     parts = data.split(":")
-    action = parts[1] # mood | tasks
-    value = parts[2] # great/neutral/terrible | all/partial/none
-    
+    action = parts[1]  # mood | tasks
+    value = parts[2]  # great/neutral/terrible | all/partial/none
+
     if action == "mood":
         # Save mood temporarily in state extra
         async with pool.acquire() as conn:
             await conn.execute(
                 "UPDATE conversation_state SET extra = jsonb_set(COALESCE(extra, '{}'), '{eod_mood}', $1) WHERE state_key = 'current'",
-                json.dumps(value)
+                json.dumps(value),
             )
-        
+
         # Send Question 2
         keyboard = [
             [
@@ -2766,24 +2815,26 @@ async def handle_eod_callback(query, pool, data):
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        
+
         await query.edit_message_text(
-            "Am notat\\! ✍️\\n\n"
-            "*Ai finalizat task\\-urile planificate pentru azi?*",
+            "Am notat\\! ✍️\\n\n*Ai finalizat task\\-urile planificate pentru azi?*",
             reply_markup=reply_markup,
-            parse_mode="MarkdownV2"
+            parse_mode="MarkdownV2",
         )
         await set_state(pool, "awaiting_eod_tasks", "eod", "tasks", None)
-        
+
     elif action == "tasks":
         # Get mood from state
         async with pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT extra FROM conversation_state WHERE state_key = 'current'")
+            row = await conn.fetchrow(
+                "SELECT extra FROM conversation_state WHERE state_key = 'current'"
+            )
             extra = row["extra"] if row and row["extra"] else {}
             mood = extra.get("eod_mood", "neutral")
-        
+
         # Save to DB
         from datetime import date
+
         today = date.today()
         async with pool.acquire() as conn:
             await conn.execute(
@@ -2792,54 +2843,66 @@ async def handle_eod_callback(query, pool, data):
                 VALUES ($1, $2, $3)
                 ON CONFLICT (entry_date) DO UPDATE SET mood = $2, task_completion = $3, skipped = FALSE
                 """,
-                today, mood, value
+                today,
+                mood,
+                value,
             )
-            
+
             # Mark profile as completed
             from core.config import TELEGRAM_USER_ID
+
             await conn.execute(
                 "UPDATE user_profile SET last_eod_date = $1 WHERE telegram_id = $2",
-                today, TELEGRAM_USER_ID
+                today,
+                TELEGRAM_USER_ID,
             )
-        
+
         await clear_state(pool)
-        
+
         # Generate and send summary
         await query.edit_message_text("Generez sumarul zilei... 📊")
         summary = await generate_eod_summary(pool, mood, value)
-        
+
         await query.edit_message_text(
             f"📊 *Rezumatul zilei tale:*\\n\\n{safe_markdown(summary)}\\n\\nNoapte bună\! 🌙",
-            parse_mode="MarkdownV2"
+            parse_mode="MarkdownV2",
         )
+
 
 async def generate_eod_summary(pool, mood, task_completion):
     """Generates a 2-3 line summary via Gemini based on today's activity."""
     from db.queries.tasks import get_completed_tasks_today
     from db.queries.finance import get_daily_transactions
     from db.queries import workout as workout_queries
-    
+
     today = date.today()
-    
+
     # Gather data
     tasks = await get_completed_tasks_today(pool)
     finances = await get_daily_transactions(pool, today)
     workouts = await workout_queries.get_recent_workouts(pool, days=1)
-    
+
     # Prepare context for Gemini
     context = {
         "mood": mood,
         "task_completion": task_completion,
         "tasks_completed": [t["title"] for t in tasks],
-        "expenses": [{"amount": f.get("amount"), "category": f.get("category")} for f in finances if f.get("type") == "expense"],
-        "workouts": [w.get("type") for w in workouts]
+        "expenses": [
+            {"amount": f.get("amount"), "category": f.get("category")}
+            for f in finances
+            if f.get("type") == "expense"
+        ],
+        "workouts": [w.get("type") for w in workouts],
     }
-    
+
     from core.gemini import get_proactive_response
+
     instruction = """Ești Lora. Generezi un sumar EXTREM DE CONCIS (MAXIM 3 rânduri) al zilei utilizatorului.
 Include realizările (tasks), mișcarea (sport) și situația financiară scurt.
 Ton: cald, empatic, Romglish.
 Fără bullet points, doar un text cursiv scurt."""
-    
-    summary = await get_proactive_response(instruction, json.dumps(context, default=str))
+
+    summary = await get_proactive_response(
+        instruction, json.dumps(context, default=str)
+    )
     return summary or "O zi plină și productivă! Odihnă plăcută."

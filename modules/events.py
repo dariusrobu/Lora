@@ -1,3 +1,4 @@
+import asyncio
 from bot.callback_utils import make_callback_data
 from typing import Dict, Any, Tuple, Optional
 from datetime import datetime, timedelta
@@ -163,7 +164,9 @@ def parse_reminder_text(text: str) -> Dict[str, Any] | None:
     # Remove date/time patterns from title
     title = re.sub(r"\d{1,2}:\d{2}(?::\d{2})?", "", title).strip()
     title = re.sub(
-        r"(azi|astăzi|mâine|poimâine|duminică|luni|marți|miercuri|joi|vineri|sâmbătă)", "", title
+        r"(azi|astăzi|mâine|poimâine|duminică|luni|marți|miercuri|joi|vineri|sâmbătă)",
+        "",
+        title,
     ).strip()
     # Clean up common Romanian time prefixes
     title = re.sub(r"\b(la ora|la|ora|at)\b", "", title, flags=re.IGNORECASE).strip()
@@ -238,6 +241,7 @@ async def handle_event_intent(
         # Immediate sync to iCloud
         try:
             from core.icloud import sync_events_table_to_calendar
+
             asyncio.create_task(sync_events_table_to_calendar(pool))
         except Exception as e:
             print(f"Error triggering immediate sync: {e}")
@@ -317,7 +321,11 @@ async def handle_event_intent(
 
         if remind_minutes is not None:
             await event_queries.update_event_reminder(pool, event_id, remind_minutes)
-            return f"Reminder actualizat la *{remind_minutes}* minute\\.", None, event_id
+            return (
+                f"Reminder actualizat la *{remind_minutes}* minute\\.",
+                None,
+                event_id,
+            )
 
         if remind_1day is not None:
             all_events = await event_queries.list_events(

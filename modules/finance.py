@@ -45,7 +45,10 @@ async def handle_finance_intent(
     elif intent == "finance_undo":
         # item_id might come from data if we are being specific, or we can try to get it from state
         from db.queries.finance import get_last_transaction_id
-        last_id = data.get("item_id") or data.get("id") or await get_last_transaction_id(pool)
+
+        last_id = (
+            data.get("item_id") or data.get("id") or await get_last_transaction_id(pool)
+        )
         if last_id:
             return await undo_last_action(pool, int(last_id))
         return "Nu am găsit nicio tranzacție recentă de anulat.", None, None
@@ -55,6 +58,7 @@ async def handle_finance_intent(
         if not tx_id:
             return "Te rog să specifici ID-ul tranzacției de șters.", None, None
         from db.queries.finance import delete_transaction
+
         success = await delete_transaction(pool, int(tx_id))
         if success:
             return f"✅ Tranzacția cu ID {tx_id} a fost ștearsă.", None, tx_id
@@ -356,7 +360,11 @@ async def undo_last_action(pool, item_id: int) -> str:
     try:
         await pool.execute("DELETE FROM finances WHERE id = $1", item_id)
         desc = f" ({row['description']})" if row.get("description") else ""
-        return f"🗑️ Am anulat tranzacția: *{row['amount']} RON* la *{row['category']}*{escape_md(desc)}\\.", None, None
+        return (
+            f"🗑️ Am anulat tranzacția: *{row['amount']} RON* la *{row['category']}*{escape_md(desc)}\\.",
+            None,
+            None,
+        )
     except Exception as e:
         print(f"DEBUG: Undo finance failed: {e}")
         return "Tranzacția a fost deja ștearsă sau nu există.", None, None

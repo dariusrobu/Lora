@@ -223,7 +223,7 @@ async def semantic_search_memories(
     words = [w for w in query.split() if len(w) >= 3]
     if not words:
         return []
-    
+
     async with pool.acquire() as conn:
         # Build a search condition that checks each word against the unaccented fact
         conditions = []
@@ -231,11 +231,11 @@ async def semantic_search_memories(
         for i, word in enumerate(words, start=2):
             conditions.append(f"unaccent(fact) ILIKE unaccent(${i})")
             params.append(f"%{word}%")
-            
+
         where_clause = " OR ".join(conditions)
         limit_param_idx = len(params) + 1
         params.append(limit)
-        
+
         sql = f"""
             SELECT *
             FROM memory_facts
@@ -243,6 +243,6 @@ async def semantic_search_memories(
             ORDER BY confidence DESC, created_at DESC
             LIMIT ${limit_param_idx}
         """
-        
+
         rows = await conn.fetch(sql, *params)
         return [dict(r) for r in rows]

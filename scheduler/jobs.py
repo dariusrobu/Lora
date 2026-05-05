@@ -172,6 +172,18 @@ async def cleanup_history_job(pool):
         print(f"❌ History cleanup failed: {e}", flush=True)
 
 
+async def daily_shopping_cleanup(pool):
+    """Nightly cleanup of bought items from the shopping list."""
+    from db.queries.shopping import clear_bought_items
+
+    print("🧹 Starting nightly shopping list cleanup...", flush=True)
+    try:
+        await clear_bought_items(pool)
+        print("✅ Nightly shopping cleanup finished.", flush=True)
+    except Exception as e:
+        print(f"❌ Shopping cleanup failed: {e}", flush=True)
+
+
 async def update_profile_job(pool):
     """Weekly job to analyze behavior and update user profile."""
     from modules.profile import update_profile_from_behavior
@@ -189,6 +201,7 @@ async def send_morning_briefing(application, pool, force=False):
     """Sends a daily summary of tasks, events, skills, and health."""
     import json
     import os
+
     try:
         user_tz = pytz.timezone(TIMEZONE)
         now = datetime.now(user_tz)
@@ -207,11 +220,11 @@ async def send_morning_briefing(application, pool, force=False):
         from bot.formatter import safe_markdown, split_message, escape_md
 
         briefing_data = await build_morning_briefing_context(pool)
-        
+
         # 3. Construct Gemini Prompt
         name = briefing_data.get("user_name", "User")
         tone = profile.get("tone", "warm")
-        
+
         instruction = f"""Ești Lora, asistenta inteligentă a lui {name}.
 Generezi un Morning Briefing COMPLET, PRIORITIZAT și ELEGANT pentru Telegram.
 
@@ -235,17 +248,22 @@ REGULI DE FORMATRE:
 7. FĂRĂ introduceri gen 'Iată briefingul tău', începe direct cu Vremea sau Programul."""
 
         gemini_context = json.dumps(briefing_data, indent=2)
-        
+
         # 4. Generate text via Gemini
         briefing_text_raw = await get_proactive_response(instruction, gemini_context)
-        
+
         if not briefing_text_raw or briefing_text_raw.strip() == "":
             briefing_text_raw = "Bună dimineața! Se pare că azi e o zi liberă sau nu am date noi. Bucură-te de liniște! ☀️"
 
         # Add header
         day_ro: dict[str, str] = {
-            "Monday": "Luni", "Tuesday": "Marți", "Wednesday": "Miercuri",
-            "Thursday": "Joi", "Friday": "Vineri", "Saturday": "Sâmbătă", "Sunday": "Duminică",
+            "Monday": "Luni",
+            "Tuesday": "Marți",
+            "Wednesday": "Miercuri",
+            "Thursday": "Joi",
+            "Friday": "Vineri",
+            "Saturday": "Sâmbătă",
+            "Sunday": "Duminică",
         }
         day_name = day_ro.get(today.strftime("%A"), today.strftime("%A"))
         date_str = escape_md(f"{day_name}, {today.strftime('%d %B %Y')}")
@@ -256,7 +274,7 @@ REGULI DE FORMATRE:
             f"_{date_str}_",
             "━━━━━━━━━━━━━━━\n",
         ]
-        
+
         final_text = "\n".join(header) + safe_markdown(briefing_text_raw)
 
         # 5. Send Telegram text message
@@ -269,21 +287,29 @@ REGULI DE FORMATRE:
                     parse_mode=ParseMode.MARKDOWN_V2,
                 )
             except Exception as e:
-                print(f"Morning brief MarkdownV2 failed, falling back to plain: {e}", flush=True)
+                print(
+                    f"Morning brief MarkdownV2 failed, falling back to plain: {e}",
+                    flush=True,
+                )
                 await application.bot.send_message(chat_id=TELEGRAM_USER_ID, text=chunk)
 
         # 6. Generate and send Voice Podcast
         try:
             from bot.tts import text_to_speech
+
             print("🎙️ Starting TTS generation for Morning Briefing...", flush=True)
-            
+
             podcast_instruction = f"""Ești Lora. Generezi un podcast vocal scurt bazat pe briefing-ul de azi. 
 Scrie să sune natural când e citit cu voce, EXCLUSIV în limba română (MAXIM 200 cuvinte).
 Salută-l pe {name}, prezintă prioritățile și încheie motivant. Fără liste, fără titluri."""
-            
-            tts_input = await get_proactive_response(podcast_instruction, briefing_text_raw)
-            voice_file = await text_to_speech(tts_input or briefing_text_raw, podcast_mode=True)
-            
+
+            tts_input = await get_proactive_response(
+                podcast_instruction, briefing_text_raw
+            )
+            voice_file = await text_to_speech(
+                tts_input or briefing_text_raw, podcast_mode=True
+            )
+
             with open(voice_file, "rb") as f:
                 await application.bot.send_voice(
                     chat_id=TELEGRAM_USER_ID,
@@ -304,6 +330,7 @@ Salută-l pe {name}, prezintă prioritățile și încheie motivant. Fără list
 
         # 8. Interactive Day Plan Flow
         from core.state import set_state
+
         await application.bot.send_message(
             chat_id=TELEGRAM_USER_ID,
             text="Cum vrei să-ți arate ziua azi? Spune-mi vocal sau în scris 🗓",
@@ -346,12 +373,14 @@ async def check_contextual_nudges(application, pool):
                 async with pool.acquire() as conn:
                     tasks = await conn.fetch(
                         "SELECT title FROM tasks WHERE due_date = $1 AND status != 'done' LIMIT 3",
-                        tomorrow
+                        tomorrow,
                     )
                     if tasks:
                         titles = ", ".join([t["title"] for t in tasks])
                         msg = f"🔔 Reminder: Ai task-uri cu deadline mâine: {titles}. Te ocupi de ele diseară?"
-                        await application.bot.send_message(chat_id=TELEGRAM_USER_ID, text=msg)
+                        await application.bot.send_message(
+                            chat_id=TELEGRAM_USER_ID, text=msg
+                        )
                         await _mark_nudge_sent(pool, "deadline_tomorrow")
 
         # 2. No expenses logged (48h)
@@ -360,7 +389,9 @@ async def check_contextual_nudges(application, pool):
                 last_tx = await conn.fetchval("SELECT MAX(created_at) FROM finances")
                 if not last_tx or last_tx < now - timedelta(hours=48):
                     msg = "💸 Ai uitat să loghezi cheltuielile? Nu am mai văzut nicio activitate de 2 zile."
-                    await application.bot.send_message(chat_id=TELEGRAM_USER_ID, text=msg)
+                    await application.bot.send_message(
+                        chat_id=TELEGRAM_USER_ID, text=msg
+                    )
                     await _mark_nudge_sent(pool, "no_expenses_48h")
 
         # 3. Workout streak risk (18:00+)
@@ -373,12 +404,16 @@ async def check_contextual_nudges(application, pool):
                     )
                     if not logged_today:
                         # Check if user has any active streak
-                        skills = await conn.fetch("SELECT id FROM skills WHERE name ILIKE '%workout%' OR name ILIKE '%sala%' OR name ILIKE '%sport%'")
+                        skills = await conn.fetch(
+                            "SELECT id FROM skills WHERE name ILIKE '%workout%' OR name ILIKE '%sala%' OR name ILIKE '%sport%'"
+                        )
                         for s in skills:
                             streak = await skill_queries.get_skill_streak(pool, s["id"])
                             if streak >= 1:
                                 msg = "💪 Streak-ul tău e în pericol! Nu ai logat antrenamentul azi. Mai ai timp pentru o sesiune scurtă."
-                                await application.bot.send_message(chat_id=TELEGRAM_USER_ID, text=msg)
+                                await application.bot.send_message(
+                                    chat_id=TELEGRAM_USER_ID, text=msg
+                                )
                                 await _mark_nudge_sent(pool, "workout_streak_risk")
                                 break
 
@@ -388,7 +423,11 @@ async def check_contextual_nudges(application, pool):
             for b in budgets:
                 if float(b["current_spent"]) > float(b["monthly_limit"]):
                     msg = f"⚠️ Atenție: Ai depășit bugetul pentru {b['category']}\\! (Limită: {b['monthly_limit']} RON)"
-                    await application.bot.send_message(chat_id=TELEGRAM_USER_ID, text=msg, parse_mode=ParseMode.MARKDOWN_V2)
+                    await application.bot.send_message(
+                        chat_id=TELEGRAM_USER_ID,
+                        text=msg,
+                        parse_mode=ParseMode.MARKDOWN_V2,
+                    )
                     await _mark_nudge_sent(pool, "budget_exceeded")
                     break
 
@@ -400,7 +439,7 @@ async def _should_send_nudge(pool, nudge_type: str) -> bool:
     async with pool.acquire() as conn:
         exists = await conn.fetchval(
             "SELECT EXISTS(SELECT 1 FROM sent_nudges WHERE nudge_type = $1 AND nudge_date = CURRENT_DATE)",
-            nudge_type
+            nudge_type,
         )
         return not exists
 
@@ -409,7 +448,7 @@ async def _mark_nudge_sent(pool, nudge_type: str):
     async with pool.acquire() as conn:
         await conn.execute(
             "INSERT INTO sent_nudges (nudge_type) VALUES ($1) ON CONFLICT DO NOTHING",
-            nudge_type
+            nudge_type,
         )
 
 
@@ -428,6 +467,7 @@ async def send_eod_reflection(application, pool, force=False):
         print(f"Starting interactive EOD reflection for {today}...", flush=True)
 
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
         keyboard = [
             [
                 InlineKeyboardButton("🚀 Productivă", callback_data="eod:mood:great"),
@@ -450,10 +490,12 @@ async def send_eod_reflection(application, pool, force=False):
         )
 
         from core.state import set_state
+
         await set_state(pool, "awaiting_eod_mood", "eod", "mood", None)
 
     except Exception as e:
         import traceback
+
         print(f"CRITICAL error in send_eod_reflection: {e}", flush=True)
         traceback.print_exc()
 
@@ -462,15 +504,16 @@ async def check_eod_timeout(application, pool):
     """Checks if EOD reflection was completed; marks as skipped if not."""
     try:
         from core.state import get_state, clear_state
+
         state = await get_state(pool)
-        
+
         if state and state.get("module") == "eod":
             print("EOD Reflection timed out. Marking as skipped.", flush=True)
             await clear_state(pool)
-            
+
             user_tz = pytz.timezone(TIMEZONE)
             today = datetime.now(user_tz).date()
-            
+
             async with pool.acquire() as conn:
                 await conn.execute(
                     """
@@ -478,19 +521,20 @@ async def check_eod_timeout(application, pool):
                     VALUES ($1, TRUE)
                     ON CONFLICT (entry_date) DO UPDATE SET skipped = TRUE
                     """,
-                    today
+                    today,
                 )
-                
+
                 # Also mark profile so it doesn't trigger again
                 await conn.execute(
                     "UPDATE user_profile SET last_eod_date = $1 WHERE telegram_id = $2",
-                    today, TELEGRAM_USER_ID
+                    today,
+                    TELEGRAM_USER_ID,
                 )
-            
+
             await application.bot.send_message(
                 chat_id=TELEGRAM_USER_ID,
                 text="Sesiunea de reflexie a expirat\\. O seară liniștită\\! 🌙",
-                parse_mode=ParseMode.MARKDOWN_V2
+                parse_mode=ParseMode.MARKDOWN_V2,
             )
     except Exception as e:
         print(f"Error in check_eod_timeout: {e}", flush=True)
@@ -688,12 +732,12 @@ async def send_weekly_review(application, pool, force=False):
     from bot.formatter import safe_markdown, split_message
     from core.context import build_weekly_review_context
     from core.gemini import get_proactive_response
-    
+
     try:
         user_tz = pytz.timezone(TIMEZONE)
         now = datetime.now(user_tz)
         today = now.date()
-        
+
         # Idempotency check
         profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
         if not force and profile.get("last_weekly_review_date") == today:
@@ -704,11 +748,14 @@ async def send_weekly_review(application, pool, force=False):
         days_to_monday = today.weekday()
         start_date = today - timedelta(days=days_to_monday)
         end_date = today
-        
-        print(f"Starting narrative weekly review for {start_date} to {end_date}...", flush=True)
+
+        print(
+            f"Starting narrative weekly review for {start_date} to {end_date}...",
+            flush=True,
+        )
 
         context_data = await build_weekly_review_context(pool, start_date, end_date)
-        
+
         instruction = """Ești Lora, asistenta personală a utilizatorului. Generezi un WEEKLY REVIEW narativ, empatic și inteligent.
         NU trimite o listă de cifre sec. Transformă datele brute într-o poveste a săptămânii care tocmai se încheie.
         
@@ -720,8 +767,10 @@ async def send_weekly_review(application, pool, force=False):
         Ton: Romglish, cald, direct. Fără introduceri lungi.
         Formatare: MarkdownV2 (fără backslash-uri de escapare inutile la date)."""
 
-        report_content = await get_proactive_response(instruction, json.dumps(context_data, default=str))
-        
+        report_content = await get_proactive_response(
+            instruction, json.dumps(context_data, default=str)
+        )
+
         if not report_content:
             return
 
@@ -732,35 +781,35 @@ async def send_weekly_review(application, pool, force=False):
                 INSERT INTO weekly_reviews (week_start, week_end, content)
                 VALUES ($1, $2, $3)
                 """,
-                start_date, end_date, report_content
+                start_date,
+                end_date,
+                report_content,
             )
-            
+
             # Update user profile
             await conn.execute(
                 "UPDATE user_profile SET last_weekly_review_date = $1 WHERE telegram_id = $2",
-                today, TELEGRAM_USER_ID
+                today,
+                TELEGRAM_USER_ID,
             )
 
         # Send to user
         header = f"📊 *Weekly Review: {start_date.strftime('%d %b')} — {end_date.strftime('%d %b')}*\\n\\n"
         final_text = header + safe_markdown(report_content)
-        
+
         chunks = split_message(final_text)
         for chunk in chunks:
             await application.bot.send_message(
-                chat_id=TELEGRAM_USER_ID,
-                text=chunk,
-                parse_mode=ParseMode.MARKDOWN_V2
+                chat_id=TELEGRAM_USER_ID, text=chunk, parse_mode=ParseMode.MARKDOWN_V2
             )
 
     except Exception as e:
         print(f"CRITICAL error in send_weekly_review: {e}", flush=True)
         import traceback
+
         traceback.print_exc()
 
         pass
-
-
 
         # 6. Send Voice Version (TTS)
         try:
@@ -1543,7 +1592,9 @@ def setup_scheduler(application, pool):
     )
 
     # 3c. EOD Timeout Check - 30 minutes after EOD reflection
-    timeout_time = (datetime.combine(date.today(), time(e_h, e_m)) + timedelta(minutes=30)).time()
+    timeout_time = (
+        datetime.combine(date.today(), time(e_h, e_m)) + timedelta(minutes=30)
+    ).time()
     scheduler.add_job(
         check_eod_timeout,
         "cron",
@@ -1725,6 +1776,16 @@ def setup_scheduler(application, pool):
         sync_calendar_job,
         "interval",
         minutes=CALENDAR_SYNC_INTERVAL,
+        args=[pool],
+    )
+
+    # ━━━ SHOPPING CLEANUP ━━━
+    scheduler.add_job(
+        daily_shopping_cleanup,
+        "cron",
+        hour=0,
+        minute=0,
+        misfire_grace_time=3600,
         args=[pool],
     )
 

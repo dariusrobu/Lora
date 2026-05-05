@@ -43,7 +43,11 @@ async def handle_project_intent(
             meta_parts.append(f"📁 {data['category']}")
 
         meta_str = f" ({', '.join(meta_parts)})" if meta_parts else ""
-        return f"Done ✅ Created project *{escape_md(name)}*{meta_str}\\.", None, project_id
+        return (
+            f"Done ✅ Created project *{escape_md(name)}*{meta_str}\\.",
+            None,
+            project_id,
+        )
 
     elif intent == "view_project":
         name = data.get("name")
@@ -174,7 +178,11 @@ async def handle_project_intent(
 
         if update_data:
             await project_queries.update_project(pool, project_id, **update_data)
-            return f"Updated project *{escape_md(name or str(project_id))}* ✅", None, project_id
+            return (
+                f"Updated project *{escape_md(name or str(project_id))}* ✅",
+                None,
+                project_id,
+            )
         return "No changes to apply.", None, None
 
     elif intent == "update_progress":
@@ -266,7 +274,11 @@ async def handle_project_intent(
         project = await project_queries.get_project(pool, project_id)
         if project:
             await project_queries.delete_project(pool, project_id)
-            return f"Project *{escape_md(project['name'])}* has been deleted\\.", None, project_id
+            return (
+                f"Project *{escape_md(project['name'])}* has been deleted\\.",
+                None,
+                project_id,
+            )
         return "Project already deleted or not found\\.", None, None
 
     return "Modulul de proiecte funcționează corect.", None, None

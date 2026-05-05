@@ -203,7 +203,7 @@ async def handle_nutrition_intent(
             return safe_markdown("Nu ai logat nicio masă azi. 🍎"), None
 
         lines = ["🍽 *Nutriție Azi*\n"]
-        
+
         # Add list of meals
         for m in meals:
             desc = m.get("description", "Masă")
@@ -211,7 +211,7 @@ async def handle_nutrition_intent(
             if len(desc) > 40:
                 desc = desc[:37] + "..."
             lines.append(f"• `{int(m['total_calories'])} kcal` — {desc}")
-        
+
         lines.append("")
         lines.append(
             f"🔥 Calorii: *{int(day_totals['calories'])}* / {targets['calories']} kcal"
@@ -232,7 +232,7 @@ async def handle_nutrition_intent(
         # Total calories is at lines index (len(meals) + 2)
         idx_cal = len(meals) + 2
         lines.insert(idx_cal + 1, f"🔥 `{cal_bar}` {cal_pct}%")
-        
+
         # Protein is 2 lines after calorie bar
         idx_prot = idx_cal + 3
         lines.insert(idx_prot + 1, f"💪 `{prot_bar}` {prot_pct}%")
@@ -241,12 +241,16 @@ async def handle_nutrition_intent(
 
     elif intent == "nutrition_target":
         targets = await nutrition_queries.get_nutrition_targets(pool)
-        return safe_markdown(
-            f"🎯 *Targeturi Zilnice*\n\n"
-            f"🔥 Calorii: *{targets['calories']}* kcal\n"
-            f"💪 Proteina: *{targets['protein_g']}g*\n"
-            f"🍞 Carbs: *{targets['carbs_g']}g*\n"
-            f"🫒 Grasimi: *{targets['fat_g']}g*"
-        ), None, None
+        return (
+            safe_markdown(
+                f"🎯 *Targeturi Zilnice*\n\n"
+                f"🔥 Calorii: *{targets['calories']}* kcal\n"
+                f"💪 Proteina: *{targets['protein_g']}g*\n"
+                f"🍞 Carbs: *{targets['carbs_g']}g*\n"
+                f"🫒 Grasimi: *{targets['fat_g']}g*"
+            ),
+            None,
+            None,
+        )
 
     return safe_markdown("Nu am inteles cererea legata de nutritie. 🤔"), None, None

@@ -116,7 +116,9 @@ async def _is_duplicate_fact(pool, user_id: int, new_fact: str, category: str) -
                 """,
                 user_id,
                 category,
-                category + "s" if not category.endswith("s") else category[:-1],  # handle plural variants
+                category + "s"
+                if not category.endswith("s")
+                else category[:-1],  # handle plural variants
                 f"{prefix}%",
                 f"%{prefix}%",
             )

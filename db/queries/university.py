@@ -18,25 +18,15 @@ async def add_subject(pool, name, credits=None, professor=None, total_classes=0)
 async def list_subjects(pool) -> list:
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT s.*,
-                CASE WHEN EXISTS (
-                    SELECT 1 FROM schedule sch 
-                    WHERE LOWER(sch.subject_name) = LOWER(s.name) 
-                      AND sch.class_type = 'seminar'
-                ) THEN COUNT(a.id) FILTER (WHERE a.attended = TRUE) 
-                ELSE NULL END as attended_count,
-                CASE WHEN EXISTS (
-                    SELECT 1 FROM schedule sch 
-                    WHERE LOWER(sch.subject_name) = LOWER(s.name) 
-                      AND sch.class_type = 'seminar'
-                ) THEN COUNT(a.id) 
-                ELSE NULL END as total_logged,
-                ROUND(AVG(g.grade), 2) as avg_grade
+            SELECT 
+                s.id, s.name, s.credits, s.professor, s.min_attendance_pct,
+                (SELECT ROUND(AVG(grade), 2) FROM grades WHERE subject_id = s.id) as avg_grade,
+                (SELECT JSON_AGG(JSON_BUILD_OBJECT('grade', grade, 'type', grade_type, 'date', graded_at)) 
+                 FROM grades WHERE subject_id = s.id) as grades,
+                (SELECT COUNT(*) FROM attendances WHERE subject_id = s.id AND attended = TRUE) as attended_count,
+                (SELECT COUNT(*) FROM attendances WHERE subject_id = s.id) as total_logged
             FROM subjects s
-            LEFT JOIN attendances a ON a.subject_id = s.id
-            LEFT JOIN grades g ON g.subject_id = s.id
             WHERE s.is_active = TRUE
-            GROUP BY s.id
             ORDER BY s.name
         """)
         return [dict(r) for r in rows]
@@ -210,9 +200,11 @@ async def get_attendance_warnings(pool) -> list:
         """)
         return [dict(r) for r in rows]
 
+
 async def log_attendance_by_schedule(pool, schedule_id: int, attended: bool) -> None:
     """Loghează prezența folosind ID-ul din schedule."""
     from datetime import date
+
     async with pool.acquire() as conn:
         # Găsește subject_id-ul corespunzător
         row = await conn.fetchrow(
@@ -220,17 +212,19 @@ async def log_attendance_by_schedule(pool, schedule_id: int, attended: bool) -> 
         )
         if row:
             await log_attendance(pool, row["subject_id"], attended, date.today())
+
+
 async def update_subject(pool, subject_id: int, **kwargs) -> None:
     """Actualizează metadatele unei materii."""
     if not kwargs:
         return
-    
+
     fields = []
     values = []
     for i, (key, value) in enumerate(kwargs.items(), start=2):
         fields.append(f"{key} = ${i}")
         values.append(value)
-    
+
     query = f"UPDATE subjects SET {', '.join(fields)} WHERE id = $1"
     async with pool.acquire() as conn:
         await conn.execute(query, subject_id, *values)
@@ -241,6 +235,11 @@ async def delete_subject(pool, subject_id: int) -> None:
     async with pool.acquire() as conn:
         async with conn.transaction():
             # Soft delete subject
-            await conn.execute("UPDATE subjects SET is_active = FALSE WHERE id = $1", subject_id)
+            await conn.execute(
+                "UPDATE subjects SET is_active = FALSE WHERE id = $1", subject_id
+            )
             # Deactivate schedule entries
-            await conn.execute("UPDATE schedule SET is_active = FALSE WHERE subject_id = $1", subject_id)
+            await conn.execute(
+                "UPDATE schedule SET is_active = FALSE WHERE subject_id = $1",
+                subject_id,
+            )

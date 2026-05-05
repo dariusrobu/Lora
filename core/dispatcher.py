@@ -5,6 +5,7 @@ from db.queries.log import log_execution
 
 logger = logging.getLogger("core.dispatcher")
 
+
 async def execute_module_intent(pool, module, intent, data, reply, bot):
     """
     Dispatcher point for all modules.
@@ -13,7 +14,7 @@ async def execute_module_intent(pool, module, intent, data, reply, bot):
     try:
         # Load module dynamically
         mod = importlib.import_module(f"modules.{module}")
-        
+
         # Get intent handler - convention: handle_{module}_intent
         handlers_to_try = [f"handle_{module}_intent"]
         if module.endswith("s") and len(module) > 1:
@@ -26,13 +27,18 @@ async def execute_module_intent(pool, module, intent, data, reply, bot):
                 break
 
         if not handler:
-            return f"⚠️ Eroare: Modulul '{module}' nu are o funcție de procesare (încercat: {', '.join(handlers_to_try)})", None, None
-        
+            return (
+                f"⚠️ Eroare: Modulul '{module}' nu are o funcție de procesare (încercat: {', '.join(handlers_to_try)})",
+                None,
+                None,
+            )
+
         # Inject reply so modules can use it
         data["_original_reply"] = reply
-        
+
         # Call handler with flexible signature
         import inspect
+
         sig = inspect.signature(handler)
         if "bot" in sig.parameters:
             result = await handler(pool, intent, data, bot)
@@ -50,6 +56,7 @@ async def execute_module_intent(pool, module, intent, data, reply, bot):
 
         # Update state for future corrections/undo
         from core.state import set_state
+
         await set_state(pool, "null", module, intent, item_id)
         await log_execution(pool, intent, module, True)
 
@@ -60,4 +67,5 @@ async def execute_module_intent(pool, module, intent, data, reply, bot):
         traceback.print_exc()
         await log_execution(pool, intent, module, False, type(e).__name__, str(e))
         from bot.formatter import safe_markdown
+
         return safe_markdown(f"⚠️ Eroare modul {module}: {str(e)}"), None, None

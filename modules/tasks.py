@@ -151,6 +151,7 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
             # Immediate sync to Reminders
             try:
                 from core.icloud import sync_tasks_to_reminders
+
                 asyncio.create_task(sync_tasks_to_reminders(pool))
             except Exception as e:
                 print(f"Error triggering task sync: {e}")
@@ -369,6 +370,7 @@ async def handle_task_intent(
         # Immediate sync to Reminders
         try:
             from core.icloud import sync_tasks_to_reminders
+
             asyncio.create_task(sync_tasks_to_reminders(pool))
         except Exception as e:
             print(f"Error triggering task sync: {e}")
@@ -378,6 +380,7 @@ async def handle_task_intent(
         reply_msg = f"Am adăugat ✅ *{escape_md(title)}*"
         if due_date:
             from bot.formatter import format_date_short
+
             reply_msg += f" (până pe {format_date_short(due_date)})"
         if project_name:
             reply_msg += f" în proiectul *{escape_md(project_name)}*"
@@ -389,17 +392,18 @@ async def handle_task_intent(
         if similar:
             s = similar[0]
             hours = s.get("duration_hours", 0) or 0
-            
+
             if hours < 1:
                 duration_str = f"{int(hours * 60)} minute"
             elif hours < 24:
                 duration_str = f"{int(hours)} ore"
             else:
                 duration_str = f"{int(hours / 24)} zile"
-            
+
             from bot.formatter import format_date_short
+
             date_str = format_date_short(s["completed_at"])
-            
+
             reply_msg += f"\n\n💡 _Ai mai avut un task similar pe {date_str} — a durat {duration_str}\\._"
 
         return reply_msg, task_keyboard(task_id), task_id
@@ -451,7 +455,7 @@ async def handle_task_intent(
             for t in group_tasks:
                 prefix: str = ""
                 meta: list[str] = []
-                
+
                 # Priority
                 prio = t.get("priority", "medium")
                 if prio == "high":
@@ -459,17 +463,18 @@ async def handle_task_intent(
                     meta.append("🔥")
                 elif prio == "low":
                     meta.append("🧊")
-                
+
                 # Due Date
                 if t.get("due_date"):
                     from bot.formatter import format_date_short
+
                     date_str = format_date_short(t["due_date"])
                     if t["due_date"] < today:
                         prefix = "🔴 "
                         meta.append(f"*{escape_md(date_str)}*")
                     else:
                         meta.append(f"{escape_md(date_str)}")
-                
+
                 meta_str = f" \\({', '.join(meta)}\\)" if meta else ""
                 lines.append(f"{prefix}• {escape_md(t['title'])}{meta_str}")
 
@@ -508,17 +513,22 @@ async def handle_task_intent(
                     )
 
         if not task_id:
-            return "Ce task ai terminat? (Dă-mi un nume sau bifează-l din listă)", None, None
+            return (
+                "Ce task ai terminat? (Dă-mi un nume sau bifează-l din listă)",
+                None,
+                None,
+            )
 
         await task_queries.complete_task(pool, task_id)
-        
+
         # Immediate sync to Reminders
         try:
             from core.icloud import sync_tasks_to_reminders
+
             asyncio.create_task(sync_tasks_to_reminders(pool))
         except Exception as e:
             print(f"Error triggering task sync: {e}")
-            
+
         task = await task_queries.get_task(pool, task_id)
         task_title = task["title"] if task else "Task necunoscut"
 
@@ -585,6 +595,7 @@ async def handle_task_intent(
                     task_id = matches[0]["id"]
                 elif len(matches) > 1:
                     from bot.keyboards import task_list_keyboard
+
                     return (
                         f"Am găsit mai multe task-uri cu *{escape_md(search_term)}*. Pe care vrei să-l editez?",
                         task_list_keyboard(matches, back_callback="tasks:main"),
@@ -592,7 +603,11 @@ async def handle_task_intent(
                     )
 
         if not task_id:
-            return "Ce task vrei să editez? (Dă-mi un nume sau bifează-l din listă)", None, None
+            return (
+                "Ce task vrei să editez? (Dă-mi un nume sau bifează-l din listă)",
+                None,
+                None,
+            )
 
         # Clean up data to only include valid update fields
         upd = {}
@@ -614,13 +629,14 @@ async def handle_task_intent(
         project_name = data.get("project") or data.get("project_name")
         if project_name:
             import db.queries.projects as project_queries
+
             project = await project_queries.get_project_by_name(pool, project_name)
             if project:
                 upd["project_id"] = project["id"]
                 # For the reply message
                 data["project"] = project["name"]
             else:
-                # Optional: Handle project not found? 
+                # Optional: Handle project not found?
                 # For now just log it or ignore
                 pass
 
@@ -632,14 +648,15 @@ async def handle_task_intent(
             )
 
         await task_queries.update_task(pool, task_id, **upd)
-        
+
         # Immediate sync to Reminders
         try:
             from core.icloud import sync_tasks_to_reminders
+
             asyncio.create_task(sync_tasks_to_reminders(pool))
         except Exception as e:
             print(f"Error triggering task sync: {e}")
-            
+
         task = await task_queries.get_task(pool, task_id)
         from bot.keyboards import task_keyboard
 
@@ -684,6 +701,7 @@ async def handle_task_intent(
             return "Nu am găsit task-ul.", None, None
 
         from core.state import set_state
+
         await set_state(pool, "awaiting_confirmation", "tasks", "delete", task_id)
         from bot.keyboards import confirmation_keyboard
 
@@ -694,6 +712,7 @@ async def handle_task_intent(
         )
 
     return "Modulul de task-uri funcționează corect.", None, None
+
 
 def _build_urgency_suggestion(tasks: list, today: date) -> str | None:
     """Build a contextual suggestion for the most urgent task."""

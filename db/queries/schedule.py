@@ -33,7 +33,7 @@ async def get_week_type_for_date(pool, target_date: date) -> str:
     total_days = (target_monday - sem_start_monday).days
 
     # Calculăm zilele de vacanță (doar săptămânile întregi sau decalajele)
-    # Pentru simplitate și aliniere la calendar, numărăm câte zile de vacanță 
+    # Pentru simplitate și aliniere la calendar, numărăm câte zile de vacanță
     # au existat între luni_start și luni_țintă.
     vacations = await get_all_vacations(pool)
     vacation_days = 0
@@ -47,19 +47,18 @@ async def get_week_type_for_date(pool, target_date: date) -> str:
 
         v_start = max(v["start_date"], sem_start_monday)
         v_end = min(v["end_date"], target_monday - timedelta(days=1))
-        
+
         if v_end >= v_start:
-            # Adăugăm zilele de vacanță. 
+            # Adăugăm zilele de vacanță.
             # Dacă vacanța e o săptămână întreagă (7 zile), va reduce week_number cu 1.
             vacation_days += (v_end - v_start).days + 1
 
     effective_days = total_days - vacation_days
-    # Deoarece ambele sunt luni, effective_days va fi mereu multiplu de 7 
+    # Deoarece ambele sunt luni, effective_days va fi mereu multiplu de 7
     # DACĂ vacanțele sunt de săptămâni întregi.
     week_number = (effective_days // 7) + 1
 
     return "odd" if week_number % 2 == 1 else "even"
-
 
 
 async def get_today_schedule(pool) -> list:

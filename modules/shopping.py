@@ -3,6 +3,7 @@ from db.queries.shopping import (
     add_shopping_item,
     list_shopping_items,
     delete_item_by_name,
+    clear_bought_items,
 )
 from bot.formatter import escape_md
 
@@ -20,7 +21,7 @@ async def handle_shopping_intent(
         return f"✅ Am adăugat *{escape_md(item)}* pe lista de cumpărături.", None
 
     elif intent == "list_items":
-        items = await list_shopping_items(pool)
+        items = await list_shopping_items(pool, include_bought=False)
         if not items:
             return "Lista de cumpărături e goală! 🎉", None
 
@@ -38,5 +39,12 @@ async def handle_shopping_intent(
 
         await delete_item_by_name(pool, item)
         return f"🗑️ Am șters *{escape_md(item)}* de pe listă.", None
+
+    elif intent == "clear_items":
+        await clear_bought_items(pool)
+        return (
+            "🧹 Am curățat lista de cumpărături (am șters toate produsele bifate).",
+            None,
+        )
 
     return "Modulul shopping nu recunoaște acest intent.", None

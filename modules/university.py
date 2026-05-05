@@ -96,7 +96,6 @@ async def handle_university_intent(
             None,
         )
 
-
     elif intent == "uni_add_grade":
         subject_name = data.get("subject", "")
         grade = data.get("grade")

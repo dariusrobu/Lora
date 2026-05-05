@@ -240,15 +240,19 @@ async def process_vision_result(
     elif img_type == "book_cover":
         title = data.get("title")
         author = data.get("author", "Autor Necunoscut")
-        
+
         if not title:
-            return safe_markdown("Am detectat o copertă de carte, dar nu am putut citi clar titlul."), None
-            
+            return safe_markdown(
+                "Am detectat o copertă de carte, dar nu am putut citi clar titlul."
+            ), None
+
         import db.queries.reading as reading_queries
-        
+
         await reading_queries.add_book(pool, title=title, author=author)
-        
-        return safe_markdown(f"📚 Cartea *{title}* de {author} a fost adăugată în lista de citit!"), None
+
+        return safe_markdown(
+            f"📚 Cartea *{title}* de {author} a fost adăugată în lista de citit!"
+        ), None
 
     else:
         # 'other' or error

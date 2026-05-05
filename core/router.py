@@ -12,13 +12,29 @@ async def check_module_health() -> Dict[str, str]:
     Returns a dict mapping module name to status ('ok' or error message).
     """
     modules_to_test = [
-        "tasks", "projects", "notes", "finance", "events", 
-        "shopping", "goals", "skills", "mood", "insights", 
-        "health", "workout", "reading", "focus", "planner", 
-        "university", "nutrition", "schedule", "memory", "weather",
-        "calendar"
+        "tasks",
+        "projects",
+        "notes",
+        "finance",
+        "events",
+        "shopping",
+        "goals",
+        "skills",
+        "mood",
+        "insights",
+        "health",
+        "workout",
+        "reading",
+        "focus",
+        "planner",
+        "university",
+        "nutrition",
+        "schedule",
+        "memory",
+        "weather",
+        "calendar",
     ]
-    
+
     status = {}
     for mod in modules_to_test:
         try:
@@ -34,7 +50,7 @@ async def check_module_health() -> Dict[str, str]:
         except Exception as e:
             status[mod] = str(e)
             logger.error(f"Module {mod} health check failed: {e}")
-            
+
     return status
 
 
@@ -59,18 +75,23 @@ async def route_intent(pool, intent_response: Any, bot=None):
     return await _route_single_intent(pool, intent_response, bot)
 
 
-async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None) -> Tuple[str, Any, Optional[int]]:
+async def _route_single_intent(
+    pool, intent_response: Dict[str, Any], bot=None
+) -> Tuple[str, Any, Optional[int]]:
     """Internal router for a single intent object."""
     module = intent_response.get("module")
     intent = intent_response.get("intent")
     data = intent_response.get("data") or {}
     reply = intent_response.get("reply", "")
-    user_message = intent_response.get("_user_message", "") # Injected by handler usually
+    user_message = intent_response.get(
+        "_user_message", ""
+    )  # Injected by handler usually
 
     # Agentic Diversion Check
     if intent_response.get("needs_agent") or intent == "agent":
         from core.agent import run_agent
         from core.gemini import client
+
         msg = user_message or reply
         print(f"🤖 AGENTIC MODE: Diverting -> {msg}", flush=True)
         agent_reply = await run_agent(pool, client, msg, bot=bot)
@@ -79,9 +100,14 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None) 
     # Clarification Check
     confidence = intent_response.get("confidence", 1.0)
     if confidence < 0.7 or intent_response.get("clarification_needed"):
-        question = intent_response.get("clarification_question") or "Poți clarifica ce dorești să facem? 🤔"
+        question = (
+            intent_response.get("clarification_question")
+            or "Poți clarifica ce dorești să facem? 🤔"
+        )
         payload = {"partial_intent": intent, "partial_data": data}
-        await set_state(pool, "awaiting_clarification", module, "clarify", None, payload)
+        await set_state(
+            pool, "awaiting_clarification", module, "clarify", None, payload
+        )
         return question, None, None
 
     # No module -> Just Chat
@@ -90,22 +116,29 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None) 
 
     # Execute via Dispatcher
     from core.dispatcher import execute_module_intent
+
     try:
-        reply_text, keyboard, item_id = await execute_module_intent(pool, module, intent, data, reply, bot)
-        
+        reply_text, keyboard, item_id = await execute_module_intent(
+            pool, module, intent, data, reply, bot
+        )
+
         # Logging & Memory
         await log_execution(pool, intent, module, True)
-        
+
         # Auto-memory extraction (if present in intent_response)
         memory_extracts = intent_response.get("memory_extracts")
         if memory_extracts:
             from db.queries.memory import save_auto_memory
             from core.config import TELEGRAM_USER_ID
+
             for fact_data in memory_extracts:
                 try:
                     await save_auto_memory(
-                        pool, TELEGRAM_USER_ID, fact_data.get("fact"), 
-                        fact_data.get("category", "general"), fact_data.get("confidence", 0.0)
+                        pool,
+                        TELEGRAM_USER_ID,
+                        fact_data.get("fact"),
+                        fact_data.get("category", "general"),
+                        fact_data.get("confidence", 0.0),
                     )
                 except Exception:
                     pass
@@ -125,4 +158,8 @@ async def _route_single_intent(pool, intent_response: Dict[str, Any], bot=None) 
     except Exception as e:
         logger.error(f"Router execution failed: {e}")
         await log_execution(pool, intent, module, False, type(e).__name__, str(e))
-        return f"A apărut o eroare la procesarea comenzii în modulul {module}. 🔧", None, None
+        return (
+            f"A apărut o eroare la procesarea comenzii în modulul {module}. 🔧",
+            None,
+            None,
+        )

@@ -158,53 +158,57 @@ async def _log_api_downtime(pool, error_type: str, user_id: int = None):
         async with pool.acquire() as conn:
             await conn.execute(
                 "INSERT INTO execution_log (user_id, success, error_type) VALUES ($1, FALSE, $2)",
-                user_id, error_type
+                user_id,
+                error_type,
             )
     except Exception as e:
         print(f"Failed to log downtime: {e}")
 
+
 async def _call_gemini_with_retry(pool, user_id, api_func, *args, **kwargs):
     """Wrapper for Gemini API calls with retry logic and state tracking."""
     global _api_available, _failure_count
-    
+
     delays = [2, 4]
     last_err = None
-    
+
     for i in range(len(delays) + 1):
         try:
             # Execute the actual call
             response = await api_func(*args, **kwargs)
-            
+
             recovery_prefix = ""
             if not _api_available:
                 recovery_prefix = "Sunt din nou online\\! 🚀\\n\n"
                 print("Gemini API recovered! 🚀")
-            
+
             _api_available = True
             _failure_count = 0
             return response, recovery_prefix
-            
-        except (google.api_core.exceptions.ServiceUnavailable,
-                google.api_core.exceptions.DeadlineExceeded,
-                asyncio.TimeoutError,
-                Exception) as e:
-            
+
+        except (
+            google.api_core.exceptions.ServiceUnavailable,
+            google.api_core.exceptions.DeadlineExceeded,
+            asyncio.TimeoutError,
+            Exception,
+        ) as e:
             last_err = e
             error_msg = str(e)
-            print(f"Gemini API attempt {i+1} failed: {error_msg}")
-            
+            print(f"Gemini API attempt {i + 1} failed: {error_msg}")
+
             if i < len(delays):
                 await asyncio.sleep(delays[i])
                 continue
-            
+
             # If we are here, all retries failed
             _failure_count += 1
             if _failure_count >= 3:
                 _api_available = False
-            
+
             if pool:
                 await _log_api_downtime(pool, "api_unavailable", user_id)
             raise last_err
+
 
 async def get_gemini_response(
     pool,
@@ -465,6 +469,7 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
       Data: {{"item": string, "category": string | null}}
     - intent="list_items" — "ce am de cumpărat", "vezi lista de cumpărături".
     - intent="delete_item" — "șterge X de pe listă", "am luat Y".
+    - intent="clear_items" — "curăță lista", "șterge tot ce am cumpărat", "clear shopping list".
 26. Schedule: module="schedule":
     - intent="schedule_today" pentru orarul de azi ("ce cursuri am azi", "orarul de azi", "ce am la facultate").
     - intent="schedule_week" pentru orarul săptămânii ("orarul săptămânii", "ce am săptămâna asta").
@@ -488,9 +493,9 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
 
 Exemple de output JSON pentru workout_log:
 - Input: "am fost la MRU seminar azi"
-  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "MRU", "attended": true, "date": "{now.strftime('%Y-%m-%d')}" }}, "reply": "MRU — prezent ✅ înregistrat." }}
+  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "MRU", "attended": true, "date": "{now.strftime("%Y-%m-%d")}" }}, "reply": "MRU — prezent ✅ înregistrat." }}
 - Input: "am lipsit de la Statistică seminar"
-  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "Statistică", "attended": false, "date": "{now.strftime('%Y-%m-%d')}" }}, "reply": "Statistică Inferențială — absent ❌ înregistrat." }}
+  Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "Statistică", "attended": false, "date": "{now.strftime("%Y-%m-%d")}" }}, "reply": "Statistică Inferențială — absent ❌ înregistrat." }}
 - Input: "adaugă materia Contabilitate"
   Output: {{ "intent": "uni_add_subject", "module": "university", "data": {{ "name": "Contabilitate" }}, "reply": "Contabilitate adăugată. 📚" }}
 - Input: "am făcut gym 50 min push day, bench press 60kg 5 reps, am ars 300 calorii"
@@ -508,7 +513,7 @@ EXEMPLE DE CLASIFICARE CORECTĂ (FEW-SHOT):
 
 *** ADD_TASK ***
 U: "adaugă task să trimit mailul la contabilitate azi"
-A: intent="add_task", module="tasks", data={{ "title": "să trimit mailul la contabilitate", "due_date": "{now.strftime('%Y-%m-%d')}" }}, reply="Task adăugat ✅"
+A: intent="add_task", module="tasks", data={{ "title": "să trimit mailul la contabilitate", "due_date": "{now.strftime("%Y-%m-%d")}" }}, reply="Task adăugat ✅"
 U: "pune la proiectul Freelance task prioritate high rezolvă bug-ul de login"
 A: intent="add_task", module="tasks", data={{ "title": "rezolvă bug-ul de login", "project": "Freelance", "priority": "high" }}, reply="Bug-ul a fost adăugat la Freelance ✅"
 
@@ -536,7 +541,7 @@ A: intent="memory_search", module="memory", data={{"query": "sah"}}, reply="Caut
 
 *** COMPLEX CHAIN (TASK + REMINDER + FINANCE) ***
 U: "arată task-urile la Licență, apoi adaugă reminder la 21:00 să învăț și zi-mi dacă am bani de pizza de 50 lei"
-A: intent="add_reminder", module="events", data={{ "title": "să învăț", "event_time": "21:00", "date": "{now.strftime('%Y-%m-%d')}" }}, reply="Reminder setat pentru 21:00. 🔔", additional_intents=[{{ "intent":"list_tasks", "module":"tasks", "data":{{ "project":"Licență" }}, "reply":"Iată task-urile tale." }}, {{ "intent":"finance_summary", "module":"finance", "data":{{}}, "reply":"Verific dacă ai bani de pizza." }}]
+A: intent="add_reminder", module="events", data={{ "title": "să învăț", "event_time": "21:00", "date": "{now.strftime("%Y-%m-%d")}" }}, reply="Reminder setat pentru 21:00. 🔔", additional_intents=[{{ "intent":"list_tasks", "module":"tasks", "data":{{ "project":"Licență" }}, "reply":"Iată task-urile tale." }}, {{ "intent":"finance_summary", "module":"finance", "data":{{}}, "reply":"Verific dacă ai bani de pizza." }}]
 """
 
     contents = []
@@ -590,50 +595,9 @@ A: intent="add_reminder", module="events", data={{ "title": "să învăț", "eve
         )
 
     try:
+
         async def call_gen():
-            response_schema = {
-                "type": "OBJECT",
-                "properties": {
-                    "intent": {"type": "STRING"},
-                    "module": {"type": "STRING", "nullable": True},
-                    "data": {"type": "OBJECT"},
-                    "reply": {"type": "STRING"},
-                    "needs_confirmation": {"type": "BOOLEAN"},
-                    "needs_agent": {"type": "BOOLEAN"},
-                    "confidence": {"type": "NUMBER"},
-                    "clarification_needed": {"type": "BOOLEAN"},
-                    "clarification_question": {"type": "STRING", "nullable": True},
-                    "memory_extracts": {
-                        "type": "ARRAY",
-                        "items": {
-                            "type": "OBJECT",
-                            "properties": {
-                                "fact": {"type": "STRING"},
-                                "category": {"type": "STRING"},
-                                "confidence": {"type": "NUMBER"}
-                            },
-                            "required": ["fact", "category", "confidence"]
-                        },
-                        "nullable": True
-                    },
-                    "additional_intents": {
-                        "type": "ARRAY",
-                        "items": {
-                            "type": "OBJECT",
-                            "properties": {
-                                "intent": {"type": "STRING"},
-                                "module": {"type": "STRING", "nullable": True},
-                                "data": {"type": "OBJECT"},
-                                "reply": {"type": "STRING"}
-                            },
-                            "required": ["intent", "module", "data", "reply"]
-                        },
-                        "nullable": True
-                    }
-                },
-                "required": ["intent", "module", "data", "reply", "needs_confirmation", "needs_agent", "confidence"]
-            }
-            
+
             return await asyncio.wait_for(
                 asyncio.to_thread(
                     client.models.generate_content,
@@ -649,7 +613,9 @@ A: intent="add_reminder", module="events", data={{ "title": "să învăț", "eve
                 timeout=30.0,
             )
 
-        response, recovery_prefix = await _call_gemini_with_retry(pool, user_id, call_gen)
+        response, recovery_prefix = await _call_gemini_with_retry(
+            pool, user_id, call_gen
+        )
         raw_text = response.text
         print(f"DEBUG RAW TEXT: {repr(raw_text[:300])}", flush=True)
 
@@ -665,12 +631,22 @@ A: intent="add_reminder", module="events", data={{ "title": "să învăț", "eve
         # Strategy 2: Extract reply separately, parse the rest
         if parsed is None:
             try:
-                reply_match = re.search(r'"reply"\s*:\s*"(.*?)",\s*\n\s*"needs_confirmation"', raw_text, re.DOTALL)
+                reply_match = re.search(
+                    r'"reply"\s*:\s*"(.*?)",\s*\n\s*"needs_confirmation"',
+                    raw_text,
+                    re.DOTALL,
+                )
                 if reply_match:
                     original_reply = reply_match.group(1)
-                    clean_json = raw_text[:reply_match.start(1)] + "__PLACEHOLDER__" + raw_text[reply_match.end(1):]
+                    clean_json = (
+                        raw_text[: reply_match.start(1)]
+                        + "__PLACEHOLDER__"
+                        + raw_text[reply_match.end(1) :]
+                    )
                     parsed = json.loads(clean_json)
-                    parsed["reply"] = original_reply.replace("\\n", "\n").replace('\\"', '"')
+                    parsed["reply"] = original_reply.replace("\\n", "\n").replace(
+                        '\\"', '"'
+                    )
                 else:
                     cleaned = raw_text.replace('\\\\"', "'")
                     parsed = json.loads(cleaned)
@@ -684,7 +660,11 @@ A: intent="add_reminder", module="events", data={{ "title": "să învăț", "eve
                 module_m = re.search(r'"module"\s*:\s*(?:"([^"]+)"|null)', raw_text)
                 agent_m = re.search(r'"needs_agent"\s*:\s*(true|false)', raw_text)
                 reply_m = re.search(r'"reply"\s*:\s*"(.*?)",\s*\n', raw_text, re.DOTALL)
-                reply_text = reply_m.group(1).replace("\\n", "\n").replace('\\"', '"') if reply_m else "Scuze, nu am putut procesa răspunsul."
+                reply_text = (
+                    reply_m.group(1).replace("\\n", "\n").replace('\\"', '"')
+                    if reply_m
+                    else "Scuze, nu am putut procesa răspunsul."
+                )
                 parsed = {
                     "intent": intent_m.group(1) if intent_m else "chat",
                     "module": module_m.group(1) if module_m else None,
@@ -694,13 +674,20 @@ A: intent="add_reminder", module="events", data={{ "title": "să învăț", "eve
                     "needs_agent": agent_m.group(1) == "true" if agent_m else False,
                     "confidence": 1.0,
                 }
-                print(f"⚠️ JSON FALLBACK: Used regex extraction for intent={parsed['intent']}", flush=True)
+                print(
+                    f"⚠️ JSON FALLBACK: Used regex extraction for intent={parsed['intent']}",
+                    flush=True,
+                )
             except Exception as fallback_err:
                 print(f"Gemini JSON fallback also failed: {fallback_err}", flush=True)
                 parsed = {
-                    "intent": "chat", "module": None, "data": {},
+                    "intent": "chat",
+                    "module": None,
+                    "data": {},
                     "reply": "Am avut o problemă la procesarea răspunsului. Încearcă din nou.",
-                    "needs_confirmation": False, "needs_agent": False, "confidence": 1.0,
+                    "needs_confirmation": False,
+                    "needs_agent": False,
+                    "confidence": 1.0,
                 }
 
         if isinstance(parsed, list) and len(parsed) > 0:
@@ -711,12 +698,17 @@ A: intent="add_reminder", module="events", data={{ "title": "să învăț", "eve
             parsed["reply"] = recovery_prefix + parsed.get("reply", "")
 
         # Fire-and-forget: extract personal facts in background without blocking
-        asyncio.create_task(extract_and_save_facts(pool, client, user_id, user_message, parsed.get("reply", "")))
+        asyncio.create_task(
+            extract_and_save_facts(
+                pool, client, user_id, user_message, parsed.get("reply", "")
+            )
+        )
 
         return parsed
     except Exception as e:
         print(f"Gemini error: {e}", flush=True)
         import traceback
+
         traceback.print_exc()
         return {
             "intent": "api_unavailable",
@@ -754,13 +746,16 @@ FORMATARE:
 """
     full_instruction = system_instruction + tone_rules
     try:
+
         async def call_gen():
             return await asyncio.wait_for(
                 asyncio.to_thread(
                     client.models.generate_content,
                     model="gemini-2.5-flash",
                     contents=[
-                        types.Content(role="user", parts=[types.Part(text=data_summary)])
+                        types.Content(
+                            role="user", parts=[types.Part(text=data_summary)]
+                        )
                     ],
                     config=types.GenerateContentConfig(
                         system_instruction=full_instruction,
@@ -770,7 +765,7 @@ FORMATARE:
                 ),
                 timeout=45.0,
             )
-            
+
         response, recovery_prefix = await _call_gemini_with_retry(None, None, call_gen)
         text = response.text.strip()
         if recovery_prefix:
@@ -796,12 +791,15 @@ async def normalize_voice_text(raw: str) -> str:
         f"Transcriere: {raw}"
     )
     try:
+
         async def call_gen():
             return await asyncio.wait_for(
                 asyncio.to_thread(
                     client.models.generate_content,
                     model="gemini-2.5-flash",
-                    contents=[types.Content(role="user", parts=[types.Part(text=prompt)])],
+                    contents=[
+                        types.Content(role="user", parts=[types.Part(text=prompt)])
+                    ],
                     config=types.GenerateContentConfig(
                         temperature=0.2,
                         max_output_tokens=256,
@@ -809,10 +807,10 @@ async def normalize_voice_text(raw: str) -> str:
                 ),
                 timeout=10.0,
             )
-            
+
         response, recovery_prefix = await _call_gemini_with_retry(None, None, call_gen)
         normalized = response.text.strip()
-        
+
         # Prepend recovery message if applicable
         if recovery_prefix:
             normalized = recovery_prefix + normalized

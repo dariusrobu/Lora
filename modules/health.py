@@ -501,6 +501,10 @@ async def undo_last_action(pool, item_id: int) -> str:
 
     try:
         await pool.execute("DELETE FROM health_logs WHERE id = $1", item_id)
-        return f"🗑️ Am anulat log-ul de sănătate din data de *{row['log_date']}*\\.", None, None
+        return (
+            f"🗑️ Am anulat log-ul de sănătate din data de *{row['log_date']}*\\.",
+            None,
+            None,
+        )
     except Exception:
         return "Log-ul de sănătate a fost deja șters sau nu există.", None, None

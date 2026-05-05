@@ -1,7 +1,10 @@
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
 
-async def get_daily_aggregated_metrics(pool, user_id: int, days: int = 30) -> List[Dict[str, Any]]:
+
+async def get_daily_aggregated_metrics(
+    pool, user_id: int, days: int = 30
+) -> List[Dict[str, Any]]:
     """
     Returns a daily timeline of metrics for the past `days` days.
     Includes:
@@ -12,7 +15,7 @@ async def get_daily_aggregated_metrics(pool, user_id: int, days: int = 30) -> Li
     - total_expense: sum of expenses
     """
     start_date = datetime.now().date() - timedelta(days=days)
-    
+
     # We will build a unified query using CTEs for each module
     query = """
     WITH date_series AS (
@@ -64,7 +67,7 @@ async def get_daily_aggregated_metrics(pool, user_id: int, days: int = 30) -> Li
     LEFT JOIN daily_finance df ON ds.date = df.date
     ORDER BY ds.date ASC;
     """
-    
+
     async with pool.acquire() as conn:
         rows = await conn.fetch(query, user_id, start_date)
         return [dict(r) for r in rows]

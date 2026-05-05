@@ -17,7 +17,9 @@ async def handle_goal_intent(
         time_horizon = data.get("time_horizon", "month")
         linked_keywords = data.get("linked_keywords", [])
 
-        goal = await goal_queries.add_goal(pool, title, description, category, time_horizon, linked_keywords)
+        goal = await goal_queries.add_goal(
+            pool, title, description, category, time_horizon, linked_keywords
+        )
         return f"🎯 Obiectiv adăugat: *{escape_md(goal['title'])}*", None
 
     elif intent == "view_goals":

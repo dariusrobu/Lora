@@ -175,7 +175,11 @@ async def handle_skill_intent(
         )
         streak = await skill_queries.get_skill_streak(pool, skill["id"])
         streak_str = f" 🔥{streak}" if streak > 0 else ""
-        return rf"✅ {escape_md(name)} bifat\. Streak: *{streak}* {streak_str}", None, skill["id"]
+        return (
+            rf"✅ {escape_md(name)} bifat\. Streak: *{streak}* {streak_str}",
+            None,
+            skill["id"],
+        )
 
     elif intent == "list_habits":
         text, markup = await get_skills_dashboard(pool)

@@ -72,7 +72,11 @@ def tasks_main_keyboard() -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(
                 "🚀 Open Dashboard",
-                web_app=WebAppInfo(url=os.getenv("DASHBOARD_URL", "https://lora-dashboard.railway.app/dashboard")),
+                web_app=WebAppInfo(
+                    url=os.getenv(
+                        "DASHBOARD_URL", "https://lora-dashboard.railway.app/dashboard"
+                    )
+                ),
             )
         ],
     ]

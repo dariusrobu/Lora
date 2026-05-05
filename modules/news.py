@@ -15,6 +15,7 @@ async def handle_news_intent(
 
     return "Modulul news este pregătit!", None, None
 
+
 RSS_FEEDS = {
     "tech": "https://feeds.feedburner.com/TechCrunch/",
     "hacker_news": "https://news.ycombinator.com/rss",

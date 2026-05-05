@@ -32552,3 +32552,5 @@ Traceback (most recent call last):
   File "/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/base_events.py", line 1638, in create_server
     raise OSError(err.errno, msg) from None
 OSError: [Errno 48] error while attempting to bind on address ('0.0.0.0', 8083): [errno 48] address already in use
+/Users/robudarius/Lora/bot/handler.py:2812: SyntaxWarning: "\!" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\!"? A raw string is also an option.
+  f"📊 *Rezumatul zilei tale:*\\n\\n{safe_markdown(summary)}\\n\\nNoapte bună\! 🌙",

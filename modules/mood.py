@@ -120,6 +120,7 @@ async def handle_mood_intent(pool, intent: str, data: Dict[str, Any], bot):
 
         from db.queries.journal import save_journal_entry, get_journal_entry
         from datetime import date
+
         today = date.today()
         existing = await get_journal_entry(pool, today)
 
@@ -127,6 +128,9 @@ async def handle_mood_intent(pool, intent: str, data: Dict[str, Any], bot):
         focus = (existing.get("tomorrow_focus") or "") if existing else ""
 
         await save_journal_entry(pool, today, reflection, mood, focus)
-        return f"Am notat! Mă bucur să știu că te simți *{escape_md(mood)}* azi\\! ❤️", None
+        return (
+            f"Am notat! Mă bucur să știu că te simți *{escape_md(mood)}* azi\\! ❤️",
+            None,
+        )
 
     return "Mood module is active!", None

@@ -2,18 +2,15 @@ import asyncio
 import sys
 import logging
 import os
-import traceback
-from datetime import date, datetime
+from datetime import date
 from functools import partial
 from aiohttp import web
-from telegram import Update, MenuButtonWebApp, WebAppInfo
 from telegram.ext import (
     ApplicationBuilder,
     MessageHandler,
     CallbackQueryHandler,
     CommandHandler,
     filters,
-    ContextTypes,
 )
 
 # 1. Internal Modules
@@ -23,7 +20,6 @@ from core.config import (
     TIMEZONE,
     MORNING_BRIEFING_TIME,
     EOD_REFLECTION_TIME,
-    CALENDAR_SECRET,
 )
 from db.connection import get_pool, close_pool
 from bot.handler import (
@@ -87,19 +83,16 @@ async def handle_health_check(request):
             db_status = "error"
 
     from core.gemini import _api_available as gemini_available
-    
+
     status_data = {
         "status": "ok",
         "db": db_status,
         "gemini": "available" if gemini_available else "unavailable",
         "uptime_seconds": get_uptime(),
-        "last_message_at": LAST_MESSAGE_AT.isoformat() if LAST_MESSAGE_AT else None
+        "last_message_at": LAST_MESSAGE_AT.isoformat() if LAST_MESSAGE_AT else None,
     }
-    
+
     return web.json_response(status_data)
-
-
-
 
 
 PID_FILE = "lora.pid"
@@ -115,10 +108,10 @@ def check_pid_lock():
                     existing_pid = -1
                 else:
                     existing_pid = int(content)
-            
+
             if existing_pid == os.getpid():
                 return
-            
+
             try:
                 # Signal 0 checks if the process is alive without killing it
                 os.kill(existing_pid, 0)
@@ -134,7 +127,6 @@ def check_pid_lock():
 
     with open(PID_FILE, "w") as f:
         f.write(str(os.getpid()))
-
 
 
 # 10. Start the bot
@@ -202,10 +194,14 @@ async def start_bot():
 
     # 3. Module Health Check
     from core.router import check_module_health
+
     health_status = await check_module_health()
     bad_modules = [m for m, s in health_status.items() if s != "ok"]
     if bad_modules:
-        print(f"⚠️ Warning: Some modules failed health check: {', '.join(bad_modules)}", flush=True)
+        print(
+            f"⚠️ Warning: Some modules failed health check: {', '.join(bad_modules)}",
+            flush=True,
+        )
     else:
         print("✅ All core modules ready.", flush=True)
 
@@ -252,9 +248,7 @@ async def start_bot():
     application.add_handler(CommandHandler("projects", projects_command))
     application.add_handler(CommandHandler("reading", reading_command))
     application.add_handler(
-        CommandHandler(
-            "eod", partial(message_handler, pool=pool, text="/eod")
-        )
+        CommandHandler("eod", partial(message_handler, pool=pool, text="/eod"))
     )
     application.add_handler(
         CommandHandler(
@@ -280,21 +274,31 @@ async def start_bot():
 
     # Serve static files for the dashboard
     dist_path = os.path.join(os.path.dirname(__file__), "dashboard", "dist")
-    
+
     async def serve_dashboard_index(request):
         index_file = os.path.join(dist_path, "index.html")
         if os.path.exists(index_file):
             return web.FileResponse(index_file)
-        return web.Response(text="Dashboard build not found. Run 'npm run build' in dashboard folder.", status=404)
+        return web.Response(
+            text="Dashboard build not found. Run 'npm run build' in dashboard folder.",
+            status=404,
+        )
 
     if os.path.exists(dist_path):
         app.router.add_get("/", serve_dashboard_index)
-        app.router.add_static("/assets", os.path.join(dist_path, "assets"), name="dashboard_assets")
+        app.router.add_static(
+            "/assets", os.path.join(dist_path, "assets"), name="dashboard_assets"
+        )
         # Also map other possible root files
         for f in ["favicon.ico", "favicon.svg", "manifest.json"]:
             if os.path.exists(os.path.join(dist_path, f)):
-                app.router.add_get(f"/{f}", lambda r, f=f: web.FileResponse(os.path.join(dist_path, f)))
-        print(f"✅ Serving dashboard assets from {dist_path}/assets at /assets", flush=True)
+                app.router.add_get(
+                    f"/{f}", lambda r, f=f: web.FileResponse(os.path.join(dist_path, f))
+                )
+        print(
+            f"✅ Serving dashboard assets from {dist_path}/assets at /assets",
+            flush=True,
+        )
     else:
         print(f"⚠️ Warning: Dashboard dist folder not found at {dist_path}", flush=True)
 
@@ -314,16 +318,16 @@ async def start_bot():
         print(f"Warning: webhook delete failed: {e}", flush=True)
 
     await application.initialize()
-    
+
     # Set the Main Menu Button to open the Dashboard
     dashboard_url = os.getenv("DASHBOARD_URL")
     if dashboard_url:
         try:
             from telegram import MenuButtonWebApp, WebAppInfo
+
             await application.bot.set_chat_menu_button(
                 menu_button=MenuButtonWebApp(
-                    text="Dashboard",
-                    web_app=WebAppInfo(url=dashboard_url)
+                    text="Dashboard", web_app=WebAppInfo(url=dashboard_url)
                 )
             )
             print(f"✅ Main Menu Button set to {dashboard_url}", flush=True)
@@ -333,10 +337,10 @@ async def start_bot():
     await application.start()
 
     # Small delay to avoid conflict with old instances
-    print("⏳ Waiting 10s for old instances to clear...", flush=True)
-    await asyncio.sleep(10)
+    print("⏳ Waiting 2s for old instances to clear...", flush=True)
+    await asyncio.sleep(2)
 
-    await application.updater.start_polling(drop_pending_updates=False)
+    await application.updater.start_polling(drop_pending_updates=True)
     print("Lora is LIVE via Polling 🚀", flush=True)
 
     try:
@@ -363,6 +367,6 @@ if __name__ == "__main__":
     sys.stderr.reconfigure(line_buffering=True)
 
     # Prevent multiple bot instances from running
-    # check_pid_lock()
+    check_pid_lock()
 
     asyncio.run(start_bot())

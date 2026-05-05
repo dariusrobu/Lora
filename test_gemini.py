@@ -1,9 +1,9 @@
 import asyncio
 import os
 import json
-from google import genai
 from core.gemini import get_gemini_response
 import asyncpg
+
 
 async def main():
     pool = await asyncpg.create_pool(os.getenv("DATABASE_URL"))
@@ -16,10 +16,11 @@ async def main():
         tone="direct",
         context_snapshot="",
         history=history,
-        personal_notes=""
+        personal_notes="",
     )
     print("RES:")
     print(json.dumps(res, indent=2))
     await pool.close()
+
 
 asyncio.run(main())
