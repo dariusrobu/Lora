@@ -46,7 +46,7 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
         from core.gemini import normalize_voice_text
 
         try:
-            text = await transcribe_voice(update, context)
+            text, voice_uri = await transcribe_voice(update, context)
             if not text:
                 raise ValueError("Buit-in check failed")
         except ValueError as e:
@@ -62,9 +62,12 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
 
         # Normalize raw STT text before intent analysis
         print(f"🎙 VOICE TRANSCRIBED (raw): {repr(text)}", flush=True)
+        # normalize_voice_text is still useful for cleaning up, but we also have the URI now
         text = await normalize_voice_text(text)
 
-        return await message_handler(update, context, pool, text=text, source="voice")
+        return await message_handler(
+            update, context, pool, text=text, source="voice", voice_uri=voice_uri
+        )
 
     except Exception as e:
         print(f"ERROR in voice_handler: {e}")
@@ -225,6 +228,7 @@ async def message_handler(
     pool,
     text=None,
     source: str = "text",
+    voice_uri: str | None = None,
 ):
     try:
         update_last_message()
@@ -238,36 +242,9 @@ async def message_handler(
         if text is None and update.message:
             text = update.message.text
 
-        # Fix common STT (speech-to-text) typos before processing
+        # Pre-process text (minimal normalization, let Gemini do the heavy lifting)
         if text:
-            original_text = text
-            low_text = text.lower()
-
-            # Fix typos in lowercase version
-            low_text = low_text.replace("adamga", "adauga")
-            low_text = low_text.replace("adamg", "adaug")
-            low_text = low_text.replace("adăuga", "adauga")
-            low_text = low_text.replace("adaugă", "adaug")
-            low_text = low_text.replace("cărții", "carti")
-            low_text = low_text.replace("cărţi", "carti")
-            low_text = low_text.replace("şt", "st")
-            low_text = low_text.replace("ţ", "t")
-
-            # Handle duplicate text from STT (e.g., "text. text")
-            if low_text.count(".") == 1:
-                parts = low_text.split(".")
-                if len(parts) == 2 and parts[0].strip() == parts[1].strip():
-                    low_text = parts[0].strip()
-                    text = low_text
-            elif low_text.count(".") > 1:
-                # Only truncate if first two parts are identical
-                parts = [p.strip() for p in low_text.split(".") if p.strip()]
-                if len(parts) >= 2 and parts[0] == parts[1]:
-                    low_text = parts[0]
-                    text = low_text
-
-            if low_text != original_text.lower():
-                print(f"🔧 STT FIX: '{original_text}' -> '{low_text}'")
+            text = text.strip()
 
         print(
             f"📥 RECEIVED: Update ID {update.update_id} from user_id {user_id} - Text: {repr(text)}"
@@ -297,6 +274,12 @@ async def message_handler(
 
                 reply, _ = await handle_calendar_intent(pool, "calendar_sync", {})
                 await update.message.reply_text(reply, parse_mode="MarkdownV2")
+                return
+
+            if clean_text.startswith("/briefing"):
+                from scheduler.jobs import send_morning_briefing
+                await update.message.reply_text("🔄 Pregătesc briefing-ul... un moment.")
+                await send_morning_briefing(context.application, pool, force=True)
                 return
 
         # ── GROUP ROUTING ──
@@ -1586,6 +1569,7 @@ Reguli:
                 history=history,
                 personal_notes=profile.get("personal_notes") or "",
                 system_hint=system_hint,
+                voice_uri=voice_uri,
             )
             # Stamp the source so the router can pass it through
             if isinstance(intent_response, dict):
@@ -1690,6 +1674,25 @@ Reguli:
 
         # 7. Send to user
         chunks = split_message(final_reply)
+        
+        # If input was voice, send a voice reply first (or along with text)
+        voice_sent = False
+        if source == "voice" and final_reply and len(final_reply) < 1000: # Don't TTS very long messages
+            try:
+                from bot.tts import text_to_speech
+                print(f"🎙️ Generating voice reply for {telegram_id}...", flush=True)
+                voice_path = await text_to_speech(final_reply)
+                if voice_path and os.path.exists(voice_path):
+                    with open(voice_path, "rb") as f:
+                        await update.message.reply_voice(
+                            voice=f,
+                            caption="Lora 🎙️"
+                        )
+                    os.remove(voice_path)
+                    voice_sent = True
+            except Exception as tts_err:
+                print(f"❌ TTS ERROR: {tts_err}")
+
         for i, chunk in enumerate(chunks):
             current_markup = reply_markup if i == len(chunks) - 1 else None
             try:
@@ -2781,9 +2784,8 @@ async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
         return
 
     from modules.profile import get_user_profile_full
-
-    pass
     from bot.formatter import escape_md
+    import json
 
     user_id = update.effective_user.id
     profile = await get_user_profile_full(pool, user_id)
@@ -2796,12 +2798,25 @@ async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
     tone = profile.get("preferred_tone", "direct")
     start = profile.get("active_hours_start", "08:00")
     end = profile.get("active_hours_end", "22:00")
+    
+    # Format frequent categories if available
+    categories_json = profile.get("frequent_categories", "{}")
+    if isinstance(categories_json, str):
+        categories = json.loads(categories_json)
+    else:
+        categories = categories_json
+        
+    cat_text = ""
+    if categories:
+        top_cats = sorted(categories.items(), key=lambda x: x[1], reverse=True)[:3]
+        cat_text = "\n📊 *Top Categorii:* " + ", ".join([f"`{escape_md(c)}`" for c, _ in top_cats])
 
     text = (
         f"👤 *Profilul lui {escape_md(name)}*\n\n"
         f"🎭 *Tone:* `{tone}`\n"
-        f"⏰ *Ore active:* `{start}` \\- `{end}`\n"
-        f"🌍 *Timezone:* `{escape_md(profile.get('timezone', 'UTC'))}`\n\n"
+        f"⏰ *Ore active:* `{escape_md(str(start)[:5])}` \\- `{escape_md(str(end)[:5])}`\n"
+        f"🌍 *Timezone:* `{escape_md(profile.get('timezone', 'UTC'))}`"
+        f"{cat_text}\n\n"
         "_Poți edita preferințele folosind butoanele de mai jos:_"
     )
 
@@ -2811,6 +2826,9 @@ async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
             InlineKeyboardButton(
                 "⏰ Schimbă Orele", callback_data="profile_edit_hours"
             ),
+        ],
+        [
+            InlineKeyboardButton("🔄 Refresh Profile", callback_data="profile_refresh"),
         ]
     ]
 

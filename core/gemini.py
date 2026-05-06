@@ -38,7 +38,10 @@ def preprocess_text(text: str) -> str:
         r"\bcat\b": "cât",
         r"\bsa\b": "să",
         r"\bsutn\b": "sunt",
-        r"\bsun\b": "sun",  # no change but for boundary testing
+        r"\bm[t|g]g\b": "meeting",
+        r"\bsedinta\b": "ședință",
+        r"\bfinante\b": "finance",
+        r"\bproiectul\b": "proiect",
     }
 
     processed = text.lower()
@@ -53,7 +56,7 @@ class IntentResponse(BaseModel):
         description="Identified action, e.g. add_task, chat, log_expense"
     )
     module: str | None = Field(
-        description="The target module, e.g. tasks, projects, finance, None if general"
+        description="The target module, e.g. tasks, projects, finance. Use null/None for general chat or intent='chat'."
     )
     data: Dict[str, Any] = Field(
         description="Module-specific structured data extracted from the user message"
@@ -220,6 +223,7 @@ async def get_gemini_response(
     history: List[Dict[str, str]],
     personal_notes: str = "",
     system_hint: str = "",
+    voice_uri: str | None = None,
 ) -> Dict[str, Any]:
     """Calls Gemini and returns the parsed IntentResponse JSON."""
 
@@ -250,87 +254,55 @@ TONE: {tone}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONVERSAȚIE RECENTĂ (Context):
 {_format_history_for_prompt(history)}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-MESAJ UTILIZATOR CURENT — ANALIZEAZĂ ACESTA:
+ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+MESAJ UTILIZATOR CURENT â ANALIZEAZÄ ACESTA:
 {f"(HINT: {system_hint})" if system_hint else ""}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ââââââââââââââââââââââââââââââââââââââââââââââââââââ
 {user_message}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ââââââââââââââââââââââââââââââââââââââââââââââââââââ
 REGULI STRICTE:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. LUNGIMEA RĂSPUNSULUI depinde de TIPUL mesajului:
-   - Acțiuni simple (add_task, log_skill, finance_log) → MAX 1 propoziție + emoji. Scurt și la obiect.
-   - Conversație liberă (chat, întrebări generale, sfaturi, explicații) → Răspunde DETALIAT, cât e nevoie. Poți scrie paragrafe întregi, exemple, analogii. Fii un companion inteligent, nu un robot.
-   - Întrebări despre date proprii (list_tasks, finance_summary) → Răspuns structurat, clar.
-2. Răspunde ÎNTOTDEAUNA în limba română (sunt permiși termeni tech: task, meeting, gym, blockchain, AI).
-3. ZERO FILLER PHRASES LA ACȚIUNI: Interzis să folosești "Sigur!", "Cu plăcere!", "Bineînțeles!" la confirmări de acțiuni. Dar în conversații libere poți fi natural și empatic.
-4. Confirmi scurt DOAR acțiunile. Chat-ul e liber și natural.
-5. Pentru `correct_last` sau când utilizatorul se corectează în același mesaj (ex: "X... de fapt Y"), folosește `tool_undo` pentru prima parte și apoi înregistrează noua valoare.
-6. DACĂ un mesaj conține atât o eroare cât și o corecție, Agentul trebuie să apeleze succesiv tool-urile necesare pentru a remedia situația fără a întreba din nou.
-7. CONVERSAȚIE LIBERĂ: Când userul pune o întrebare generală, vrea sfaturi, sau discută un subiect — tratează-l ca pe o conversație reală. Oferă perspective, exemple practice, și fii autentic. NU forța intent-uri de modul dacă mesajul e pur conversațional.
+ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+1. LUNGIMEA RÄSPUNSULUI:
+   - AcÈiuni simple (add_task, finance_log, etc) â MAX 1 propoziÈie + emoji. FÄrÄ confirmÄri redundante.
+   - ConversaÈie liberÄ (chat, sfaturi, Ã®ntrebÄri) â RÄspunde DETALIAT Èi natural. Fii un companion inteligent, oferÄ perspective Èi analogii.
+   - ÃntrebÄri despre date (list_tasks) â RÄspuns structurat Èi clar.
+2. LIMBAJ NATURAL & ROMGLISH: RÄspunde Ã®n romÃ¢nÄ, dar acceptÄ Èi foloseÈte natural termeni tech/pro (task, meeting, gym, feedback, update, sync, call).
+3. ZERO FILLER LA ACÈIUNI: Nu folosi "Sigur!", "Gata!" la confirmÄri. Dar Ã®n chat, fii empatic Èi prietenos.
+4. CONTEXTUAL REFERENCE RESOLUTION (CRITICAL): DacÄ utilizatorul foloseÈte pronume (el, ea, Ã®l, o, Ästa) sau referinÈe implicite ("fÄ-l", "Èterge-o"), rezolvÄ referinÈa folosind ISTORICUL CONVERSAÈIEI de mai sus.
+5. PROACTIVE CLARIFICATION: DacÄ userul menÈioneazÄ un plan vag (ex: "ar trebui sÄ merg la X"), Ã®ntreabÄ-l dacÄ vrea sÄ adaugi un task sau un reminder.
+6. MULTI-INTENT: Extrage TOATE intenÈiile dintr-un mesaj complex. Fiecare intent trebuie sÄ aibÄ propriul obiect `data`.
+7. TYPO TOLERANCE: IgnorÄ diacriticele lipsÄ sau greÈelile de scriere.
+8. MEMORY USAGE: FoloseÈte activ secÈiunea MEMORIE de mai jos. DacÄ gÄseÈti ceva relevant, integreazÄ-l natural: "Apropo, pentru cÄ ai menÈionat Ã®n trecut cÄ [fapt]..."
+9. CHAT MODE: DacÄ mesajul nu e o acÈiune, rÄspunde empatic, creativ Èi informativ. Nu forÈa modulele.
+10. MEMORY SEARCH: DacÄ Ã®ntreabÄ "ce Ètii despre X", returneazÄ `intent="memory_search"` cu topicul respectiv.
+11. CONFIDENCE: SeteazÄ `confidence < 0.7` dacÄ lipseÈte un element cheie (ex: titlul taskului, suma).
+12. CLARIFICATION: DacÄ `confidence < 0.7`, seteazÄ `clarification_needed=true` Èi pune O SINGURÄ Ã®ntrebare scurtÄ (max 10 cuvinte).
+13. AGENTIC MODE: SeteazÄ `needs_agent: true` cÃ¢nd Ã®ntrebarea necesitÄ analize complexe, corelaÈii Ã®ntre module sau date care nu sunt Ã®n contextul curent.
+14. VOICE/AUDIO INPUT (CRITICAL): Dacă primești un fișier audio (voice_uri e prezent), ASCULTĂ-L cu atenție.
+    - Observă tonul userului (bucuros, stresat, urgent, obosit) și adaptează-ți `reply`-ul.
+    - Ignoră bâlbele și filler-ii (ăăă, îîî) dar folosește pauzele lungi pentru a identifica când userul se gândește la mai multe lucruri (multi-intent).
+    - Dacă userul sună urgent, returnează `priority: high` automat pentru task-uri.
+    - Dacă transcrierea text pare greșită față de ce AUZI, prioritizează ce AUZI.
+15. ACTIVE MEMORY (AUTO-LEARNING): Extrage automat orice fapt nou relevant despre utilizator în câmpul `memory_extracts`.
+    - Exemple: preferințe ("îmi place cafeaua fără zahăr"), fapte personale ("am un frate numit Alex"), decizii ("nu mai vreau să primesc remindere seara"), pattern-uri.
+    - Structură: [{"fact": "Userul preferă cafeaua fără zahăr", "category": "preference", "confidence": 1.0}]
+    - Categorii permise: preference, pattern, personal, achievement, goal, relationship, opinion.
+    - Fact-ul trebuie să fie la persoana a III-a ("Userul...").
+    - NU extrage fapte triviale sau care există deja în secțiunea MEMORIE de mai jos.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-REGULI PENTRU MULTI-INTENT & DATA EXTRACTION:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. DACĂ mesajul conține mai multe acțiuni (ex: "arată-mi X apoi adaugă Y"), extrage TOATE intențiile.
-2. FIECARE obiect de tip intent (atât cel principal cât și cele din `additional_intents`) TREBUIE să aibă câmpul `data` COMPLET POPULAT.
-3. ESTE INTERZIS să returnezi `data: {{}}` dacă în mesaj există informații relevante (titlu, sumă, dată, timp).
-4. REȚINE: Fiecare intent din listă este o acțiune de sine stătătoare. Extrage datele specifice pentru FIECARE.
-5. Exemplu: "arată-mi taskurile și adaugă reminder diseară la 21:00 să învăț"
-   - add_reminder: data={{"title": "să învăț", "event_time": "21:00", ...}}
-   - list_tasks: data={{}}
-6. Titlul unui reminder/task TREBUIE să fie scurt și să conțină DOAR acțiunea (ex: "să învăț", NU "reminder la ora 21:00 să învăț").
-7. DACĂ utilizatorul folosește cuvinte de legătură între intenții (apoi, după, la final), acestea NU trebuie să apară în `data`.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FINANCE DISAMBIGUATION — ATENȚIE SPORITĂ:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. NU interpreta NICIODATĂ orele (ex: "la 21:00", "ora 20") ca sume de bani (21 RON, 20 RON).
-2. Sumele de bani sunt de obicei marcate de monedă (lei, ron, euro) sau context clar de plată/cumpărare.
-3. Dacă un număr face parte dintr-o oră, acesta aparține unui reminder/eveniment, NU finanțelor.
-4. "Pizza de 60 RON" -> amount: 60. "La ora 21:00" -> NU este sumă.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-INSTRUCȚIUNI TEHNICE:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. CONFIDENCE: Setează `confidence < 0.7` dacă informația cheie lipsește (ex: nu știi pe ce s-au cheltuit banii, nu știi numele task-ului, etc).
-2. CLARIFICATION_NEEDED + clarification_question:
-   - Dacă mesajul e ambiguu sau `confidence < 0.7`, setează `clarification_needed = true`.
-   - Pune în `clarification_question` O SINGURĂ întrebare, directă, MAXIM 10 CUVINTE.
-   - NU ghici niciodată sume, date, nume de proiecte sau categorii — mai bine întreabă.
-3. TIMP ȘI DATE: Tot ce ține de timp se formatează stric în ISO 8601 ("YYYY-MM-DD" sau "HH:MM"). "Azi" = {now.strftime("%Y-%m-%d")}, "mâine" = {tomorrow}.
-4. MULTI-INTENT:
-    - Intent-ul PRINCIPAL merge în câmpurile de bază (intent, module, data, reply).
-    - Toate celelalte acțiuni merg în lista `additional_intents`.
-7. TYPO TOLERANCE: Interpretează intenția, nu forma exactă. Utilizatorul poate scrie în română cu diacritice lipsă sau prescurtări.
-8. CORRECTION & UNDO (correct_last): Dacă user-ul indică o greșeală sau vrea să anuleze ultima acțiune, returnează `intent="correct_last"`.
-9. ACTIVE MEMORY: Detectează informații noi despre utilizator și returnează-le în `memory_extracts`.
-10. PROACTIVE MEMORY: Dacă există fapte relevante în secțiunea MEMORIE, menționează-le scurt.
-11. MEMORY SEARCH: Dacă utilizatorul întreabă ce știi despre el, despre preferințele lui sau un subiect anume din trecut, returnează `intent="memory_search"` și `module="memory"`, cu `data={{"topic": "..."}}`. NU folosi chat sau view_skills.
-12. BUDGET & FORECAST: Dacă utilizatorul cere analize, previziuni sau trenduri financiare, folosește Agentic Mode (`needs_agent: true`).
-13. AGENTIC MODE INTELIGENT: Setează `needs_agent: true` DOAR când:
-    - Întrebarea necesită date din MULTIPLE module simultan
-    - Utilizatorul cere analize complexe, corelații sau previziuni
-    - Răspunsul necesită interogarea bazei de date pentru date pe care NU le ai în context
-    Pentru conversații libere, întrebări generale, sau acțiuni simple → `needs_agent: false`.
-14. QUESTIONS VS COMMANDS: Mesaje de tipul "care sunt...", "ce am...", "arată-mi..." sunt ÎNTREBĂRI, nu comenzi de adăugare. Folosește `tool_get_events`, `tool_get_tasks` etc. NU adăuga task-uri/note cu titlul întrebării.
-15. CHAT MODE: Când mesajul NU este o acțiune și NU necesită date din module, returnează `intent="chat"`, `module=null`, `needs_agent=false`. Răspunde natural, detaliat și empatic.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ââââââââââââââââââââââââââââââââââââââââââââââââââââ
 CONTEXT:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ASTĂZI: {now.strftime("%Y-%m-%d")}, {now.strftime("%A")}
+ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+ASTÄZI: {now.strftime("%Y-%m-%d")}, {now.strftime("%A")}
 CONTEXT CURENT:
 {context_snapshot}
 FAPTE DESPRE {user_name}:
 {personal_notes}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ââââââââââââââââââââââââââââââââââââââââââââââââââââ
 CAPABILITIES (MODULE & INTENTS):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ââââââââââââââââââââââââââââââââââââââââââââââââââââ
 CAPABILITIES:
 Skills (fost Habits), Tasks, Projects, Goals, Notes & Journal, Finance, Events, Shopping List.
 Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → skills equivalent.
@@ -508,6 +480,14 @@ Exemple de output JSON pentru workout_log:
   Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "sport_name": "Gym", "duration_min": 50, "calories": 300, "notes": "push day", "exercises": [{{ "name": "Bench Press", "sets": null, "reps": 5, "weight_kg": 60.0 }}] }}, "reply": "Gym 50min salvat — 300 kcal arse. 💪" }}
 - Input: "am alergat 5km în 30 de minute"
   Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "sport_name": "Alergare", "duration_min": 30, "calories": null, "notes": null, "exercises": [] }}, "reply": "Alergare 30min notată. 🏃" }}
+- Input: "ia o notă în Apple Notes că am cumpărat cadou pentru mama"
+  Output: {{ "intent": "mac_note_create", "module": "integrations", "data": {{ "title": "Cadou Mama", "body": "Am cumpărat cadou pentru mama" }}, "reply": "Am salvat nota în Apple Notes. 📝" }}
+- Input: "pune o alarmă la 7:30"
+  Output: {{ "intent": "mac_alarm_set", "module": "integrations", "data": {{ "hour": 7, "minute": 30, "label": "Lora Alarm" }}, "reply": "Alarmă setată pentru 07:30. ⏰" }}
+- Input: "trimite un mail la contabilitate@firma.ro cu subiectul raport și textul gata"
+  Output: {{ "intent": "email_send", "module": "integrations", "data": {{ "to": "contabilitate@firma.ro", "subject": "raport", "body": "gata" }}, "reply": "Am compus mail-ul în Apple Mail. ✉️" }}
+- Input: "verifică-mi mail-ul de gmail"
+  Output: {{ "intent": "email_check", "module": "integrations", "data": {{ "service": "gmail" }}, "reply": "Verific Gmail pentru mesaje noi... 📥" }}
 - Input: "reapă-mă mâine la 10:00 să îmi pregătesc rucsacul"
   Output: {{ "intent": "add_reminder", "module": "events", "data": {{ "title": "să îmi pregătesc rucsacul", "date": "{tomorrow}", "event_time": "10:00" }}, "reply": "Reminder setat pentru mâine la 10:00. 🔔" }}
 - Input: "amintește-mi duminică să verific mail-ul"
@@ -582,18 +562,23 @@ A: intent="add_reminder", module="events", data={{ "title": "să învăț", "eve
         last_role = role
 
     # Add current user message
+    parts = []
+    if voice_uri:
+        parts.append(types.Part.from_uri(file_uri=voice_uri, mime_type="audio/ogg"))
+    parts.append(types.Part(text=user_message))
+
     if last_role == "user":
         # Merge if last was also user
         if contents:
-            contents[-1].parts[0].text += f"\n\n{user_message}"
+            if voice_uri:
+                # If there's a voice URI, we probably want a fresh user content block or append to last
+                contents.append(types.Content(role="user", parts=parts))
+            else:
+                contents[-1].parts[0].text += f"\n\n{user_message}"
         else:
-            contents.append(
-                types.Content(role="user", parts=[types.Part(text=user_message)])
-            )
+            contents.append(types.Content(role="user", parts=parts))
     else:
-        contents.append(
-            types.Content(role="user", parts=[types.Part(text=user_message)])
-        )
+        contents.append(types.Content(role="user", parts=parts))
 
     print(
         f"🚀 GEMINI CALL: contents count={len(contents)} | last turn: {repr(user_message)}",
@@ -708,11 +693,12 @@ A: intent="add_reminder", module="events", data={{ "title": "să învăț", "eve
             parsed["reply"] = recovery_prefix + parsed.get("reply", "")
 
         # Fire-and-forget: extract personal facts in background without blocking
-        asyncio.create_task(
-            extract_and_save_facts(
-                pool, client, user_id, user_message, parsed.get("reply", "")
-            )
-        )
+        # (DISABLED: now handled via memory_extracts in IntentResponse for efficiency)
+        # asyncio.create_task(
+        #     extract_and_save_facts(
+        #         pool, client, user_id, user_message, parsed.get("reply", "")
+        #     )
+        # )
 
         return parsed
     except Exception as e:
@@ -732,27 +718,25 @@ A: intent="add_reminder", module="events", data={{ "title": "să învăț", "eve
 async def get_proactive_response(system_instruction: str, data_summary: str) -> str:
     """Calls Gemini for a natural language proactive message (briefing/reflection)."""
     tone_rules = """
-
 REGULI GLOBALE DE TON (oricând ești proactivă):
 
 STIL VOCAL & CONȚINUT:
 - Scrie ca și cum vorbești (natural), nu ca un document.
 - Propoziții scurte. TRANZIȚII fluide, nu bullet-uri.
-- MAXIM 250 cuvinte pentru podcast. Fii concisă, zero comentarii inutile.
+- TEXT BRIEFING: Fii detaliată dar organizată.
+- PODCAST/VOCE: MAXIM 200 cuvinte. Fii concisă, zero comentarii inutile.
 
 CORECȚIE VOCABULAR:
-- EXCLUSIV ROMÂNĂ. Excepții permise: task, habit, meeting, gym, chess.
+- EXCLUSIV ROMÂNĂ. Excepții permise: task, habit, meeting, gym, chess, focus.
 - INTERZIS: "the game plan", "all clear", "catch up", "deep work", "worry", "wow", "amazing", "extraordinar".
 - Ton cald dar DIRECT. Fără hype, fără superlative exagerate.
-- Nu repeta "zâmbete", "energie", "bucurie".
 
 ROMGLISH PERMIS:
 - Termenii de bază din tech/productivity: (task, habit, deadline, meeting, focus, projects).
-- Nu traduce forțat dacă sună robotic (task-ul, habit-ul e ok).
 
 FORMATARE:
-- Telegram MarkdownV2: bold cu *text*, code cu `text`.
-- Caractere RAW în JSON pentru reply.
+- Telegram MarkdownV2: bold cu *text*, code cu `text`, italic cu _text_.
+- NU folosi JSON, nu pune ghilimele la început/sfârșit, răspunde cu textul RAW.
 """
     full_instruction = system_instruction + tone_rules
     try:
@@ -795,8 +779,9 @@ async def normalize_voice_text(raw: str) -> str:
     Falls back to the original text if the call fails.
     """
     prompt = (
-        "Textul următor vine dintr-o transcriere vocală și poate fi informal sau incomplet. "
-        "Reformulează-l ca o comandă clară păstrând exact intenția originală. "
+        "Textul următor vine dintr-o transcriere vocală și poate fi informal, fragmentat sau conține bâlbâieli. "
+        "Reformulează-l ca o comandă sau un mesaj clar, corectând greșelile gramaticale evidente, dar păstrând EXACT intenția și toate datele (sume, ore, nume). "
+        "Dacă sunt mai multe acțiuni, separă-le clar. "
         "Nu adăuga informații noi. Răspunde DOAR cu textul reformulat, fără explicații. "
         f"Transcriere: {raw}"
     )

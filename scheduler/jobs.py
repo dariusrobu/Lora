@@ -270,7 +270,7 @@ REGULI DE FORMATRE:
 
         header = [
             "━━━━━━━━━━━━━━━",
-            f"☀️ *Bună dimineața, {escape_md(name)}!*",
+            f"☀️ *Bună dimineața, {escape_md(name)}\\!*",
             f"_{date_str}_",
             "━━━━━━━━━━━━━━━\n",
         ]
@@ -1784,6 +1784,17 @@ def setup_scheduler(application, pool):
         daily_shopping_cleanup,
         "cron",
         hour=0,
+        minute=0,
+        misfire_grace_time=3600,
+        args=[pool],
+    )
+
+    # Behavioral Profile Update - Weekly (Monday at 04:00)
+    scheduler.add_job(
+        update_profile_job,
+        "cron",
+        day_of_week="mon",
+        hour=4,
         minute=0,
         misfire_grace_time=3600,
         args=[pool],

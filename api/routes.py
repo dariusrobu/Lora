@@ -27,7 +27,7 @@ def serialize_dic(d: dict) -> dict:
 async def get_projects(request):
     try:
         pool = request.app["pool"]
-        projects = await project_queries.list_projects(pool)
+        projects = await project_queries.get_projects_with_counts(pool)
         serialized_projects = [serialize_dic(dict(p)) for p in projects]
         return web.json_response(serialized_projects)
     except Exception as e:
@@ -474,17 +474,20 @@ async def get_insights(request):
 
             url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric"
             async with httpx.AsyncClient() as client:
-                w_res = await client.get(url)
-                if w_res.status_code == 200:
-                    w_data = w_res.json()
-                    main_desc = w_data["weather"][0]["main"].lower()
-                    if "rain" in main_desc or "drizzle" in main_desc:
-                        insights.append(
-                            {
-                                "type": "warning",
-                                "text": "Se anunță ploaie azi. Nu uita umbrela! ☔",
-                            }
-                        )
+                try:
+                    w_res = await client.get(url, timeout=3.0)
+                    if w_res.status_code == 200:
+                        w_data = w_res.json()
+                        main_desc = w_data["weather"][0]["main"].lower()
+                        if "rain" in main_desc or "drizzle" in main_desc:
+                            insights.append(
+                                {
+                                    "type": "warning",
+                                    "text": "Se anunță ploaie azi. Nu uita umbrela! ☔",
+                                }
+                            )
+                except Exception as e:
+                    print(f"Weather insight error: {e}")
 
             # Shopping Geofencing Insight
             pending_shopping = [s for s in shopping if not s["is_bought"]]

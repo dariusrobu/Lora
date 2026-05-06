@@ -246,8 +246,18 @@ async def start_bot():
     application.add_handler(CommandHandler("finance", finance_command))
     application.add_handler(CommandHandler("memory", memory_command))
     application.add_handler(CommandHandler("tasks", tasks_command))
+    application.add_handler(CommandHandler("briefing", partial(message_handler, pool=pool, text="/briefing")))
     application.add_handler(CommandHandler("debug_app", debug_app_command))
     application.add_handler(CommandHandler("projects", projects_command))
+
+    # 6. Startup 'Catch-up' for Morning Briefing
+    async def startup_check():
+        await asyncio.sleep(10) # Wait for bot to stabilize
+        from scheduler.jobs import check_wake_time_and_schedule
+        await check_wake_time_and_schedule(application, pool)
+        print("🚀 Startup briefing catch-up check completed.")
+
+    asyncio.create_task(startup_check())
     application.add_handler(CommandHandler("reading", reading_command))
     application.add_handler(
         CommandHandler("eod", partial(message_handler, pool=pool, text="/eod"))
@@ -264,13 +274,26 @@ async def start_bot():
     application.add_handler(CallbackQueryHandler(cb_handler_with_pool))
 
     @web.middleware
+    async def cors_middleware(request, handler):
+        if request.method == "OPTIONS":
+            response = web.Response()
+        else:
+            response = await handler(request)
+        
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Internal-Secret, Bypass-Tunnel-Reminder"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+
+    @web.middleware
     async def log_middleware(request, handler):
         response = await handler(request)
         print(f"🌐 {request.method} {request.path} -> {response.status}", flush=True)
         return response
 
     # 6. Web Server for Health Check & Dashboard (runs in background)
-    app = web.Application(middlewares=[log_middleware])
+    app = web.Application(middlewares=[cors_middleware, log_middleware])
     app["pool"] = pool
     app.router.add_get("/api/health", handle_health_check)
     setup_api_routes(app)
@@ -327,15 +350,21 @@ async def start_bot():
     if dashboard_url:
         try:
             from telegram import MenuButtonWebApp, WebAppInfo
-
+            import time
+            
+            # Add cache buster to URL
+            final_url = f"{dashboard_url}?v={int(time.time())}"
+            
             await application.bot.set_chat_menu_button(
+                chat_id=TELEGRAM_USER_ID,
                 menu_button=MenuButtonWebApp(
-                    text="Dashboard", web_app=WebAppInfo(url=dashboard_url)
+                    text="Lora Hub",
+                    web_app=WebAppInfo(url=final_url)
                 )
             )
-            print(f"✅ Main Menu Button set to {dashboard_url}", flush=True)
+            print(f"✅ Main Menu Button set to {final_url}", flush=True)
         except Exception as e:
-            print(f"❌ Failed to set Menu Button: {e}", flush=True)
+            print(f"Error setting menu button: {e}", flush=True)
 
     await application.start()
 

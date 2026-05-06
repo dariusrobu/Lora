@@ -22,9 +22,9 @@ def safe_markdown(text: str) -> str:
     if not text:
         return ""
 
-    # Characters that MUST be escaped in MarkdownV2 (excluding * and ` for formatting)
+    # Characters that MUST be escaped in MarkdownV2 (excluding *, `, _ for formatting)
     # Note: hyphen '-' is critical and often missed.
-    must_escape = r"[]()~>#+-=|{}.!_"
+    must_escape = r"[]()~>#+-=|{}.!"
 
     # We use regex to avoid double-escaping if a backslash is already there
     for char in must_escape:

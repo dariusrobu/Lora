@@ -1,0 +1,39 @@
+services:
+  - type: worker
+    name: lora-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: DATABASE_URL
+        sync: false # Set this to your Neon connection string
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_USER_ID
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: TIMEZONE
+        value: Europe/Bucharest
+      - key: MORNING_BRIEFING_TIME
+        value: "08:30"
+      - key: EOD_REFLECTION_TIME
+        value: "22:00"
+      - key: LORA_API_SECRET
+        sync: false
+      - key: COUNCIL_API_SECRET
+        sync: false
+      - key: ICLOUD_USERNAME
+        sync: false
+      - key: ICLOUD_APP_PASSWORD
+        sync: false
+    autoDeploy: true
+
+  - type: web
+    name: lora-dashboard
+    runtime: static
+    buildCommand: cd dashboard && npm install && npm run build
+    staticPublishPath: dashboard/dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://lora-bot.onrender.com # Update this after bot deployment

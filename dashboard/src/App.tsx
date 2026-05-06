@@ -4,15 +4,20 @@ import {
   Dumbbell, Wallet, ArrowLeft, Loader2, Settings,
   Calendar, ShoppingCart, Heart, Flame, Brain, Play, Pause, RotateCcw,
   TrendingUp, Star, AlertTriangle, Moon, Droplets, Scale,
-  Pin, MapPin, Search, Sun, Cloud, CloudRain, CloudDrizzle, CloudSnow, CloudLightning
+  Pin, MapPin, Search, Sun, Cloud, CloudRain, CloudDrizzle, CloudSnow, CloudLightning,
+  Briefcase, Target, Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Types & Constants ---
 const API_SECRET = '73860b29fd5d087fd78a1e59fb23254ed1692139e933a9465de82ed709b7f70e';
-const HEADERS = { 'X-Internal-Secret': API_SECRET, 'Content-Type': 'application/json' };
+const HEADERS = { 
+  'X-Internal-Secret': API_SECRET, 
+  'Content-Type': 'application/json',
+  'Bypass-Tunnel-Reminder': 'true'
+};
 
-type View = 'home' | 'map' | 'uni' | 'gym' | 'skills' | 'shop' | 'notes' | 'health' | 'calendar' | 'finance' | 'tasks';
+type View = 'home' | 'map' | 'uni' | 'gym' | 'skills' | 'shop' | 'notes' | 'health' | 'calendar' | 'finance' | 'tasks' | 'projects' | 'memory';
 
 // --- Shared Components ---
 const GlassCard = ({ children, className = "", onClick }: any) => (
@@ -58,6 +63,8 @@ function App() {
   const [financeHistory, setFinanceHistory] = useState<any[]>([]);
   const [profile, setProfile] = useState<any>(null);
   const [weather, setWeather] = useState<any>(null);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [memories, setMemories] = useState<any[]>([]);
   const [selectedSkill, setSelectedSkill] = useState<any>(null);
   const [logValue, setLogValue] = useState('');
   const [loading, setLoading] = useState(true);
@@ -71,6 +78,9 @@ function App() {
 
   useEffect(() => {
     fetchData();
+    // Safety timeout: force loading to false after 15s no matter what
+    const safety = setTimeout(() => setLoading(false), 15000);
+    return () => clearTimeout(safety);
   }, []);
 
   useEffect(() => {
@@ -82,36 +92,71 @@ function App() {
     return () => clearInterval(timerRef.current);
   }, [timerActive, timeLeft]);
 
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const fetchData = async () => {
+    const fetchModule = async (url: string, defaultValue: any = null) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      try {
+        const r = await fetch(url, { 
+          headers: HEADERS,
+          signal: controller.signal 
+        });
+        clearTimeout(timeoutId);
+        if (!r.ok) {
+           const errText = await r.text();
+           console.error(`Error ${r.status} on ${url}: ${errText}`);
+           return defaultValue;
+        }
+        return await r.json();
+      } catch (e: any) {
+        clearTimeout(timeoutId);
+        console.error(`Failed to fetch ${url}:`, e);
+        return defaultValue;
+      }
+    };
+
     try {
-      const [t, f, u, g, s, shop, n, h, c, f_hist, prof, w] = await Promise.all([
-        fetch('/api/tasks?status=all', { headers: HEADERS }).then(r => r.json()),
-        fetch('/api/finances/summary', { headers: HEADERS }).then(r => r.json()),
-        fetch('/api/university/summary', { headers: HEADERS }).then(r => r.json()),
-        fetch('/api/workout/stats', { headers: HEADERS }).then(r => r.json()),
-        fetch('/api/skills', { headers: HEADERS }).then(r => r.json()),
-        fetch('/api/shopping', { headers: HEADERS }).then(r => r.json()),
-        fetch('/api/notes', { headers: HEADERS }).then(r => r.json()),
-        fetch('/api/health/summary', { headers: HEADERS }).then(r => r.json()),
-        fetch('/api/calendar/today', { headers: HEADERS }).then(r => r.json()),
-        fetch('/api/finances/history', { headers: HEADERS }).then(r => r.json()),
-        fetch('/api/profile', { headers: HEADERS }).then(r => r.json()),
-        fetch('/api/weather', { headers: HEADERS }).then(r => r.json())
+      setErrorMessage(null);
+      const [t, f, u, g, s, shop, n, h, c, f_hist, prof, w, projs] = await Promise.all([
+        fetchModule('/api/tasks?status=all', []),
+        fetchModule('/api/finances/summary'),
+        fetchModule('/api/university/summary'),
+        fetchModule('/api/workout/stats'),
+        fetchModule('/api/skills', []),
+        fetchModule('/api/shopping', []),
+        fetchModule('/api/notes', []),
+        fetchModule('/api/health/summary', []),
+        fetchModule('/api/calendar/today'),
+        fetchModule('/api/finances/history', []),
+        fetchModule('/api/profile'),
+        fetchModule('/api/weather'),
+        fetchModule('/api/projects', []),
+        fetchModule('/api/memory', [])
       ]);
-      setTasks(Array.isArray(t) ? t : []);
+
+      setTasks(t);
       setFinance(f);
       setUniSummary(u);
       setGymStats(g);
-      setSkills(Array.isArray(s) ? s : []);
-      setShopping(Array.isArray(shop) ? shop : []);
-      setNotes(Array.isArray(n) ? n : []);
-      setHealthLogs(Array.isArray(h) ? h : []);
+      setSkills(s);
+      setShopping(shop);
+      setNotes(n);
+      setHealthLogs(h);
       setCalendarToday(c);
-      setFinanceHistory(Array.isArray(f_hist) ? f_hist : []);
+      setFinanceHistory(f_hist);
       setProfile(prof);
       setWeather(w);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+      setProjects(projs);
+      setMemories(mems);
+    } catch (e: any) {
+      console.error("Global fetch error:", e);
+      setErrorMessage(e.message || "Eroare necunoscută la sincronizare");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddTask = async () => {
@@ -127,11 +172,33 @@ function App() {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  if (loading) return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#000] p-8 text-center space-y-6">
+        <motion.div
+           animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }}
+           transition={{ duration: 2, repeat: Infinity }}
+           className="w-12 h-12 text-blue-500"
+        >
+           <Loader2 className="w-full h-full animate-spin" />
+        </motion.div>
+        
+        {errorMessage && (
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <p className="text-red-500 text-xs font-black uppercase tracking-widest leading-relaxed">
+              Sincronizare Eșuată:<br/>{errorMessage}
+            </p>
+            <button 
+              onClick={() => { setLoading(true); fetchData(); }}
+              className="px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-colors"
+            >
+              Reîncearcă
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white font-sans overflow-x-hidden selection:bg-blue-500/30">
@@ -221,13 +288,15 @@ function App() {
                   <div className="grid grid-cols-4 lg:grid-cols-2 gap-4">
                     {[
                       { id: 'tasks', icon: CheckCircle2, label: 'Tasks', color: 'text-emerald-400' },
+                      { id: 'projects', icon: Briefcase, label: 'Proiecte', color: 'text-indigo-400' },
                       { id: 'map', icon: MapPin, label: 'Hartă', color: 'text-blue-500' },
                       { id: 'finance', icon: Wallet, label: 'Bani', color: 'text-emerald-500' },
                       { id: 'uni', icon: GraduationCap, label: 'Academic', color: 'text-orange-500' },
                       { id: 'gym', icon: Dumbbell, label: 'Sală', color: 'text-red-500' },
                       { id: 'skills', icon: Flame, label: 'Skills', color: 'text-yellow-500' },
                       { id: 'shop', icon: ShoppingCart, label: 'Shop', color: 'text-purple-500' },
-                      { id: 'notes', icon: Brain, label: 'Brain', color: 'text-emerald-500' },
+                      { id: 'memory', icon: Brain, label: 'Memorie', color: 'text-emerald-500' },
+                      { id: 'notes', icon: Target, label: 'Brain', color: 'text-blue-500' },
                       { id: 'health', icon: Heart, label: 'Sănătate', color: 'text-pink-500' },
                       { id: 'calendar', icon: Calendar, label: 'Plan', color: 'text-blue-400' }
                     ].map(m => (
@@ -445,6 +514,43 @@ function App() {
                      </div>
                   </GlassCard>
                 ))}
+             </div>
+          </ViewContainer>
+        )}
+
+        {view === 'memory' && (
+          <ViewContainer title="Memorie Core" onBack={() => setView('home')}>
+             <div className="space-y-6 pb-20">
+                <GlassCard className="bg-gradient-to-br from-emerald-500/10 to-transparent">
+                   <div className="flex justify-between items-center">
+                      <p className="text-3xl font-black tracking-tighter">{memories.length}</p>
+                      <Brain className="text-emerald-500 w-8 h-8" />
+                   </div>
+                   <p className="text-[10px] font-black uppercase text-gray-500 mt-2 tracking-widest">Fapte Memorate</p>
+                </GlassCard>
+                
+                <div className="space-y-4">
+                   {['personal', 'preference', 'pattern', 'achievement', 'relationship', 'goal'].map(cat => {
+                      const catMems = memories.filter(m => m.category === cat);
+                      if (catMems.length === 0) return null;
+                      return (
+                        <section key={cat} className="space-y-3">
+                           <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-500 px-2">{cat}</h4>
+                           <div className="space-y-2">
+                              {catMems.map(m => (
+                                <div key={m.id} className="p-4 bg-white/[0.03] border border-white/5 rounded-2xl">
+                                   <p className="text-sm font-medium leading-relaxed">{m.fact}</p>
+                                   <div className="flex justify-between items-center mt-2">
+                                      <span className="text-[7px] font-black uppercase text-gray-600">{new Date(m.created_at).toLocaleDateString()}</span>
+                                      <span className="text-[7px] font-black uppercase text-emerald-500/50">Confidență: {Math.round(m.confidence * 100)}%</span>
+                                   </div>
+                                </div>
+                              ))}
+                           </div>
+                        </section>
+                      );
+                   })}
+                </div>
              </div>
           </ViewContainer>
         )}
@@ -830,6 +936,78 @@ function App() {
              <button onClick={() => setIsAddingTask(true)} className="fixed bottom-8 right-8 w-16 h-16 rounded-full bg-blue-600 shadow-[0_10px_30px_rgba(37,99,235,0.4)] flex items-center justify-center active:scale-95 transition-transform z-[110]">
                 <Plus className="w-8 h-8" />
              </button>
+          </ViewContainer>
+        )}
+
+        {view === 'projects' && (
+          <ViewContainer title="Gestiune Proiecte" onBack={() => setView('home')}>
+             <div className="space-y-8 pb-24">
+                {projects.map((p: any) => {
+                  const total = (p.pending_tasks || 0) + (p.completed_tasks || 0);
+                  const progress = total > 0 ? Math.round((p.completed_tasks / total) * 100) : 0;
+                  
+                  return (
+                    <GlassCard key={p.id} className="p-6 relative overflow-hidden group">
+                       <div className="flex justify-between items-start mb-4">
+                          <div className="space-y-1">
+                             <div className="flex items-center gap-2">
+                                <h3 className="text-xl font-black">{p.name}</h3>
+                                {p.priority === 'high' && <Zap className="w-4 h-4 text-orange-500 fill-orange-500" />}
+                             </div>
+                             <p className="text-xs text-gray-500 font-medium line-clamp-2">{p.description || 'Nicio descriere adăugată.'}</p>
+                          </div>
+                          <span className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-widest ${
+                            p.priority === 'high' ? 'bg-red-500/20 text-red-500' : 
+                            p.priority === 'medium' ? 'bg-blue-500/20 text-blue-500' : 'bg-gray-500/20 text-gray-500'
+                          }`}>
+                             {p.priority}
+                          </span>
+                       </div>
+
+                       <div className="space-y-2">
+                          <div className="flex justify-between items-end">
+                             <span className="text-[10px] font-bold text-gray-400">Progres: {progress}%</span>
+                             <span className="text-[10px] font-bold text-gray-500">{p.completed_tasks}/{total} Tasks</span>
+                          </div>
+                          <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                             <motion.div 
+                               initial={{ width: 0 }}
+                               animate={{ width: `${progress}%` }}
+                               transition={{ duration: 1, ease: "easeOut" }}
+                               className={`h-full rounded-full ${
+                                 progress === 100 ? 'bg-emerald-500' : 
+                                 p.overdue_tasks > 0 ? 'bg-red-500' : 'bg-blue-600'
+                               }`}
+                             />
+                          </div>
+                       </div>
+
+                       <div className="mt-4 flex gap-4 border-t border-white/5 pt-4">
+                          <div className="flex items-center gap-2">
+                             <Target className="w-3 h-3 text-gray-500" />
+                             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                {p.pending_tasks} Pending
+                             </span>
+                          </div>
+                          {p.overdue_tasks > 0 && (
+                            <div className="flex items-center gap-2">
+                               <AlertTriangle className="w-3 h-3 text-red-500" />
+                               <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">
+                                  {p.overdue_tasks} Overdue
+                               </span>
+                            </div>
+                          )}
+                       </div>
+                    </GlassCard>
+                  );
+                })}
+                
+                {projects.length === 0 && (
+                  <div className="py-20 text-center text-xs text-gray-600 font-bold italic">
+                    Niciun proiect activ în curs. 📁
+                  </div>
+                )}
+             </div>
           </ViewContainer>
         )}
 

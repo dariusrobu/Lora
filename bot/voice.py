@@ -8,14 +8,14 @@ from core.config import GEMINI_API_KEY
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 
-async def transcribe_voice(update, context) -> str:
+async def transcribe_voice(update, context) -> tuple[str, str]:
     """
     Download voice file from Telegram, transcribe with Gemini multimodal,
-    and return the transcribed text.
+    and return a tuple of (transcription, file_uri).
     """
     voice = update.message.voice
     if not voice:
-        return ""
+        return "", ""
 
     # Error: Voice file too large (>20MB)
     if voice.file_size > 20 * 1024 * 1024:
@@ -45,8 +45,12 @@ async def transcribe_voice(update, context) -> str:
         )
         print(f"🎙 VOICE: Uploaded, URI: {myfile.uri}", flush=True)
 
-        # 4. Call Gemini for transcription
-        prompt = "Transcribe this voice message in ROMANIAN. The user speaks Romanian. Return only the transcribed text, nothing else."
+        # 4. Call Gemini for transcription (still needed for UI/History)
+        prompt = (
+            "Transcribe this voice message in ROMANIAN. The user speaks Romanian. "
+            "Clean up fillers like 'ăăă', 'îîî' but keep the natural flow. "
+            "Return only the transcribed text, nothing else."
+        )
 
         print("🎙 VOICE: Requesting transcription...", flush=True)
         response = await asyncio.wait_for(
@@ -70,7 +74,7 @@ async def transcribe_voice(update, context) -> str:
 
         transcription = response.text.strip()
         print(f"🎙 VOICE: Transcription result: {repr(transcription)}", flush=True)
-        return transcription
+        return transcription, myfile.uri
 
     except Exception as e:
         print(f"❌ VOICE ERROR: {e}", flush=True)

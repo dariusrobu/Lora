@@ -33,6 +33,7 @@ async def check_module_health() -> Dict[str, str]:
         "memory",
         "weather",
         "calendar",
+        "integrations",
     ]
 
     status = {}
@@ -110,8 +111,8 @@ async def _route_single_intent(
         )
         return question, None, None
 
-    # No module -> Just Chat
-    if not module:
+    # No module or 'chat' intent -> Just Chat
+    if not module or module == "chat":
         return reply, None, None
 
     # Execute via Dispatcher

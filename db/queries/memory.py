@@ -40,17 +40,17 @@ async def save_auto_memory(
     Saves a memory fact automatically, with deduplication.
     Checks for same category and similar start of fact (first 50 chars).
     """
-    if confidence < 0.8:
+    if confidence < 0.8 or not fact:
         return False
 
-    prefix = fact[:50].strip()
+    prefix = fact[:50].strip().lower()
 
     async with pool.acquire() as conn:
         # Deduplication check
         existing = await conn.fetchval(
             """
             SELECT id FROM memory_facts 
-            WHERE user_id = $1 AND category = $2 AND fact ILIKE $3
+            WHERE user_id = $1 AND category = $2 AND LOWER(fact) ILIKE $3
             LIMIT 1
             """,
             user_id,
