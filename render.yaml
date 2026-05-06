@@ -1,10 +1,12 @@
 services:
-  - type: worker
+  - type: web
     name: lora-bot
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     envVars:
+      - key: PORT
+        value: "8083"
       - key: DATABASE_URL
         sync: false # Set this to your Neon connection string
       - key: TELEGRAM_BOT_TOKEN
