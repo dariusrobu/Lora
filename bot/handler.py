@@ -2921,7 +2921,7 @@ async def handle_eod_callback(query, pool, data):
         summary = await generate_eod_summary(pool, mood, value)
 
         await query.edit_message_text(
-            f"📊 *Rezumatul zilei tale:*\\n\\n{safe_markdown(summary)}\\n\\nNoapte bună\! 🌙",
+            f"📊 *Rezumatul zilei tale:*\\n\\n{safe_markdown(summary)}\\n\\nNoapte bună! 🌙",
             parse_mode="MarkdownV2",
         )
 
