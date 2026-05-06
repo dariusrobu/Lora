@@ -31,7 +31,7 @@ services:
         sync: false
     autoDeploy: true
 
-  - type: web
+  - type: static
     name: lora-dashboard
     runtime: static
     buildCommand: cd dashboard && npm install && npm run build
