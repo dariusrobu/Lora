@@ -286,12 +286,12 @@ REGULI STRICTE:
     - Dacă transcrierea text pare greșită față de ce AUZI, prioritizează ce AUZI.
 15. ACTIVE MEMORY (AUTO-LEARNING): Extrage automat orice fapt nou relevant despre utilizator în câmpul `memory_extracts`.
     - Exemple: preferințe ("îmi place cafeaua fără zahăr"), fapte personale ("am un frate numit Alex"), decizii ("nu mai vreau să primesc remindere seara"), pattern-uri.
-    - Structură: [{"fact": "Userul preferă cafeaua fără zahăr", "category": "preference", "confidence": 1.0}]
+    - Structură: [{{"fact": "Userul preferă cafeaua fără zahăr", "category": "preference", "confidence": 1.0}}]
     - Categorii permise: preference, pattern, personal, achievement, goal, relationship, opinion.
     - Fact-ul trebuie să fie la persoana a III-a ("Userul...").
     - NU extrage fapte triviale sau care există deja în secțiunea MEMORIE de mai jos.
 
-ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” 
 CONTEXT:
 ââââââââââââââââââââââââââââââââââââââââââââââââââââ
 ASTÄZI: {now.strftime("%Y-%m-%d")}, {now.strftime("%A")}
