@@ -120,7 +120,7 @@ function App() {
 
     try {
       setErrorMessage(null);
-      const [t, f, u, g, s, shop, n, h, c, f_hist, prof, w, projs] = await Promise.all([
+      const [t, f, u, g, s, shop, n, h, c, f_hist, prof, w, projs, mems] = await Promise.all([
         fetchModule('/api/tasks?status=all', []),
         fetchModule('/api/finances/summary'),
         fetchModule('/api/university/summary'),
