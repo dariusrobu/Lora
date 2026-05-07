@@ -401,12 +401,8 @@ async def start_bot():
     await application.initialize()
 
     # Set the Main Menu Button to open the TEST HUB first
-    # We use the bot's own domain to ensure connectivity
-    bot_domain = os.getenv("WEB_DOMAIN", "lora-bot-tgbi.onrender.com")
-    if not bot_domain.startswith("http"):
-        test_url = f"https://{bot_domain}/test-hub"
-    else:
-        test_url = f"{bot_domain}/test-hub"
+    # HARDCODED to ensure we hit the right service
+    test_url = "https://lora-bot-tgbi.onrender.com/test-hub"
 
     try:
         from telegram import MenuButtonWebApp, WebAppInfo
@@ -417,7 +413,7 @@ async def start_bot():
                 web_app=WebAppInfo(url=test_url)
             )
         )
-        print(f"✅ Main Menu Button redirected to TEST HUB: {test_url}", flush=True)
+        print(f"✅ Main Menu Button FORCED to: {test_url}", flush=True)
     except Exception as e:
         print(f"Error setting menu button: {e}", flush=True)
 
