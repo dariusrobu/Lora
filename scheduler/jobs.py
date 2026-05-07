@@ -199,8 +199,14 @@ async def update_profile_job(pool):
 
 async def send_morning_briefing(application, pool, force=False):
     """Sends a daily summary of tasks, events, skills, and health."""
-    import json
     import os
+    from decimal import Decimal
+
+    class DecimalEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            return super(DecimalEncoder, self).default(obj)
 
     try:
         user_tz = pytz.timezone(TIMEZONE)
@@ -253,7 +259,7 @@ REGULI STRICTE:
 - Mesajul trebuie să fie aerisit, cu spații între secțiuni.
 - Introducere și încheiere calde, scurte și personalizate."""
 
-        gemini_context = json.dumps(briefing_data, indent=2)
+        gemini_context = json.dumps(briefing_data, indent=2, cls=DecimalEncoder)
 
         # 4. Generate text via Gemini
         briefing_text_raw = await get_proactive_response(instruction, gemini_context)
