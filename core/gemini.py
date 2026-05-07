@@ -449,6 +449,13 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - intent="list_items" — "ce am de cumpărat", "vezi lista de cumpărături".
     - intent="delete_item" — "șterge X de pe listă", "am luat Y".
     - intent="clear_items" — "curăță lista", "șterge tot ce am cumpărat", "clear shopping list".
+
+31. Wish List: module="wishlist":
+    - intent="add_wish" — "vreau să-mi iau X pentru că Y", "pune pe wishlist X", "mi-aș dori un X".
+      Data: {{"item": string, "description": string (justificarea/motivul), "price": number | null, "priority": "high|medium|low"}}
+    - intent="list_wish" — "ce am pe wishlist", "arată-mi lista de dorințe", "wish list".
+    - intent="delete_wish" — "șterge X din wishlist", "nu mai vreau X".
+      Data: {{"item": string}}
 26. Schedule: module="schedule":
     - intent="schedule_today" pentru orarul de azi ("ce cursuri am azi", "orarul de azi", "ce am la facultate").
     - intent="schedule_week" pentru orarul săptămânii ("orarul săptămânii", "ce am săptămâna asta").

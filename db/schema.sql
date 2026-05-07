@@ -103,6 +103,20 @@ CREATE TABLE IF NOT EXISTS habit_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_habit_logs_date ON habit_logs(log_date DESC);
 
+-- ── Wishlist ──────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS wishlist (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    item TEXT NOT NULL,
+    description TEXT,
+    price DECIMAL(12, 2),
+    category TEXT DEFAULT 'altele',
+    priority TEXT DEFAULT 'medium',
+    status TEXT DEFAULT 'pending', -- pending, bought, archived
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ── Tasks ─────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS tasks (
     id            SERIAL PRIMARY KEY,
