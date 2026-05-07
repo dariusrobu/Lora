@@ -38,7 +38,7 @@ async def get_weather_summary(city: str = None, lat: float = None, lon: float = 
     if lat is not None and lon is not None:
         url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric&lang=ro"
     else:
-        target_city = city or WEATHER_CITY
+        target_city = city or "Sasciori"
         url = f"https://api.openweathermap.org/data/2.5/weather?q={target_city}&appid={OPENWEATHER_API_KEY}&units=metric&lang=ro"
 
     try:

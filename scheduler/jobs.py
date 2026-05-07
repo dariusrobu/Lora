@@ -239,24 +239,26 @@ Generezi un Morning Briefing COMPLET, PRIORITIZAT și ELEGANT pentru Telegram.
 STIL: Modern Assistant (Structurat dar uman). 
 - Folosește linii separatoare: ━━━━━━━━━━━━━━━━━━━━
 - Antet cu data și locația (Locația ta actuală: Căpâlna, Alba).
-- Secțiuni clare cu titluri în MAJUSCULE.
+- Secțiuni clare cu titluri în MAJUSCULE (ex: 🎯 PRIORITĂȚI).
 - Ton: {tone}, Romglish natural.
 
 CUPRINS (Include doar dacă există date):
-1. ANTET: Joi, 07 Mai 2026 | Căpâlna, Alba. Cer Senin, 23°C. (Recomandare vestimentară scurtă).
+1. ANTET: Joi, 07 Mai 2026 | Căpâlna, Alba. (Vremea raportată pentru Sasciori/Capalna).
 2. 🎓 PROGRAM ACADEMIC: Cursuri azi (Ora, Sala, Materia).
 3. 📅 EVENIMENTE: Calendar iCloud (ora și titlu) + Remindere critice.
-4. 🎯 PRIORITĂȚI: Task-uri High/Medium. OBLIGATORIU: Scrie proiectul în paranteze pătrate, ex: "Faza 8 [Proiect: Lora]".
-5. 💰 FINANȚE: Balanța (57 RON) și dacă s-a cheltuit mult în ultima vreme.
-6. 🔥 HABIT STREAKS: Menționează skill-urile cu streak (ex: "Șah: 5 zile 🔥"). Dacă nu sunt streak-uri, omite secțiunea.
-7. 🗞️ TECH NEWS: Traduce titlurile în română și adaugă o explicație de 10 cuvinte despre de ce e important.
-8. 🧠 MEMORY LANE: O referință la progresul tău (ex: "Acum o lună erai la Faza 2, azi ești la Faza 8. Evoluția e vizibilă!").
-9. 💡 LORA INSIGHT: Alinierea cu obiectivele tale pe termen lung.
+4. 🎯 PRIORITĂȚI: Task-uri High și Medium. OBLIGATORIU: Scrie titlul complet al taskului și proiectul în paranteze pătrate, ex: "Faza 8 — Intelligence layer [Proiect: Lora]". NU TĂIA titlul.
+5. 💰 SITUAȚIA FINANCIARĂ: Balanța (57 RON).
+6. 🔥 HABIT STREAKS: Menționează skill-urile cu streak.
+7. 🗞️ TECH NEWS: Traduce titlurile în română și adaugă 10 cuvinte despre relevanță.
+8. 🧠 MEMORY LANE: O referință la progresul tău pe termen lung.
+9. 💡 LORA INSIGHT: Alinierea cu obiectivele tale.
 
 REGULI STRICTE:
 - MarkdownV2 (caractere RAW).
+- NU TĂIA TEXTUL. Dacă începi o secțiune, trebuie să o termini complet.
+- Fii specific și precis. Răspunde cu întregul conținut solicitat.
 - NU lăsa titluri în engleză la știri.
-- Fii specific, nu general. Dacă un task e la un proiect, scrie-l!"""
+"""
 
         gemini_context = json.dumps(briefing_data, indent=2, cls=UniversalEncoder)
 
