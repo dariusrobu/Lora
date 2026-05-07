@@ -338,12 +338,21 @@ async def start_bot():
     app.router.add_get("/api/debug", handle_debug)
     setup_api_routes(app)
 
+    async def serve_welcome(request):
+        return web.Response(
+            text="🚀 Lora Bot is ONLINE\n\nDiagnostic links:\n- /api/health\n- /api/debug\n- /api/projects\n\nDashboard is hosted separately on Render.",
+            content_type="text/plain"
+        )
+
     if os.path.exists(dist_path):
         app.router.add_get("/", serve_dashboard_index)
         app.router.add_static("/assets", os.path.join(dist_path, "assets"), name="dashboard_assets")
         for f in ["favicon.ico", "favicon.svg", "manifest.json"]:
             if os.path.exists(os.path.join(dist_path, f)):
                 app.router.add_get(f"/{f}", lambda r, f=f: web.FileResponse(os.path.join(dist_path, f)))
+    else:
+        # Fallback if dashboard files are not in this service
+        app.router.add_get("/", serve_welcome)
 
     port = int(os.environ.get("PORT", 8083))
     runner = web.AppRunner(app)
