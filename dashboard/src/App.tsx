@@ -79,23 +79,16 @@ function App() {
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const timerRef = useRef<any>(null);
 
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   useEffect(() => {
+    console.log("🚀 Safe Mode Boot: Lora Hub");
     fetchData();
-    // Safety timeout: force loading to false after 15s no matter what
-    const safety = setTimeout(() => setLoading(false), 15000);
+    // Safety break: if we're stuck in loading for 10s, show what we have
+    const safety = setTimeout(() => setLoading(false), 10000);
     return () => clearTimeout(safety);
   }, []);
-
-  useEffect(() => {
-    if (timerActive && timeLeft > 0) {
-      timerRef.current = setInterval(() => setTimeLeft(t => t - 1), 1000);
-    } else {
-      clearInterval(timerRef.current);
-    }
-    return () => clearInterval(timerRef.current);
-  }, [timerActive, timeLeft]);
-
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fetchData = async () => {
     const fetchModule = async (url: string, defaultValue: any = null) => {
