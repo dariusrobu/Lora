@@ -354,11 +354,23 @@ async def start_bot():
     await site.start()
     print(f"Web server active on port {port} (Health check detail enabled)", flush=True)
 
+    async def handle_debug(request):
+        """Debug endpoint for dashboard connectivity."""
+        return web.json_response({
+            "status": "online",
+            "cors": "enabled",
+            "api_secret_set": bool(os.getenv("LORA_API_SECRET")),
+            "dashboard_dist": os.path.exists(dist_path),
+            "files": os.listdir(dist_path) if os.path.exists(dist_path) else []
+        })
+
+    app.router.add_get("/api/debug", handle_debug)
+
     # 7. Start Telegram Bot (Polling mode)
     # Remove any existing webhook and ensure clean state
     try:
-        await application.bot.delete_webhook(drop_pending_updates=False)
-        print("Webhook deleted.", flush=True)
+        await application.bot.delete_webhook(drop_pending_updates=True)
+        print("Webhook deleted (dropped updates).", flush=True)
     except Exception as e:
         print(f"Warning: webhook delete failed: {e}", flush=True)
 
@@ -370,10 +382,7 @@ async def start_bot():
         try:
             from telegram import MenuButtonWebApp, WebAppInfo
             import time
-            
-            # Add cache buster to URL
             final_url = f"{dashboard_url}?v={int(time.time())}"
-            
             await application.bot.set_chat_menu_button(
                 chat_id=TELEGRAM_USER_ID,
                 menu_button=MenuButtonWebApp(
@@ -387,9 +396,9 @@ async def start_bot():
 
     await application.start()
 
-    # Small delay to avoid conflict with old instances
-    print("⏳ Waiting 2s for old instances to clear...", flush=True)
-    await asyncio.sleep(2)
+    # Increased delay to avoid Conflict error on Render
+    print("⏳ Waiting 10s for old instances to clear (Render Startup)...", flush=True)
+    await asyncio.sleep(10)
 
     await application.updater.start_polling(drop_pending_updates=True)
     print("Lora is LIVE via Polling 🚀", flush=True)
