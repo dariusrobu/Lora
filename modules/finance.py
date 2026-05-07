@@ -68,8 +68,39 @@ async def handle_finance_intent(
 async def _handle_log_expense(
     pool, data: Dict[str, Any]
 ) -> Tuple[str, Any, Optional[int]]:
+    # 1. Handle Bulk Entries (Agentic)
+    entries = data.get("entries")
+    if entries and isinstance(entries, list):
+        results = []
+        last_id = None
+        for entry in entries:
+            amount = entry.get("amount")
+            category = entry.get("category", "altele")
+            description = entry.get("description", "")
+            tx_type = entry.get("type", "expense")
+
+            if amount is not None:
+                last_id = await finance_queries.log_transaction(
+                    pool,
+                    tx_type=tx_type,
+                    amount=amount,
+                    category=category,
+                    description=description,
+                )
+                desc_str = f" — *{description}*" if description else ""
+                results.append(f"✅ {amount} RON{desc_str} ({category})")
+
+        if not results:
+            return "Nu am reușit să extrag nicio cheltuială validă. 💸", None, None
+
+        daily_total = await finance_queries.get_daily_total(pool, date.today())
+        final_msg = "\n".join(results)
+        final_msg += f"\n\n💸 *Cheltuieli azi:* {daily_total:.2f} RON"
+        return final_msg, None, last_id
+
+    # 2. Handle Single Entry (Legacy/Simple)
     amount = data.get("amount")
-    category = data.get("category", "other")
+    category = data.get("category", "altele")
     description = data.get("description", "")
     tx_type = data.get("type", "expense")
 

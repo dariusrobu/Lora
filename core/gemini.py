@@ -365,8 +365,9 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - intent="list_projects" sau "view_projects" — "ce proiecte am", "vezi proiectele", "dashboard proiecte".
 20. Finance: module="finance":
     - intent="finance_log" — "am cheltuit X pe Y", "venit X din Z".
-      Data: {{"amount": float, "type": "expense|income", "category": string, "description": string}}
-      Reguli Categorii:
+        - Intenție: `finance_log`
+        - Date: `{"entries": [{"amount": number, "category": "string", "description": "string", "type": "expense|income"}]}`
+        - Regulă: Extrage TOATE cheltuielile/veniturile menționate într-o listă.
       - Folosește categorii semantice dacă userul nu e specific.
       - "cafea", "suc", "bere" → categoria "iesiri si distractii" sau "mâncare" (dacă e grocery).
       - "vuse", "glo", "iqos", "țigări" → categoria "tigari".
