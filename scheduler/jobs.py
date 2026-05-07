@@ -238,28 +238,25 @@ Generezi un Morning Briefing COMPLET, PRIORITIZAT și ELEGANT pentru Telegram.
 
 STIL: Modern Assistant (Structurat dar uman). 
 - Folosește linii separatoare: ━━━━━━━━━━━━━━━━━━━━
-- Antet cu data și locația (ex: Joi, 07 Mai 2026 | Căpâlna).
-- Secțiuni clare cu titluri în MAJUSCULE (ex: 🎓 PROGRAM ACADEMIC).
-- Bullet points (•) pentru datele brute în interiorul secțiunilor.
-- Ton: {tone}.
+- Antet cu data și locația (Locația ta actuală: Căpâlna, Alba).
+- Secțiuni clare cu titluri în MAJUSCULE.
+- Ton: {tone}, Romglish natural.
 
-CUPRINS (Include doar dacă există date în context):
-1. ANTET: Dată, Locație, Vreme & Recomandare vestimentară scurtă.
-2. 🎓 PROGRAM ACADEMIC: Cursuri azi și examene apropiate.
-3. 📅 EVENIMENTE: Calendar iCloud și Remindere salvate.
-4. 🎯 PRIORITĂȚI: Task-uri High și Medium. Menționează proiectul dacă există.
-5. 💰 SITUAȚIA FINANCIARĂ: Balanță și alerte de buget.
-6. 🔥 HABIT STREAKS: Skills unde ai streak de minim 3 zile.
-7. 🗞️ TECH NEWS: Titlul tech extras din `tech_news`.
-8. 💧 HEALTH & ENERGY: Target-uri apă/somn bazate pe datele primite.
-9. 🧠 MEMORY LANE: Faptul extras din `memory_lane` (Amintește-i ce făcea/gândea în trecut).
-10. 💡 LORA INSIGHT: Alinierea cu obiectivele (Goal alignment nudge).
+CUPRINS (Include doar dacă există date):
+1. ANTET: Joi, 07 Mai 2026 | Căpâlna, Alba. Cer Senin, 23°C. (Recomandare vestimentară scurtă).
+2. 🎓 PROGRAM ACADEMIC: Cursuri azi (Ora, Sala, Materia).
+3. 📅 EVENIMENTE: Calendar iCloud (ora și titlu) + Remindere critice.
+4. 🎯 PRIORITĂȚI: Task-uri High/Medium. OBLIGATORIU: Scrie proiectul în paranteze pătrate, ex: "Faza 8 [Proiect: Lora]".
+5. 💰 FINANȚE: Balanța (57 RON) și dacă s-a cheltuit mult în ultima vreme.
+6. 🔥 HABIT STREAKS: Menționează skill-urile cu streak (ex: "Șah: 5 zile 🔥"). Dacă nu sunt streak-uri, omite secțiunea.
+7. 🗞️ TECH NEWS: Traduce titlurile în română și adaugă o explicație de 10 cuvinte despre de ce e important.
+8. 🧠 MEMORY LANE: O referință la progresul tău (ex: "Acum o lună erai la Faza 2, azi ești la Faza 8. Evoluția e vizibilă!").
+9. 💡 LORA INSIGHT: Alinierea cu obiectivele tale pe termen lung.
 
 REGULI STRICTE:
-- Folosește MarkdownV2 (caractere RAW, fără backslash-uri de escaping în prompt, Gemini se ocupă de *bold* și _italic_).
-- Dacă o secțiune nu are date, OMITE-O complet.
-- Mesajul trebuie să fie aerisit, cu spații între secțiuni.
-- Introducere și încheiere calde, scurte și personalizate."""
+- MarkdownV2 (caractere RAW).
+- NU lăsa titluri în engleză la știri.
+- Fii specific, nu general. Dacă un task e la un proiect, scrie-l!"""
 
         gemini_context = json.dumps(briefing_data, indent=2, cls=UniversalEncoder)
 
