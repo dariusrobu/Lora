@@ -2,13 +2,13 @@ services:
   - type: web
     name: lora-bot
     runtime: python
-    buildCommand: pip install -r requirements.txt && cd dashboard && npm install && VITE_API_BASE_URL=https://lora-bot.onrender.com npm run build
+    buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     envVars:
       - key: PORT
         value: "8083"
-      - key: VITE_API_BASE_URL
-        value: https://lora-bot.onrender.com
+      - key: DASHBOARD_URL
+        value: https://lora-dashboard-tgbi.onrender.com # Update this if your dashboard has a different name
       - key: DATABASE_URL
         sync: false # Set this to your Neon connection string
       - key: TELEGRAM_BOT_TOKEN
@@ -40,4 +40,4 @@ services:
     staticPublishPath: dashboard/dist
     envVars:
       - key: VITE_API_BASE_URL
-        value: https://lora-bot.onrender.com # Update this after bot deployment
+        value: https://lora-bot-tgbi.onrender.com # Update this after bot deployment
