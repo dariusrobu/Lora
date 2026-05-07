@@ -312,6 +312,9 @@ async def start_bot():
         response.headers["Access-Control-Allow-Credentials"] = "true"
         return response
 
+    # API Routes
+    routes = web.RouteTableDef()
+
     @web.middleware
     async def log_middleware(request, handler):
         response = await handler(request)
@@ -359,6 +362,17 @@ async def start_bot():
             content_type="text/plain"
         )
 
+    async def serve_test_hub(request):
+        return web.Response(
+            text="""<!DOCTYPE html><html><body style='background:#000;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;'>
+                <h1>🚀 LORA BOT: CONNECTION OK</h1>
+                <p>Daca vezi acest mesaj, infrastructura Telegram -> Render functioneaza.</p>
+                <button onclick='alert("JS is working!")' style='padding:10px 20px;background:#2563eb;color:#fff;border:none;border-radius:10px;'>Test JS</button>
+            </body></html>""",
+            content_type="text/html"
+        )
+    app.router.add_get("/test-hub", serve_test_hub)
+
     if os.path.exists(dist_path):
         app.router.add_get("/", serve_dashboard_index)
         app.router.add_static("/assets", os.path.join(dist_path, "assets"), name="dashboard_assets")
@@ -386,21 +400,26 @@ async def start_bot():
 
     await application.initialize()
 
-    # Set the Main Menu Button to open the Dashboard
-    dashboard_url = os.getenv("DASHBOARD_URL")
-    if dashboard_url:
-        try:
-            from telegram import MenuButtonWebApp, WebAppInfo
-            await application.bot.set_chat_menu_button(
-                chat_id=TELEGRAM_USER_ID,
-                menu_button=MenuButtonWebApp(
-                    text="Lora Hub",
-                    web_app=WebAppInfo(url=dashboard_url)
-                )
+    # Set the Main Menu Button to open the TEST HUB first
+    # We use the bot's own domain to ensure connectivity
+    bot_domain = os.getenv("WEB_DOMAIN", "lora-bot-tgbi.onrender.com")
+    if not bot_domain.startswith("http"):
+        test_url = f"https://{bot_domain}/test-hub"
+    else:
+        test_url = f"{bot_domain}/test-hub"
+
+    try:
+        from telegram import MenuButtonWebApp, WebAppInfo
+        await application.bot.set_chat_menu_button(
+            chat_id=TELEGRAM_USER_ID,
+            menu_button=MenuButtonWebApp(
+                text="Lora Hub (Test)",
+                web_app=WebAppInfo(url=test_url)
             )
-            print(f"✅ Main Menu Button set to {dashboard_url}", flush=True)
-        except Exception as e:
-            print(f"Error setting menu button: {e}", flush=True)
+        )
+        print(f"✅ Main Menu Button redirected to TEST HUB: {test_url}", flush=True)
+    except Exception as e:
+        print(f"Error setting menu button: {e}", flush=True)
 
     await application.start()
 
