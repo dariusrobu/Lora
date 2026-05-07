@@ -376,16 +376,14 @@ async def start_bot():
     if dashboard_url:
         try:
             from telegram import MenuButtonWebApp, WebAppInfo
-            import time
-            final_url = f"{dashboard_url}?v={int(time.time())}"
             await application.bot.set_chat_menu_button(
                 chat_id=TELEGRAM_USER_ID,
                 menu_button=MenuButtonWebApp(
                     text="Lora Hub",
-                    web_app=WebAppInfo(url=final_url)
+                    web_app=WebAppInfo(url=dashboard_url)
                 )
             )
-            print(f"✅ Main Menu Button set to {final_url}", flush=True)
+            print(f"✅ Main Menu Button set to {dashboard_url}", flush=True)
         except Exception as e:
             print(f"Error setting menu button: {e}", flush=True)
 
