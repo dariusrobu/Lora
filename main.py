@@ -68,10 +68,7 @@ logger = logging.getLogger(__name__)
 
 
 async def handle_health_check(request):
-    """
-    Detailed health check endpoint.
-    Returns JSON with DB status, Gemini status, and uptime.
-    """
+    """Detailed health check endpoint."""
     pool = request.app.get("pool")
     db_status = "error"
     if pool:
@@ -92,9 +89,22 @@ async def handle_health_check(request):
         "uptime_seconds": get_uptime(),
         "last_message_at": LAST_MESSAGE_AT.isoformat() if LAST_MESSAGE_AT else None,
     }
-
     return web.json_response(status_data)
 
+@web.middleware
+async def cors_middleware(request, handler):
+    """Enables CORS for all API requests."""
+    # Handle preflight (OPTIONS) requests
+    if request.method == "OPTIONS":
+        response = web.Response(status=204)
+    else:
+        response = await handler(request)
+    
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Lora-Api-Secret, X-Lora-Secret"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
 
 PID_FILE = "lora.pid"
 
@@ -276,13 +286,14 @@ async def start_bot():
     @web.middleware
     async def cors_middleware(request, handler):
         if request.method == "OPTIONS":
-            response = web.Response()
+            response = web.Response(status=204)
         else:
             response = await handler(request)
         
-        response.headers["Access-Control-Allow-Origin"] = "*"
+        origin = request.headers.get("Origin", "*")
+        response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Internal-Secret, Bypass-Tunnel-Reminder"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Internal-Secret, Bypass-Tunnel-Reminder, Lora-Api-Secret"
         response.headers["Access-Control-Allow-Credentials"] = "true"
         return response
 
