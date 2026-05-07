@@ -322,6 +322,8 @@ async def start_bot():
         )
 
     if os.path.exists(dist_path):
+        files = os.listdir(dist_path)
+        print(f"✅ Dashboard folder found! Files: {files}", flush=True)
         app.router.add_get("/", serve_dashboard_index)
         app.router.add_static(
             "/assets", os.path.join(dist_path, "assets"), name="dashboard_assets"
@@ -337,7 +339,13 @@ async def start_bot():
             flush=True,
         )
     else:
-        print(f"⚠️ Warning: Dashboard dist folder not found at {dist_path}", flush=True)
+        print(f"❌ ERROR: Dashboard dist folder NOT FOUND at {dist_path}", flush=True)
+        # Check if dashboard folder exists at all
+        base_dash = os.path.join(os.path.dirname(__file__), "dashboard")
+        if os.path.exists(base_dash):
+            print(f"ℹ️ Dashboard source folder exists at {base_dash}, but 'dist' is missing. You need to run 'npm run build' inside it.", flush=True)
+        else:
+            print(f"❌ ERROR: Dashboard source folder NOT FOUND at {base_dash}", flush=True)
 
     port = int(os.environ.get("PORT", 8083))
     runner = web.AppRunner(app)

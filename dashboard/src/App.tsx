@@ -11,6 +11,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Types & Constants ---
 const API_SECRET = '73860b29fd5d087fd78a1e59fb23254ed1692139e933a9465de82ed709b7f70e';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
 const HEADERS = { 
   'X-Internal-Secret': API_SECRET, 
   'Content-Type': 'application/json',
@@ -100,7 +102,8 @@ function App() {
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       
       try {
-        const r = await fetch(url, { 
+        const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`;
+        const r = await fetch(fullUrl, { 
           headers: HEADERS,
           signal: controller.signal 
         });
