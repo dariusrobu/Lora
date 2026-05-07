@@ -17,7 +17,7 @@ REQUIRED_VARS = [
 
 # Optional Weather API
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
-WEATHER_CITY = os.getenv("WEATHER_CITY", "Bucharest")
+WEATHER_CITY = os.getenv("WEATHER_CITY", "Sasciori")
 
 # Optional Nutritionix API
 NUTRITIONIX_APP_ID = os.getenv("NUTRITIONIX_APP_ID")
