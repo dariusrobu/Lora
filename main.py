@@ -304,69 +304,49 @@ async def start_bot():
         return response
 
     # 6. Web Server for Health Check & Dashboard (runs in background)
-    app = web.Application(middlewares=[cors_middleware, log_middleware])
-    app["pool"] = pool
-    app.router.add_get("/api/health", handle_health_check)
-    setup_api_routes(app)
-
-    # Serve static files for the dashboard
     dist_path = os.path.join(os.path.dirname(__file__), "dashboard", "dist")
+
+    async def handle_debug(request):
+        """Debug endpoint for dashboard connectivity."""
+        dist_exists = os.path.exists(dist_path)
+        return web.json_response({
+            "status": "online",
+            "cors": "enabled",
+            "api_secret_set": bool(os.getenv("LORA_API_SECRET")),
+            "dashboard_dist": dist_exists,
+            "files": os.listdir(dist_path) if dist_exists else []
+        })
 
     async def serve_dashboard_index(request):
         index_file = os.path.join(dist_path, "index.html")
         if os.path.exists(index_file):
             return web.FileResponse(index_file)
         return web.Response(
-            text="Dashboard build not found. Run 'npm run build' in dashboard folder.",
+            text=f"Dashboard build not found at {dist_path}. Run 'npm run build' in dashboard folder.",
             status=404,
         )
 
+    app = web.Application(middlewares=[cors_middleware, log_middleware])
+    app["pool"] = pool
+    app.router.add_get("/api/health", handle_health_check)
+    app.router.add_get("/api/debug", handle_debug)
+    setup_api_routes(app)
+
     if os.path.exists(dist_path):
-        files = os.listdir(dist_path)
-        print(f"✅ Dashboard folder found! Files: {files}", flush=True)
         app.router.add_get("/", serve_dashboard_index)
-        app.router.add_static(
-            "/assets", os.path.join(dist_path, "assets"), name="dashboard_assets"
-        )
-        # Also map other possible root files
+        app.router.add_static("/assets", os.path.join(dist_path, "assets"), name="dashboard_assets")
         for f in ["favicon.ico", "favicon.svg", "manifest.json"]:
             if os.path.exists(os.path.join(dist_path, f)):
-                app.router.add_get(
-                    f"/{f}", lambda r, f=f: web.FileResponse(os.path.join(dist_path, f))
-                )
-        print(
-            f"✅ Serving dashboard assets from {dist_path}/assets at /assets",
-            flush=True,
-        )
-    else:
-        print(f"❌ ERROR: Dashboard dist folder NOT FOUND at {dist_path}", flush=True)
-        # Check if dashboard folder exists at all
-        base_dash = os.path.join(os.path.dirname(__file__), "dashboard")
-        if os.path.exists(base_dash):
-            print(f"ℹ️ Dashboard source folder exists at {base_dash}, but 'dist' is missing. You need to run 'npm run build' inside it.", flush=True)
-        else:
-            print(f"❌ ERROR: Dashboard source folder NOT FOUND at {base_dash}", flush=True)
+                app.router.add_get(f"/{f}", lambda r, f=f: web.FileResponse(os.path.join(dist_path, f)))
 
     port = int(os.environ.get("PORT", 8083))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    print(f"Web server active on port {port} (Health check detail enabled)", flush=True)
+    print(f"Web server active on port {port}", flush=True)
 
-    async def handle_debug(request):
-        """Debug endpoint for dashboard connectivity."""
-        return web.json_response({
-            "status": "online",
-            "cors": "enabled",
-            "api_secret_set": bool(os.getenv("LORA_API_SECRET")),
-            "dashboard_dist": os.path.exists(dist_path),
-            "files": os.listdir(dist_path) if os.path.exists(dist_path) else []
-        })
-
-    app.router.add_get("/api/debug", handle_debug)
-
-    # 7. Start Telegram Bot (Polling mode)
+    # 7. Start Telegram Bot
     # Remove any existing webhook and ensure clean state
     try:
         await application.bot.delete_webhook(drop_pending_updates=True)
