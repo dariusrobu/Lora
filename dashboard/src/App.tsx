@@ -70,11 +70,8 @@ function App() {
   const [memories, setMemories] = useState<any[]>([]);
   const [selectedSkill, setSelectedSkill] = useState<any>(null);
   const [logValue, setLogValue] = useState('');
-  const [loading, setLoading] = useState(true);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
-  
-  // Pomodoro
   const [timerActive, setTimerActive] = useState(false);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const timerRef = useRef<any>(null);
@@ -85,10 +82,18 @@ function App() {
   useEffect(() => {
     console.log("🚀 Safe Mode Boot: Lora Hub");
     fetchData();
-    // Safety break: if we're stuck in loading for 10s, show what we have
     const safety = setTimeout(() => setLoading(false), 10000);
     return () => clearTimeout(safety);
   }, []);
+
+  useEffect(() => {
+    if (timerActive && timeLeft > 0) {
+      timerRef.current = setInterval(() => setTimeLeft(t => t - 1), 1000);
+    } else {
+      clearInterval(timerRef.current);
+    }
+    return () => clearInterval(timerRef.current);
+  }, [timerActive, timeLeft]);
 
   const fetchData = async () => {
     const fetchModule = async (url: string, defaultValue: any = null) => {
