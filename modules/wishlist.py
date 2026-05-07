@@ -36,7 +36,7 @@ async def handle_wishlist_intent(
 
         reply = "✨ *WISH LIST* ✨\n\n"
         for i in items:
-            price_str = f" \- `{i['price']} RON`" if i['price'] else ""
+            price_str = f" \\- `{i['price']} RON`" if i['price'] else ""
             priority_emoji = "🔴" if i['priority'] == 'high' else "🟡" if i['priority'] == 'medium' else "🟢"
             
             reply += f"{priority_emoji} *{escape_md(i['item'])}*{price_str}\n"
