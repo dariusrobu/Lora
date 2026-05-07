@@ -237,17 +237,21 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
     from db.queries.profile import get_user_profile
     from db.queries.university import get_upcoming_exams
     from core.council import get_summary as get_council_summary
+    from core.icloud import fetch_all_calendars_events
     from modules.news import fetch_tech_news
     from db.queries.memory import get_random_memory_lane
-    from integrations.icloud_manager import iCloudManager
     import os
 
     # Gather iCloud events if credentials exist
     icloud_events = []
     if os.getenv("ICLOUD_USERNAME") and os.getenv("ICLOUD_APP_PASSWORD"):
         try:
-            ic = iCloudManager()
-            icloud_events = await ic.get_events(today, today)
+            # fetch_all_calendars_events returns a list of dicts
+            all_ic_events = await fetch_all_calendars_events(days_ahead=1)
+            # Filter for today
+            icloud_events = [
+                e for e in all_ic_events if e["start"].date() == today
+            ]
         except Exception:
             pass
 
