@@ -237,6 +237,19 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
     from db.queries.profile import get_user_profile
     from db.queries.university import get_upcoming_exams
     from core.council import get_summary as get_council_summary
+    from modules.news import fetch_tech_news
+    from db.queries.memory import get_random_memory_lane
+    from integrations.icloud_manager import iCloudManager
+    import os
+
+    # Gather iCloud events if credentials exist
+    icloud_events = []
+    if os.getenv("ICLOUD_USERNAME") and os.getenv("ICLOUD_APP_PASSWORD"):
+        try:
+            ic = iCloudManager()
+            icloud_events = await ic.get_events(today, today)
+        except Exception:
+            pass
 
     # 1. Gather all raw data in parallel
     results = await asyncio.gather(
@@ -253,6 +266,8 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
         get_upcoming_exams(pool, days=7),
         get_council_summary(),
         db.queries.goals.check_goal_alignment(pool, TELEGRAM_USER_ID),
+        fetch_tech_news(limit=1),
+        get_random_memory_lane(pool),
     )
 
     (
@@ -269,6 +284,8 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
         exams,
         council_summary,
         goal_alignment,
+        tech_news,
+        memory_lane,
     ) = results
 
     # 2. Process tasks
@@ -374,6 +391,9 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
         ],
         "council_updates": council_summary,
         "goal_alignment_nudge": goal_alignment,
+        "tech_news": tech_news,
+        "memory_lane": memory_lane,
+        "icloud_events": icloud_events,
     }
 
 

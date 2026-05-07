@@ -246,3 +246,11 @@ async def semantic_search_memories(
 
         rows = await conn.fetch(sql, *params)
         return [dict(r) for r in rows]
+
+async def get_random_memory_lane(pool) -> Optional[Dict[str, Any]]:
+    """Gets a random fact from at least 7 days ago for 'Memory Lane'."""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM memory_facts WHERE created_at < NOW() - INTERVAL '7 days' ORDER BY RANDOM() LIMIT 1"
+        )
+        return dict(row) if row else None
