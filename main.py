@@ -319,12 +319,18 @@ async def start_bot():
 
     async def serve_dashboard_index(request):
         index_file = os.path.join(dist_path, "index.html")
+        print(f"📄 Request for dashboard. Looking for: {index_file}", flush=True)
         if os.path.exists(index_file):
             return web.FileResponse(index_file)
-        return web.Response(
-            text=f"Dashboard build not found at {dist_path}. Run 'npm run build' in dashboard folder.",
-            status=404,
-        )
+        
+        # Diagnostic help
+        error_msg = f"Dashboard build not found at {dist_path}. "
+        if not os.path.exists(dist_path):
+            error_msg += "Folder does not exist."
+        else:
+            error_msg += f"Folder exists but index.html missing. Files: {os.listdir(dist_path)}"
+            
+        return web.Response(text=error_msg, status=404)
 
     app = web.Application(middlewares=[cors_middleware, log_middleware])
     app["pool"] = pool
@@ -376,9 +382,9 @@ async def start_bot():
 
     await application.start()
 
-    # Increased delay to avoid Conflict error on Render
-    print("⏳ Waiting 10s for old instances to clear (Render Startup)...", flush=True)
-    await asyncio.sleep(10)
+    # Increased delay for Render to clear old instances
+    print("⏳ Waiting 15s for old instances to clear (Anti-Conflict)...", flush=True)
+    await asyncio.sleep(15)
 
     await application.updater.start_polling(drop_pending_updates=True)
     print("Lora is LIVE via Polling 🚀", flush=True)
