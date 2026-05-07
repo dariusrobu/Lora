@@ -143,6 +143,20 @@ def check_pid_lock():
 # 10. Start the bot
 
 
+async def cmd_hub(update, context):
+    """Send a direct link to the Lora Hub."""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+    dashboard_url = os.getenv("DASHBOARD_URL")
+    if not dashboard_url:
+        await update.message.reply_text("❌ DASHBOARD_URL nu este setată în Render.")
+        return
+
+    keyboard = [[InlineKeyboardButton("📊 Deschide Lora Hub", web_app=WebAppInfo(url=dashboard_url))]]
+    await update.message.reply_text(
+        "Apasă butonul de mai jos pentru a accesa dashboard-ul tău executiv:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
 async def start_bot():
     print("Starting Lora initialization (HYBRID MODE)...", flush=True)
 
@@ -245,6 +259,7 @@ async def start_bot():
             "sync_calendar", partial(message_handler, pool=pool, text="/sync_calendar")
         )
     )
+    application.add_handler(CommandHandler("hub", cmd_hub))
     application.add_handler(CommandHandler("focus", focus_command))
     application.add_handler(CommandHandler("stopfocus", stopfocus_command))
     application.add_handler(CommandHandler("timeblock", timeblock_command))
