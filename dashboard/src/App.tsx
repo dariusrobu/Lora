@@ -11,7 +11,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Types & Constants ---
 const API_SECRET = '73860b29fd5d087fd78a1e59fb23254ed1692139e933a9465de82ed709b7f70e';
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const RAW_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const BASE_URL = RAW_BASE_URL.endsWith('/') ? RAW_BASE_URL.slice(0, -1) : RAW_BASE_URL;
 
 const HEADERS = { 
   'X-Internal-Secret': API_SECRET, 
