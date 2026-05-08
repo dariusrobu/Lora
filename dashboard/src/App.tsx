@@ -3,7 +3,7 @@ import {
   CheckCircle2, Navigation, Plus, GraduationCap, 
   Dumbbell, Wallet, ArrowLeft, Loader2, Settings,
   Calendar, ShoppingCart, Heart, Flame, Brain, Play, Pause, RotateCcw,
-  TrendingUp, Star, AlertTriangle, Moon, Droplets, Scale,
+  TrendingUp, Star, Moon, Droplets, Scale,
   Pin, MapPin, Search, Sun, Cloud, CloudRain, CloudDrizzle, CloudSnow, CloudLightning,
   Briefcase, Target, Zap
 } from 'lucide-react';
@@ -231,100 +231,6 @@ function App() {
               </div>
             </header>
 
-            {/* Weather Bento - Focus Layer */}
-            {weather && weather.main && (
-              <section className="mt-12">
-                <motion.div 
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  className="focus-panel rounded-3xl p-10 flex items-center justify-between overflow-hidden relative group"
-                >
-                  <div className="relative z-10 space-y-6">
-                    <div className="flex items-center gap-3">
-                      <MapPin className="w-4 h-4 text-[#4cd7f6]" />
-                      <span className="label-ethereal text-[#c2c6d6]">{weather.name}</span>
-                    </div>
-                    <div className="flex items-end gap-6">
-                      <h3 className="text-7xl font-thin tracking-tighter text-white">{Math.round(weather.main?.temp)}°</h3>
-                      <p className="label-ethereal text-[#8c909f] pb-3">{weather.weather?.[0]?.description}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="relative z-10">
-                    <div className="p-4 rounded-3xl bg-white/5 backdrop-blur-xl border-[0.5px] border-white/10">
-                      {weather.weather?.[0]?.main === 'Clear' && <Sun className="w-20 h-20 text-[#ffb786] drop-shadow-[0_0_20px_rgba(255,183,134,0.3)]" />}
-                      {weather.weather?.[0]?.main === 'Clouds' && <Cloud className="w-20 h-20 text-[#adc6ff] drop-shadow-[0_0_20px_rgba(173,198,255,0.3)]" />}
-                      {weather.weather?.[0]?.main === 'Rain' && <CloudRain className="w-20 h-20 text-blue-500" />}
-                      {weather.weather?.[0]?.main === 'Drizzle' && <CloudDrizzle className="w-20 h-20 text-blue-400" />}
-                      {weather.weather?.[0]?.main === 'Snow' && <CloudSnow className="w-20 h-20 text-white" />}
-                      {['Thunderstorm', 'Mist', 'Fog', 'Haze'].includes(weather.weather?.[0]?.main) && <CloudLightning className="w-20 h-20 text-purple-400" />}
-                    </div>
-                  </div>
-
-                  {/* Ambient Glow in Bento */}
-                  <div className="absolute -right-20 -top-20 w-80 h-80 bg-[#3b82f6]/5 rounded-full blur-[100px]" />
-                </motion.div>
-              </section>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-              
-              {/* Left Column: Modules & Navigation */}
-              <div className="lg:col-span-4 space-y-12">
-                <section className="space-y-6">
-                  <h3 className="label-ethereal ml-2">Sisteme Lora</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    {[
-                      { id: 'tasks', icon: CheckCircle2, label: 'Tasks', color: 'text-[#4cd7f6]' },
-                      { id: 'projects', icon: Briefcase, label: 'Proiecte', color: 'text-[#adc6ff]' },
-                      { id: 'map', icon: Navigation, label: 'Hartă', color: 'text-[#adc6ff]' },
-                      { id: 'finance', icon: Wallet, label: 'Bani', color: 'text-emerald-400' },
-                      { id: 'uni', icon: GraduationCap, label: 'Academic', color: 'text-[#ffb786]' },
-                      { id: 'gym', icon: Dumbbell, label: 'Sală', color: 'text-red-400' },
-                      { id: 'skills', icon: Flame, label: 'Skills', color: 'text-yellow-400' },
-                      { id: 'shop', icon: ShoppingCart, label: 'Shop', color: 'text-purple-400' }
-                    ].map(m => (
-                      <button key={m.id} onClick={() => setView(m.id as View)} className="liquid-panel hover:bg-white/10 transition-all p-5 flex flex-col gap-4 text-left group">
-                        <m.icon className={`w-5 h-5 ${m.color} group-hover:scale-110 transition-transform`} />
-                        <span className="label-ethereal text-[10px]">{m.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-
-                <GlassCard className="h-56 flex flex-col justify-between border-blue-500/10 bg-gradient-to-br from-[#3b82f6]/5 to-transparent relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-6">
-                     <Zap className="w-5 h-5 text-blue-500/30" />
-                  </div>
-                  <p className="label-ethereal">Focus OS</p>
-                  <div className="space-y-6">
-                    <p className="text-5xl font-thin tracking-tighter text-[#adc6ff]">{formatTime(timeLeft)}</p>
-                    <div className="flex gap-3">
-                      <button onClick={() => setTimerActive(!timerActive)} className="w-10 h-10 liquid-panel flex items-center justify-center hover:bg-blue-500/10">{timerActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}</button>
-                      <button onClick={() => setTimeLeft(25 * 60)} className="w-10 h-10 liquid-panel flex items-center justify-center hover:bg-white/10"><RotateCcw className="w-4 h-4" /></button>
-                    </div>
-                  </div>
-                </GlassCard>
-              </div>
-
-              {/* Middle Column: Project Pulse & Actions */}
-              <div className="lg:col-span-5 space-y-12">
-                <motion.div 
-                  whileHover={{ scale: 1.01 }}
-                  className="h-44 liquid-panel bg-[#3b82f6]/10 border-[#3b82f6]/30 flex flex-col justify-between cursor-pointer p-8 overflow-hidden relative"
-                  onClick={() => setIsAddingTask(true)}
-                >
-                  <div className="absolute right-[-20px] top-[-20px] w-40 h-40 bg-[#3b82f6]/10 rounded-full blur-3xl" />
-                  <p className="label-ethereal text-blue-300">Quick Command</p>
-                  <div className="flex items-center gap-8 relative z-10">
-                    <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-2xl border-[0.5px] border-white/20 flex items-center justify-center"><Plus className="w-8 h-8 text-[#adc6ff]" /></div>
-                    <div className="space-y-1">
-                      <p className="text-3xl font-light tracking-tight">Ceva nou?</p>
-                      <p className="label-ethereal text-[9px] opacity-60">Sincronizare instantanee</p>
-                    </div>
-                  </div>
-                </motion.div>
-
             {/* Top Stats Scroll */}
             <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
               <GlassCard className="min-w-[160px] p-4 flex gap-3 items-center" onClick={() => setView('finance')}>
@@ -528,11 +434,6 @@ function App() {
                   </div>
                 </section>
               </div>
-
-            </div>
-          </motion.div>
-        )}
-
             </div>
           </motion.div>
         )}

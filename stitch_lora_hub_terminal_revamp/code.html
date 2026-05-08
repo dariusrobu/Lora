@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="ro"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0b0e15; /* Deep Obsidian */
+    }
+    .liquid-glass {
+      background: rgba(255, 255, 255, 0.02);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+    .liquid-glass-hover:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+    }
+    .text-glow {
+      text-shadow: 0 0 15px rgba(173, 198, 255, 0.3);
+    }
+  </style>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-primary-container": "#00285d",
+            "error": "#ffb4ab",
+            "on-surface-variant": "#c2c6d6",
+            "tertiary-fixed": "#ffdc6",
+            "on-tertiary-fixed-variant": "#723600",
+            "secondary-fixed-dim": "#4cd7f6",
+            "surface-bright": "#363941",
+            "on-tertiary-container": "#461f00",
+            "primary": "#adc6ff",
+            "surface-container-lowest": "#0b0e15",
+            "on-error": "#690005",
+            "outline-variant": "#424754",
+            "tertiary": "#ffb786",
+            "on-error-container": "#ffdad6",
+            "background": "#0b0e15",
+            "inverse-surface": "#e1e2ec",
+            "primary-container": "#4d8eff",
+            "outline": "#8c909f",
+            "on-secondary-fixed": "#001f26",
+            "surface-tint": "#adc6ff",
+            "on-background": "#e1e2ec",
+            "error-container": "#93000a",
+            "on-primary": "#002e6a",
+            "inverse-on-surface": "#2e3038",
+            "on-primary-fixed": "#001a42",
+            "primary-fixed-dim": "#adc6ff",
+            "on-primary-fixed-variant": "#004395",
+            "surface-container": "#1d2027",
+            "surface-container-low": "#191b23",
+            "secondary-container": "#03b5d3",
+            "surface-container-high": "#272a31",
+            "surface": "#10131a",
+            "surface-dim": "#10131a",
+            "tertiary-fixed-dim": "#ffb786",
+            "on-secondary-container": "#00424e",
+            "surface-container-highest": "#32353c",
+            "on-tertiary": "#502400",
+            "secondary-fixed": "#acedff",
+            "on-secondary": "#003640",
+            "primary-fixed": "#d8e2ff",
+            "surface-variant": "#32353c",
+            "tertiary-container": "#df7412",
+            "on-secondary-fixed-variant": "#004e5c",
+            "on-tertiary-fixed": "#311400",
+            "secondary": "#4cd7f6",
+            "on-surface": "#e1e2ec",
+            "inverse-primary": "#005ac2"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "1rem",
+            "2xl": "1.5rem",
+            "3xl": "2rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "unit": "4px",
+            "container-max": "1440px",
+            "xs": "8px",
+            "gutter": "24px",
+            "xl": "80px",
+            "md": "24px",
+            "lg": "48px",
+            "sm": "16px"
+          },
+          "fontFamily": {
+            "body": ["Inter", "sans-serif"],
+            "display": ["Inter", "sans-serif"]
+          },
+          "fontSize": {
+            "label-sm": ["12px", {"lineHeight": "1", "letterSpacing": "0.1em", "fontWeight": "600"}],
+            "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+            "h2": ["24px", {"lineHeight": "1.3", "fontWeight": "400"}],
+            "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "300"}]
+          }
+        },
+      },
+    }
+  </script>
+</head>
+<body class="bg-background text-on-surface selection:bg-primary/30 min-h-screen">
+<div class="flex flex-col items-center">
+<!-- Main Content Area -->
+<main class="w-full max-w-7xl mx-auto px-lg py-xl">
+<!-- TopAppBar -->
+<header class="flex justify-between items-center w-full mb-xl">
+<div>
+<h1 class="text-display font-display tracking-tighter text-on-surface text-glow">LORA.</h1>
+<p class="text-label-sm text-on-surface-variant mt-xs opacity-70">63 TASK-URI ACTIVE</p>
+</div>
+<div class="flex items-center gap-md">
+<button class="w-12 h-12 flex items-center justify-center liquid-glass rounded-full hover:bg-white/5 transition-all active:scale-95">
+<span class="material-symbols-outlined text-primary">settings</span>
+</button>
+<button class="w-12 h-12 flex items-center justify-center liquid-glass rounded-full hover:bg-white/5 transition-all active:scale-95">
+<span class="material-symbols-outlined text-primary">more_vert</span>
+</button>
+</div>
+</header>
+<!-- Weather Widget (Full Width) -->
+<section class="w-full mb-lg">
+<div class="liquid-glass relative overflow-hidden rounded-3xl p-xl flex items-center justify-between">
+<div class="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-transparent"></div>
+<div class="relative z-10">
+<div class="flex items-center gap-xs text-primary mb-xs">
+<span class="material-symbols-outlined text-sm">location_on</span>
+<span class="text-label-sm tracking-[0.2em] uppercase">BUCUREȘTI</span>
+</div>
+<div class="flex items-end gap-md">
+<h2 class="text-[96px] font-light leading-none tracking-tighter text-glow">22°</h2>
+<p class="text-label-sm text-on-surface-variant pb-2 uppercase tracking-[0.3em]">CER SENIN</p>
+</div>
+</div>
+<div class="relative z-10 flex items-center justify-center mr-10">
+<div class="absolute w-40 h-40 bg-tertiary/10 blur-[80px] rounded-full"></div>
+<span class="material-symbols-outlined text-[120px] text-tertiary" style="font-variation-settings: 'FILL' 1;">wb_sunny</span>
+</div>
+</div>
+</section>
+<!-- Main Grid Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-lg items-start">
+<!-- Left Column: SISTEME LORA -->
+<div class="lg:col-span-3 space-y-md">
+<h3 class="text-label-sm text-on-surface-variant tracking-[0.2em] uppercase px-xs">SISTEME LORA</h3>
+<div class="flex flex-col gap-sm">
+<button class="liquid-glass liquid-glass-hover flex items-center gap-md p-md rounded-2xl transition-all group text-left">
+<div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<span class="text-label-sm uppercase">TASKS</span>
+</button>
+<button class="liquid-glass liquid-glass-hover flex items-center gap-md p-md rounded-2xl transition-all group text-left">
+<div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">work</span>
+</div>
+<span class="text-label-sm uppercase">PROIECTE</span>
+</button>
+<button class="liquid-glass liquid-glass-hover flex items-center gap-md p-md rounded-2xl transition-all group text-left">
+<div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">location_on</span>
+</div>
+<span class="text-label-sm uppercase">HARTĂ</span>
+</button>
+<button class="liquid-glass liquid-glass-hover flex items-center gap-md p-md rounded-2xl transition-all group text-left">
+<div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">account_balance_wallet</span>
+</div>
+<span class="text-label-sm uppercase">BANI</span>
+</button>
+<button class="liquid-glass liquid-glass-hover flex items-center gap-md p-md rounded-2xl transition-all group text-left">
+<div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">school</span>
+</div>
+<span class="text-label-sm uppercase">ACADEMIC</span>
+</button>
+<button class="liquid-glass liquid-glass-hover flex items-center gap-md p-md rounded-2xl transition-all group text-left">
+<div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">fitness_center</span>
+</div>
+<span class="text-label-sm uppercase">SALĂ</span>
+</button>
+<button class="liquid-glass liquid-glass-hover flex items-center gap-md p-md rounded-2xl transition-all group text-left">
+<div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">bolt</span>
+</div>
+<span class="text-label-sm uppercase">SKILLS</span>
+</button>
+</div>
+</div>
+<!-- Center-Right Content Area (Combined columns now that Quick Entry is gone) -->
+<div class="lg:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-lg">
+<!-- Column: Project Pulse -->
+<div class="space-y-md">
+<div class="flex justify-between items-center px-xs">
+<h3 class="text-label-sm text-on-surface-variant tracking-[0.2em] uppercase">PROJECT PULSE</h3>
+<span class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-widest border border-primary/20 text-primary">29 TOTAL</span>
+</div>
+<div class="flex flex-col gap-sm">
+<div class="liquid-glass p-md rounded-2xl flex items-center justify-between group cursor-pointer hover:border-primary/40 transition-all">
+<div class="flex items-center gap-md">
+<div class="w-1 h-8 bg-primary/40 rounded-full group-hover:bg-primary transition-colors"></div>
+<span class="text-lg font-semibold tracking-tight">Lora</span>
+</div>
+<div class="flex items-center gap-xs">
+<span class="text-[10px] text-on-surface-variant uppercase tracking-wider">ACTIVE:</span>
+<span class="text-xl font-bold text-primary">8</span>
+</div>
+</div>
+<div class="liquid-glass p-md rounded-2xl flex items-center justify-between group cursor-pointer hover:border-primary/40 transition-all">
+<div class="flex items-center gap-md">
+<div class="w-1 h-8 bg-primary/40 rounded-full group-hover:bg-primary transition-colors"></div>
+<span class="text-lg font-semibold tracking-tight">Rexi</span>
+</div>
+<div class="flex items-center gap-xs">
+<span class="text-[10px] text-on-surface-variant uppercase tracking-wider">ACTIVE:</span>
+<span class="text-xl font-bold text-primary">8</span>
+</div>
+</div>
+<div class="liquid-glass p-md rounded-2xl flex items-center justify-between group cursor-pointer hover:border-primary/40 transition-all">
+<div class="flex items-center gap-md">
+<div class="w-1 h-8 bg-primary/40 rounded-full group-hover:bg-primary transition-colors"></div>
+<span class="text-lg font-semibold tracking-tight">Council</span>
+</div>
+<div class="flex items-center gap-xs">
+<span class="text-[10px] text-on-surface-variant uppercase tracking-wider">ACTIVE:</span>
+<span class="text-xl font-bold text-primary">7</span>
+</div>
+</div>
+</div>
+<!-- Extra space/filler for balanced layout if needed -->
+<div class="pt-md">
+<h3 class="text-label-sm text-on-surface-variant tracking-[0.2em] uppercase px-xs mb-md">RECAPITULARE BALANȚĂ</h3>
+<div class="liquid-glass p-lg rounded-3xl flex flex-col items-center justify-center text-center gap-xs">
+<p class="text-label-sm text-on-surface-variant uppercase">Suma Totală Disponibilă</p>
+<p class="text-[40px] font-bold text-secondary text-glow">57 Lei</p>
+<div class="w-full h-1 bg-white/5 rounded-full mt-md overflow-hidden">
+<div class="w-[15%] h-full bg-secondary shadow-[0_0_10px_rgba(76,215,246,0.5)]"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Column: Program & Stats -->
+<div class="space-y-lg">
+<!-- Program Section -->
+<div class="space-y-md">
+<h3 class="text-label-sm text-on-surface-variant tracking-[0.2em] uppercase px-xs">PROGRAM AZI</h3>
+<div class="flex flex-col gap-sm">
+<div class="liquid-glass p-md rounded-2xl flex items-center gap-md border-l-2 border-l-primary/30 group">
+<span class="text-primary font-bold text-body-md min-w-[50px]">09:40</span>
+<div class="flex-grow">
+<p class="font-semibold text-on-surface">Engleză</p>
+<p class="text-[10px] text-outline uppercase tracking-widest">Sala 114</p>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">arrow_forward_ios</span>
+</div>
+<div class="liquid-glass p-md rounded-2xl flex items-center gap-md border-l-2 border-l-primary/30 group">
+<span class="text-primary font-bold text-body-md min-w-[50px]">11:20</span>
+<div class="flex-grow">
+<p class="font-semibold text-on-surface">Engleză</p>
+<p class="text-[10px] text-outline uppercase tracking-widest">Sala 009</p>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">arrow_forward_ios</span>
+</div>
+</div>
+</div>
+<!-- Health & Vitals Section -->
+<div class="space-y-md">
+<h3 class="text-label-sm text-on-surface-variant tracking-[0.2em] uppercase px-xs">VITALS</h3>
+<div class="grid grid-cols-1 gap-sm">
+<div class="liquid-glass p-md rounded-2xl flex items-center gap-md">
+<div class="w-12 h-12 rounded-xl bg-error/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</div>
+<div>
+<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.15em]">Health Score</p>
+<p class="text-xl font-bold">8h Somn</p>
+</div>
+</div>
+<div class="liquid-glass p-md rounded-2xl flex items-center gap-md">
+<div class="w-12 h-12 rounded-xl bg-tertiary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-tertiary" style="font-variation-settings: 'FILL' 1;">fitness_center</span>
+</div>
+<div>
+<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.15em]">Antrenament</p>
+<p class="text-xl font-bold">0 Sesiuni</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Bottom Floating Toggle -->
+<div class="fixed bottom-lg right-lg z-50">
+<button class="liquid-glass px-md py-sm rounded-xl font-bold text-label-sm text-secondary shadow-xl hover:scale-105 transition-all active:scale-95 border-secondary/20">
+    vCONSOLE
+  </button>
+</div>
+</body></html>
