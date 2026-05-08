@@ -62,3 +62,37 @@ async def get_weather_summary(city: str = None, lat: float = None, lon: float = 
     except Exception as e:
         print(f"Weather fetch exception: {e}")
         return None
+
+
+async def check_weather_for_alerts(lat: float, lon: float) -> Optional[str]:
+    """
+    Checks for rain or extreme weather and returns a warning message if found.
+    """
+    if not OPENWEATHER_API_KEY:
+        return None
+
+    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric&lang=ro"
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, timeout=10.0)
+            if response.status_code == 200:
+                data = response.json()
+                weather_list = data.get("weather", [])
+                if not weather_list:
+                    return None
+                
+                main_weather = weather_list[0]
+                weather_id = main_weather.get("id", 800)
+                desc = main_weather.get("description", "").capitalize()
+                
+                # OpenWeather IDs for Rain (5xx) and Storms (2xx) and Snow (6xx)
+                # https://openweathermap.org/weather-conditions
+                if 200 <= weather_id < 700:
+                    icon = "⛈️" if weather_id < 300 else "🌧️" if weather_id < 600 else "❄️"
+                    return f"{icon} *Alertă Meteo:* {desc} în zona ta. Mai bine te pregătești!"
+                
+            return None
+    except Exception as e:
+        print(f"Weather alert check exception: {e}")
+        return None

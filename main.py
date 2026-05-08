@@ -294,7 +294,9 @@ async def start_bot():
     )
     application.add_handler(MessageHandler(filters.VOICE, voice_handler_with_pool))
     application.add_handler(MessageHandler(filters.PHOTO, photo_handler_with_pool))
+    # Support both normal Share Location and Live Location updates (edited messages)
     application.add_handler(MessageHandler(filters.LOCATION, location_handler_with_pool))
+    application.add_handler(MessageHandler(filters.UpdateType.EDITED_MESSAGE & filters.LOCATION, location_handler_with_pool))
     application.add_handler(MessageHandler(filters.ALL, msg_handler_with_pool))
     application.add_handler(CallbackQueryHandler(cb_handler_with_pool))
 

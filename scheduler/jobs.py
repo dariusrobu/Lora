@@ -232,22 +232,23 @@ async def send_morning_briefing(application, pool, force=False):
         # 3. Construct Gemini Prompt
         name = briefing_data.get("user_name", "User")
         tone = profile.get("tone", "warm")
+        city = profile.get("city_name", "Locația ta")
 
         instruction = f"""Ești Lora, asistenta inteligentă a lui {name}.
 Generezi un Morning Briefing COMPLET, PRIORITIZAT și ELEGANT pentru Telegram.
 
 STIL: Modern Assistant (Structurat dar uman). 
 - Folosește linii separatoare: ━━━━━━━━━━━━━━━━━━━━
-- Antet cu data și locația (Locația ta actuală: Căpâlna, Alba).
+- Antet cu data și locația (Locația ta actuală: {city}).
 - Secțiuni clare cu titluri în MAJUSCULE (ex: 🎯 PRIORITĂȚI).
 - Ton: {tone}, Romglish natural.
 
 CUPRINS (Include doar dacă există date):
-1. ANTET: Joi, 07 Mai 2026 | Căpâlna, Alba. (Vremea raportată pentru Sasciori/Capalna).
+1. ANTET: Ziua curentă | {city}. (Folosește datele meteo: {briefing_data.get('weather')}).
 2. 🎓 PROGRAM ACADEMIC: Cursuri azi (Ora, Sala, Materia).
 3. 📅 EVENIMENTE: Calendar iCloud (ora și titlu) + Remindere critice.
 4. 🎯 PRIORITĂȚI: Task-uri High și Medium. OBLIGATORIU: Scrie titlul complet al taskului și proiectul în paranteze pătrate, ex: "Faza 8 — Intelligence layer [Proiect: Lora]". NU TĂIA titlul.
-5. 💰 SITUAȚIA FINANCIARĂ: Balanța (57 RON).
+5. 💰 SITUAȚIA FINANCIARĂ: Balanța reală din date.
 6. 🔥 HABIT STREAKS: Menționează skill-urile cu streak.
 7. 🗞️ TECH NEWS: Traduce titlurile în română și adaugă 10 cuvinte despre relevanță.
 8. 🧠 MEMORY LANE: O referință la progresul tău pe termen lung.
@@ -1813,6 +1814,38 @@ def setup_scheduler(application, pool):
         args=[pool],
     )
 
+    # Weather alert - every 3 hours
+    scheduler.add_job(
+        check_weather_alerts_job,
+        "interval",
+        hours=3,
+        misfire_grace_time=3600,
+        args=[application, pool],
+    )
+
     scheduler.start()
     print("Scheduler started with misfire grace periods.")
     return scheduler
+
+
+async def check_weather_alerts_job(application, pool):
+    """Periodic check for severe weather based on user location."""
+    try:
+        from modules.weather import check_weather_for_alerts
+        profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
+        if not profile:
+            return
+        lat = profile.get("latitude")
+        lon = profile.get("longitude")
+
+        if lat and lon:
+            alert_msg = await check_weather_for_alerts(float(lat), float(lon))
+            if alert_msg:
+                await application.bot.send_message(
+                    chat_id=TELEGRAM_USER_ID,
+                    text=alert_msg,
+                    parse_mode="Markdown"
+                )
+                print(f"🌦️ Weather alert sent: {alert_msg}")
+    except Exception as e:
+        print(f"Error in check_weather_alerts_job: {e}")

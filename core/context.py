@@ -255,17 +255,21 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
         except Exception:
             pass
 
-    # 1. Gather all raw data in parallel
+    # 1. Fetch profile first to get location
+    profile = await get_user_profile(pool, TELEGRAM_USER_ID)
+    lat = profile.get("latitude") if profile else None
+    lon = profile.get("longitude") if profile else None
+
+    # 2. Gather all raw data in parallel
     results = await asyncio.gather(
         task_queries.list_tasks(pool),
         skill_queries.get_all_skills(pool),
         finance_queries.get_monthly_summary(pool, today.month, today.year),
         finance_queries.get_budget_status(pool),
-        get_weather_summary(),
+        get_weather_summary(lat=lat, lon=lon),
         get_today_schedule(pool),
         list_events(pool, today, today),
         get_health_log(pool, today),
-        get_user_profile(pool, TELEGRAM_USER_ID),
         get_current_week_type(pool),
         get_upcoming_exams(pool, days=7),
         get_council_summary(),
@@ -283,7 +287,6 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
         schedule,
         events,
         health,
-        profile,
         week_type,
         exams,
         council_summary,

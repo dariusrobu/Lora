@@ -213,8 +213,10 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         
         print(f"📍 LOCATION SYNCED: {lat}, {lon} ({city_name})")
         
-        msg = f"📍 *Locație sincronizată\\!*\\n\nAcum suntem în *{city_name}*\\. Îți voi oferi date meteo și sugestii exacte pentru zona ta\\. 🌐"
-        await update.message.reply_text(msg, parse_mode="MarkdownV2")
+        # Only reply if it's a NEW message (not a Live Location update)
+        if not update.edited_message:
+            msg = f"📍 *Locație sincronizată\\!*\\n\nAcum suntem în *{city_name}*\\. Îți voi oferi date meteo și sugestii exacte pentru zona ta\\. 🌐"
+            await update.message.reply_text(msg, parse_mode="MarkdownV2")
         
     except Exception as e:
         print(f"ERROR in location_handler: {e}")
