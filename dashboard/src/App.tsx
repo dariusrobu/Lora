@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { 
   CheckCircle2, Navigation, Plus, GraduationCap, 
   Dumbbell, Wallet, ArrowLeft, Loader2, Settings,
-  Calendar, ShoppingCart, Heart, Flame, Brain, Play, Pause, RotateCcw,
+  ShoppingCart, Heart, Flame, Brain, Play, Pause, RotateCcw,
   TrendingUp, Star, Moon, Droplets, Scale,
   Pin, MapPin, Search, Sun, Cloud, CloudRain, CloudDrizzle, CloudSnow, CloudLightning,
-  Briefcase, Target, Zap
+  Briefcase, Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -20,33 +20,73 @@ const HEADERS = {
   'Bypass-Tunnel-Reminder': 'true'
 };
 
+const DynamicIsland = ({ active, message, icon: Icon }: any) => (
+  <AnimatePresence>
+    {active && (
+      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[2000] pointer-events-none">
+        <motion.div 
+          initial={{ width: 120, height: 36, borderRadius: 100, opacity: 0, y: -20 }}
+          animate={{ width: 'auto', height: 48, borderRadius: 24, opacity: 1, y: 0 }}
+          exit={{ width: 80, height: 20, borderRadius: 100, opacity: 0, y: -20 }}
+          className="bg-black/90 backdrop-blur-3xl border border-white/10 flex items-center gap-4 px-6 py-2 shadow-2xl overflow-hidden min-w-[200px]"
+        >
+          {Icon && <Icon className="w-4 h-4 text-[#adc6ff] animate-pulse" />}
+          <span className="text-[10px] font-black uppercase tracking-widest text-white whitespace-nowrap kinetic-text">{message}</span>
+        </motion.div>
+      </div>
+    )}
+  </AnimatePresence>
+);
+
+const TiltCard = ({ children, className, onClick }: any) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    ref.current.style.transform = `perspective(1000px) rotateX(${-y * 10}deg) rotateY(${x * 10}deg) scale3d(1.02, 1.02, 1.02)`;
+  };
+  const handleMouseLeave = () => {
+    if (!ref.current) return;
+    ref.current.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)';
+  };
+  return (
+    <div 
+      ref={ref}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      onClick={onClick}
+      className={`liquid-panel tilt-card p-8 rounded-[32px] cursor-pointer group relative overflow-hidden ${className}`}
+    >
+      <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="relative z-10">{children}</div>
+    </div>
+  );
+};
+
 type View = 'home' | 'map' | 'uni' | 'gym' | 'skills' | 'shop' | 'notes' | 'health' | 'calendar' | 'finance' | 'tasks' | 'projects' | 'memory';
 
 // --- Shared Components ---
 const GlassCard = ({ children, className = "", onClick }: any) => (
-  <motion.div 
-    whileHover={onClick ? { scale: 1.01, backgroundColor: 'rgba(255, 255, 255, 0.05)' } : {}}
-    whileTap={onClick ? { scale: 0.99 } : {}}
-    onClick={onClick}
-    className={`liquid-panel rounded-2xl p-6 ${className} ${onClick ? 'cursor-pointer' : ''}`}
-  >
+  <div onClick={onClick} className={`liquid-panel rounded-2xl p-6 ${className} ${onClick ? 'cursor-pointer hover:bg-white/[0.05]' : ''}`}>
     {children}
-  </motion.div>
+  </div>
 );
 
 const ViewContainer = ({ children, title, onBack }: any) => (
   <motion.div 
-    initial={{ opacity: 0, scale: 0.98 }}
-    animate={{ opacity: 1, scale: 1 }}
-    exit={{ opacity: 0, scale: 1.02 }}
-    className="fixed inset-0 bg-[#050505] z-[100] p-8 lg:p-16 overflow-y-auto no-scrollbar"
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: -20 }}
+    className="fixed inset-0 bg-[#050505]/95 backdrop-blur-3xl z-[100] p-8 lg:p-16 overflow-y-auto no-scrollbar"
   >
     <div className="max-w-4xl mx-auto">
       <div className="flex justify-between items-center mb-12">
         <button onClick={onBack} className="w-12 h-12 rounded-full liquid-panel flex items-center justify-center hover:bg-white/10 transition-colors">
           <ArrowLeft className="w-5 h-5 text-[#adc6ff]" />
         </button>
-        <h2 className="label-ethereal">{title}</h2>
+        <h2 className="label-ethereal kinetic-text">{title}</h2>
         <div className="w-12" />
       </div>
       {children}
@@ -77,9 +117,15 @@ function App() {
   const [timerActive, setTimerActive] = useState(false);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const timerRef = useRef<any>(null);
+  const [notification, setNotification] = useState<{message: string, active: boolean, icon: any}>({ message: '', active: false, icon: null });
 
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const showNotification = (message: string, icon: any) => {
+    setNotification({ message, active: true, icon });
+    setTimeout(() => setNotification(prev => ({ ...prev, active: false })), 5000);
+  };
 
   useEffect(() => {
     console.log("🚀 Safe Mode Boot: Lora Hub");
@@ -91,11 +137,15 @@ function App() {
   useEffect(() => {
     if (timerActive && timeLeft > 0) {
       timerRef.current = setInterval(() => setTimeLeft(t => t - 1), 1000);
+    } else if (timeLeft === 0) {
+      setTimerActive(false);
+      showNotification('Focus Session Completat', Zap);
     } else {
       clearInterval(timerRef.current);
     }
     return () => clearInterval(timerRef.current);
   }, [timerActive, timeLeft]);
+
 
   const fetchData = async () => {
     const fetchModule = async (url: string, defaultValue: any = null) => {
@@ -210,6 +260,13 @@ function App() {
 
   return (
     <div className="min-h-screen text-white font-sans overflow-x-hidden selection:bg-[#3b82f6]/30">
+      <div className="aura-container">
+        <div className="aura-blob aura-1" />
+        <div className="aura-blob aura-2" />
+        <div className="aura-blob aura-3" />
+      </div>
+
+      <DynamicIsland active={notification.active} message={notification.message} icon={notification.icon} />
       
       <AnimatePresence mode="wait">
         {view === 'home' && (
@@ -220,82 +277,128 @@ function App() {
             exit={{ opacity: 0 }}
             className="p-8 lg:p-16 pb-32 space-y-12 max-w-7xl mx-auto"
           >
-            <header className="flex justify-between items-start">
-              <div className="space-y-2">
-                <h1 className="text-5xl font-light tracking-[-0.05em] text-[#adc6ff]">LORA<span className="text-white/30">.</span></h1>
-                <p className="label-ethereal">{tasks.filter(t => t.status !== 'done').length} Task-uri Active</p>
+            <header className="flex justify-between items-start mb-16">
+              <div className="space-y-4">
+                <h1 className="text-6xl font-light tracking-[-0.05em] text-[#adc6ff] kinetic-text">LORA<span className="text-white/30">.</span></h1>
+                <p className="label-ethereal flex items-center gap-2">
+                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                   Sistem Activ • {tasks.filter(t => t.status !== 'done').length} Priorități
+                </p>
               </div>
               <div className="flex gap-4">
-                <button className="w-12 h-12 rounded-full liquid-panel flex items-center justify-center hover:bg-white/10 transition-colors"><Search className="w-5 h-5 text-gray-500" /></button>
-                <button className="w-12 h-12 rounded-full liquid-panel flex items-center justify-center hover:bg-white/10 transition-colors"><Settings className="w-5 h-5 text-gray-400" /></button>
+                <button className="w-14 h-14 rounded-full liquid-panel flex items-center justify-center hover:bg-white/10 transition-all hover:scale-110 shadow-2xl shadow-blue-500/10"><Search className="w-5 h-5 text-gray-500" /></button>
+                <button className="w-14 h-14 rounded-full liquid-panel flex items-center justify-center hover:bg-white/10 transition-all hover:scale-110 shadow-2xl shadow-blue-500/10"><Settings className="w-5 h-5 text-gray-400" /></button>
               </div>
             </header>
 
-            {/* Top Stats Scroll */}
-            <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
-              <GlassCard className="min-w-[160px] p-4 flex gap-3 items-center" onClick={() => setView('finance')}>
-                <Wallet className="w-4 h-4 text-emerald-500" />
-                <div>
-                  <p className="text-[8px] font-black uppercase text-gray-500">Balanță</p>
-                  <p className="text-sm font-black">{finance?.balance || 0} Lei</p>
+            {/* Top Stats Scroll with Sparklines */}
+            <div className="flex gap-6 overflow-x-auto no-scrollbar py-4 -mx-4 px-4">
+              <GlassCard className="min-w-[220px] p-6 space-y-6 group overflow-hidden relative" onClick={() => setView('finance')}>
+                <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="flex justify-between items-start relative z-10">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                    <Wallet className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <TrendingUp className="w-4 h-4 text-emerald-500/30 group-hover:text-emerald-400 transition-colors" />
+                </div>
+                <div className="relative z-10">
+                  <p className="label-ethereal text-[8px]">Balanță Curentă</p>
+                  <p className="text-3xl font-black tracking-tighter tabular-nums">{finance?.balance || 0} <span className="text-[10px] font-bold opacity-30">LEI</span></p>
+                </div>
+                <svg className="w-full h-8 relative z-10 opacity-30 group-hover:opacity-100 transition-all duration-700">
+                  <path 
+                    d={`M0,25 Q15,5 30,20 T60,10 T90,22 T120,15 T150,5 T180,25`} 
+                    fill="none" 
+                    stroke="#10b981" 
+                    strokeWidth="2.5" 
+                    strokeLinecap="round" 
+                    className="filter drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                  />
+                </svg>
+              </GlassCard>
+              
+              <GlassCard className="min-w-[220px] p-6 space-y-6 group overflow-hidden relative" onClick={() => setView('health')}>
+                <div className="absolute inset-0 bg-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="flex justify-between items-start relative z-10">
+                  <div className="w-10 h-10 rounded-xl bg-pink-500/10 flex items-center justify-center">
+                    <Heart className="w-5 h-5 text-pink-400" />
+                  </div>
+                  <Droplets className="w-4 h-4 text-blue-400/30 group-hover:text-blue-400 transition-colors" />
+                </div>
+                <div className="relative z-10">
+                  <p className="label-ethereal text-[8px]">Vitals Azi</p>
+                  <p className="text-2xl font-black">{healthLogs[0]?.sleep_hours || '—'}h Somn</p>
+                  <div className="flex gap-2 mt-2">
+                    <div className="w-1 h-1 rounded-full bg-blue-500" />
+                    <p className="text-[9px] font-black uppercase text-gray-500">{healthLogs[0]?.water_ml || 0}ml apă logată</p>
+                  </div>
                 </div>
               </GlassCard>
-              <GlassCard className="min-w-[160px] p-4 flex gap-3 items-center" onClick={() => setView('health')}>
-                <Heart className="w-4 h-4 text-pink-500" />
-                <div>
-                  <p className="text-[8px] font-black uppercase text-gray-500">Vitals Azi</p>
-                  <p className="text-[11px] font-black leading-tight mt-0.5">
-                    {healthLogs[0]?.sleep_hours || '—'}h Somn • {healthLogs[0]?.water_ml || 0}ml
-                  </p>
-                  <p className="text-[9px] font-bold text-gray-500 uppercase mt-0.5">Nutriție: {healthLogs[0]?.nutrition || '—'}</p>
+
+              <GlassCard className="min-w-[220px] p-6 space-y-6 group overflow-hidden relative" onClick={() => setView('gym')}>
+                <div className="absolute inset-0 bg-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="flex justify-between items-start relative z-10">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
+                    <Dumbbell className="w-5 h-5 text-red-400" />
+                  </div>
+                  <Flame className="w-4 h-4 text-orange-400/30 group-hover:text-orange-400 transition-colors" />
                 </div>
-              </GlassCard>
-              <GlassCard className="min-w-[160px] p-4 flex gap-3 items-center" onClick={() => setView('gym')}>
-                <Dumbbell className="w-4 h-4 text-red-500" />
-                <div>
-                  <p className="text-[8px] font-black uppercase text-gray-500">Antrenament</p>
-                  <p className="text-sm font-black">{gymStats?.summary?.total_sessions || 0} Sesiuni</p>
+                <div className="relative z-10">
+                  <p className="label-ethereal text-[8px]">Antrenament</p>
+                  <p className="text-2xl font-black">{gymStats?.summary?.total_sessions || 0} Sesiuni</p>
+                  <p className="text-[9px] font-black uppercase text-gray-500 mt-2">Level Up: {Math.round((gymStats?.summary?.total_sessions || 0) / 10)}</p>
                 </div>
               </GlassCard>
             </div>
+
             
-            {/* Weather Bento */}
+            {/* Weather Bento - Ultra Refined */}
             {weather && weather.main && (
               <section className="mt-8 mb-4">
-                <GlassCard className="flex items-center justify-between p-6 overflow-hidden relative group border-blue-500/10">
-                  <div className="relative z-10">
-                    <div className="flex items-center gap-2 mb-1">
-                      <MapPin className="w-3 h-3 text-blue-500" />
-                      <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{weather.name}</span>
+                <TiltCard className="p-8 border-white/5 bg-white/[0.01] hover:bg-white/[0.03] transition-all" onClick={() => setView('map')}>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
+                           <MapPin className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#adc6ff] kinetic-text">{weather.name}</span>
+                      </div>
+                      <div className="flex items-end gap-6">
+                        <h3 className="text-7xl font-thin tracking-tighter text-white">{Math.round(weather.main?.temp)}°</h3>
+                        <div className="pb-3 space-y-1">
+                          <p className="label-ethereal text-white">{weather.weather?.[0]?.description}</p>
+                          <p className="text-[9px] font-bold text-gray-600 uppercase">Umiditate {weather.main?.humidity}% • Vânt {weather.wind?.speed}m/s</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-end gap-2">
-                      <h3 className="text-5xl font-black text-white leading-none">{Math.round(weather.main?.temp)}°</h3>
-                      <p className="text-xs font-bold text-gray-500 uppercase pb-1">{weather.weather?.[0]?.description}</p>
+                    
+                    <div className="text-right">
+                      <motion.div 
+                        animate={{ y: [0, -10, 0] }}
+                        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                        className="p-6 rounded-[40px] bg-white/5 backdrop-blur-3xl border border-white/10 shadow-2xl"
+                      >
+                        {weather.weather?.[0]?.main === 'Clear' && <Sun className="w-20 h-20 text-yellow-500 drop-shadow-[0_0_30px_rgba(234,179,8,0.6)]" />}
+                        {weather.weather?.[0]?.main === 'Clouds' && <Cloud className="w-20 h-20 text-blue-300 drop-shadow-[0_0_30px_rgba(147,197,253,0.6)]" />}
+                        {weather.weather?.[0]?.main === 'Rain' && <CloudRain className="w-20 h-20 text-blue-500" />}
+                        {weather.weather?.[0]?.main === 'Drizzle' && <CloudDrizzle className="w-20 h-20 text-blue-400" />}
+                        {weather.weather?.[0]?.main === 'Snow' && <CloudSnow className="w-20 h-20 text-white" />}
+                        {['Thunderstorm', 'Mist', 'Fog', 'Haze'].includes(weather.weather?.[0]?.main) && <CloudLightning className="w-20 h-20 text-purple-400" />}
+                      </motion.div>
                     </div>
                   </div>
-                  
-                  <div className="relative z-10 text-right">
-                    {weather.weather?.[0]?.main === 'Clear' && <Sun className="w-14 h-14 text-yellow-500 drop-shadow-[0_0_15px_rgba(234,179,8,0.5)]" />}
-                    {weather.weather?.[0]?.main === 'Clouds' && <Cloud className="w-14 h-14 text-blue-300 drop-shadow-[0_0_15px_rgba(147,197,253,0.5)]" />}
-                    {weather.weather?.[0]?.main === 'Rain' && <CloudRain className="w-14 h-14 text-blue-500" />}
-                    {weather.weather?.[0]?.main === 'Drizzle' && <CloudDrizzle className="w-14 h-14 text-blue-400" />}
-                    {weather.weather?.[0]?.main === 'Snow' && <CloudSnow className="w-14 h-14 text-white" />}
-                    {['Thunderstorm', 'Mist', 'Fog', 'Haze'].includes(weather.weather?.[0]?.main) && <CloudLightning className="w-14 h-14 text-purple-400" />}
-                  </div>
-
-                  {/* Decorative circle */}
-                  <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all duration-700" />
-                </GlassCard>
+                </TiltCard>
               </section>
             )}
 
+
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               
-              {/* Left Column: Modules & Focus (Desktop) */}
+              {/* Left Column: Systems & Focus OS */}
               <div className="lg:col-span-4 space-y-8">
-                {/* Module Hub (Desktop: Sidebar-ish, Mobile: Grid) */}
                 <section className="space-y-4">
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 px-2">Sisteme Lora</h3>
+                  <h3 className="label-ethereal ml-2">Sisteme Nucleu</h3>
                   <div className="grid grid-cols-4 lg:grid-cols-2 gap-4">
                     {[
                       { id: 'tasks', icon: CheckCircle2, label: 'Tasks', color: 'text-emerald-400' },
@@ -305,51 +408,71 @@ function App() {
                       { id: 'uni', icon: GraduationCap, label: 'Academic', color: 'text-orange-500' },
                       { id: 'gym', icon: Dumbbell, label: 'Sală', color: 'text-red-500' },
                       { id: 'skills', icon: Flame, label: 'Skills', color: 'text-yellow-500' },
-                      { id: 'shop', icon: ShoppingCart, label: 'Shop', color: 'text-purple-500' },
-                      { id: 'memory', icon: Brain, label: 'Memorie', color: 'text-emerald-500' },
-                      { id: 'notes', icon: Target, label: 'Brain', color: 'text-blue-500' },
-                      { id: 'health', icon: Heart, label: 'Sănătate', color: 'text-pink-500' },
-                      { id: 'calendar', icon: Calendar, label: 'Plan', color: 'text-blue-400' }
+                      { id: 'shop', icon: ShoppingCart, label: 'Shop', color: 'text-purple-500' }
                     ].map(m => (
-                      <button key={m.id} onClick={() => setView(m.id as View)} className="flex lg:flex-row flex-col items-center gap-3 p-3 lg:bg-white/[0.03] lg:border lg:border-white/5 lg:rounded-2xl hover:bg-white/10 transition-all">
-                        <div className="w-10 h-10 lg:w-8 lg:h-8 rounded-xl bg-white/[0.05] flex items-center justify-center">
+                      <button key={m.id} onClick={() => setView(m.id as View)} className="flex lg:flex-row flex-col items-center gap-3 p-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/10 transition-all hover:scale-[1.02] active:scale-[0.98] group">
+                        <div className="w-10 h-10 lg:w-8 lg:h-8 rounded-xl bg-white/[0.05] flex items-center justify-center group-hover:bg-white/10 transition-colors">
                           <m.icon className={`w-5 h-5 lg:w-4 lg:h-4 ${m.color}`} />
                         </div>
-                        <span className="text-[8px] lg:text-[10px] font-black uppercase tracking-widest text-gray-400">{m.label}</span>
+                        <span className="text-[8px] lg:text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-white transition-colors">{m.label}</span>
                       </button>
                     ))}
                   </div>
                 </section>
 
-                <GlassCard className="h-44 flex flex-col justify-between border-blue-500/20 bg-gradient-to-br from-blue-500/5 to-transparent">
-                  <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">Focus OS</p>
-                  <div className="text-center space-y-2">
-                    <p className="text-3xl font-black tracking-tighter">{formatTime(timeLeft)}</p>
-                    <div className="flex justify-center gap-2">
-                      <button onClick={() => setTimerActive(!timerActive)} className="p-2 bg-blue-500/10 rounded-full">{timerActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}</button>
-                      <button onClick={() => setTimeLeft(25 * 60)} className="p-2 bg-white/5 rounded-full"><RotateCcw className="w-4 h-4" /></button>
-                    </div>
+                <TiltCard className="h-72 flex flex-col items-center justify-center border-blue-500/20 bg-gradient-to-br from-blue-500/5 to-transparent relative group">
+                  <p className="absolute top-8 left-8 label-ethereal text-[8px]">Focus OS</p>
+                  
+                  <div className="relative w-36 h-36 flex items-center justify-center">
+                    <svg className="absolute inset-0 w-full h-full -rotate-90">
+                      <circle cx="72" cy="72" r="68" fill="none" stroke="rgba(255,255,255,0.02)" strokeWidth="4" />
+                      <motion.circle 
+                        cx="72" cy="72" r="68" 
+                        fill="none" 
+                        stroke="#3b82f6" 
+                        strokeWidth="4" 
+                        strokeLinecap="round"
+                        initial={{ pathLength: 0 }}
+                        animate={{ pathLength: timeLeft / (25 * 60) }}
+                        transition={{ duration: 1 }}
+                        style={{ filter: 'drop-shadow(0 0 8px rgba(59,130,246,0.5))' }}
+                      />
+                    </svg>
+                    <p className="text-4xl font-black tracking-tighter kinetic-text">{formatTime(timeLeft)}</p>
                   </div>
-                </GlassCard>
+                  
+                  <div className="mt-8 flex justify-center gap-4 relative z-10">
+                    <button onClick={(e) => { e.stopPropagation(); setTimerActive(!timerActive); }} className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center hover:bg-blue-500/20 transition-all border border-blue-500/20 group">
+                      {timerActive ? <Pause className="w-5 h-5 text-blue-400" /> : <Play className="w-5 h-5 text-blue-400 pl-0.5" />}
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); setTimeLeft(25 * 60); }} className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all border border-white/10">
+                      <RotateCcw className="w-5 h-5 text-gray-500" />
+                    </button>
+                  </div>
+                </TiltCard>
               </div>
 
-              {/* Middle Column: Priorities & Add Task */}
+
+              {/* Middle Column: Project Pulse & Intelligence */}
               <div className="lg:col-span-5 space-y-8">
-                <GlassCard className="h-44 flex flex-col justify-between bg-blue-600 shadow-[0_20px_50px_rgba(37,99,235,0.2)] border-none" onClick={() => setIsAddingTask(true)}>
-                  <p className="text-[8px] font-black uppercase tracking-widest text-blue-100">Quick Entry</p>
-                  <div className="flex items-center gap-6">
-                    <div className="w-16 h-16 rounded-3xl bg-white/20 backdrop-blur-md flex items-center justify-center"><Plus className="w-8 h-8" /></div>
+                <TiltCard className="h-44 flex flex-col justify-between bg-blue-600/90 shadow-[0_30px_60px_rgba(37,99,235,0.3)] border-none hover:scale-[1.03] transition-transform" onClick={() => setIsAddingTask(true)}>
+                  <p className="text-[8px] font-black uppercase tracking-widest text-blue-100">Quick Command</p>
+                  <div className="flex items-center gap-8">
+                    <div className="w-20 h-20 rounded-[32px] bg-white/20 backdrop-blur-2xl flex items-center justify-center shadow-2xl"><Plus className="w-10 h-10 text-white" /></div>
                     <div>
-                      <p className="text-2xl font-black leading-none">Ceva nou?</p>
-                      <p className="text-[10px] font-bold text-blue-100 uppercase tracking-widest mt-2">Adaugă un task sau o idee</p>
+                      <p className="text-3xl font-black leading-none text-white tracking-tighter">Ceva nou?</p>
+                      <p className="text-[10px] font-bold text-blue-100 uppercase tracking-widest mt-3 opacity-80">Sincronizează cu Lora Nucleus</p>
                     </div>
                   </div>
-                </GlassCard>
+                </TiltCard>
 
                 <section className="space-y-6">
                   <h3 className="label-ethereal ml-2 flex justify-between items-center">
-                    <span>Project Pulse</span>
-                    <span className="bg-blue-500/10 text-[#adc6ff] px-2 py-0.5 rounded text-[8px] uppercase tracking-widest">{tasks.filter(t => t.status !== 'done').length} Total</span>
+                    <span>Proiecte Active</span>
+                    <div className="flex items-center gap-2">
+                       <div className="w-1 h-1 rounded-full bg-blue-400" />
+                       <span className="text-[9px] text-gray-500 uppercase tracking-widest">{tasks.filter(t => t.status !== 'done').length} Priorități</span>
+                    </div>
                   </h3>
                   
                   <div className="space-y-4">
@@ -361,48 +484,58 @@ function App() {
                           return acc;
                         }, {})
                       ).map(([proj, count]: [string, any]) => (
-                        <div key={proj} className="liquid-panel p-5 flex justify-between items-center hover:bg-white/5 transition-all group cursor-pointer" onClick={() => setView('tasks')}>
-                          <div className="flex items-center gap-4">
-                             <div className="w-1 h-6 bg-[#3b82f6] rounded-full group-hover:scale-y-125 transition-transform" />
-                             <p className="font-light text-lg tracking-tight">{proj}</p>
+                        <div key={proj} className="liquid-panel p-6 flex justify-between items-center hover:bg-white/[0.05] transition-all group cursor-pointer" onClick={() => setView('tasks')}>
+                          <div className="flex items-center gap-5">
+                             <div className="w-1.5 h-8 bg-blue-500 rounded-full group-hover:scale-y-125 transition-transform shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
+                             <div>
+                                <p className="font-medium text-xl tracking-tight">{proj}</p>
+                                <p className="label-ethereal text-[8px] opacity-40 mt-1">Sincronizat</p>
+                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                             <span className="label-ethereal text-[8px] opacity-40">Active</span>
-                             <span className="text-xl font-thin text-[#adc6ff]">{count}</span>
+                          <div className="flex items-center gap-4">
+                             <span className="text-3xl font-thin text-[#adc6ff]">{count}</span>
+                             <ArrowLeft className="w-4 h-4 text-gray-700 rotate-180 group-hover:translate-x-1 transition-transform" />
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="py-20 text-center space-y-6 liquid-panel border-dashed border-white/5">
-                         <CheckCircle2 className="w-10 h-10 text-emerald-500/30 mx-auto" />
-                         <p className="label-ethereal text-[9px]">Sistem Nominal • Toate sarcinile completate</p>
+                      <div className="py-24 text-center space-y-8 liquid-panel border-dashed border-white/10 rounded-[40px]">
+                         <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 4 }}>
+                            <CheckCircle2 className="w-16 h-16 text-emerald-500/20 mx-auto" />
+                         </motion.div>
+                         <div className="space-y-2">
+                           <p className="label-ethereal text-[10px] text-emerald-400">Sistem Nominal</p>
+                           <p className="text-xs text-gray-500">Toate fluxurile de lucru sunt completate</p>
+                         </div>
                       </div>
                     )}
                   </div>
                 </section>
               </div>
 
-              {/* Right Column: Schedule & Vitals */}
+
+              {/* Right Column: Intelligence & Vitals */}
               <div className="lg:col-span-3 space-y-12">
                 <section className="space-y-6">
                   <h3 className="label-ethereal ml-2">Program Azi</h3>
                   <div className="space-y-4">
                     {calendarToday?.schedule?.map((s: any) => (
-                      <div key={s.id} className="liquid-panel p-5 flex gap-6 items-center hover:bg-white/5 transition-all">
-                        <div className="w-14 text-center space-y-1">
-                           <p className="text-xs font-light text-[#adc6ff]">{s.start_time.slice(0, 5)}</p>
-                           <div className="w-4 h-[1px] bg-white/10 mx-auto" />
+                      <div key={s.id} className="liquid-panel p-6 flex gap-6 items-center hover:bg-white/[0.04] transition-all rounded-[24px]">
+                        <div className="w-14 text-center space-y-2">
+                           <p className="text-[10px] font-black text-[#adc6ff] tabular-nums">{s.start_time.slice(0, 5)}</p>
+                           <div className="w-6 h-[1px] bg-blue-500/20 mx-auto" />
                         </div>
                         <div className="flex-1 space-y-1">
-                          <p className="font-medium text-sm tracking-tight">{s.subject_name}</p>
-                          <p className="label-ethereal text-[8px] opacity-50">{s.room}</p>
+                          <p className="font-bold text-sm tracking-tight">{s.subject_name}</p>
+                          <p className="label-ethereal text-[8px] opacity-40">{s.room}</p>
                         </div>
-                        <Navigation className="w-4 h-4 text-gray-700" />
+                        <Navigation className="w-4 h-4 text-gray-700 group-hover:text-blue-400 transition-colors" />
                       </div>
                     ))}
                     {(!calendarToday?.schedule || calendarToday.schedule.length === 0) && (
-                       <div className="py-12 text-center liquid-panel border-dashed border-white/5">
-                          <p className="label-ethereal text-[8px]">Program Liber • Weekend Mode</p>
+                       <div className="py-16 text-center liquid-panel border-dashed border-white/5 rounded-[32px]">
+                          <p className="label-ethereal text-[9px]">Weekend Mode</p>
+                          <p className="text-[9px] text-gray-600 font-bold mt-2 uppercase">Niciun eveniment detectat</p>
                        </div>
                     )}
                   </div>
@@ -411,29 +544,31 @@ function App() {
                 <section className="space-y-6">
                   <h3 className="label-ethereal ml-2">Vitals</h3>
                   <div className="space-y-4">
-                    <GlassCard className="flex gap-5 items-center group" onClick={() => setView('health')}>
-                      <div className="w-12 h-12 rounded-xl bg-pink-500/10 flex items-center justify-center">
-                        <Heart className="w-5 h-5 text-pink-500" />
+                    <GlassCard className="flex gap-6 items-center group relative overflow-hidden" onClick={() => setView('health')}>
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-pink-500/5 rounded-full blur-2xl -mr-12 -mt-12" />
+                      <div className="w-12 h-12 rounded-2xl bg-pink-500/10 flex items-center justify-center group-hover:bg-pink-500/20 transition-colors">
+                        <Heart className="w-6 h-6 text-pink-400" />
                       </div>
                       <div className="flex-1">
                         <p className="label-ethereal text-[8px]">Health Score</p>
-                        <p className="text-lg font-light">{healthLogs[0]?.sleep_hours || '8'}h Somn</p>
+                        <p className="text-xl font-bold tracking-tight">{healthLogs[0]?.sleep_hours || '8'}h Somn</p>
                       </div>
-                      <button className="text-[8px] label-ethereal p-2 liquid-panel hover:bg-blue-500/10">vConsole</button>
                     </GlassCard>
                     
-                    <GlassCard className="flex gap-5 items-center group" onClick={() => setView('gym')}>
-                      <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center">
-                        <Dumbbell className="w-5 h-5 text-red-500" />
+                    <GlassCard className="flex gap-6 items-center group relative overflow-hidden" onClick={() => setView('gym')}>
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/5 rounded-full blur-2xl -mr-12 -mt-12" />
+                      <div className="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
+                        <Dumbbell className="w-6 h-6 text-red-400" />
                       </div>
                       <div className="flex-1">
                         <p className="label-ethereal text-[8px]">Antrenament</p>
-                        <p className="text-lg font-light">{gymStats?.summary?.total_sessions || 0} Sesiuni</p>
+                        <p className="text-xl font-bold tracking-tight">{gymStats?.summary?.total_sessions || 0} Sesiuni</p>
                       </div>
                     </GlassCard>
                   </div>
                 </section>
               </div>
+
             </div>
           </motion.div>
         )}
