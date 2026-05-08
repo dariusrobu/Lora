@@ -429,8 +429,8 @@ async def start_bot():
     await application.start()
 
     # Increased delay for Render to clear old instances
-    print("⏳ Waiting 15s for old instances to clear (Anti-Conflict)...", flush=True)
-    await asyncio.sleep(15)
+    print("⏳ Waiting 30s for old instances to clear (Anti-Conflict)...", flush=True)
+    await asyncio.sleep(30)
 
     await application.updater.start_polling(drop_pending_updates=True)
     print("Lora is LIVE via Polling 🚀", flush=True)
