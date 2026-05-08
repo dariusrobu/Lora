@@ -633,7 +633,7 @@ async def sync_tasks_with_deadlines(pool) -> dict:
 
 async def sync_tasks_to_reminders(pool) -> dict:
     """Syncs pending Lora tasks to Apple Reminders list (as VTODO)."""
-    print("🚀 sync_tasks_to_reminders STARTING...")
+    print("🚀 sync_tasks_to_reminders STARTING (v3)...", flush=True)
     stats = {"created": 0, "skipped": 0, "errors": 0}
     try:
         from db.queries.tasks import list_tasks
@@ -641,7 +641,7 @@ async def sync_tasks_to_reminders(pool) -> dict:
         all_tasks = await list_tasks(pool)
         # We sync all pending tasks, not just those with dates
         pending_tasks = [t for t in all_tasks if t["status"] == "pending"]
-        print(f"📋 Found {len(pending_tasks)} pending tasks in Lora DB.")
+        print(f"📋 Found {len(pending_tasks)} pending tasks in Lora DB.", flush=True)
 
         for t in pending_tasks:
             lora_id = t["id"]
