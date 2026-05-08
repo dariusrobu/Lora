@@ -1013,13 +1013,6 @@ function App() {
           </ViewContainer>
         )}
 
-      {/* Diagnostics */}
-      {errorMessage && (
-        <div className="fixed top-0 left-0 right-0 z-[2000] bg-red-600/90 text-white p-2 text-[8px] font-mono backdrop-blur-sm">
-          ERR: {errorMessage} | API: {BASE_URL}
-        </div>
-      )}
-      
       </AnimatePresence>
 
       {/* Add Task Modal */}

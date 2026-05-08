@@ -31,13 +31,6 @@ services:
         sync: false
       - key: ICLOUD_APP_PASSWORD
         sync: false
+      - key: WEB_DOMAIN
+        value: lora-bot-tgbi.onrender.com
     autoDeploy: true
-
-  - type: static
-    name: lora-dashboard
-    runtime: static
-    buildCommand: cd dashboard && npm install && npm run build
-    staticPublishPath: dashboard/dist
-    envVars:
-      - key: VITE_API_BASE_URL
-        value: https://lora-bot-tgbi.onrender.com # Update this after bot deployment
