@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime, timedelta, date, time
 from typing import List, Dict, Any, Optional
 import pytz
-from icalendar import Calendar as iCal, Event as iEvent, Alarm as iAlarm, vText, vRecur
+from icalendar import Calendar as iCal, Event as iEvent, Todo as iTodo, Alarm as iAlarm, vText, vRecur
 import recurring_ical_events
 from core.config import (
     ICLOUD_USERNAME,
@@ -212,6 +212,44 @@ async def create_event(
     new_event = await asyncio.to_thread(cal.add_event, ical.to_ical())
     # Return UID
     return str(iCal.from_ical(new_event.data).walk("vevent")[0].get("uid"))
+
+
+async def create_reminder(
+    summary: str,
+    due_date: Optional[date] = None,
+    priority: int = 0,  # 0=none, 1=high, 5=medium, 9=low in CalDAV/iCloud
+    uid: str = None,
+    description: str = None,
+) -> str:
+    """Creates a VTODO reminder in the iCloud Reminders list."""
+    try:
+        client = get_caldav_client()
+        rem_list = get_reminders_list(client)
+
+        ical = iCal()
+        todo = iTodo()
+        todo.add("summary", summary)
+
+        if due_date:
+            todo.add("due", due_date)
+
+        if priority > 0:
+            todo.add("priority", priority)
+
+        if description:
+            todo.add("description", description)
+
+        if uid:
+            todo.add("uid", uid)
+
+        ical.add_component(todo)
+
+        new_todo = await asyncio.to_thread(rem_list.add_todo, ical.to_ical())
+        # Return UID
+        return str(iCal.from_ical(new_todo.data).walk("vtodo")[0].get("uid"))
+    except Exception as e:
+        print(f"Error creating reminder: {e}")
+        raise e
 
 
 async def update_event(uid: str, **kwargs) -> bool:
@@ -578,6 +616,54 @@ async def sync_tasks_with_deadlines(pool) -> dict:
         return stats
     except Exception as e:
         print(f"Sync tasks error: {e}")
+        return stats
+
+
+async def sync_tasks_to_reminders(pool) -> dict:
+    """Syncs pending Lora tasks to Apple Reminders list (as VTODO)."""
+    stats = {"created": 0, "skipped": 0, "errors": 0}
+    try:
+        from db.queries.tasks import list_tasks
+
+        all_tasks = await list_tasks(pool)
+        # We sync all pending tasks, not just those with dates
+        pending_tasks = [t for t in all_tasks if t["status"] == "pending"]
+
+        for t in pending_tasks:
+            lora_id = t["id"]
+            lora_type = "task_reminder"  # Distinct from 'task' which is for calendar
+
+            existing = await calendar_queries.get_sync_record(pool, lora_type, lora_id)
+            if existing:
+                stats["skipped"] += 1
+                continue
+
+            uid = f"lora-task-rem-{lora_id}@lora"
+            priority_map = {"high": 1, "medium": 5, "low": 9}
+            priority = priority_map.get(t.get("priority", "medium"), 5)
+
+            summary = t["title"]
+            if t.get("project_name"):
+                summary = f"[{t['project_name']}] {summary}"
+
+            try:
+                await create_reminder(
+                    summary=summary,
+                    due_date=t["due_date"],
+                    priority=priority,
+                    uid=uid,
+                    description=t.get("notes"),
+                )
+                await calendar_queries.save_sync_record(
+                    pool, lora_type, lora_id, uid, summary
+                )
+                stats["created"] += 1
+            except Exception as e:
+                print(f"Error syncing task {lora_id} to reminders: {e}")
+                stats["errors"] += 1
+        return stats
+    except Exception as e:
+        print(f"Sync tasks to reminders error: {e}")
         return stats
 
 

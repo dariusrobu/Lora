@@ -144,20 +144,30 @@ async def check_wake_time_and_schedule(application, pool):
 
 
 async def sync_calendar_job(pool):
-    """Background job to keep Apple Calendar in sync."""
+    """Background job to keep Apple Calendar and Reminders in sync."""
     import asyncio
-    from core.icloud import sync_university_schedule_to_calendar
+    from core.icloud import (
+        sync_university_schedule_to_calendar,
+        sync_tasks_to_reminders,
+        sync_from_icloud_to_lora,
+        cleanup_calendar_orphans,
+        sync_exams_to_calendar,
+    )
 
-    print("⏳ Starting periodic Apple Calendar sync...", flush=True)
+    print("⏳ Starting periodic Apple Sync (Calendar & Reminders)...", flush=True)
     try:
         await asyncio.gather(
+            cleanup_calendar_orphans(pool),
             sync_university_schedule_to_calendar(pool),
             sync_events_table_to_calendar(pool),
             sync_tasks_with_deadlines(pool),
+            sync_exams_to_calendar(pool),
+            sync_tasks_to_reminders(pool),
+            sync_from_icloud_to_lora(pool),
         )
-        print("✅ Periodic Apple Calendar sync completed.", flush=True)
+        print("✅ Periodic Apple Sync completed.", flush=True)
     except Exception as e:
-        print(f"❌ Periodic Apple Calendar sync failed: {e}", flush=True)
+        print(f"❌ Periodic Apple Sync failed: {e}", flush=True)
 
 
 async def cleanup_history_job(pool):
