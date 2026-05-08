@@ -85,17 +85,14 @@ async def handle_calendar_module_intent(
 
     elif intent == "calendar_sync":
         # Manual sync trigger
-        results = await asyncio.gather(
-            calendar_core.cleanup_calendar_orphans(pool),
-            calendar_core.sync_university_schedule_to_calendar(pool),
-            calendar_core.sync_events_table_to_calendar(pool),
-            calendar_core.sync_tasks_with_deadlines(pool),
-            calendar_core.sync_exams_to_calendar(pool),
-            calendar_core.sync_tasks_to_reminders(pool),
-            calendar_core.sync_from_icloud_to_lora(pool),  # Bi-directional
-        )
-
-        c_stats, s_stats, e_stats, t_stats, ex_stats, r_stats, b_stats = results
+        # Sequential execution for stability and better logging
+        c_stats = await calendar_core.cleanup_calendar_orphans(pool)
+        s_stats = await calendar_core.sync_university_schedule_to_calendar(pool)
+        e_stats = await calendar_core.sync_events_table_to_calendar(pool)
+        t_stats = await calendar_core.sync_tasks_with_deadlines(pool)
+        ex_stats = await calendar_core.sync_exams_to_calendar(pool)
+        r_stats = await calendar_core.sync_tasks_to_reminders(pool)
+        b_stats = await calendar_core.sync_from_icloud_to_lora(pool)  # Bi-directional
         total_created = (
             s_stats["created"]
             + e_stats["created"]
