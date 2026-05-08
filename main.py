@@ -42,6 +42,10 @@ from bot.handler import (
     projects_command,
     reading_command,
     memory_command,
+    set_home_command,
+    save_location_command,
+    list_locations_command,
+    location_status_command,
 )
 from modules.skills import skills_command
 from api.routes import setup_api_routes
