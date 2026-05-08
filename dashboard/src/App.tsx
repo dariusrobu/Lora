@@ -5,7 +5,7 @@ import {
   ShoppingCart, Heart, Flame, Brain, Play, Pause, RotateCcw,
   TrendingUp, Star, Moon, Droplets, Scale,
   Pin, MapPin, Search, Sun, Cloud, CloudRain, CloudDrizzle, CloudSnow, CloudLightning,
-  Briefcase, Zap
+  Briefcase, Zap, BookOpen, Apple
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -65,7 +65,7 @@ const TiltCard = ({ children, className, onClick }: any) => {
   );
 };
 
-type View = 'home' | 'map' | 'uni' | 'gym' | 'skills' | 'shop' | 'notes' | 'health' | 'calendar' | 'finance' | 'tasks' | 'projects' | 'memory';
+type View = 'home' | 'map' | 'uni' | 'gym' | 'skills' | 'shop' | 'notes' | 'health' | 'calendar' | 'finance' | 'tasks' | 'projects' | 'memory' | 'reading' | 'nutrition';
 
 // --- Shared Components ---
 const GlassCard = ({ children, className = "", onClick }: any) => (
@@ -110,6 +110,8 @@ function App() {
   const [weather, setWeather] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [memories, setMemories] = useState<any[]>([]);
+  const [readingList, setReadingList] = useState<any[]>([]);
+  const [nutritionLogs, setNutritionLogs] = useState<any[]>([]);
   const [selectedSkill, setSelectedSkill] = useState<any>(null);
   const [logValue, setLogValue] = useState('');
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -174,7 +176,7 @@ function App() {
 
     try {
       setErrorMessage(null);
-      const [t, f, u, g, s, shop, n, h, c, f_hist, prof, w, projs, mems] = await Promise.all([
+      const [t, f, u, g, s, shop, n, h, c, f_hist, prof, w, projs, mems, read, nutr] = await Promise.all([
         fetchModule('/api/tasks?status=all', []),
         fetchModule('/api/finances/summary'),
         fetchModule('/api/university/summary'),
@@ -188,7 +190,9 @@ function App() {
         fetchModule('/api/profile'),
         fetchModule('/api/weather'),
         fetchModule('/api/projects', []),
-        fetchModule('/api/memory', [])
+        fetchModule('/api/memory', []),
+        fetchModule('/api/reading', []),
+        fetchModule('/api/nutrition', [])
       ]);
 
       setTasks(t);
@@ -205,6 +209,8 @@ function App() {
       setWeather(w);
       setProjects(projs);
       setMemories(mems);
+      setReadingList(read);
+      setNutritionLogs(nutr);
     } catch (e: any) {
       console.error("Global fetch error:", e);
       setErrorMessage(e.message || "Eroare necunoscută la sincronizare");
@@ -404,7 +410,9 @@ function App() {
                       { id: 'uni', icon: GraduationCap, label: 'Academic', color: 'text-orange-500' },
                       { id: 'gym', icon: Dumbbell, label: 'Sală', color: 'text-red-500' },
                       { id: 'skills', icon: Flame, label: 'Skills', color: 'text-yellow-500' },
-                      { id: 'shop', icon: ShoppingCart, label: 'Shop', color: 'text-purple-500' }
+                      { id: 'shop', icon: ShoppingCart, label: 'Shop', color: 'text-purple-500' },
+                      { id: 'reading', icon: BookOpen, label: 'Cărți', color: 'text-orange-400' },
+                      { id: 'nutrition', icon: Apple, label: 'Nutriție', color: 'text-rose-400' }
                     ].map(m => (
                       <button key={m.id} onClick={() => setView(m.id as View)} className="flex lg:flex-row flex-col items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/10 transition-all hover:scale-[1.02] active:scale-[0.98] group">
                         <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-8 lg:h-8 rounded-xl bg-white/[0.05] flex items-center justify-center group-hover:bg-white/10 transition-colors">
@@ -1105,6 +1113,79 @@ function App() {
                   );
                 })}
              </div>
+          </ViewContainer>
+        )}
+
+        {view === 'reading' && (
+          <ViewContainer title="Lectură & Knowledge" onBack={() => setView('home')}>
+            <div className="space-y-12 pb-32">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {readingList.map((book: any) => (
+                  <GlassCard key={book.id} className="space-y-6">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-1">
+                        <h4 className="text-xl font-bold tracking-tight">{book.title}</h4>
+                        <p className="label-ethereal text-[8px] opacity-40">{book.author}</p>
+                      </div>
+                      <BookOpen className="w-5 h-5 text-orange-400 opacity-40" />
+                    </div>
+                    <div className="space-y-2">
+                       <div className="flex justify-between text-[9px] label-ethereal opacity-40">
+                          <span>Progres</span>
+                          <span>{book.progress_pct}%</span>
+                       </div>
+                       <div className="w-full h-[2px] bg-white/5 rounded-full overflow-hidden">
+                          <motion.div initial={{ width: 0 }} animate={{ width: `${book.progress_pct}%` }} className="h-full bg-orange-400 opacity-40" />
+                       </div>
+                    </div>
+                  </GlassCard>
+                ))}
+                {readingList.length === 0 && (
+                  <div className="col-span-full py-24 text-center liquid-panel border-dashed border-white/5">
+                    <p className="label-ethereal text-[10px]">Nicio carte în curs de lectură</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </ViewContainer>
+        )}
+
+        {view === 'nutrition' && (
+          <ViewContainer title="Sistem Nutriție" onBack={() => setView('home')}>
+            <div className="space-y-12 pb-32">
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <GlassCard className="text-center p-8 border-rose-500/10">
+                     <p className="text-3xl font-black text-rose-400">{nutritionLogs.reduce((acc, n) => acc + (n.calories || 0), 0)}</p>
+                     <p className="label-ethereal text-[8px] mt-2">Kcal Azi</p>
+                  </GlassCard>
+                  <GlassCard className="text-center p-8">
+                     <p className="text-3xl font-black text-blue-400">{nutritionLogs.reduce((acc, n) => acc + (n.protein || 0), 0)}g</p>
+                     <p className="label-ethereal text-[8px] mt-2">Proteine</p>
+                  </GlassCard>
+                  <GlassCard className="text-center p-8">
+                     <p className="text-3xl font-black text-emerald-400">{nutritionLogs.reduce((acc, n) => acc + (n.water_ml || 0), 0)}ml</p>
+                     <p className="label-ethereal text-[8px] mt-2">Apă</p>
+                  </GlassCard>
+               </div>
+
+               <div className="space-y-6">
+                 <h3 className="label-ethereal ml-2">Jurnal Alimentar</h3>
+                 <div className="space-y-4">
+                   {nutritionLogs.map((log: any) => (
+                     <div key={log.id} className="liquid-panel p-6 flex justify-between items-center hover:bg-white/5 transition-all">
+                        <div className="space-y-1">
+                          <p className="font-bold text-lg">{log.food_item}</p>
+                          <p className="label-ethereal text-[8px] opacity-40 uppercase tracking-widest">{log.meal_type}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-black text-rose-400">{log.calories} kcal</p>
+                          <p className="label-ethereal text-[8px] opacity-40">{log.log_time?.slice(11, 16)}</p>
+                        </div>
+                     </div>
+                   ))}
+                 </div>
+               </div>
+            </div>
           </ViewContainer>
         )}
 
