@@ -225,6 +225,22 @@ async def start_bot():
             ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS latitude NUMERIC;
             ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS longitude NUMERIC;
             ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS city_name TEXT;
+            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS current_location_name TEXT;
+        """)
+
+        # 2.2 Create saved_locations table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS saved_locations (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                name TEXT NOT NULL,
+                latitude NUMERIC NOT NULL,
+                longitude NUMERIC NOT NULL,
+                radius_meters INT DEFAULT 200,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(user_id, name)
+            );
+            CREATE INDEX IF NOT EXISTS idx_saved_locations_user ON saved_locations(user_id);
         """)
 
     # 3. Module Health Check
@@ -282,6 +298,8 @@ async def start_bot():
     application.add_handler(CommandHandler("memory", memory_command))
     application.add_handler(CommandHandler("tasks", tasks_command))
     application.add_handler(CommandHandler("sethome", partial(set_home_command, pool=pool)))
+    application.add_handler(CommandHandler("save", partial(save_location_command, pool=pool)))
+    application.add_handler(CommandHandler("locations", partial(list_locations_command, pool=pool)))
     application.add_handler(CommandHandler("location", partial(location_status_command, pool=pool)))
     application.add_handler(CommandHandler("briefing", partial(message_handler, pool=pool, text="/briefing")))
     application.add_handler(CommandHandler("debug_app", debug_app_command))

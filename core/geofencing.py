@@ -42,61 +42,69 @@ async def find_nearby_shops(lat: float, lon: float, radius: int = 300) -> List[s
         return []
 
 async def process_geofencing(pool, user_id: int, current_lat: float, current_lon: float, application):
-    """Detects home transitions and shop proximity."""
+    """Detects transitions for ALL saved locations and shop proximity."""
     from db.queries.profile import get_user_profile, update_user_profile
-    from db.queries.shopping import list_items
-    from scheduler.jobs import send_morning_briefing
+    from db.queries.locations import list_saved_locations
+    from db.queries.shopping import list_shopping_items
     
     profile = await get_user_profile(pool, user_id)
     if not profile:
         return
 
-    home_lat = profile.get("home_latitude")
-    home_lon = profile.get("home_longitude")
-    was_at_home = profile.get("is_at_home", True)
+    last_loc_name = profile.get("current_location_name")
+    saved_locs = await list_saved_locations(pool, user_id)
     
-    # 1. Handle Home Transitions
-    if home_lat and home_lon:
-        dist_from_home = calculate_distance(current_lat, current_lon, float(home_lat), float(home_lon))
+    # 1. Check all saved locations for Entry/Exit
+    found_loc = None
+    for loc in saved_locs:
+        dist = calculate_distance(current_lat, current_lon, float(loc["latitude"]), float(loc["longitude"]))
+        if dist <= loc["radius_meters"]:
+            found_loc = loc
+            break
+            
+    # EXIT TRANSITION
+    if last_loc_name and (not found_loc or found_loc["name"] != last_loc_name):
+        print(f"📍 EXIT: User {user_id} left {last_loc_name}")
+        await update_user_profile(pool, user_id, current_location_name=None, is_at_home=(False if last_loc_name.lower() in ["acasă", "acasa", "chirie"] else profile.get("is_at_home")))
         
-        # LEAVING HOME (Transition from <200m to >200m)
-        if was_at_home and dist_from_home > 200:
-            await update_user_profile(pool, user_id, is_at_home=False)
-            print(f"🏠 TRANSITION: User {user_id} left home.")
-            
-            # Send 'Leaving Home' nudge
-            msg = "👋 *Ai plecat de acasă?*\n\nNu uita să verifici dacă ai stins luminile și ai luat tot ce ai nevoie! Drum bun! 🚗✨"
+        # Specific Exit logic
+        if last_loc_name.lower() in ["acasă", "acasa", "chirie"]:
+            msg = f"👋 *Ai plecat de la {last_loc_name}*\\!\n\nSă ai o zi excelentă și nu uita să verifici dacă ai luat tot ce ai nevoie\\! 🚀"
             await application.bot.send_message(chat_id=user_id, text=msg, parse_mode="MarkdownV2")
-            
-            # Optionally trigger a quick summary
-            # await send_morning_briefing(application, pool, force=True)
-
-        # COMING HOME (Transition from >500m to <200m)
-        elif not was_at_home and dist_from_home < 200:
-            await update_user_profile(pool, user_id, is_at_home=True)
-            print(f"🏠 TRANSITION: User {user_id} arrived home.")
-            
-            msg = "🏠 *Bine ai revenit acasă\\!*\n\nSper că ai avut o zi productivă\\. Vrei să facem un scurt rezumat al progresului tău de azi? ☕"
+        elif last_loc_name.lower() in ["sală", "sala", "gym"]:
+            msg = "💪 *Antrenament terminat?*\n\nNu uita să loghezi progresul în Lora dacă nu ai făcut-o deja\\! 🏋️‍♂️"
             await application.bot.send_message(chat_id=user_id, text=msg, parse_mode="MarkdownV2")
 
-    # 2. Handle Shop Proximity
-    # We only check for shops if user is NOT at home and moving
-    if not was_at_home:
+    # ENTRY TRANSITION
+    if found_loc and found_loc["name"] != last_loc_name:
+        loc_name = found_loc["name"]
+        print(f"📍 ENTRY: User {user_id} arrived at {loc_name}")
+        await update_user_profile(pool, user_id, current_location_name=loc_name, is_at_home=(True if loc_name.lower() in ["acasă", "acasa", "chirie"] else profile.get("is_at_home")))
+
+        # Specific Entry logic
+        if loc_name.lower() in ["acasă", "acasa", "chirie"]:
+            msg = f"🏠 *Bine ai revenit la {loc_name}\\!*\n\nVrei să facem un scurt rezumat al zilei? ☕"
+            await application.bot.send_message(chat_id=user_id, text=msg, parse_mode="MarkdownV2")
+        elif loc_name.lower() in ["sală", "sala", "gym"]:
+            msg = "🏋️‍♂️ *Ești la sală\\!* \n\nSpor la treabă\\! Vrei să pornim un cronometru de focus sau să logăm exercițiile? 🔥"
+            await application.bot.send_message(chat_id=user_id, text=msg, parse_mode="MarkdownV2")
+        elif loc_name.lower() in ["facultate", "uni", "universitate"]:
+            msg = "🎓 *Ai ajuns la facultate\\!* \n\nNu uita să bifezi prezența la cursuri dacă este cazul\\. Succes\\! 📚"
+            await application.bot.send_message(chat_id=user_id, text=msg, parse_mode="MarkdownV2")
+        else:
+            msg = f"📍 *Ai ajuns la {loc_name}\\!*"
+            await application.bot.send_message(chat_id=user_id, text=msg, parse_mode="MarkdownV2")
+
+    # 2. Handle Shop Proximity (only if NOT at a saved location)
+    if not found_loc:
         nearby_shops = await find_nearby_shops(current_lat, current_lon)
         if nearby_shops:
-            # Check shopping list
-            from db.queries.shopping import list_shopping_items
             shopping_items = await list_shopping_items(pool, include_bought=False)
-            
             if shopping_items:
                 shop_names = ", ".join(nearby_shops[:2])
                 items_str = ", ".join([i["item"] for i in shopping_items[:5]])
                 msg = f"🛒 *Ești lângă {shop_names}\\!*\n\nNu uita să iei: *{items_str}*\\. 📝"
-                
-                # Check if we already nudged recently for shopping (to avoid spam)
-                # For simplicity, we just print for now, or we could add a cooldown
                 await application.bot.send_message(chat_id=user_id, text=msg, parse_mode="MarkdownV2")
-                print(f"🛒 SHOP NUDGE sent for: {shop_names}")
 
     # 3. Auto-set Home if not set and user is stationary for a long time?
     # (Optional future improvement)

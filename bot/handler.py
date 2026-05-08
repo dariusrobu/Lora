@@ -246,6 +246,48 @@ async def set_home_command(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     msg = f"🏠 *Locație setată ca ACASĂ\\!*\\n\nDe acum voi ști când pleci și când revii pentru a-ți oferi asistență inteligentă\\. 🦾"
     await update.message.reply_text(msg, parse_mode="MarkdownV2")
 
+async def save_location_command(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
+    """Saves current location with a name."""
+    if not await security_check(update):
+        return
+
+    name = " ".join(context.args).strip()
+    if not name:
+        await update.message.reply_text("❌ Te rog specifică un nume pentru locație. Ex: `/save sala`", parse_mode="MarkdownV2")
+        return
+
+    profile = await get_user_profile(pool, TELEGRAM_USER_ID)
+    lat = profile.get("latitude")
+    lon = profile.get("longitude")
+    
+    if not lat or not lon:
+        await update.message.reply_text("❌ Nu am locația ta curentă. Trimite-mi locația mai întâi!")
+        return
+
+    from db.queries.locations import add_saved_location
+    await add_saved_location(pool, TELEGRAM_USER_ID, name, float(lat), float(lon))
+    
+    msg = f"📍 *Locație salvată:* `{name}`\\!\n\nDe acum Lora va recunoaște acest loc și te va ajuta în funcție de context\\. 🌐"
+    await update.message.reply_text(msg, parse_mode="MarkdownV2")
+
+async def list_locations_command(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
+    """Lists all saved locations."""
+    if not await security_check(update):
+        return
+
+    from db.queries.locations import list_saved_locations
+    locs = await list_saved_locations(pool, TELEGRAM_USER_ID)
+    
+    if not locs:
+        await update.message.reply_text("Nu ai nicio locație salvată încă\\. Folosește `/save nume` pentru a adăuga una\\.", parse_mode="MarkdownV2")
+        return
+
+    lines = [f"📍 *Locațiile tale salvate:*\n"]
+    for l in locs:
+        lines.append(f"• *{l['name']}* — `{l['latitude']:.4f}, {l['longitude']:.4f}`")
+        
+    await update.message.reply_text("\n".join(lines), parse_mode="MarkdownV2")
+
 async def location_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
     """Shows current location status and geofencing info."""
     if not await security_check(update):
@@ -259,9 +301,11 @@ async def location_status_command(update: Update, context: ContextTypes.DEFAULT_
     
     home_lat = profile.get("home_latitude")
     home_lon = profile.get("home_longitude")
+    curr_spot = profile.get("current_location_name")
 
     status = "🏠 Acasă" if is_home else "🚀 Plecat"
     home_info = f"Setată la `{home_lat}, {home_lon}`" if home_lat else "Nesetată"
+    spot_info = f"📍 Suntem la: *{curr_spot}*" if curr_spot else "📍 Nu suntem într-o locație salvată"
 
     msg = (
         f"📍 *Status Locație*\n"
@@ -269,8 +313,9 @@ async def location_status_command(update: Update, context: ContextTypes.DEFAULT_
         f"🌐 *Oraș:* {city}\n"
         f"📍 *Coordonate:* `{lat}, {lon}`\n"
         f"🏠 *Stare:* {status}\n"
+        f"🏠 *Locație salvată:* {spot_info}\n"
         f"📍 *Baza (Acasă):* {home_info}\n\n"
-        f"Folosește `/sethome` pentru a seta coordonatele curente ca bază\\."
+        f"Folosește `/save nume` pentru a adăuga locul curent în memorie\\."
     )
     await update.message.reply_text(msg, parse_mode="MarkdownV2")
 
