@@ -168,8 +168,8 @@ async def start_bot():
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO user_profile (telegram_id, timezone, morning_time, eod_time)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO user_profile (telegram_id, timezone, morning_time, eod_time, is_at_home)
+            VALUES ($1, $2, $3, $4, TRUE)
             ON CONFLICT (telegram_id) DO NOTHING
             """,
             TELEGRAM_USER_ID,
@@ -216,6 +216,16 @@ async def start_bot():
                 "INSERT INTO semester_config (semester_start) VALUES ($1)",
                 start_date,
             )
+
+        # 2.1 Add geofencing columns to user_profile if they don't exist
+        await conn.execute("""
+            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS home_latitude NUMERIC;
+            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS home_longitude NUMERIC;
+            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS is_at_home BOOLEAN DEFAULT TRUE;
+            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS latitude NUMERIC;
+            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS longitude NUMERIC;
+            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS city_name TEXT;
+        """)
 
     # 3. Module Health Check
     from core.router import check_module_health
@@ -271,6 +281,8 @@ async def start_bot():
     application.add_handler(CommandHandler("finance", finance_command))
     application.add_handler(CommandHandler("memory", memory_command))
     application.add_handler(CommandHandler("tasks", tasks_command))
+    application.add_handler(CommandHandler("sethome", partial(set_home_command, pool=pool)))
+    application.add_handler(CommandHandler("location", partial(location_status_command, pool=pool)))
     application.add_handler(CommandHandler("briefing", partial(message_handler, pool=pool, text="/briefing")))
     application.add_handler(CommandHandler("debug_app", debug_app_command))
     application.add_handler(CommandHandler("projects", projects_command))

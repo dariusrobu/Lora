@@ -31,6 +31,9 @@ _PROFILE_UPDATABLE_COLUMNS = frozenset(
         "latitude",
         "longitude",
         "city_name",
+        "home_latitude",
+        "home_longitude",
+        "is_at_home",
     }
 )
 

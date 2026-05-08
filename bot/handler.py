@@ -196,7 +196,7 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         location = update.message.location
         lat, lon = location.latitude, location.longitude
         
-        # Reverse Geocoding (get city name)
+        # 1. Reverse Geocoding (get city name)
         city_name = "Locație necunoscută"
         if OPENWEATHER_API_KEY:
             try:
@@ -208,9 +208,13 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             except Exception as e:
                 print(f"Reverse geocoding error: {e}")
 
-        # Persist coordinates and city
+        # 2. Persist coordinates and city
         await update_user_profile(pool, update.effective_user.id, latitude=lat, longitude=lon, city_name=city_name)
         
+        # 3. Process Geofencing & Intelligent Notifications
+        from core.geofencing import process_geofencing
+        await process_geofencing(pool, update.effective_user.id, lat, lon, context.application)
+
         print(f"📍 LOCATION SYNCED: {lat}, {lon} ({city_name})")
         
         # Only reply if it's a NEW message (not a Live Location update)
@@ -222,6 +226,53 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         print(f"ERROR in location_handler: {e}")
         traceback.print_exc()
         await update.message.reply_text("Nu am putut procesa locația.")
+
+async def set_home_command(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
+    """Sets current location as HOME."""
+    if not await security_check(update):
+        return
+
+    profile = await get_user_profile(pool, TELEGRAM_USER_ID)
+    lat = profile.get("latitude")
+    lon = profile.get("longitude")
+    
+    if not lat or not lon:
+        await update.message.reply_text("❌ Nu am locația ta curentă. Te rog trimite-mi locația mai întâi!")
+        return
+
+    from db.queries.profile import update_user_profile
+    await update_user_profile(pool, TELEGRAM_USER_ID, home_latitude=lat, home_longitude=lon, is_at_home=True)
+    
+    msg = f"🏠 *Locație setată ca ACASĂ\\!*\\n\nDe acum voi ști când pleci și când revii pentru a-ți oferi asistență inteligentă\\. 🦾"
+    await update.message.reply_text(msg, parse_mode="MarkdownV2")
+
+async def location_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
+    """Shows current location status and geofencing info."""
+    if not await security_check(update):
+        return
+
+    profile = await get_user_profile(pool, TELEGRAM_USER_ID)
+    lat = profile.get("latitude")
+    lon = profile.get("longitude")
+    city = profile.get("city_name", "Necunoscut")
+    is_home = profile.get("is_at_home")
+    
+    home_lat = profile.get("home_latitude")
+    home_lon = profile.get("home_longitude")
+
+    status = "🏠 Acasă" if is_home else "🚀 Plecat"
+    home_info = f"Setată la `{home_lat}, {home_lon}`" if home_lat else "Nesetată"
+
+    msg = (
+        f"📍 *Status Locație*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🌐 *Oraș:* {city}\n"
+        f"📍 *Coordonate:* `{lat}, {lon}`\n"
+        f"🏠 *Stare:* {status}\n"
+        f"📍 *Baza (Acasă):* {home_info}\n\n"
+        f"Folosește `/sethome` pentru a seta coordonatele curente ca bază\\."
+    )
+    await update.message.reply_text(msg, parse_mode="MarkdownV2")
 
 
 async def message_handler(
