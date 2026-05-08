@@ -633,6 +633,7 @@ async def sync_tasks_with_deadlines(pool) -> dict:
 
 async def sync_tasks_to_reminders(pool) -> dict:
     """Syncs pending Lora tasks to Apple Reminders list (as VTODO)."""
+    print("🚀 sync_tasks_to_reminders STARTING...")
     stats = {"created": 0, "skipped": 0, "errors": 0}
     try:
         from db.queries.tasks import list_tasks
@@ -677,7 +678,9 @@ async def sync_tasks_to_reminders(pool) -> dict:
                 stats["errors"] += 1
         return stats
     except Exception as e:
-        print(f"Sync tasks to reminders error: {e}")
+        print(f"❌ Sync tasks to reminders CRITICAL error: {e}")
+        import traceback
+        traceback.print_exc()
         return stats
 
 
