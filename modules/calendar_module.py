@@ -105,7 +105,8 @@ async def handle_calendar_module_intent(
         )
 
         msg = (
-            f"🔄 *Sincronizare Apple Ecosystem completă*\n\n"
+            f"🔄 *Sincronizare Ecosistem Apple COMPLETĂ* (v2.1)\n"
+            f"_{datetime.now().strftime('%H:%M:%S')}_\n\n"
             f"• 🎓 Cursuri: {s_stats['created']} noi\n"
             f"• 🎓 Examene: {ex_stats['created']} noi\n"
             f"• 📅 Evenimente: {t_stats['created']} noi\n"
