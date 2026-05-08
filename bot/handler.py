@@ -193,6 +193,9 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         from core.config import OPENWEATHER_API_KEY
         import httpx
         
+        if not update.message or not update.message.location:
+            return
+            
         location = update.message.location
         lat, lon = location.latitude, location.longitude
         
