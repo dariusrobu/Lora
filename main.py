@@ -164,8 +164,35 @@ async def start_bot():
     pool = await get_pool()
     print("Connected to database pool.")
 
-    # 2. Ensure user_profile and semester_config
+    # 2. Schema Integrity & Migrations
     async with pool.acquire() as conn:
+        # Geofencing & Location Columns
+        await conn.execute("""
+            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS home_latitude NUMERIC;
+            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS home_longitude NUMERIC;
+            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS is_at_home BOOLEAN DEFAULT TRUE;
+            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS latitude NUMERIC;
+            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS longitude NUMERIC;
+            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS city_name TEXT;
+            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS current_location_name TEXT;
+        """)
+
+        # Saved Locations Table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS saved_locations (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                name TEXT NOT NULL,
+                latitude NUMERIC NOT NULL,
+                longitude NUMERIC NOT NULL,
+                radius_meters INT DEFAULT 200,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(user_id, name)
+            );
+            CREATE INDEX IF NOT EXISTS idx_saved_locations_user ON saved_locations(user_id);
+        """)
+
+        # User Profile Init (Safe now that columns exist)
         await conn.execute(
             """
             INSERT INTO user_profile (telegram_id, timezone, morning_time, eod_time, is_at_home)
@@ -178,30 +205,7 @@ async def start_bot():
             EOD_REFLECTION_TIME,
         )
 
-        # Ensure semester_config exists
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS semester_config (
-                id SERIAL PRIMARY KEY,
-                semester_start DATE NOT NULL,
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-        """)
-
-        # Ensure calendar_sync exists
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS calendar_sync (
-                id              SERIAL PRIMARY KEY,
-                lora_type       TEXT NOT NULL,
-                lora_id         INTEGER,
-                ical_uid        TEXT UNIQUE,
-                summary         TEXT,
-                synced_at       TIMESTAMP DEFAULT NOW(),
-                last_modified   TIMESTAMP DEFAULT NOW()
-            );
-            CREATE INDEX IF NOT EXISTS idx_calendar_sync_uid ON calendar_sync(ical_uid);
-            CREATE INDEX IF NOT EXISTS idx_calendar_sync_lora ON calendar_sync(lora_type, lora_id);
-        """)
-
+        # Semester Config Init
         exists = await conn.fetchval("SELECT EXISTS (SELECT 1 FROM semester_config)")
         if not exists:
             from core.config import SEMESTER_START_DATE
@@ -216,32 +220,6 @@ async def start_bot():
                 "INSERT INTO semester_config (semester_start) VALUES ($1)",
                 start_date,
             )
-
-        # 2.1 Add geofencing columns to user_profile if they don't exist
-        await conn.execute("""
-            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS home_latitude NUMERIC;
-            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS home_longitude NUMERIC;
-            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS is_at_home BOOLEAN DEFAULT TRUE;
-            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS latitude NUMERIC;
-            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS longitude NUMERIC;
-            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS city_name TEXT;
-            ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS current_location_name TEXT;
-        """)
-
-        # 2.2 Create saved_locations table
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS saved_locations (
-                id SERIAL PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                name TEXT NOT NULL,
-                latitude NUMERIC NOT NULL,
-                longitude NUMERIC NOT NULL,
-                radius_meters INT DEFAULT 200,
-                created_at TIMESTAMP DEFAULT NOW(),
-                UNIQUE(user_id, name)
-            );
-            CREATE INDEX IF NOT EXISTS idx_saved_locations_user ON saved_locations(user_id);
-        """)
 
     # 3. Module Health Check
     from core.router import check_module_health

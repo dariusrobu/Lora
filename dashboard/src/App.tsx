@@ -25,10 +25,10 @@ type View = 'home' | 'map' | 'uni' | 'gym' | 'skills' | 'shop' | 'notes' | 'heal
 // --- Shared Components ---
 const GlassCard = ({ children, className = "", onClick }: any) => (
   <motion.div 
-    whileHover={onClick ? { scale: 1.02 } : {}}
-    whileTap={onClick ? { scale: 0.98 } : {}}
+    whileHover={onClick ? { scale: 1.01, backgroundColor: 'rgba(255, 255, 255, 0.05)' } : {}}
+    whileTap={onClick ? { scale: 0.99 } : {}}
     onClick={onClick}
-    className={`relative overflow-hidden rounded-[24px] border border-white/[0.08] bg-[#0a0a0a] p-6 ${className} ${onClick ? 'cursor-pointer' : ''}`}
+    className={`liquid-panel rounded-2xl p-6 ${className} ${onClick ? 'cursor-pointer' : ''}`}
   >
     {children}
   </motion.div>
@@ -36,19 +36,21 @@ const GlassCard = ({ children, className = "", onClick }: any) => (
 
 const ViewContainer = ({ children, title, onBack }: any) => (
   <motion.div 
-    initial={{ x: 300, opacity: 0 }}
-    animate={{ x: 0, opacity: 1 }}
-    exit={{ x: -300, opacity: 0 }}
-    className="fixed inset-0 bg-black z-[100] p-6 overflow-y-auto no-scrollbar"
+    initial={{ opacity: 0, scale: 0.98 }}
+    animate={{ opacity: 1, scale: 1 }}
+    exit={{ opacity: 0, scale: 1.02 }}
+    className="fixed inset-0 bg-[#050505] z-[100] p-8 lg:p-16 overflow-y-auto no-scrollbar"
   >
-    <div className="flex justify-between items-center mb-8">
-      <button onClick={onBack} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center">
-        <ArrowLeft className="w-5 h-5" />
-      </button>
-      <h2 className="text-sm font-black uppercase tracking-[0.3em] text-gray-400">{title}</h2>
-      <div className="w-10" />
+    <div className="max-w-4xl mx-auto">
+      <div className="flex justify-between items-center mb-12">
+        <button onClick={onBack} className="w-12 h-12 rounded-full liquid-panel flex items-center justify-center hover:bg-white/10 transition-colors">
+          <ArrowLeft className="w-5 h-5 text-[#adc6ff]" />
+        </button>
+        <h2 className="label-ethereal">{title}</h2>
+        <div className="w-12" />
+      </div>
+      {children}
     </div>
-    {children}
   </motion.div>
 );
 
@@ -176,23 +178,27 @@ function App() {
 
   if (loading) {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#000] p-8 text-center space-y-6">
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#050505] p-8 text-center space-y-12">
         <motion.div
-           animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }}
-           transition={{ duration: 2, repeat: Infinity }}
-           className="w-12 h-12 text-blue-500"
+           animate={{ 
+             scale: [0.9, 1.1, 0.9], 
+             opacity: [0.3, 0.7, 0.3],
+             boxShadow: ["0 0 0px rgba(59,130,246,0)", "0 0 40px rgba(59,130,246,0.2)", "0 0 0px rgba(59,130,246,0)"]
+           }}
+           transition={{ duration: 3, repeat: Infinity }}
+           className="w-20 h-20 liquid-panel rounded-full flex items-center justify-center"
         >
-           <Loader2 className="w-full h-full animate-spin" />
+           <Loader2 className="w-8 h-8 text-[#adc6ff] animate-spin" />
         </motion.div>
         
         {errorMessage && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <p className="text-red-500 text-xs font-black uppercase tracking-widest leading-relaxed">
-              Sincronizare Eșuată:<br/>{errorMessage}
+          <div className="space-y-6">
+            <p className="label-ethereal text-red-400">
+              Sincronizare Eșuată • {errorMessage}
             </p>
             <button 
               onClick={() => { setLoading(true); fetchData(); }}
-              className="px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-colors"
+              className="primary-button"
             >
               Reîncearcă
             </button>
@@ -203,7 +209,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans overflow-x-hidden selection:bg-blue-500/30">
+    <div className="min-h-screen text-white font-sans overflow-x-hidden selection:bg-[#3b82f6]/30">
       
       <AnimatePresence mode="wait">
         {view === 'home' && (
@@ -212,15 +218,112 @@ function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="p-6 pb-20 space-y-8 max-w-7xl mx-auto"
+            className="p-8 lg:p-16 pb-32 space-y-12 max-w-7xl mx-auto"
           >
-            <header className="flex justify-between items-end">
-              <div className="space-y-1">
-                <h1 className="text-4xl font-black tracking-tighter">LORA<span className="text-blue-500">.</span></h1>
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{tasks.length} Task-uri Active</p>
+            <header className="flex justify-between items-start">
+              <div className="space-y-2">
+                <h1 className="text-5xl font-light tracking-[-0.05em] text-[#adc6ff]">LORA<span className="text-white/30">.</span></h1>
+                <p className="label-ethereal">{tasks.filter(t => t.status !== 'done').length} Task-uri Active</p>
               </div>
-              <button className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center"><Settings className="w-5 h-5 text-gray-400" /></button>
+              <div className="flex gap-4">
+                <button className="w-12 h-12 rounded-full liquid-panel flex items-center justify-center hover:bg-white/10 transition-colors"><Search className="w-5 h-5 text-gray-500" /></button>
+                <button className="w-12 h-12 rounded-full liquid-panel flex items-center justify-center hover:bg-white/10 transition-colors"><Settings className="w-5 h-5 text-gray-400" /></button>
+              </div>
             </header>
+
+            {/* Weather Bento - Focus Layer */}
+            {weather && weather.main && (
+              <section className="mt-12">
+                <motion.div 
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  className="focus-panel rounded-3xl p-10 flex items-center justify-between overflow-hidden relative group"
+                >
+                  <div className="relative z-10 space-y-6">
+                    <div className="flex items-center gap-3">
+                      <MapPin className="w-4 h-4 text-[#4cd7f6]" />
+                      <span className="label-ethereal text-[#c2c6d6]">{weather.name}</span>
+                    </div>
+                    <div className="flex items-end gap-6">
+                      <h3 className="text-7xl font-thin tracking-tighter text-white">{Math.round(weather.main?.temp)}°</h3>
+                      <p className="label-ethereal text-[#8c909f] pb-3">{weather.weather?.[0]?.description}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="relative z-10">
+                    <div className="p-4 rounded-3xl bg-white/5 backdrop-blur-xl border-[0.5px] border-white/10">
+                      {weather.weather?.[0]?.main === 'Clear' && <Sun className="w-20 h-20 text-[#ffb786] drop-shadow-[0_0_20px_rgba(255,183,134,0.3)]" />}
+                      {weather.weather?.[0]?.main === 'Clouds' && <Cloud className="w-20 h-20 text-[#adc6ff] drop-shadow-[0_0_20px_rgba(173,198,255,0.3)]" />}
+                      {weather.weather?.[0]?.main === 'Rain' && <CloudRain className="w-20 h-20 text-blue-500" />}
+                      {weather.weather?.[0]?.main === 'Drizzle' && <CloudDrizzle className="w-20 h-20 text-blue-400" />}
+                      {weather.weather?.[0]?.main === 'Snow' && <CloudSnow className="w-20 h-20 text-white" />}
+                      {['Thunderstorm', 'Mist', 'Fog', 'Haze'].includes(weather.weather?.[0]?.main) && <CloudLightning className="w-20 h-20 text-purple-400" />}
+                    </div>
+                  </div>
+
+                  {/* Ambient Glow in Bento */}
+                  <div className="absolute -right-20 -top-20 w-80 h-80 bg-[#3b82f6]/5 rounded-full blur-[100px]" />
+                </motion.div>
+              </section>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+              
+              {/* Left Column: Modules & Navigation */}
+              <div className="lg:col-span-4 space-y-12">
+                <section className="space-y-6">
+                  <h3 className="label-ethereal ml-2">Sisteme Lora</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {[
+                      { id: 'tasks', icon: CheckCircle2, label: 'Tasks', color: 'text-[#4cd7f6]' },
+                      { id: 'projects', icon: Briefcase, label: 'Proiecte', color: 'text-[#adc6ff]' },
+                      { id: 'map', icon: Navigation, label: 'Hartă', color: 'text-[#adc6ff]' },
+                      { id: 'finance', icon: Wallet, label: 'Bani', color: 'text-emerald-400' },
+                      { id: 'uni', icon: GraduationCap, label: 'Academic', color: 'text-[#ffb786]' },
+                      { id: 'gym', icon: Dumbbell, label: 'Sală', color: 'text-red-400' },
+                      { id: 'skills', icon: Flame, label: 'Skills', color: 'text-yellow-400' },
+                      { id: 'shop', icon: ShoppingCart, label: 'Shop', color: 'text-purple-400' }
+                    ].map(m => (
+                      <button key={m.id} onClick={() => setView(m.id as View)} className="liquid-panel hover:bg-white/10 transition-all p-5 flex flex-col gap-4 text-left group">
+                        <m.icon className={`w-5 h-5 ${m.color} group-hover:scale-110 transition-transform`} />
+                        <span className="label-ethereal text-[10px]">{m.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
+                <GlassCard className="h-56 flex flex-col justify-between border-blue-500/10 bg-gradient-to-br from-[#3b82f6]/5 to-transparent relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-6">
+                     <Zap className="w-5 h-5 text-blue-500/30" />
+                  </div>
+                  <p className="label-ethereal">Focus OS</p>
+                  <div className="space-y-6">
+                    <p className="text-5xl font-thin tracking-tighter text-[#adc6ff]">{formatTime(timeLeft)}</p>
+                    <div className="flex gap-3">
+                      <button onClick={() => setTimerActive(!timerActive)} className="w-10 h-10 liquid-panel flex items-center justify-center hover:bg-blue-500/10">{timerActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}</button>
+                      <button onClick={() => setTimeLeft(25 * 60)} className="w-10 h-10 liquid-panel flex items-center justify-center hover:bg-white/10"><RotateCcw className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                </GlassCard>
+              </div>
+
+              {/* Middle Column: Project Pulse & Actions */}
+              <div className="lg:col-span-5 space-y-12">
+                <motion.div 
+                  whileHover={{ scale: 1.01 }}
+                  className="h-44 liquid-panel bg-[#3b82f6]/10 border-[#3b82f6]/30 flex flex-col justify-between cursor-pointer p-8 overflow-hidden relative"
+                  onClick={() => setIsAddingTask(true)}
+                >
+                  <div className="absolute right-[-20px] top-[-20px] w-40 h-40 bg-[#3b82f6]/10 rounded-full blur-3xl" />
+                  <p className="label-ethereal text-blue-300">Quick Command</p>
+                  <div className="flex items-center gap-8 relative z-10">
+                    <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-2xl border-[0.5px] border-white/20 flex items-center justify-center"><Plus className="w-8 h-8 text-[#adc6ff]" /></div>
+                    <div className="space-y-1">
+                      <p className="text-3xl font-light tracking-tight">Ceva nou?</p>
+                      <p className="label-ethereal text-[9px] opacity-60">Sincronizare instantanee</p>
+                    </div>
+                  </div>
+                </motion.div>
 
             {/* Top Stats Scroll */}
             <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
@@ -337,99 +440,98 @@ function App() {
                   </div>
                 </GlassCard>
 
-                <section className="space-y-4">
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 px-2 flex justify-between items-center">
-                    <span>{tasks.filter(t => t.priority === 'high' && t.status !== 'done').length > 0 ? 'Priorități Critice' : 'Project Pulse / Overview'}</span>
-                    <span className="bg-blue-500/10 text-blue-500 px-2 py-0.5 rounded text-[8px]">{tasks.filter(t => t.status !== 'done').length} Total</span>
+                <section className="space-y-6">
+                  <h3 className="label-ethereal ml-2 flex justify-between items-center">
+                    <span>Project Pulse</span>
+                    <span className="bg-blue-500/10 text-[#adc6ff] px-2 py-0.5 rounded text-[8px] uppercase tracking-widest">{tasks.filter(t => t.status !== 'done').length} Total</span>
                   </h3>
                   
-                  <div className="space-y-3">
-                    {tasks.filter(t => t.priority === 'high' && t.status !== 'done').length > 0 ? (
-                      // --- CRISIS MODE: High Priority Tasks ---
-                      tasks.filter(t => t.priority === 'high' && t.status !== 'done').slice(0, 5).map(t => (
-                        <GlassCard key={t.id} className="p-5 flex items-center gap-4 border-l-4 border-l-red-500 hover:bg-white/[0.04]" onClick={() => fetch(`/api/tasks/${t.id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ action: 'complete' }) }).then(fetchData)}>
-                          <div className="w-6 h-6 rounded-full border-2 border-red-500/20 flex items-center justify-center">
-                            <div className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_12px_#ef4444]" />
+                  <div className="space-y-4">
+                    {tasks.filter(t => t.status !== 'done').length > 0 ? (
+                      Object.entries(
+                        tasks.filter(t => t.status !== 'done').reduce((acc: any, t) => {
+                          const p = t.project_name || 'Altele';
+                          acc[p] = (acc[p] || 0) + 1;
+                          return acc;
+                        }, {})
+                      ).map(([proj, count]: [string, any]) => (
+                        <div key={proj} className="liquid-panel p-5 flex justify-between items-center hover:bg-white/5 transition-all group cursor-pointer" onClick={() => setView('tasks')}>
+                          <div className="flex items-center gap-4">
+                             <div className="w-1 h-6 bg-[#3b82f6] rounded-full group-hover:scale-y-125 transition-transform" />
+                             <p className="font-light text-lg tracking-tight">{proj}</p>
                           </div>
-                          <div className="flex-1">
-                            <p className="font-bold text-base leading-tight">{t.title}</p>
-                            {t.project_name && <p className="text-[10px] text-gray-500 font-bold uppercase mt-1">Proiect: {t.project_name}</p>}
+                          <div className="flex items-center gap-3">
+                             <span className="label-ethereal text-[8px] opacity-40">Active</span>
+                             <span className="text-xl font-thin text-[#adc6ff]">{count}</span>
                           </div>
-                        </GlassCard>
+                        </div>
                       ))
                     ) : (
-                      // --- OVERVIEW MODE: Project Summary ---
-                      <div className="grid grid-cols-1 gap-3">
-                        {Object.entries(
-                          tasks.filter(t => t.status !== 'done').reduce((acc: any, t) => {
-                            const p = t.project_name || 'Fără proiect';
-                            acc[p] = (acc[p] || 0) + 1;
-                            return acc;
-                          }, {})
-                        ).map(([proj, count]: [string, any]) => (
-                          <div key={proj} className="p-4 bg-white/[0.03] border border-white/5 rounded-3xl flex justify-between items-center hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setView('tasks')}>
-                            <div className="flex items-center gap-3">
-                               <div className="w-1.5 h-6 bg-blue-500 rounded-full" />
-                               <p className="font-bold text-sm">{proj}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                               <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Active:</span>
-                               <span className="text-sm font-black text-blue-500">{count}</span>
-                            </div>
-                          </div>
-                        ))}
-                        {tasks.filter(t => t.status !== 'done').length === 0 && (
-                          <div className="py-12 text-center space-y-4 bg-white/[0.02] rounded-[32px] border border-dashed border-white/10">
-                             <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto opacity-50" />
-                             <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">Toate sistemele sunt nominale.</p>
-                          </div>
-                        )}
+                      <div className="py-20 text-center space-y-6 liquid-panel border-dashed border-white/5">
+                         <CheckCircle2 className="w-10 h-10 text-emerald-500/30 mx-auto" />
+                         <p className="label-ethereal text-[9px]">Sistem Nominal • Toate sarcinile completate</p>
                       </div>
                     )}
                   </div>
                 </section>
               </div>
 
-              {/* Right Column: Schedule & Context */}
-              <div className="lg:col-span-3 space-y-8">
-                <section className="space-y-4">
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 px-2">Program Azi</h3>
-                  <div className="space-y-3">
+              {/* Right Column: Schedule & Vitals */}
+              <div className="lg:col-span-3 space-y-12">
+                <section className="space-y-6">
+                  <h3 className="label-ethereal ml-2">Program Azi</h3>
+                  <div className="space-y-4">
                     {calendarToday?.schedule?.map((s: any) => (
-                      <div key={s.id} className="flex gap-4 items-center bg-white/[0.03] border border-white/5 p-4 rounded-3xl hover:bg-white/10 transition-colors">
-                        <div className="w-10 text-center">
-                           <p className="text-[10px] font-black text-blue-500">{s.start_time.slice(0, 5)}</p>
+                      <div key={s.id} className="liquid-panel p-5 flex gap-6 items-center hover:bg-white/5 transition-all">
+                        <div className="w-14 text-center space-y-1">
+                           <p className="text-xs font-light text-[#adc6ff]">{s.start_time.slice(0, 5)}</p>
+                           <div className="w-4 h-[1px] bg-white/10 mx-auto" />
                         </div>
-                        <div className="flex-1">
-                          <p className="font-black text-xs">{s.subject_name}</p>
-                          <p className="text-[9px] text-gray-500 font-bold uppercase">{s.room}</p>
+                        <div className="flex-1 space-y-1">
+                          <p className="font-medium text-sm tracking-tight">{s.subject_name}</p>
+                          <p className="label-ethereal text-[8px] opacity-50">{s.room}</p>
                         </div>
+                        <Navigation className="w-4 h-4 text-gray-700" />
                       </div>
                     ))}
                     {(!calendarToday?.schedule || calendarToday.schedule.length === 0) && (
-                       <p className="text-center text-xs text-gray-600 font-bold py-10 bg-white/[0.02] rounded-3xl">Weekend Mode / Relax. ☕</p>
+                       <div className="py-12 text-center liquid-panel border-dashed border-white/5">
+                          <p className="label-ethereal text-[8px]">Program Liber • Weekend Mode</p>
+                       </div>
                     )}
                   </div>
                 </section>
 
-                {/* Secondary View Links (Desktop only) */}
-                <div className="hidden lg:grid grid-cols-1 gap-4">
-                  <GlassCard className="p-4 flex gap-3 items-center border-emerald-500/20" onClick={() => setView('finance')}>
-                    <Wallet className="w-5 h-5 text-emerald-500" />
-                    <div>
-                      <p className="text-[9px] font-black uppercase text-gray-500">Finance</p>
-                      <p className="text-xs font-black">{finance?.balance || 0} Lei</p>
-                    </div>
-                  </GlassCard>
-                  <GlassCard className="p-4 flex gap-3 items-center border-pink-500/20" onClick={() => setView('health')}>
-                    <Heart className="w-5 h-5 text-pink-500" />
-                    <div>
-                      <p className="text-[9px] font-black uppercase text-gray-500">Health</p>
-                      <p className="text-xs font-black">{healthLogs[0]?.sleep_hours || 8}h Somn</p>
-                    </div>
-                  </GlassCard>
-                </div>
+                <section className="space-y-6">
+                  <h3 className="label-ethereal ml-2">Vitals</h3>
+                  <div className="space-y-4">
+                    <GlassCard className="flex gap-5 items-center group" onClick={() => setView('health')}>
+                      <div className="w-12 h-12 rounded-xl bg-pink-500/10 flex items-center justify-center">
+                        <Heart className="w-5 h-5 text-pink-500" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="label-ethereal text-[8px]">Health Score</p>
+                        <p className="text-lg font-light">{healthLogs[0]?.sleep_hours || '8'}h Somn</p>
+                      </div>
+                      <button className="text-[8px] label-ethereal p-2 liquid-panel hover:bg-blue-500/10">vConsole</button>
+                    </GlassCard>
+                    
+                    <GlassCard className="flex gap-5 items-center group" onClick={() => setView('gym')}>
+                      <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center">
+                        <Dumbbell className="w-5 h-5 text-red-500" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="label-ethereal text-[8px]">Antrenament</p>
+                        <p className="text-lg font-light">{gymStats?.summary?.total_sessions || 0} Sesiuni</p>
+                      </div>
+                    </GlassCard>
+                  </div>
+                </section>
               </div>
+
+            </div>
+          </motion.div>
+        )}
 
             </div>
           </motion.div>
@@ -438,36 +540,50 @@ function App() {
         {/* --- Specific Module Views --- */}
         {view === 'uni' && (
           <ViewContainer title="Academic" onBack={() => setView('home')}>
-            <div className="space-y-6 pb-20">
-              <GlassCard className="bg-gradient-to-br from-orange-500/10 to-transparent">
+            <div className="space-y-12 pb-32">
+              <GlassCard className="bg-gradient-to-br from-[#ffb786]/10 to-transparent p-10">
                 <div className="flex justify-between items-center">
-                  <p className="text-4xl font-black tracking-tighter">{uniSummary?.average_grade || '—'}</p>
-                  <TrendingUp className="text-orange-500 w-8 h-8" />
+                  <p className="text-6xl font-thin tracking-tighter text-[#ffb786]">{uniSummary?.average_grade || '—'}</p>
+                  <TrendingUp className="text-[#ffb786] w-10 h-10 opacity-50" />
                 </div>
-                <p className="text-[10px] font-black uppercase text-gray-500 mt-2 tracking-widest">Media Generală</p>
+                <p className="label-ethereal mt-4">Media Generală • Sesiune Curentă</p>
               </GlassCard>
-              <div className="space-y-4">
+              
+              <div className="space-y-6">
+                <h3 className="label-ethereal ml-2">Discipline Active</h3>
                 {uniSummary?.subjects?.map((s: any) => {
                    const attPct = s.total_logged > 0 ? Math.round((s.attended_count / s.total_logged) * 100) : 0;
                    const isLowAtt = s.total_logged > 0 && attPct < (s.min_attendance_pct || 70);
                    return (
-                     <div key={s.id} className="bg-white/[0.03] border border-white/5 rounded-3xl p-5 space-y-4">
-                        <div className="flex justify-between">
-                          <p className="font-black text-lg tracking-tight">{s.name}</p>
-                          <div className="flex items-center gap-2">
-                             {isLowAtt && <AlertTriangle className="w-4 h-4 text-red-500" />}
-                             <p className="text-xl font-black text-emerald-500">{s.avg_grade || '—'}</p>
+                     <div key={s.id} className="liquid-panel p-8 space-y-8 hover:bg-white/5 transition-all">
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-1">
+                            <p className="font-light text-2xl tracking-tight">{s.name}</p>
+                            <p className="label-ethereal text-[8px] opacity-40">{s.class_type || 'Curs / Seminar'}</p>
+                          </div>
+                          <div className="text-right">
+                             <p className="text-3xl font-thin text-[#adc6ff]">{s.avg_grade || '—'}</p>
+                             <p className="label-ethereal text-[8px] opacity-40">Media</p>
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                           <div className={`p-3 rounded-2xl ${isLowAtt ? 'bg-red-500/10 border border-red-500/20' : 'bg-white/5'}`}>
-                              <p className="text-[8px] font-black text-gray-500 uppercase">Prezență</p>
-                              <p className={`text-lg font-black ${isLowAtt ? 'text-red-500' : 'text-white'}`}>{attPct}%</p>
+
+                        <div className="grid grid-cols-2 gap-6">
+                           <div className="space-y-3">
+                              <p className="label-ethereal text-[8px]">Prezență</p>
+                              <div className="flex items-end gap-3">
+                                 <p className={`text-2xl font-light ${isLowAtt ? 'text-red-400' : 'text-white'}`}>{attPct}%</p>
+                                 <div className="h-1.5 flex-1 bg-white/5 rounded-full overflow-hidden mb-2">
+                                    <div className={`h-full ${isLowAtt ? 'bg-red-400' : 'bg-[#4cd7f6]'} opacity-50`} style={{ width: `${attPct}%` }} />
+                                 </div>
+                              </div>
                            </div>
-                           <div className="p-3 bg-white/5 rounded-2xl">
-                              <p className="text-[8px] font-black text-gray-500 uppercase">Note</p>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                 {s.grades?.map((g: any, i: number) => <span key={i} className="px-1.5 py-0.5 bg-white/10 rounded text-[9px] font-black">{g.grade}</span>)}
+                           <div className="space-y-3">
+                              <p className="label-ethereal text-[8px]">Note</p>
+                              <div className="flex flex-wrap gap-2">
+                                 {s.grades?.map((g: any, i: number) => (
+                                   <span key={i} className="w-8 h-8 flex items-center justify-center liquid-panel text-xs font-light text-[#adc6ff]">{g.grade}</span>
+                                 ))}
+                                 {(!s.grades || s.grades.length === 0) && <span className="text-[10px] text-gray-700 italic">Nicio notă logată</span>}
                               </div>
                            </div>
                         </div>
@@ -481,22 +597,37 @@ function App() {
 
         {view === 'shop' && (
           <ViewContainer title="Cumpărături" onBack={() => setView('home')}>
-             <div className="flex justify-between items-center mb-6 px-2">
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{shopping.filter(i => !i.is_bought).length} Produse Rămase</p>
-                <button onClick={() => fetch('/api/shopping/clear', { method: 'DELETE', headers: HEADERS }).then(fetchData)} className="text-[10px] font-black uppercase tracking-widest text-red-500 bg-red-500/10 px-3 py-1.5 rounded-lg active:scale-95 transition-transform">Curăță</button>
-             </div>
-             <div className="space-y-3">
-                {shopping.map(i => (
-                  <GlassCard key={i.id} className="flex items-center justify-between py-4" onClick={() => fetch(`/api/shopping/${i.id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ is_bought: !i.is_bought }) }).then(fetchData)}>
-                     <div className="flex items-center gap-4">
-                        <div className={`w-6 h-6 rounded-lg border-2 ${i.is_bought ? 'bg-emerald-500 border-emerald-500' : 'border-white/10'} flex items-center justify-center`}>
-                           {i.is_bought && <CheckCircle2 className="w-4 h-4 text-black" />}
-                        </div>
-                        <p className={`font-bold ${i.is_bought ? 'line-through text-gray-600' : ''}`}>{i.item}</p>
-                     </div>
-                     <span className="text-[8px] font-black uppercase text-gray-600 px-2 py-1 bg-white/5 rounded-md">{i.category}</span>
-                  </GlassCard>
-                ))}
+             <div className="space-y-12 pb-32">
+               <div className="flex justify-between items-center px-2">
+                  <div className="space-y-1">
+                    <p className="text-4xl font-thin tracking-tight">{shopping.filter(i => !i.is_bought).length}</p>
+                    <p className="label-ethereal text-[8px]">Produse de achiziționat</p>
+                  </div>
+                  <button 
+                    onClick={() => fetch('/api/shopping/clear', { method: 'DELETE', headers: HEADERS }).then(fetchData)} 
+                    className="label-ethereal text-red-400 hover:text-red-300 transition-colors p-4 liquid-panel"
+                  >
+                    Arhivează
+                  </button>
+               </div>
+
+               <div className="space-y-4">
+                  {shopping.map(i => (
+                    <div 
+                      key={i.id} 
+                      className={`liquid-panel p-6 flex items-center justify-between transition-all cursor-pointer group ${i.is_bought ? 'opacity-40 grayscale' : 'hover:bg-white/5'}`}
+                      onClick={() => fetch(`/api/shopping/${i.id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ is_bought: !i.is_bought }) }).then(fetchData)}
+                    >
+                       <div className="flex items-center gap-6">
+                          <div className={`w-6 h-6 rounded-lg border-[0.5px] transition-all flex items-center justify-center ${i.is_bought ? 'bg-[#4cd7f6] border-[#4cd7f6]' : 'border-white/20 group-hover:border-white/40'}`}>
+                             {i.is_bought && <CheckCircle2 className="w-4 h-4 text-black" />}
+                          </div>
+                          <p className={`text-lg font-light tracking-tight ${i.is_bought ? 'line-through' : ''}`}>{i.item}</p>
+                       </div>
+                       <span className="label-ethereal text-[8px] opacity-40 px-3 py-1 liquid-panel border-none">{i.category}</span>
+                    </div>
+                  ))}
+               </div>
              </div>
           </ViewContainer>
         )}
@@ -666,213 +797,184 @@ function App() {
 
         {view === 'gym' && (
           <ViewContainer title="Antrenament" onBack={() => setView('home')}>
-            <div className="grid grid-cols-2 gap-4 mb-8">
-              <GlassCard className="text-center">
-                <Flame className="mx-auto mb-2 text-red-500" />
-                <p className="text-xl font-black">{gymStats?.summary?.total_sessions || 0}</p>
-                <p className="text-[8px] font-bold uppercase text-gray-500">Sesiuni (30z)</p>
-              </GlassCard>
-              <GlassCard className="text-center">
-                <Star className="mx-auto mb-2 text-yellow-500" />
-                <p className="text-xl font-black">{gymStats?.prs?.length || 0}</p>
-                <p className="text-[8px] font-bold uppercase text-gray-500">Recorduri</p>
-              </GlassCard>
-            </div>
+            <div className="space-y-12 pb-32">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="liquid-panel p-8 text-center space-y-3">
+                  <Flame className="mx-auto w-6 h-6 text-red-400 opacity-50" />
+                  <p className="text-3xl font-thin">{gymStats?.summary?.total_sessions || 0}</p>
+                  <p className="label-ethereal text-[8px] opacity-40">Sesiuni Active</p>
+                </div>
+                <div className="liquid-panel p-8 text-center space-y-3">
+                  <Star className="mx-auto w-6 h-6 text-[#ffb786] opacity-50" />
+                  <p className="text-3xl font-thin">{gymStats?.prs?.length || 0}</p>
+                  <p className="label-ethereal text-[8px] opacity-40">Recorduri</p>
+                </div>
+              </div>
 
-            <div className="space-y-8 pb-20">
-               {/* PRs Section */}
-               <section className="space-y-4">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-500 px-2">Personal Records</h4>
-                  <div className="flex gap-3 overflow-x-auto no-scrollbar py-2">
-                     {gymStats?.prs?.map((pr: any, i: number) => (
-                        <div key={i} className="min-w-[120px] p-4 bg-white/[0.03] border border-white/5 rounded-2xl">
-                           <p className="text-[8px] font-black text-gray-500 uppercase truncate">{pr.exercise_name}</p>
-                           <p className="text-lg font-black text-yellow-500">{pr.max_weight} <span className="text-[10px]">KG</span></p>
-                        </div>
-                     ))}
-                  </div>
-               </section>
+              <section className="space-y-6">
+                <h4 className="label-ethereal ml-2">Personal Records</h4>
+                <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
+                   {gymStats?.prs?.map((pr: any, i: number) => (
+                      <div key={i} className="min-w-[160px] p-6 liquid-panel space-y-4">
+                         <p className="label-ethereal text-[8px] opacity-40 truncate">{pr.exercise_name}</p>
+                         <p className="text-2xl font-thin text-[#ffb786]">{pr.max_weight} <span className="text-[10px] opacity-50">KG</span></p>
+                      </div>
+                   ))}
+                </div>
+              </section>
 
-               {/* Recent Workouts */}
-               <section className="space-y-4">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-500 px-2">Istoric Recent</h4>
-                  <div className="space-y-4">
-                     {gymStats?.recent_workouts?.map((w: any) => (
-                        <div key={w.id} className="bg-white/[0.03] border border-white/5 rounded-3xl p-5 space-y-4">
-                           <div className="flex justify-between items-start">
-                              <div className="flex gap-3 items-center">
-                                 <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-lg">{w.icon || '💪'}</div>
-                                 <div>
-                                    <p className="font-black text-sm">{w.type}</p>
-                                    <p className="text-[10px] text-gray-500 font-bold uppercase">{new Date(w.workout_date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' })} • {w.duration_min} min</p>
-                                 </div>
-                              </div>
-                           </div>
-                           {w.exercises && w.exercises.length > 0 && (
-                              <div className="space-y-2 pt-2 border-t border-white/5">
-                                 {w.exercises.map((ex: any, idx: number) => (
-                                    <div key={idx} className="flex justify-between text-[11px] font-medium">
-                                       <span className="text-gray-400">{ex.name}</span>
-                                       <span className="font-bold">{ex.sets}x{ex.reps} • {ex.weight_kg}kg</span>
-                                    </div>
-                                 ))}
-                              </div>
-                           )}
-                           {w.notes && <p className="text-[10px] text-gray-500 italic">"{w.notes}"</p>}
-                        </div>
-                     ))}
-                  </div>
-               </section>
+              <section className="space-y-6">
+                <h4 className="label-ethereal ml-2">Istoric Recent</h4>
+                <div className="space-y-6">
+                   {gymStats?.recent_workouts?.map((w: any) => (
+                      <div key={w.id} className="liquid-panel p-8 space-y-6 hover:bg-white/5 transition-all">
+                         <div className="flex justify-between items-start">
+                            <div className="flex gap-5 items-center">
+                               <div className="w-12 h-12 rounded-2xl liquid-panel border-none flex items-center justify-center text-xl bg-red-400/5">{w.icon || '💪'}</div>
+                               <div className="space-y-1">
+                                  <p className="font-light text-xl tracking-tight">{w.type}</p>
+                                  <p className="label-ethereal text-[8px] opacity-40">{new Date(w.workout_date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' })} • {w.duration_min} min</p>
+                               </div>
+                            </div>
+                         </div>
+                         {w.exercises && w.exercises.length > 0 && (
+                            <div className="space-y-3 pt-6 border-t border-white/5">
+                               {w.exercises.map((ex: any, idx: number) => (
+                                  <div key={idx} className="flex justify-between text-xs font-light">
+                                     <span className="text-[#8c909f]">{ex.name}</span>
+                                     <span className="text-[#adc6ff]">{ex.sets}x{ex.reps} • {ex.weight_kg}kg</span>
+                                  </div>
+                               ))}
+                            </div>
+                         )}
+                      </div>
+                   ))}
+                </div>
+              </section>
             </div>
           </ViewContainer>
         )}
 
         {view === 'skills' && (
-          <ViewContainer title={selectedSkill ? "Log Progres" : "Abilități"} onBack={() => selectedSkill ? setSelectedSkill(null) : setView('home')}>
-            <div className="space-y-8 pb-20">
+          <ViewContainer title={selectedSkill ? "Evoluție" : "Abilități"} onBack={() => selectedSkill ? setSelectedSkill(null) : setView('home')}>
+            <div className="space-y-12 pb-32">
                {selectedSkill ? (
-                 <div className="p-2 space-y-6">
-                    <GlassCard className="text-center p-8 space-y-4">
-                       <p className="text-[10px] font-black uppercase text-gray-500 tracking-widest">Loghează progres pentru</p>
-                       <h2 className="text-3xl font-black">{selectedSkill.name}</h2>
-                       <div className="flex justify-center items-center gap-2">
+                 <div className="space-y-12">
+                    <div className="text-center space-y-8 p-12 liquid-panel">
+                       <p className="label-ethereal">Loghează progres</p>
+                       <h2 className="text-5xl font-thin tracking-tighter text-[#adc6ff]">{selectedSkill.name}</h2>
+                       <div className="flex justify-center items-end gap-4">
                           <input 
                             type="number" 
                             value={logValue} 
                             onChange={(e) => setLogValue(e.target.value)}
-                            placeholder="Valoare"
-                            className="bg-transparent text-4xl font-black w-32 text-center outline-none border-b-2 border-blue-500/30 focus:border-blue-500 transition-colors"
+                            placeholder="0"
+                            className="bg-transparent text-6xl font-thin w-40 text-center outline-none border-b-[0.5px] border-[#3b82f6]/20 focus:border-[#3b82f6] transition-all placeholder:opacity-10"
                             autoFocus
                           />
-                          <span className="text-xl font-bold text-gray-500">{selectedSkill.unit}</span>
+                          <span className="label-ethereal pb-3 opacity-40">{selectedSkill.unit}</span>
                        </div>
-                    </GlassCard>
+                    </div>
                     <button 
                       onClick={async () => {
                         await fetch('/api/skills/log', { method: 'POST', headers: HEADERS, body: JSON.stringify({ skill_id: selectedSkill.id, value: logValue, metric: selectedSkill.unit }) });
-                        setSelectedSkill(null);
-                        setLogValue('');
-                        fetchData();
+                        setSelectedSkill(null); setLogValue(''); fetchData();
                       }}
-                      className="w-full py-5 bg-blue-600 rounded-3xl font-black uppercase tracking-widest shadow-[0_10px_30px_rgba(37,99,235,0.3)] active:scale-95 transition-transform"
+                      className="w-full py-6 primary-button text-sm uppercase tracking-[0.2em] font-light"
                     >
-                      Salvează Progresul
+                      Sincronizează Datele
                     </button>
                  </div>
                ) : (
-                 <>
-               {/* Categorii Dinamice */}
-               {Array.from(new Set(skills.map(s => s.category || 'Personal'))).sort().map(cat => {
-                 const catSkills = skills.filter(s => (s.category || 'Personal') === cat);
-                 if (catSkills.length === 0) return null;
-                 return (
-                   <section key={cat} className="space-y-4">
-                      <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-500 px-2">{cat}</h4>
-                      <div className="space-y-3">
-                         {catSkills.map(s => (
-                           <GlassCard key={s.id} className="relative group active:scale-[0.98] transition-transform" onClick={() => { setSelectedSkill(s); setLogValue(''); }}>
-                              <div className="flex justify-between items-start mb-4">
-                                 <div>
-                                    <div className="flex items-center gap-2">
-                                       <p className="font-black text-lg tracking-tight">{s.name}</p>
-                                       {s.streak > 0 && (
-                                          <div className="flex items-center gap-1 bg-orange-500/10 text-orange-500 px-2 py-0.5 rounded-full">
-                                             <Flame className="w-3 h-3" />
-                                             <span className="text-[10px] font-black">{s.streak}z</span>
-                                          </div>
-                                       )}
-                                    </div>
-                                    <p className="text-[10px] text-gray-500 font-bold uppercase mt-1">Nivel {s.level || 1} • XP {s.total_exp || 0}</p>
-                                 </div>
-                                 <div className="text-right">
-                                    <p className="text-sm font-black text-blue-500">{s.progress || 0}%</p>
-                                 </div>
-                              </div>
-                              
-                              {/* Progress Bar */}
-                              <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-4">
-                                 <motion.div 
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${s.progress || 0}%` }}
-                                    className="h-full bg-gradient-to-r from-blue-600 to-blue-400 shadow-[0_0_10px_rgba(37,99,235,0.3)]"
-                                 />
-                              </div>
+                 <div className="space-y-12">
+                   {Array.from(new Set(skills.map(s => s.category || 'Personal'))).sort().map(cat => {
+                     const catSkills = skills.filter(s => (s.category || 'Personal') === cat);
+                     if (catSkills.length === 0) return null;
+                     return (
+                       <section key={cat} className="space-y-6">
+                          <h4 className="label-ethereal ml-2">{cat}</h4>
+                          <div className="space-y-4">
+                             {catSkills.map(s => (
+                               <div key={s.id} className="liquid-panel p-8 space-y-6 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => { setSelectedSkill(s); setLogValue(''); }}>
+                                  <div className="flex justify-between items-start">
+                                     <div className="space-y-2">
+                                        <div className="flex items-center gap-4">
+                                           <p className="font-light text-2xl tracking-tight group-hover:text-[#adc6ff] transition-colors">{s.name}</p>
+                                           {s.streak > 0 && (
+                                              <div className="flex items-center gap-2 bg-orange-500/5 text-orange-400 px-3 py-1 rounded-full border-[0.5px] border-orange-500/10">
+                                                 <Flame className="w-3 h-3" />
+                                                 <span className="label-ethereal text-[8px]">{s.streak}z</span>
+                                              </div>
+                                           )}
+                                        </div>
+                                        <p className="label-ethereal text-[8px] opacity-40">Nivel {s.level || 1} • XP {s.total_exp || 0}</p>
+                                     </div>
+                                     <p className="text-3xl font-thin text-[#4cd7f6]">{s.progress || 0}%</p>
+                                  </div>
+                                  
+                                  <div className="w-full h-[1px] bg-white/5 rounded-full overflow-hidden">
+                                     <motion.div 
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${s.progress || 0}%` }}
+                                        className="h-full bg-[#4cd7f6] opacity-40 shadow-[0_0_20px_rgba(76,215,246,0.3)]"
+                                     />
+                                  </div>
 
-                              <div className="flex justify-between items-center text-[9px] font-black uppercase text-gray-600">
-                                 <span>Ultima: {s.last_log_date ? new Date(s.last_log_date).toLocaleDateString('ro-RO') : 'Niciodată'}</span>
-                                 {s.last_value && <span>{s.last_value} {s.unit}</span>}
-                              </div>
-                           </GlassCard>
-                         ))}
-                      </div>
-                   </section>
-                 );
-               })}
-                 </>
+                                  <div className="flex justify-between items-center">
+                                     <span className="label-ethereal text-[8px] opacity-30">Ultima actualizare: {s.last_log_date ? new Date(s.last_log_date).toLocaleDateString('ro-RO') : '—'}</span>
+                                     {s.last_value && <span className="label-ethereal text-[8px] text-[#adc6ff]">{s.last_value} {s.unit}</span>}
+                                  </div>
+                               </div>
+                             ))}
+                          </div>
+                       </section>
+                     );
+                   })}
+                 </div>
                )}
             </div>
           </ViewContainer>
         )}
 
         {view === 'finance' && (
-          <ViewContainer title="Finanțe Lora" onBack={() => setView('home')}>
-             <div className="space-y-8 pb-20">
-                {/* Balance Hero */}
-                <GlassCard className="bg-gradient-to-br from-emerald-500/10 to-transparent p-8 text-center relative overflow-hidden">
-                   <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl -mr-16 -mt-16" />
-                   <p className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-500 mb-2">Balanță Totală</p>
-                   <p className="text-5xl font-black tabular-nums tracking-tighter">{finance?.balance || 0} <span className="text-sm font-bold opacity-50">LEI</span></p>
-                </GlassCard>
+          <ViewContainer title="Tezaur" onBack={() => setView('home')}>
+             <div className="space-y-12 pb-32">
+                <div className="focus-panel p-12 text-center relative overflow-hidden group">
+                   <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-[100px] -mr-32 -mt-32" />
+                   <p className="label-ethereal mb-4 opacity-50">Lichiditate Totală</p>
+                   <p className="text-7xl font-thin tracking-tighter text-white">{finance?.balance || 0} <span className="text-xl font-light opacity-30">LEI</span></p>
+                </div>
 
-                {/* Summary Grid */}
-                <div className="grid grid-cols-2 gap-4">
-                   <div className="p-5 bg-white/[0.03] border border-white/5 rounded-3xl space-y-1">
-                      <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Venituri (30z)</p>
-                      <p className="text-xl font-black">+{finance?.total_income || 0}</p>
+                <div className="grid grid-cols-2 gap-6">
+                   <div className="liquid-panel p-8 space-y-2">
+                      <p className="label-ethereal text-[8px] text-emerald-400">Flux Intrare (30z)</p>
+                      <p className="text-3xl font-thin text-white">+{finance?.total_income || 0}</p>
                    </div>
-                   <div className="p-5 bg-white/[0.03] border border-white/5 rounded-3xl space-y-1">
-                      <p className="text-[8px] font-black text-red-500 uppercase tracking-widest">Cheltuieli (30z)</p>
-                      <p className="text-xl font-black">-{finance?.total_expenses || 0}</p>
+                   <div className="liquid-panel p-8 space-y-2">
+                      <p className="label-ethereal text-[8px] text-red-400">Flux Ieșire (30z)</p>
+                      <p className="text-3xl font-thin text-white">-{finance?.total_expenses || 0}</p>
                    </div>
                 </div>
 
-                {/* Top Spending Category */}
-                {finance?.top_categories?.length > 0 && (
-                  <GlassCard className="flex items-center justify-between">
-                     <div>
-                        <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Top Cheltuieli</p>
-                        <p className="text-lg font-black uppercase">{finance.top_categories[0].category}</p>
-                     </div>
-                     <div className="text-right">
-                        <p className="text-lg font-black text-red-500">-{finance.top_categories[0].amount} Lei</p>
-                        <div className="w-20 h-1 bg-white/5 rounded-full mt-1 overflow-hidden">
-                           <div className="w-full h-full bg-red-500 shadow-[0_0_10px_#ef4444]" />
-                        </div>
-                     </div>
-                  </GlassCard>
-                )}
-
-                {/* Transaction History */}
-                <section className="space-y-4">
-                   <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 px-2">Istoric Tranzacții</h3>
-                   <div className="space-y-3">
+                <section className="space-y-6">
+                   <h3 className="label-ethereal ml-2">Arhivă Tranzacții</h3>
+                   <div className="space-y-4">
                       {financeHistory.map((tx: any) => (
-                        <div key={tx.id} className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex justify-between items-center hover:bg-white/[0.05] transition-colors">
-                           <div className="flex gap-4 items-center">
-                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === 'income' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                        <div key={tx.id} className="liquid-panel p-6 flex justify-between items-center hover:bg-white/5 transition-all group">
+                           <div className="flex gap-6 items-center">
+                              <div className={`w-12 h-12 rounded-2xl liquid-panel border-none flex items-center justify-center ${tx.type === 'income' ? 'bg-emerald-500/5 text-emerald-400' : 'bg-red-400/5 text-red-400'}`}>
                                  {tx.type === 'income' ? <TrendingUp className="w-5 h-5" /> : <Wallet className="w-5 h-5" />}
                               </div>
-                              <div>
-                                 <p className="font-bold text-sm">{tx.description || tx.category}</p>
-                                 <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">{tx.category} • {new Date(tx.tx_date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' })}</p>
+                              <div className="space-y-1">
+                                 <p className="font-light text-lg tracking-tight group-hover:text-[#adc6ff] transition-colors">{tx.description || tx.category}</p>
+                                 <p className="label-ethereal text-[8px] opacity-40">{tx.category} • {new Date(tx.tx_date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' })}</p>
                               </div>
                            </div>
-                           <p className={`font-black tabular-nums ${tx.type === 'income' ? 'text-emerald-500' : 'text-white'}`}>
+                           <p className={`text-xl font-light tabular-nums ${tx.type === 'income' ? 'text-emerald-400' : 'text-white'}`}>
                               {tx.type === 'income' ? '+' : '-'}{tx.amount}
                            </p>
                         </div>
                       ))}
-                      {financeHistory.length === 0 && <p className="text-center py-10 text-xs text-gray-600 font-bold italic">Nicio tranzacție logată recent.</p>}
                    </div>
                 </section>
              </div>
@@ -880,9 +982,8 @@ function App() {
         )}
 
         {view === 'tasks' && (
-          <ViewContainer title="Tasks & Proiecte" onBack={() => setView('home')}>
-             <div className="space-y-10 pb-24">
-                {/* Pending Tasks Grouped by Project */}
+          <ViewContainer title="Task-uri" onBack={() => setView('home')}>
+             <div className="space-y-12 pb-32">
                 {Object.entries(
                   tasks.filter(t => t.status !== 'done').reduce((acc: any, t) => {
                     const p = t.project_name || 'Fără proiect';
@@ -891,124 +992,85 @@ function App() {
                     return acc;
                   }, {})
                 ).map(([proj, projTasks]: [string, any]) => (
-                  <section key={proj} className="space-y-4">
-                     <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 px-2 flex justify-between items-center">
+                  <section key={proj} className="space-y-6">
+                     <h3 className="label-ethereal ml-2 flex justify-between items-center">
                         <span>{proj}</span>
-                        <span className="bg-white/5 px-2 py-0.5 rounded text-[8px] opacity-50">{projTasks.length}</span>
+                        <span className="opacity-30">{projTasks.length}</span>
                      </h3>
-                     <div className="space-y-3">
+                     <div className="space-y-4">
                         {projTasks.map((t: any) => (
-                          <GlassCard key={t.id} className={`p-4 flex items-center gap-4 ${t.priority === 'high' ? 'border-l-2 border-red-500' : ''}`} onClick={() => fetch(`/api/tasks/${t.id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ action: 'complete' }) }).then(fetchData)}>
-                            <div className={`w-6 h-6 rounded-lg border-2 ${t.priority === 'high' ? 'border-red-500/30' : 'border-white/10'} flex items-center justify-center`}>
-                               <div className={`w-2.5 h-2.5 rounded-full ${t.priority === 'high' ? 'bg-red-500' : 'bg-gray-700'}`} />
+                          <div 
+                            key={t.id} 
+                            className={`liquid-panel p-6 flex items-center justify-between group cursor-pointer hover:bg-white/5 transition-all ${t.priority === 'high' ? 'border-l-[2px] border-l-red-400/50' : ''}`}
+                            onClick={() => fetch(`/api/tasks/${t.id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ action: 'complete' }) }).then(fetchData)}
+                          >
+                            <div className="flex items-center gap-6">
+                               <div className={`w-5 h-5 rounded-md border-[0.5px] transition-all flex items-center justify-center ${t.priority === 'high' ? 'border-red-400/50' : 'border-white/20'}`}>
+                                  <div className={`w-2 h-2 rounded-full ${t.priority === 'high' ? 'bg-red-400 shadow-[0_0_10px_#ef4444]' : 'bg-white/20'}`} />
+                               </div>
+                               <p className="font-light text-lg tracking-tight group-hover:translate-x-1 transition-transform">{t.title}</p>
                             </div>
-                            <div className="flex-1">
-                               <p className="font-bold text-sm leading-tight">{t.title}</p>
-                            </div>
-                            {t.due_date && <span className="text-[9px] font-black text-gray-600">{new Date(t.due_date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' })}</span>}
-                          </GlassCard>
+                            {t.due_date && <span className="label-ethereal text-[8px] opacity-30">{new Date(t.due_date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' })}</span>}
+                          </div>
                         ))}
                      </div>
                   </section>
                 ))}
 
                 {tasks.filter(t => t.status !== 'done').length === 0 && (
-                  <div className="py-20 text-center space-y-4">
-                     <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto">
-                        <CheckCircle2 className="w-8 h-8 text-emerald-500" />
-                     </div>
-                     <p className="text-xs text-gray-600 font-bold italic">Toate task-urile sunt rezolvate. ✨</p>
+                  <div className="py-32 text-center space-y-6">
+                     <CheckCircle2 className="w-12 h-12 text-emerald-500/20 mx-auto" />
+                     <p className="label-ethereal opacity-40 italic">Flux de lucru optimizat • Nicio sarcină restantă</p>
                   </div>
                 )}
-
-                <section className="space-y-4">
-                   <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-500 px-2 opacity-50">Finalizate recent</h3>
-                   <div className="space-y-2 opacity-50">
-                      {tasks.filter(t => t.status === 'done').slice(0, 10).map(t => (
-                        <div key={t.id} className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex items-center gap-4">
-                           <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                           <p className="text-sm font-medium line-through text-gray-600">{t.title}</p>
-                        </div>
-                      ))}
-                   </div>
-                </section>
              </div>
              
-             {/* Float Add Button */}
-             <button onClick={() => setIsAddingTask(true)} className="fixed bottom-8 right-8 w-16 h-16 rounded-full bg-blue-600 shadow-[0_10px_30px_rgba(37,99,235,0.4)] flex items-center justify-center active:scale-95 transition-transform z-[110]">
-                <Plus className="w-8 h-8" />
+             <button onClick={() => setIsAddingTask(true)} className="fixed bottom-12 right-12 w-16 h-16 rounded-full bg-[#3b82f6]/20 border-[0.5px] border-[#3b82f6]/40 backdrop-blur-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-[110] shadow-[0_0_40px_rgba(59,130,246,0.2)]">
+                <Plus className="w-8 h-8 text-[#adc6ff]" />
              </button>
           </ViewContainer>
         )}
 
         {view === 'projects' && (
-          <ViewContainer title="Gestiune Proiecte" onBack={() => setView('home')}>
-             <div className="space-y-8 pb-24">
+          <ViewContainer title="Proiecte" onBack={() => setView('home')}>
+             <div className="space-y-8 pb-32">
                 {projects.map((p: any) => {
                   const total = (p.pending_tasks || 0) + (p.completed_tasks || 0);
                   const progress = total > 0 ? Math.round((p.completed_tasks / total) * 100) : 0;
                   
                   return (
-                    <GlassCard key={p.id} className="p-6 relative overflow-hidden group">
-                       <div className="flex justify-between items-start mb-4">
-                          <div className="space-y-1">
-                             <div className="flex items-center gap-2">
-                                <h3 className="text-xl font-black">{p.name}</h3>
-                                {p.priority === 'high' && <Zap className="w-4 h-4 text-orange-500 fill-orange-500" />}
+                    <div key={p.id} className="liquid-panel p-8 space-y-8 group hover:bg-white/5 transition-all">
+                       <div className="flex justify-between items-start">
+                          <div className="space-y-2">
+                             <div className="flex items-center gap-4">
+                                <h3 className="text-2xl font-light tracking-tight">{p.name}</h3>
+                                {p.priority === 'high' && <Zap className="w-4 h-4 text-orange-400 fill-orange-400/20" />}
                              </div>
-                             <p className="text-xs text-gray-500 font-medium line-clamp-2">{p.description || 'Nicio descriere adăugată.'}</p>
+                             <p className="text-xs font-light text-[#8c909f] leading-relaxed max-w-lg line-clamp-2">{p.description || 'Nicio descriere definită.'}</p>
                           </div>
-                          <span className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-widest ${
-                            p.priority === 'high' ? 'bg-red-500/20 text-red-500' : 
-                            p.priority === 'medium' ? 'bg-blue-500/20 text-blue-500' : 'bg-gray-500/20 text-gray-500'
+                          <span className={`label-ethereal text-[8px] px-3 py-1 liquid-panel border-none ${
+                            p.priority === 'high' ? 'bg-red-400/5 text-red-400' : 'bg-[#adc6ff]/5 text-[#adc6ff]'
                           }`}>
                              {p.priority}
                           </span>
                        </div>
 
-                       <div className="space-y-2">
+                       <div className="space-y-4">
                           <div className="flex justify-between items-end">
-                             <span className="text-[10px] font-bold text-gray-400">Progres: {progress}%</span>
-                             <span className="text-[10px] font-bold text-gray-500">{p.completed_tasks}/{total} Tasks</span>
+                             <span className="label-ethereal text-[9px] opacity-40">Progres: {progress}%</span>
+                             <span className="label-ethereal text-[9px] opacity-40">{p.completed_tasks}/{total} Tasks</span>
                           </div>
-                          <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                          <div className="w-full h-[1px] bg-white/5 rounded-full overflow-hidden">
                              <motion.div 
                                initial={{ width: 0 }}
                                animate={{ width: `${progress}%` }}
-                               transition={{ duration: 1, ease: "easeOut" }}
-                               className={`h-full rounded-full ${
-                                 progress === 100 ? 'bg-emerald-500' : 
-                                 p.overdue_tasks > 0 ? 'bg-red-500' : 'bg-blue-600'
-                               }`}
+                               className={`h-full ${progress === 100 ? 'bg-emerald-500' : p.overdue_tasks > 0 ? 'bg-red-500' : 'bg-[#3b82f6]'} opacity-40`}
                              />
                           </div>
                        </div>
-
-                       <div className="mt-4 flex gap-4 border-t border-white/5 pt-4">
-                          <div className="flex items-center gap-2">
-                             <Target className="w-3 h-3 text-gray-500" />
-                             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                {p.pending_tasks} Pending
-                             </span>
-                          </div>
-                          {p.overdue_tasks > 0 && (
-                            <div className="flex items-center gap-2">
-                               <AlertTriangle className="w-3 h-3 text-red-500" />
-                               <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">
-                                  {p.overdue_tasks} Overdue
-                               </span>
-                            </div>
-                          )}
-                       </div>
-                    </GlassCard>
+                    </div>
                   );
                 })}
-                
-                {projects.length === 0 && (
-                  <div className="py-20 text-center text-xs text-gray-600 font-bold italic">
-                    Niciun proiect activ în curs. 📁
-                  </div>
-                )}
              </div>
           </ViewContainer>
         )}
@@ -1019,13 +1081,25 @@ function App() {
       <AnimatePresence>
         {isAddingTask && (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setIsAddingTask(false)} />
-            <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="relative w-full max-w-sm bg-[#0a0a0a] border border-white/10 rounded-[32px] p-8 space-y-6">
-               <h2 className="text-xl font-black uppercase tracking-widest">Flux Nou</h2>
-               <input autoFocus value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddTask()} placeholder="Ce inițiem?" className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 font-bold text-lg outline-none focus:border-blue-500/50 placeholder:text-gray-700" />
-               <div className="flex gap-4">
-                  <button onClick={() => setIsAddingTask(false)} className="flex-1 py-4 bg-white/5 rounded-2xl font-black text-xs uppercase tracking-widest text-gray-500">Renunță</button>
-                  <button onClick={handleAddTask} className="flex-1 py-4 bg-blue-600 rounded-2xl font-black text-xs uppercase tracking-widest shadow-[0_0_20px_rgba(37,99,235,0.4)]">Salvează</button>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-[#050505]/90 backdrop-blur-md" onClick={() => setIsAddingTask(false)} />
+            <motion.div initial={{ scale: 0.98, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.98, opacity: 0, y: 10 }} className="relative w-full max-w-lg liquid-panel p-12 space-y-10">
+               <div className="space-y-2">
+                 <h2 className="label-ethereal">Nou Input Sistem</h2>
+                 <p className="text-xs font-light text-[#8c909f]">Sincronizare în timp real cu nucleul Lora</p>
+               </div>
+               
+               <input 
+                 autoFocus 
+                 value={newTaskTitle} 
+                 onChange={e => setNewTaskTitle(e.target.value)} 
+                 onKeyDown={e => e.key === 'Enter' && handleAddTask()} 
+                 placeholder="Ce inițiem acum?" 
+                 className="w-full bg-transparent border-b-[0.5px] border-white/10 p-6 font-light text-2xl outline-none focus:border-[#3b82f6] transition-all placeholder:text-[#32353c]" 
+               />
+               
+               <div className="flex gap-6">
+                  <button onClick={() => setIsAddingTask(false)} className="flex-1 py-5 liquid-panel border-none hover:bg-white/5 text-[10px] label-ethereal">Anulează</button>
+                  <button onClick={handleAddTask} className="flex-1 py-5 primary-button text-[10px] label-ethereal text-white">Execută</button>
                </div>
             </motion.div>
           </div>
@@ -1033,9 +1107,8 @@ function App() {
       </AnimatePresence>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap');
-        body { font-family: 'Outfit', sans-serif; background: #000; color: #fff; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        body { selection-background-color: rgba(59, 130, 246, 0.2); }
       `}</style>
     </div>
   );

@@ -29,6 +29,14 @@ CREATE TABLE IF NOT EXISTS user_profile (
     active_hours_end      TIME DEFAULT '22:00',
     frequent_categories   JSONB DEFAULT '{}',
     language_style        JSONB DEFAULT '{}',
+    -- Geofencing and Location
+    is_at_home            BOOLEAN DEFAULT TRUE,
+    current_location_name TEXT,
+    latitude              NUMERIC,
+    longitude             NUMERIC,
+    city_name             TEXT,
+    home_latitude         NUMERIC,
+    home_longitude        NUMERIC,
     created_at            TIMESTAMPTZ DEFAULT NOW(),
     updated_at            TIMESTAMPTZ DEFAULT NOW()
 );
@@ -606,3 +614,16 @@ CREATE TABLE IF NOT EXISTS book_notes (
 
 CREATE INDEX IF NOT EXISTS idx_books_status ON books(status);
 CREATE INDEX IF NOT EXISTS idx_book_notes_book_id ON book_notes(book_id);
+
+-- ── Saved Locations (Geofencing) ─────────────────────────────
+CREATE TABLE IF NOT EXISTS saved_locations (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    name TEXT NOT NULL,
+    latitude NUMERIC NOT NULL,
+    longitude NUMERIC NOT NULL,
+    radius_meters INT DEFAULT 200,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(user_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_saved_locations_user ON saved_locations(user_id);
