@@ -277,114 +277,111 @@ function App() {
             exit={{ opacity: 0 }}
             className="p-8 lg:p-16 pb-32 space-y-12 max-w-7xl mx-auto"
           >
-            <header className="flex justify-between items-start mb-16">
-              <div className="space-y-4">
-                <h1 className="text-6xl font-light tracking-[-0.05em] text-[#adc6ff] kinetic-text">LORA<span className="text-white/30">.</span></h1>
-                <p className="label-ethereal flex items-center gap-2">
-                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <header className="flex justify-between items-start mb-8 sm:mb-16">
+              <div className="space-y-2 sm:space-y-4">
+                <h1 className="text-4xl sm:text-6xl font-light tracking-[-0.05em] text-[#adc6ff] kinetic-text">LORA<span className="text-white/30">.</span></h1>
+                <p className="label-ethereal flex items-center gap-2 text-[8px] sm:text-[10px]">
+                   <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                    Sistem Activ • {tasks.filter(t => t.status !== 'done').length} Priorități
                 </p>
               </div>
-              <div className="flex gap-4">
-                <button className="w-14 h-14 rounded-full liquid-panel flex items-center justify-center hover:bg-white/10 transition-all hover:scale-110 shadow-2xl shadow-blue-500/10"><Search className="w-5 h-5 text-gray-500" /></button>
-                <button className="w-14 h-14 rounded-full liquid-panel flex items-center justify-center hover:bg-white/10 transition-all hover:scale-110 shadow-2xl shadow-blue-500/10"><Settings className="w-5 h-5 text-gray-400" /></button>
+              <div className="flex gap-2 sm:gap-4">
+                <button className="w-10 h-10 sm:w-14 sm:h-14 rounded-full liquid-panel flex items-center justify-center hover:bg-white/10 transition-all hover:scale-110 shadow-2xl shadow-blue-500/10"><Search className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" /></button>
+                <button className="w-10 h-10 sm:w-14 sm:h-14 rounded-full liquid-panel flex items-center justify-center hover:bg-white/10 transition-all hover:scale-110 shadow-2xl shadow-blue-500/10"><Settings className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" /></button>
               </div>
             </header>
-
-            {/* Top Stats Scroll with Sparklines */}
-            <div className="flex gap-6 overflow-x-auto no-scrollbar py-4 -mx-4 px-4">
-              <GlassCard className="min-w-[220px] p-6 space-y-6 group overflow-hidden relative" onClick={() => setView('finance')}>
+                     {/* Top Stats Scroll with Sparklines - Scrollable on all, but more compact on mobile */}
+            <div className="flex gap-4 sm:gap-6 overflow-x-auto no-scrollbar py-4 -mx-4 px-4">
+              <GlassCard className="min-w-[180px] sm:min-w-[220px] p-4 sm:p-6 space-y-4 sm:space-y-6 group overflow-hidden relative" onClick={() => setView('finance')}>
                 <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div className="flex justify-between items-start relative z-10">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                    <Wallet className="w-5 h-5 text-emerald-400" />
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                    <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
                   </div>
-                  <TrendingUp className="w-4 h-4 text-emerald-500/30 group-hover:text-emerald-400 transition-colors" />
+                  <TrendingUp className="w-3 h-3 sm:w-4 h-4 text-emerald-500/30 group-hover:text-emerald-400 transition-colors" />
                 </div>
                 <div className="relative z-10">
-                  <p className="label-ethereal text-[8px]">Balanță Curentă</p>
-                  <p className="text-3xl font-black tracking-tighter tabular-nums">{finance?.balance || 0} <span className="text-[10px] font-bold opacity-30">LEI</span></p>
+                  <p className="label-ethereal text-[7px] sm:text-[8px]">Balanță Curentă</p>
+                  <p className="text-xl sm:text-3xl font-black tracking-tighter tabular-nums">{finance?.balance || 0} <span className="text-[8px] sm:text-[10px] font-bold opacity-30">LEI</span></p>
                 </div>
-                <svg className="w-full h-8 relative z-10 opacity-30 group-hover:opacity-100 transition-all duration-700">
+                <svg className="w-full h-6 sm:h-8 relative z-10 opacity-30 group-hover:opacity-100 transition-all duration-700">
                   <path 
-                    d={`M0,25 Q15,5 30,20 T60,10 T90,22 T120,15 T150,5 T180,25`} 
+                    d={`M0,15 Q15,5 30,12 T60,8 T90,18 T120,10 T150,5 T180,15`} 
                     fill="none" 
                     stroke="#10b981" 
-                    strokeWidth="2.5" 
+                    strokeWidth="2" 
                     strokeLinecap="round" 
-                    className="filter drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]"
                   />
                 </svg>
               </GlassCard>
               
-              <GlassCard className="min-w-[220px] p-6 space-y-6 group overflow-hidden relative" onClick={() => setView('health')}>
+              <GlassCard className="min-w-[180px] sm:min-w-[220px] p-4 sm:p-6 space-y-4 sm:space-y-6 group overflow-hidden relative" onClick={() => setView('health')}>
                 <div className="absolute inset-0 bg-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div className="flex justify-between items-start relative z-10">
-                  <div className="w-10 h-10 rounded-xl bg-pink-500/10 flex items-center justify-center">
-                    <Heart className="w-5 h-5 text-pink-400" />
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-pink-500/10 flex items-center justify-center">
+                    <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-pink-400" />
                   </div>
-                  <Droplets className="w-4 h-4 text-blue-400/30 group-hover:text-blue-400 transition-colors" />
+                  <Droplets className="w-3 h-3 sm:w-4 h-4 text-blue-400/30 group-hover:text-blue-400 transition-colors" />
                 </div>
                 <div className="relative z-10">
-                  <p className="label-ethereal text-[8px]">Vitals Azi</p>
-                  <p className="text-2xl font-black">{healthLogs[0]?.sleep_hours || '—'}h Somn</p>
-                  <div className="flex gap-2 mt-2">
+                  <p className="label-ethereal text-[7px] sm:text-[8px]">Vitals Azi</p>
+                  <p className="text-xl sm:text-2xl font-black">{healthLogs[0]?.sleep_hours || '—'}h Somn</p>
+                  <div className="flex gap-2 mt-1 sm:mt-2">
                     <div className="w-1 h-1 rounded-full bg-blue-500" />
-                    <p className="text-[9px] font-black uppercase text-gray-500">{healthLogs[0]?.water_ml || 0}ml apă logată</p>
+                    <p className="text-[7px] sm:text-[9px] font-black uppercase text-gray-500">{healthLogs[0]?.water_ml || 0}ml apă</p>
                   </div>
                 </div>
               </GlassCard>
 
-              <GlassCard className="min-w-[220px] p-6 space-y-6 group overflow-hidden relative" onClick={() => setView('gym')}>
+              <GlassCard className="min-w-[180px] sm:min-w-[220px] p-4 sm:p-6 space-y-4 sm:space-y-6 group overflow-hidden relative" onClick={() => setView('gym')}>
                 <div className="absolute inset-0 bg-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div className="flex justify-between items-start relative z-10">
-                  <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
-                    <Dumbbell className="w-5 h-5 text-red-400" />
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
+                    <Dumbbell className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" />
                   </div>
-                  <Flame className="w-4 h-4 text-orange-400/30 group-hover:text-orange-400 transition-colors" />
+                  <Flame className="w-3 h-3 sm:w-4 h-4 text-orange-400/30 group-hover:text-orange-400 transition-colors" />
                 </div>
                 <div className="relative z-10">
-                  <p className="label-ethereal text-[8px]">Antrenament</p>
-                  <p className="text-2xl font-black">{gymStats?.summary?.total_sessions || 0} Sesiuni</p>
-                  <p className="text-[9px] font-black uppercase text-gray-500 mt-2">Level Up: {Math.round((gymStats?.summary?.total_sessions || 0) / 10)}</p>
+                  <p className="label-ethereal text-[7px] sm:text-[8px]">Antrenament</p>
+                  <p className="text-xl sm:text-2xl font-black">{gymStats?.summary?.total_sessions || 0} Sesiuni</p>
+                  <p className="text-[7px] sm:text-[9px] font-black uppercase text-gray-500 mt-1 sm:mt-2">Level Up: {Math.round((gymStats?.summary?.total_sessions || 0) / 10)}</p>
                 </div>
               </GlassCard>
             </div>
-
             
-            {/* Weather Bento - Ultra Refined */}
+            {/* Weather Bento - Ultra Refined & Responsive */}
             {weather && weather.main && (
-              <section className="mt-8 mb-4">
-                <TiltCard className="p-8 border-white/5 bg-white/[0.01] hover:bg-white/[0.03] transition-all" onClick={() => setView('map')}>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-6">
+              <section className="mt-4 sm:mt-8 mb-4">
+                <TiltCard className="p-6 sm:p-8 border-white/5 bg-white/[0.01] hover:bg-white/[0.03] transition-all" onClick={() => setView('map')}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-8">
+                    <div className="space-y-4 sm:space-y-6">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-                           <MapPin className="w-4 h-4 text-blue-400" />
+                        <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
+                           <MapPin className="w-3 h-3 sm:w-4 h-4 text-blue-400" />
                         </div>
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#adc6ff] kinetic-text">{weather.name}</span>
+                        <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-[#adc6ff] kinetic-text">{weather.name}</span>
                       </div>
-                      <div className="flex items-end gap-6">
-                        <h3 className="text-7xl font-thin tracking-tighter text-white">{Math.round(weather.main?.temp)}°</h3>
-                        <div className="pb-3 space-y-1">
-                          <p className="label-ethereal text-white">{weather.weather?.[0]?.description}</p>
-                          <p className="text-[9px] font-bold text-gray-600 uppercase">Umiditate {weather.main?.humidity}% • Vânt {weather.wind?.speed}m/s</p>
+                      <div className="flex items-end gap-4 sm:gap-6">
+                        <h3 className="text-5xl sm:text-7xl font-thin tracking-tighter text-white">{Math.round(weather.main?.temp)}°</h3>
+                        <div className="pb-1 sm:pb-3 space-y-0.5 sm:space-y-1">
+                          <p className="label-ethereal text-white text-xs sm:text-sm">{weather.weather?.[0]?.description}</p>
+                          <p className="text-[7px] sm:text-[9px] font-bold text-gray-600 uppercase">H {weather.main?.humidity}% • V {weather.wind?.speed}m/s</p>
                         </div>
                       </div>
                     </div>
                     
-                    <div className="text-right">
+                    <div className="flex justify-center sm:justify-end">
                       <motion.div 
                         animate={{ y: [0, -10, 0] }}
                         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                        className="p-6 rounded-[40px] bg-white/5 backdrop-blur-3xl border border-white/10 shadow-2xl"
+                        className="p-4 sm:p-6 rounded-[30px] sm:rounded-[40px] bg-white/5 backdrop-blur-3xl border border-white/10 shadow-2xl"
                       >
-                        {weather.weather?.[0]?.main === 'Clear' && <Sun className="w-20 h-20 text-yellow-500 drop-shadow-[0_0_30px_rgba(234,179,8,0.6)]" />}
-                        {weather.weather?.[0]?.main === 'Clouds' && <Cloud className="w-20 h-20 text-blue-300 drop-shadow-[0_0_30px_rgba(147,197,253,0.6)]" />}
-                        {weather.weather?.[0]?.main === 'Rain' && <CloudRain className="w-20 h-20 text-blue-500" />}
-                        {weather.weather?.[0]?.main === 'Drizzle' && <CloudDrizzle className="w-20 h-20 text-blue-400" />}
-                        {weather.weather?.[0]?.main === 'Snow' && <CloudSnow className="w-20 h-20 text-white" />}
-                        {['Thunderstorm', 'Mist', 'Fog', 'Haze'].includes(weather.weather?.[0]?.main) && <CloudLightning className="w-20 h-20 text-purple-400" />}
+                        {weather.weather?.[0]?.main === 'Clear' && <Sun className="w-12 h-12 sm:w-20 sm:h-20 text-yellow-500 drop-shadow-[0_0_30px_rgba(234,179,8,0.6)]" />}
+                        {weather.weather?.[0]?.main === 'Clouds' && <Cloud className="w-12 h-12 sm:w-20 sm:h-20 text-blue-300 drop-shadow-[0_0_30px_rgba(147,197,253,0.6)]" />}
+                        {weather.weather?.[0]?.main === 'Rain' && <CloudRain className="w-12 h-12 sm:w-20 sm:h-20 text-blue-500" />}
+                        {weather.weather?.[0]?.main === 'Drizzle' && <CloudDrizzle className="w-12 h-12 sm:w-20 sm:h-20 text-blue-400" />}
+                        {weather.weather?.[0]?.main === 'Snow' && <CloudSnow className="w-12 h-12 sm:w-20 sm:h-20 text-white" />}
+                        {['Thunderstorm', 'Mist', 'Fog', 'Haze'].includes(weather.weather?.[0]?.main) && <CloudLightning className="w-12 h-12 sm:w-20 sm:h-20 text-purple-400" />}
                       </motion.div>
                     </div>
                   </div>
@@ -392,14 +389,13 @@ function App() {
               </section>
             )}
 
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
               
               {/* Left Column: Systems & Focus OS */}
-              <div className="lg:col-span-4 space-y-8">
+              <div className="lg:col-span-4 space-y-6 sm:space-y-8">
                 <section className="space-y-4">
                   <h3 className="label-ethereal ml-2">Sisteme Nucleu</h3>
-                  <div className="grid grid-cols-4 lg:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-3 sm:gap-4">
                     {[
                       { id: 'tasks', icon: CheckCircle2, label: 'Tasks', color: 'text-emerald-400' },
                       { id: 'projects', icon: Briefcase, label: 'Proiecte', color: 'text-indigo-400' },
@@ -410,22 +406,23 @@ function App() {
                       { id: 'skills', icon: Flame, label: 'Skills', color: 'text-yellow-500' },
                       { id: 'shop', icon: ShoppingCart, label: 'Shop', color: 'text-purple-500' }
                     ].map(m => (
-                      <button key={m.id} onClick={() => setView(m.id as View)} className="flex lg:flex-row flex-col items-center gap-3 p-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/10 transition-all hover:scale-[1.02] active:scale-[0.98] group">
-                        <div className="w-10 h-10 lg:w-8 lg:h-8 rounded-xl bg-white/[0.05] flex items-center justify-center group-hover:bg-white/10 transition-colors">
-                          <m.icon className={`w-5 h-5 lg:w-4 lg:h-4 ${m.color}`} />
+                      <button key={m.id} onClick={() => setView(m.id as View)} className="flex lg:flex-row flex-col items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/10 transition-all hover:scale-[1.02] active:scale-[0.98] group">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-8 lg:h-8 rounded-xl bg-white/[0.05] flex items-center justify-center group-hover:bg-white/10 transition-colors">
+                          <m.icon className={`w-4 h-4 sm:w-5 sm:h-5 lg:w-4 lg:h-4 ${m.color}`} />
                         </div>
-                        <span className="text-[8px] lg:text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-white transition-colors">{m.label}</span>
+                        <span className="text-[7px] sm:text-[8px] lg:text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-white transition-colors text-center">{m.label}</span>
                       </button>
                     ))}
                   </div>
                 </section>
 
-                <TiltCard className="h-72 flex flex-col items-center justify-center border-blue-500/20 bg-gradient-to-br from-blue-500/5 to-transparent relative group">
-                  <p className="absolute top-8 left-8 label-ethereal text-[8px]">Focus OS</p>
+                <TiltCard className="h-64 sm:h-72 flex flex-col items-center justify-center border-blue-500/20 bg-gradient-to-br from-blue-500/5 to-transparent relative group">
+                  <p className="absolute top-6 left-6 sm:top-8 left-8 label-ethereal text-[7px] sm:text-[8px]">Focus OS</p>
                   
-                  <div className="relative w-36 h-36 flex items-center justify-center">
+                  <div className="relative w-28 h-28 sm:w-36 sm:h-36 flex items-center justify-center">
                     <svg className="absolute inset-0 w-full h-full -rotate-90">
-                      <circle cx="72" cy="72" r="68" fill="none" stroke="rgba(255,255,255,0.02)" strokeWidth="4" />
+                      <circle cx="56" cy="56" r="52" className="sm:hidden" fill="none" stroke="rgba(255,255,255,0.02)" strokeWidth="4" />
+                      <circle cx="72" cy="72" r="68" className="hidden sm:block" fill="none" stroke="rgba(255,255,255,0.02)" strokeWidth="4" />
                       <motion.circle 
                         cx="72" cy="72" r="68" 
                         fill="none" 
@@ -436,9 +433,22 @@ function App() {
                         animate={{ pathLength: timeLeft / (25 * 60) }}
                         transition={{ duration: 1 }}
                         style={{ filter: 'drop-shadow(0 0 8px rgba(59,130,246,0.5))' }}
+                        className="hidden sm:block"
+                      />
+                      <motion.circle 
+                        cx="56" cy="56" r="52" 
+                        fill="none" 
+                        stroke="#3b82f6" 
+                        strokeWidth="4" 
+                        strokeLinecap="round"
+                        initial={{ pathLength: 0 }}
+                        animate={{ pathLength: timeLeft / (25 * 60) }}
+                        transition={{ duration: 1 }}
+                        style={{ filter: 'drop-shadow(0 0 8px rgba(59,130,246,0.5))' }}
+                        className="sm:hidden"
                       />
                     </svg>
-                    <p className="text-4xl font-black tracking-tighter kinetic-text">{formatTime(timeLeft)}</p>
+                    <p className="text-2xl sm:text-4xl font-black tracking-tighter kinetic-text">{formatTime(timeLeft)}</p>
                   </div>
                   
                   <div className="mt-8 flex justify-center gap-4 relative z-10">
@@ -452,26 +462,14 @@ function App() {
                 </TiltCard>
               </div>
 
-
               {/* Middle Column: Project Pulse & Intelligence */}
-              <div className="lg:col-span-5 space-y-8">
-                <TiltCard className="h-44 flex flex-col justify-between bg-blue-600/90 shadow-[0_30px_60px_rgba(37,99,235,0.3)] border-none hover:scale-[1.03] transition-transform" onClick={() => setIsAddingTask(true)}>
-                  <p className="text-[8px] font-black uppercase tracking-widest text-blue-100">Quick Command</p>
-                  <div className="flex items-center gap-8">
-                    <div className="w-20 h-20 rounded-[32px] bg-white/20 backdrop-blur-2xl flex items-center justify-center shadow-2xl"><Plus className="w-10 h-10 text-white" /></div>
-                    <div>
-                      <p className="text-3xl font-black leading-none text-white tracking-tighter">Ceva nou?</p>
-                      <p className="text-[10px] font-bold text-blue-100 uppercase tracking-widest mt-3 opacity-80">Sincronizează cu Lora Nucleus</p>
-                    </div>
-                  </div>
-                </TiltCard>
-
+              <div className="lg:col-span-5 space-y-6 sm:space-y-8">
                 <section className="space-y-6">
                   <h3 className="label-ethereal ml-2 flex justify-between items-center">
                     <span>Proiecte Active</span>
                     <div className="flex items-center gap-2">
                        <div className="w-1 h-1 rounded-full bg-blue-400" />
-                       <span className="text-[9px] text-gray-500 uppercase tracking-widest">{tasks.filter(t => t.status !== 'done').length} Priorități</span>
+                       <span className="text-[8px] sm:text-[9px] text-gray-500 uppercase tracking-widest">{tasks.filter(t => t.status !== 'done').length} Priorități</span>
                     </div>
                   </h3>
                   
@@ -484,28 +482,28 @@ function App() {
                           return acc;
                         }, {})
                       ).map(([proj, count]: [string, any]) => (
-                        <div key={proj} className="liquid-panel p-6 flex justify-between items-center hover:bg-white/[0.05] transition-all group cursor-pointer" onClick={() => setView('tasks')}>
-                          <div className="flex items-center gap-5">
-                             <div className="w-1.5 h-8 bg-blue-500 rounded-full group-hover:scale-y-125 transition-transform shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
+                        <div key={proj} className="liquid-panel p-4 sm:p-6 flex justify-between items-center hover:bg-white/[0.05] transition-all group cursor-pointer" onClick={() => setView('tasks')}>
+                          <div className="flex items-center gap-4 sm:gap-5">
+                             <div className="w-1 sm:w-1.5 h-6 sm:h-8 bg-blue-500 rounded-full group-hover:scale-y-125 transition-transform shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
                              <div>
-                                <p className="font-medium text-xl tracking-tight">{proj}</p>
-                                <p className="label-ethereal text-[8px] opacity-40 mt-1">Sincronizat</p>
+                                <p className="font-medium text-lg sm:text-xl tracking-tight">{proj}</p>
+                                <p className="label-ethereal text-[7px] sm:text-[8px] opacity-40 mt-0.5 sm:mt-1">Sincronizat</p>
                              </div>
                           </div>
-                          <div className="flex items-center gap-4">
-                             <span className="text-3xl font-thin text-[#adc6ff]">{count}</span>
-                             <ArrowLeft className="w-4 h-4 text-gray-700 rotate-180 group-hover:translate-x-1 transition-transform" />
+                          <div className="flex items-center gap-3 sm:gap-4">
+                             <span className="text-2xl sm:text-3xl font-thin text-[#adc6ff]">{count}</span>
+                             <ArrowLeft className="w-3 h-3 sm:w-4 h-4 text-gray-700 rotate-180 group-hover:translate-x-1 transition-transform" />
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="py-24 text-center space-y-8 liquid-panel border-dashed border-white/10 rounded-[40px]">
+                      <div className="py-16 sm:py-24 text-center space-y-6 sm:space-y-8 liquid-panel border-dashed border-white/10 rounded-[30px] sm:rounded-[40px]">
                          <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 4 }}>
-                            <CheckCircle2 className="w-16 h-16 text-emerald-500/20 mx-auto" />
+                            <CheckCircle2 className="w-12 h-12 sm:w-16 sm:h-16 text-emerald-500/20 mx-auto" />
                          </motion.div>
-                         <div className="space-y-2">
-                           <p className="label-ethereal text-[10px] text-emerald-400">Sistem Nominal</p>
-                           <p className="text-xs text-gray-500">Toate fluxurile de lucru sunt completate</p>
+                         <div className="space-y-1 sm:space-y-2">
+                           <p className="label-ethereal text-[8px] sm:text-[10px] text-emerald-400">Sistem Nominal</p>
+                           <p className="text-[10px] sm:text-xs text-gray-500">Toate fluxurile de lucru sunt completate</p>
                          </div>
                       </div>
                     )}
@@ -513,29 +511,28 @@ function App() {
                 </section>
               </div>
 
-
               {/* Right Column: Intelligence & Vitals */}
-              <div className="lg:col-span-3 space-y-12">
+              <div className="lg:col-span-3 space-y-8 sm:space-y-12">
                 <section className="space-y-6">
                   <h3 className="label-ethereal ml-2">Program Azi</h3>
                   <div className="space-y-4">
                     {calendarToday?.schedule?.map((s: any) => (
-                      <div key={s.id} className="liquid-panel p-6 flex gap-6 items-center hover:bg-white/[0.04] transition-all rounded-[24px]">
-                        <div className="w-14 text-center space-y-2">
-                           <p className="text-[10px] font-black text-[#adc6ff] tabular-nums">{s.start_time.slice(0, 5)}</p>
-                           <div className="w-6 h-[1px] bg-blue-500/20 mx-auto" />
+                      <div key={s.id} className="liquid-panel p-4 sm:p-6 flex gap-4 sm:gap-6 items-center hover:bg-white/[0.04] transition-all rounded-[20px] sm:rounded-[24px]">
+                        <div className="w-12 sm:w-14 text-center space-y-1 sm:space-y-2">
+                           <p className="text-[8px] sm:text-[10px] font-black text-[#adc6ff] tabular-nums">{s.start_time.slice(0, 5)}</p>
+                           <div className="w-4 sm:w-6 h-[1px] bg-blue-500/20 mx-auto" />
                         </div>
-                        <div className="flex-1 space-y-1">
-                          <p className="font-bold text-sm tracking-tight">{s.subject_name}</p>
-                          <p className="label-ethereal text-[8px] opacity-40">{s.room}</p>
+                        <div className="flex-1 space-y-0.5 sm:space-y-1">
+                          <p className="font-bold text-xs sm:text-sm tracking-tight">{s.subject_name}</p>
+                          <p className="label-ethereal text-[7px] sm:text-[8px] opacity-40">{s.room}</p>
                         </div>
-                        <Navigation className="w-4 h-4 text-gray-700 group-hover:text-blue-400 transition-colors" />
+                        <Navigation className="w-3 h-3 sm:w-4 h-4 text-gray-700 group-hover:text-blue-400 transition-colors" />
                       </div>
                     ))}
                     {(!calendarToday?.schedule || calendarToday.schedule.length === 0) && (
-                       <div className="py-16 text-center liquid-panel border-dashed border-white/5 rounded-[32px]">
-                          <p className="label-ethereal text-[9px]">Weekend Mode</p>
-                          <p className="text-[9px] text-gray-600 font-bold mt-2 uppercase">Niciun eveniment detectat</p>
+                       <div className="py-12 sm:py-16 text-center liquid-panel border-dashed border-white/5 rounded-[24px] sm:rounded-[32px]">
+                          <p className="label-ethereal text-[8px] sm:text-[9px]">Weekend Mode</p>
+                          <p className="text-[8px] sm:text-[9px] text-gray-600 font-bold mt-1 sm:mt-2 uppercase tracking-tighter sm:tracking-normal">Niciun eveniment detectat</p>
                        </div>
                     )}
                   </div>
@@ -544,25 +541,25 @@ function App() {
                 <section className="space-y-6">
                   <h3 className="label-ethereal ml-2">Vitals</h3>
                   <div className="space-y-4">
-                    <GlassCard className="flex gap-6 items-center group relative overflow-hidden" onClick={() => setView('health')}>
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-pink-500/5 rounded-full blur-2xl -mr-12 -mt-12" />
-                      <div className="w-12 h-12 rounded-2xl bg-pink-500/10 flex items-center justify-center group-hover:bg-pink-500/20 transition-colors">
-                        <Heart className="w-6 h-6 text-pink-400" />
+                    <GlassCard className="flex gap-4 sm:gap-6 items-center group relative overflow-hidden p-4 sm:p-6" onClick={() => setView('health')}>
+                      <div className="absolute top-0 right-0 w-16 sm:w-24 h-16 sm:h-24 bg-pink-500/5 rounded-full blur-2xl -mr-8 sm:-mr-12 -mt-8 sm:-mt-12" />
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-pink-500/10 flex items-center justify-center group-hover:bg-pink-500/20 transition-colors">
+                        <Heart className="w-5 h-5 sm:w-6 sm:h-6 text-pink-400" />
                       </div>
                       <div className="flex-1">
-                        <p className="label-ethereal text-[8px]">Health Score</p>
-                        <p className="text-xl font-bold tracking-tight">{healthLogs[0]?.sleep_hours || '8'}h Somn</p>
+                        <p className="label-ethereal text-[7px] sm:text-[8px]">Health Score</p>
+                        <p className="text-lg sm:text-xl font-bold tracking-tight">{healthLogs[0]?.sleep_hours || '8'}h Somn</p>
                       </div>
                     </GlassCard>
                     
-                    <GlassCard className="flex gap-6 items-center group relative overflow-hidden" onClick={() => setView('gym')}>
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/5 rounded-full blur-2xl -mr-12 -mt-12" />
-                      <div className="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
-                        <Dumbbell className="w-6 h-6 text-red-400" />
+                    <GlassCard className="flex gap-4 sm:gap-6 items-center group relative overflow-hidden p-4 sm:p-6" onClick={() => setView('gym')}>
+                      <div className="absolute top-0 right-0 w-16 sm:w-24 h-16 sm:h-24 bg-red-500/5 rounded-full blur-2xl -mr-8 sm:-mr-12 -mt-8 sm:-mt-12" />
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
+                        <Dumbbell className="w-5 h-5 sm:w-6 sm:h-6 text-red-400" />
                       </div>
                       <div className="flex-1">
-                        <p className="label-ethereal text-[8px]">Antrenament</p>
-                        <p className="text-xl font-bold tracking-tight">{gymStats?.summary?.total_sessions || 0} Sesiuni</p>
+                        <p className="label-ethereal text-[7px] sm:text-[8px]">Antrenament</p>
+                        <p className="text-lg sm:text-xl font-bold tracking-tight">{gymStats?.summary?.total_sessions || 0} Sesiuni</p>
                       </div>
                     </GlassCard>
                   </div>
