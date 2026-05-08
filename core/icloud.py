@@ -450,18 +450,30 @@ def get_reminders_list(client: caldav.DAVClient) -> caldav.Calendar:
             continue
 
     if not todo_calendars:
-        # Fallback to the one that worked in test_todo
+        print("⚠️ No TODO-capable calendars found via .todos() check.")
+        # Fallback search by name
         for cal in calendars:
-            if "Reminders" in cal.get_display_name():
+            name = getattr(cal, 'name', str(cal.url))
+            if "Reminders" in name or "Tasks" in name:
+                print(f"📍 Fallback found potential list by name: {name}")
                 return cal
+        print(f"⚠️ Using absolute fallback (first calendar): {calendars[0].name if hasattr(calendars[0], 'name') else calendars[0].url}")
         return calendars[0]
+
+    print(f"🔍 Found {len(todo_calendars)} TODO-capable calendars.")
+    for cal in todo_calendars:
+        name = getattr(cal, 'name', 'Unknown')
+        print(f"  - {name} ({cal.url})")
 
     # Priority: "Lora" (exact/case-insensitive), then "Reminders", then "Tasks"
     for name_hint in ["Lora", "Reminders", "Tasks"]:
         for cal in todo_calendars:
-            if name_hint.lower() == cal.get_display_name().lower():
+            name = getattr(cal, 'name', '').lower()
+            if name_hint.lower() in name:
+                print(f"✅ Selected Reminders list by hint '{name_hint}': {cal.name}")
                 return cal
 
+    print(f"📍 No hint match, selecting first TODO list: {todo_calendars[0].name}")
     return todo_calendars[0]
 
 
@@ -628,6 +640,7 @@ async def sync_tasks_to_reminders(pool) -> dict:
         all_tasks = await list_tasks(pool)
         # We sync all pending tasks, not just those with dates
         pending_tasks = [t for t in all_tasks if t["status"] == "pending"]
+        print(f"📋 Found {len(pending_tasks)} pending tasks in Lora DB.")
 
         for t in pending_tasks:
             lora_id = t["id"]
@@ -646,6 +659,7 @@ async def sync_tasks_to_reminders(pool) -> dict:
             if t.get("project_name"):
                 summary = f"[{t['project_name']}] {summary}"
 
+            print(f"⏳ Syncing Task ID {lora_id}: {summary}")
             try:
                 await create_reminder(
                     summary=summary,
