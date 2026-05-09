@@ -343,11 +343,15 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - Cuvinte cheie: "ce patterns ai observat", "analizează", "insights", "tendințe", "ce poți să-mi spui despre obiceiurile mele".
 18. Health: module="health":
     - intent="health_log" pentru înregistrare (somn, apă, nutriție, greutate). Poate loga mai multe odată.
+      Data: {{"sleep_hours": float, "sleep_quality": "great|good|neutral|bad|terrible", "water_ml": integer, "weight_kg": float, "nutrition": string, "notes": string}}
     - intent="log_water" pentru a ADĂUGA apă la totalul zilei (ex: "am mai băut 500ml").
     - intent="health_summary" pentru rezumatul text (ultimele 7 zile).
     - intent="health_chart" pentru grafice (somn, apă, greutate) pe ultimele 30 zile.
     - Regulă conversie APĂ: "2L" / "2 litri" → 2000 | "un pahar" → 250 | "500ml" → 500.
-    - Regulă SOMN: "7h30/7 și jumătate" → 7.5.
+    - Regulă SOMN (CRITICAL): 
+      - "7h30/7 și jumătate" → 7.5.
+      - "Am dormit de la 23:00 la 07:00" → calculează automat durata în ore (ex: 8.0).
+      - Folosește ÎNTOTDEAUNA cheia "sleep_hours", NU "sleep_duration_hours".
     - Regulă CALITATE: "bună/ok" → "good" | "proastă/rău" → "bad" | "excelentă" → "great" | "groaznic" → "terrible" | "neutru" → "neutral".
 29. Tasks: module="tasks":
     - intent="add_task" — "vreau să îmi setez un task", "adaugă: X".
@@ -795,7 +799,8 @@ async def normalize_voice_text(raw: str) -> str:
     """
     prompt = (
         "Textul următor vine dintr-o transcriere vocală și poate fi informal, fragmentat sau conține bâlbâieli. "
-        "Reformulează-l ca o comandă sau un mesaj clar, corectând greșelile gramaticale evidente, dar păstrând EXACT intenția și toate datele (sume, ore, nume). "
+        "Reformulează-l ca o comandă sau un mesaj clar, corectând greșelile gramaticale evidente, dar păstrând EXACT intenția și toate datele (sume, ore, nume, intervale de timp). "
+        "Păstrează toate cifrele și unitățile de măsură (ex: 8 ore, 50 lei, 2 litri). "
         "Dacă sunt mai multe acțiuni, separă-le clar. "
         "Nu adăuga informații noi. Răspunde DOAR cu textul reformulat, fără explicații. "
         f"Transcriere: {raw}"

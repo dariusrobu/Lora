@@ -100,30 +100,40 @@ If no new facts → return []
 
 
 async def _is_duplicate_fact(pool, user_id: int, new_fact: str, category: str) -> bool:
-    """Checks if a similar fact already exists in memory using fuzzy matching."""
+    """Checks if a similar fact already exists in memory using keyword overlap and fuzzy matching."""
     try:
-        # Normalize: lowercase, strip, take first 40 chars as prefix
-        prefix = new_fact[:40].strip().lower()
+        # 1. Clean and tokenize the new fact
+        import re
+        words = [w.lower() for w in re.findall(r'\w+', new_fact) if len(w) >= 3]
+        if not words:
+            return False
+            
         async with pool.acquire() as conn:
-            # Check for exact or near-prefix match in same category
-            existing = await conn.fetchval(
+            # 2. Check for prefix match (fast)
+            prefix = new_fact[:30].strip().lower()
+            existing_prefix = await conn.fetchval(
+                "SELECT id FROM memory_facts WHERE user_id = $1 AND LOWER(fact) ILIKE $2 LIMIT 1",
+                user_id, f"%{prefix}%"
+            )
+            if existing_prefix:
+                return True
+
+            # 3. Keyword overlap check (more robust)
+            # We search for facts that contain at least 2 of the main keywords
+            search_pattern = " & ".join(words[:3]) # Use first 3 keywords
+            existing_semantic = await conn.fetchval(
                 """
-                SELECT id FROM memory_facts
-                WHERE user_id = $1
-                AND (category = $2 OR category = $3)
-                AND (LOWER(fact) ILIKE $4 OR LOWER(fact) ILIKE $5)
+                SELECT id FROM memory_facts 
+                WHERE user_id = $1 
+                AND to_tsvector('simple', fact) @@ to_tsquery('simple', $2)
                 LIMIT 1
                 """,
-                user_id,
-                category,
-                category + "s"
-                if not category.endswith("s")
-                else category[:-1],  # handle plural variants
-                f"{prefix}%",
-                f"%{prefix}%",
+                user_id, search_pattern
             )
-            return existing is not None
-    except Exception:
+            return existing_semantic is not None
+            
+    except Exception as e:
+        print(f"Deduplication check error: {e}")
         return False
 
 
@@ -168,7 +178,7 @@ async def get_context_memory(
             return "Nicio amintire relevantă identificată."
 
         formatted_facts = []
-        for f in facts[:5]:  # Limit to top 5 as requested
+        for f in facts[:15]:  # Increased limit to 15 for better deduplication
             # Update last_seen for the fact since it's being used
             await update_fact_seen(pool, f["id"])
             formatted_facts.append(f"• [{f['category'].capitalize()}] {f['fact']}")
@@ -182,8 +192,7 @@ async def get_context_memory(
 
 async def optimize_user_memory(pool, client, user_id: int) -> str:
     """Uses Gemini to deduplicate and clean up all memories for a user."""
-    from db.queries.memory import list_all_memories, delete_fact, update_grade  # reusing update logic if needed
-    # Actually I need a generic update_memory_fact which I'll add if not there
+    from db.queries.memory import list_all_memories, delete_fact
 
     try:
         memories = await list_all_memories(pool)

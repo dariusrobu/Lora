@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   CheckCircle2, Navigation, Plus, GraduationCap, 
-  Dumbbell, Wallet, ArrowLeft, Loader2, Settings,
+  Dumbbell, Wallet, ArrowLeft, Loader2,
   Heart, Flame, Brain, Play, Pause, RotateCcw,
   TrendingUp, Star, Moon, Droplets, Scale,
   Pin, MapPin, Search, Sun, Cloud, CloudRain, CloudDrizzle, CloudSnow, CloudLightning,
@@ -291,10 +291,7 @@ function App() {
                    Sistem Activ • {tasks.filter(t => t.status !== 'done').length} Priorități
                 </p>
               </div>
-              <div className="flex gap-2 sm:gap-4">
-                <button className="w-10 h-10 sm:w-14 sm:h-14 rounded-full liquid-panel flex items-center justify-center hover:bg-white/10 transition-all hover:scale-110 shadow-2xl shadow-blue-500/10"><Search className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" /></button>
-                <button className="w-10 h-10 sm:w-14 sm:h-14 rounded-full liquid-panel flex items-center justify-center hover:bg-white/10 transition-all hover:scale-110 shadow-2xl shadow-blue-500/10"><Settings className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" /></button>
-              </div>
+              <div className="flex gap-2 sm:gap-4" />
             </header>
                      {/* Top Stats Scroll with Sparklines - Scrollable on all, but more compact on mobile */}
             <div className="flex gap-4 sm:gap-6 overflow-x-auto no-scrollbar py-4 -mx-4 px-4">
