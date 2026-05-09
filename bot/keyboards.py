@@ -961,9 +961,15 @@ def memory_main_keyboard() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(
+                    "✨ Optimizează (AI)",
+                    callback_data=make_callback_data("memory", "optimize"),
+                ),
+                InlineKeyboardButton(
                     "📊 Categorii",
                     callback_data=make_callback_data("memory", "view_categories"),
                 ),
+            ],
+            [
                 InlineKeyboardButton(
                     "◀️ Înapoi", callback_data=make_callback_data("chat", "main")
                 ),

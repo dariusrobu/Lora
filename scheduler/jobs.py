@@ -26,34 +26,116 @@ import db.queries.finance as finance_queries
 import db.queries.health as health_queries
 
 
-async def send_daily_report(application, pool):
+async def send_daily_report(application, pool) -> bool:
     """Collects and sends daily report to Council API."""
     try:
+        import json
         from core.council import send_report_to_council
         from core.config import TELEGRAM_USER_ID as TG_ID
         from datetime import date
+        from db.queries.log import log_execution
+        import traceback
 
         today = date.today()
-
-        completed = await task_queries.get_completed_tasks_today(pool)
-        task_titles = [t["title"] for t in completed if t.get("title")]
-
-        if not task_titles:
-            print(f"No tasks completed today ({today}) — skipping report.", flush=True)
-            return
-
         project_id = str(TG_ID)
 
+        # 1. Tasks Completed
+        completed = await task_queries.get_completed_tasks_today(pool)
+
+        # 2. Tasks Created Today
+        async with pool.acquire() as conn:
+            created_rows = await conn.fetch(
+                "SELECT title FROM tasks WHERE DATE(created_at) = CURRENT_DATE"
+            )
+            tasks_created = [{"title": r["title"]} for r in created_rows]
+
+        # 3. Tasks Pending Overdue
+        async with pool.acquire() as conn:
+            overdue_rows = await conn.fetch(
+                "SELECT title, due_date FROM tasks WHERE status != 'done' AND due_date < CURRENT_DATE AND deleted_at IS NULL"
+            )
+            tasks_pending_overdue = [
+                {"title": r["title"], "due_date": r["due_date"].isoformat() if r["due_date"] else None} 
+                for r in overdue_rows
+            ]
+
+        # 4. Finance Summary
+        async with pool.acquire() as conn:
+            fin_total = await conn.fetchval(
+                "SELECT SUM(amount) FROM finances WHERE DATE(transaction_date) = CURRENT_DATE AND type = 'expense'"
+            )
+            fin_cat = await conn.fetch(
+                "SELECT category, SUM(amount) as total FROM finances WHERE DATE(transaction_date) = CURRENT_DATE AND type = 'expense' GROUP BY category"
+            )
+            finance_summary = {
+                "total": float(fin_total) if fin_total else 0.0,
+                "per_category": {r["category"]: float(r["total"]) for r in fin_cat}
+            }
+
+        # 5. Active Goals
+        async with pool.acquire() as conn:
+            goals_rows = await conn.fetch(
+                "SELECT title, progress_percent FROM goals WHERE status = 'active'"
+            )
+            active_goals = [
+                {"title": r["title"], "progress_percent": float(r["progress_percent"]) if r["progress_percent"] else 0.0} 
+                for r in goals_rows
+            ]
+
+        # 6. Mood and Energy
+        async with pool.acquire() as conn:
+            health_row = await conn.fetchrow(
+                "SELECT mood, energy FROM health_logs WHERE log_date = CURRENT_DATE"
+            )
+            mood = int(health_row["mood"]) if health_row and health_row["mood"] is not None else None
+            energy = int(health_row["energy"]) if health_row and health_row["energy"] is not None else None
+
+        # 7. Streaks Active
+        from db.queries.skills import get_skill_streak
+        async with pool.acquire() as conn:
+            skills = await conn.fetch("SELECT id, name FROM skills")
+        
+        streaks_active = []
+        for s in skills:
+            streak = await get_skill_streak(pool, s["id"])
+            if streak > 0:
+                streaks_active.append({"name": s["name"], "streak": streak})
+
+        # Payload construction
+        payload = {
+            "tasks_completed": completed or [],
+            "tasks_created": tasks_created or [],
+            "tasks_pending_overdue": tasks_pending_overdue or [],
+            "finance_summary": finance_summary,
+            "active_goals": active_goals or [],
+            "mood": mood,
+            "energy": energy,
+            "streaks_active": streaks_active or [],
+            "date": today.isoformat()
+        }
+
+        # Send report
         result = await send_report_to_council(
             project_id=project_id,
-            tasks_completed=completed,
-            summary=f"Completed {len(task_titles)} tasks today",
+            payload=payload
+        )
+
+        # Log to execution_log
+        payload_size = len(json.dumps(payload, default=str))
+        await log_execution(
+            pool=pool,
+            intent="council_report",
+            module="jobs",
+            success=result,
+            error_type=None,
+            error_message=f"Payload size: {payload_size} bytes" if result else f"Failed to send report. Payload size: {payload_size} bytes"
         )
 
         if result:
             print(f"Report sent to Council for {today}.", flush=True)
 
         if COUNCIL_GROUP_CHAT_ID and COUNCIL_GROUP_CHAT_ID != "":
+            task_titles = [t.get("title") for t in completed if t.get("title")]
             report_text = (
                 f"[REPORT] {today.strftime('%Y-%m-%d')}\n"
                 f"Tasks completed: {len(task_titles)}\n"
@@ -67,12 +149,26 @@ async def send_daily_report(application, pool):
                 text=report_text,
             )
             print("Report posted to Council group.", flush=True)
+            
+        return result
 
     except Exception as e:
         import traceback
-
         print(f"CRITICAL error in send_daily_report: {e}", flush=True)
         traceback.print_exc()
+        try:
+            from db.queries.log import log_execution
+            await log_execution(
+                pool=pool,
+                intent="council_report",
+                module="jobs",
+                success=False,
+                error_type=e.__class__.__name__,
+                error_message=str(e)
+            )
+        except:
+            pass
+        return False
 
 
 # NOTE: This bot uses long polling and should NOT be run in multiple instances simultaneously.
@@ -260,15 +356,13 @@ CUPRINS (Include doar dacă există date):
 4. 🎯 PRIORITĂȚI: Task-uri High și Medium. OBLIGATORIU: Scrie titlul complet al taskului și proiectul în paranteze pătrate, ex: "Faza 8 — Intelligence layer [Proiect: Lora]". NU TĂIA titlul.
 5. 💰 SITUAȚIA FINANCIARĂ: Balanța reală din date.
 6. 🔥 HABIT STREAKS: Menționează skill-urile cu streak.
-7. 🗞️ TECH NEWS: Traduce titlurile în română și adaugă 10 cuvinte despre relevanță.
-8. 🧠 MEMORY LANE: O referință la progresul tău pe termen lung.
-9. 💡 LORA INSIGHT: Alinierea cu obiectivele tale.
+7. 🧠 MEMORY LANE: O referință la progresul tău pe termen lung.
+8. 💡 LORA INSIGHT: Alinierea cu obiectivele tale.
 
 REGULI STRICTE:
 - MarkdownV2 (caractere RAW).
 - NU TĂIA TEXTUL. Dacă începi o secțiune, trebuie să o termini complet.
 - Fii specific și precis. Răspunde cu întregul conținut solicitat.
-- NU lăsa titluri în engleză la știri.
 """
 
         gemini_context = json.dumps(briefing_data, indent=2, cls=UniversalEncoder)
@@ -501,9 +595,13 @@ async def send_eod_reflection(application, pool, force=False):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
+        report_status = await send_daily_report(application, pool)
+        report_text = "\n\n_Raport trimis la Council ✓_" if report_status else "\n\n_Raport Council: eșuat ✗_"
+
         message = (
             f"🌙 *Bună seara, {escape_md(name)}\\!* \n\n"
             "E timpul pentru o scurtă reflexie\\. *Cum a fost ziua ta azi?*"
+            + report_text
         )
 
         await application.bot.send_message(
@@ -1628,15 +1726,7 @@ def setup_scheduler(application, pool):
         args=[application, pool],
     )
 
-    # 3b. Daily Report to Council - at EOD time
-    scheduler.add_job(
-        send_daily_report,
-        "cron",
-        hour=e_h,
-        minute=e_m,
-        misfire_grace_time=3600,
-        args=[application, pool],
-    )
+
 
     # 4. Journal Night - 3 reflection questions at 22:00
     j_h, j_m = map(int, JOURNAL_NIGHT_TIME.split(":"))

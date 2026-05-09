@@ -243,3 +243,75 @@ async def delete_subject(pool, subject_id: int) -> None:
                 "UPDATE schedule SET is_active = FALSE WHERE subject_id = $1",
                 subject_id,
             )
+
+
+async def get_restante(pool) -> list:
+    """Returnează toate restanțele viitoare sau recente."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT e.*, s.name as subject_name
+            FROM exams e
+            JOIN subjects s ON s.id = e.subject_id
+            WHERE e.exam_type = 'restanta'
+            ORDER BY e.exam_date ASC
+        """
+        )
+        return [dict(r) for r in rows]
+
+
+# --- CRUD Extensions ---
+
+
+async def delete_grade(pool, grade_id: int) -> None:
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM grades WHERE id = $1", grade_id)
+
+
+async def delete_exam(pool, exam_id: int) -> None:
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM exams WHERE id = $1", exam_id)
+
+
+async def delete_attendance(pool, attendance_id: int) -> None:
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM attendances WHERE id = $1", attendance_id)
+
+
+async def update_grade(pool, grade_id: int, **kwargs) -> None:
+    if not kwargs:
+        return
+    fields = []
+    values = []
+    for i, (key, value) in enumerate(kwargs.items(), start=2):
+        fields.append(f"{key} = ${i}")
+        values.append(value)
+    query = f"UPDATE grades SET {', '.join(fields)} WHERE id = $1"
+    async with pool.acquire() as conn:
+        await conn.execute(query, grade_id, *values)
+
+
+async def update_exam(pool, exam_id: int, **kwargs) -> None:
+    if not kwargs:
+        return
+    fields = []
+    values = []
+    for i, (key, value) in enumerate(kwargs.items(), start=2):
+        fields.append(f"{key} = ${i}")
+        values.append(value)
+    query = f"UPDATE exams SET {', '.join(fields)} WHERE id = $1"
+    async with pool.acquire() as conn:
+        await conn.execute(query, exam_id, *values)
+
+
+async def update_attendance(pool, attendance_id: int, **kwargs) -> None:
+    if not kwargs:
+        return
+    fields = []
+    values = []
+    for i, (key, value) in enumerate(kwargs.items(), start=2):
+        fields.append(f"{key} = ${i}")
+        values.append(value)
+    query = f"UPDATE attendances SET {', '.join(fields)} WHERE id = $1"
+    async with pool.acquire() as conn:
+        await conn.execute(query, attendance_id, *values)

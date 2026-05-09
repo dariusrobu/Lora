@@ -119,7 +119,7 @@ async def handle_university_intent(
         subject_name = data.get("subject", "")
         exam_date = data.get("exam_date")
         exam_type = data.get("exam_type", "examen")
-        location = data.get("location")
+        room = data.get("room") or data.get("location")
 
         if not subject_name or not exam_date:
             return "Spune-mi materia și data examenului.", None
@@ -133,9 +133,9 @@ async def handle_university_intent(
 
             exam_date = datetime.strptime(exam_date, "%Y-%m-%d").date()
 
-        await uni_queries.add_exam(pool, subject["id"], exam_date, exam_type, location)
+        await uni_queries.add_exam(pool, subject["id"], exam_date, exam_type, room)
 
-        loc_str = f" la {escape_md(location)}" if location else ""
+        loc_str = f" la {escape_md(room)}" if room else ""
         return (
             f"Examen *{escape_md(subject['name'])}* pe *{exam_date.strftime('%d %b')}*{loc_str} adăugat\\. 📅",
             None,
@@ -151,8 +151,32 @@ async def handle_university_intent(
             date_str = escape_md(e["exam_date"].strftime("%d %b"))
             subject = escape_md(e["subject_name"])
             type_str = escape_md(e["exam_type"])
-            loc = f" · {escape_md(e['location'])}" if e.get("location") else ""
+            loc = f" · {escape_md(e['room'])}" if e.get("room") else ""
             lines.append(f"• *{date_str}* — {subject} \\({type_str}\\){loc}")
+
+        return "\n".join(lines), None
+
+    elif intent == "uni_restante":
+        restante = await uni_queries.get_restante(pool)
+        if not restante:
+            return "Nu ai nicio restanță marcată\\. Felicitări\\! 🎉", None
+
+        lines = ["📚 *Lista Restanțe*\n"]
+        for r in restante:
+            date_str = escape_md(r["exam_date"].strftime("%d %b"))
+            subject = escape_md(r["subject_name"])
+            loc = f" · {escape_md(r['room'])}" if r.get("room") else ""
+            
+            # Calcul zile rămase
+            days_left = (r["exam_date"] - date.today()).days
+            if days_left > 0:
+                timer = f" \\(peste {days_left} zile\\)"
+            elif days_left == 0:
+                timer = " \\(astăzi\\!\\)"
+            else:
+                timer = f" \\({abs(days_left)} zile trecute\\)"
+
+            lines.append(f"• *{date_str}* — {subject}{loc}{timer}")
 
         return "\n".join(lines), None
 
@@ -169,5 +193,182 @@ async def handle_university_intent(
             )
 
         return "\n".join(lines), None
+
+    elif intent == "uni_update_subject":
+        subject_name = data.get("subject")
+        if not subject_name:
+            return "Ce materie vrei să modifici?", None
+
+        subject = await uni_queries.get_subject_by_name(pool, subject_name)
+        if not subject:
+            return f"Materia *{escape_md(subject_name)}* nu a fost găsită.", None
+
+        update_data = {}
+        if "new_name" in data:
+            update_data["name"] = data["new_name"]
+        if "credits" in data:
+            update_data["credits"] = data["credits"]
+        if "professor" in data:
+            update_data["professor"] = data["professor"]
+        if "min_attendance_pct" in data:
+            update_data["min_attendance_pct"] = data["min_attendance_pct"]
+
+        if not update_data:
+            return "Ce vrei să modifici la această materie?", None
+
+        await uni_queries.update_subject(pool, subject["id"], **update_data)
+        return f"Materia *{escape_md(subject['name'])}* a fost actualizată. ✅", None
+
+    elif intent == "uni_delete_subject":
+        subject_name = data.get("subject")
+        if not subject_name:
+            return "Ce materie vrei să ștergi?", None
+
+        subject = await uni_queries.get_subject_by_name(pool, subject_name)
+        if not subject:
+            return f"Materia *{escape_md(subject_name)}* nu a fost găsită.", None
+
+        await uni_queries.delete_subject(pool, subject["id"])
+        return f"Materia *{escape_md(subject['name'])}* a fost ștearsă (arhivată). 🗑️", None
+
+    elif intent == "uni_update_grade":
+        subject_name = data.get("subject")
+        old_grade = data.get("old_grade") or data.get("grade")
+        if not subject_name or old_grade is None:
+            return "Spune-mi materia și nota pe care vrei să o modifici.", None
+
+        subject = await uni_queries.get_subject_by_name(pool, subject_name)
+        if not subject:
+            return f"Materia *{escape_md(subject_name)}* nu a fost găsită.", None
+
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM grades WHERE subject_id = $1 AND grade = $2 ORDER BY graded_at DESC LIMIT 1",
+                subject["id"],
+                float(old_grade),
+            )
+            if not row:
+                return f"Nu am găsit nota {old_grade} la {escape_md(subject['name'])}.", None
+            
+            update_data = {}
+            if "new_grade" in data:
+                update_data["grade"] = float(data["new_grade"])
+            if "new_type" in data or "grade_type" in data:
+                update_data["grade_type"] = data.get("new_type") or data.get("grade_type")
+            
+            if not update_data:
+                return "Ce vrei să modifici la această notă?", None
+                
+            await uni_queries.update_grade(pool, row["id"], **update_data)
+            
+        return f"Nota de la *{escape_md(subject['name'])}* a fost actualizată. ✅", None
+
+    elif intent == "uni_update_exam":
+        subject_name = data.get("subject")
+        if not subject_name:
+            return "La ce materie vrei să modifici examenul?", None
+
+        subject = await uni_queries.get_subject_by_name(pool, subject_name)
+        if not subject:
+            return f"Materia *{escape_md(subject_name)}* nu a fost găsită.", None
+
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM exams WHERE subject_id = $1 ORDER BY exam_date ASC LIMIT 1",
+                subject["id"],
+            )
+            if not row:
+                return f"Nu am găsit niciun examen la {escape_md(subject['name'])}.", None
+            
+            update_data = {}
+            if "new_date" in data or "exam_date" in data:
+                d = data.get("new_date") or data.get("exam_date")
+                if isinstance(d, str):
+                    from datetime import datetime
+                    d = datetime.strptime(d, "%Y-%m-%d").date()
+                update_data["exam_date"] = d
+            if "new_type" in data or "exam_type" in data:
+                update_data["exam_type"] = data.get("new_type") or data.get("exam_type")
+            if "new_room" in data or "room" in data or "location" in data:
+                update_data["room"] = data.get("new_room") or data.get("room") or data.get("location")
+            
+            if not update_data:
+                return "Ce vrei să modifici la acest examen?", None
+                
+            await uni_queries.update_exam(pool, row["id"], **update_data)
+
+        return f"Examenul de la *{escape_md(subject['name'])}* a fost actualizat. ✅", None
+
+    elif intent == "uni_delete_grade":
+        subject_name = data.get("subject")
+        grade_val = data.get("grade")
+        if not subject_name or grade_val is None:
+            return "Spune-mi materia și nota pe care vrei să o ștergi.", None
+
+        subject = await uni_queries.get_subject_by_name(pool, subject_name)
+        if not subject:
+            return f"Materia *{escape_md(subject_name)}* nu a fost găsită.", None
+
+        # Găsește nota în DB
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM grades WHERE subject_id = $1 AND grade = $2 ORDER BY graded_at DESC LIMIT 1",
+                subject["id"],
+                float(grade_val),
+            )
+            if not row:
+                return f"Nu am găsit nota {grade_val} la {escape_md(subject['name'])}.", None
+            await uni_queries.delete_grade(pool, row["id"])
+
+        return (
+            f"Nota {grade_val} de la *{escape_md(subject['name'])}* a fost ștearsă. 🗑️",
+            None,
+        )
+
+    elif intent == "uni_delete_exam":
+        subject_name = data.get("subject")
+        if not subject_name:
+            return "La ce materie vrei să ștergi examenul?", None
+
+        subject = await uni_queries.get_subject_by_name(pool, subject_name)
+        if not subject:
+            return f"Materia *{escape_md(subject_name)}* nu a fost găsită.", None
+
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM exams WHERE subject_id = $1 ORDER BY exam_date ASC LIMIT 1",
+                subject["id"],
+            )
+            if not row:
+                return f"Nu am găsit niciun examen la {escape_md(subject['name'])}.", None
+            await uni_queries.delete_exam(pool, row["id"])
+
+        return (
+            f"Examenul de la *{escape_md(subject['name'])}* a fost șters. 🗑️",
+            None,
+        )
+
+    elif intent == "uni_delete_attendance":
+        subject_name = data.get("subject")
+        if not subject_name:
+            return "La ce materie vrei să ștergi prezența?", None
+
+        subject = await uni_queries.get_subject_by_name(pool, subject_name)
+        if not subject:
+            return f"Materia *{escape_md(subject_name)}* nu a fost găsită.", None
+
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM attendances WHERE subject_id = $1 ORDER BY class_date DESC LIMIT 1",
+                subject["id"],
+            )
+            if not row:
+                return f"Nu am găsit nicio prezență la {escape_md(subject['name'])}.", None
+            await uni_queries.delete_attendance(pool, row["id"])
+
+        return (
+            f"Ultima prezență de la *{escape_md(subject['name'])}* a fost ștearsă. 🗑️",
+            None,
+        )
 
     return "Nu am înțeles cererea legată de facultate\\.", None

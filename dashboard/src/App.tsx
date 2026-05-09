@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { 
   CheckCircle2, Navigation, Plus, GraduationCap, 
   Dumbbell, Wallet, ArrowLeft, Loader2, Settings,
-  ShoppingCart, Heart, Flame, Brain, Play, Pause, RotateCcw,
+  Heart, Flame, Brain, Play, Pause, RotateCcw,
   TrendingUp, Star, Moon, Droplets, Scale,
   Pin, MapPin, Search, Sun, Cloud, CloudRain, CloudDrizzle, CloudSnow, CloudLightning,
-  Briefcase, Zap, BookOpen, Apple
+  Briefcase, Zap, BookOpen, Apple, Calendar, Database, ShoppingBag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -76,18 +76,18 @@ const GlassCard = ({ children, className = "", onClick }: any) => (
 
 const ViewContainer = ({ children, title, onBack }: any) => (
   <motion.div 
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: -20 }}
-    className="fixed inset-0 bg-[#050505]/95 backdrop-blur-3xl z-[100] p-8 lg:p-16 overflow-y-auto no-scrollbar"
+    initial={{ opacity: 0, scale: 0.95 }}
+    animate={{ opacity: 1, scale: 1 }}
+    exit={{ opacity: 0, scale: 1.05 }}
+    className="fixed inset-0 bg-gradient-to-br from-[#050505] via-[#080808] to-[#050505] backdrop-blur-3xl z-[100] p-6 lg:p-16 overflow-y-auto no-scrollbar"
   >
     <div className="max-w-4xl mx-auto">
-      <div className="flex justify-between items-center mb-12">
-        <button onClick={onBack} className="w-12 h-12 rounded-full liquid-panel flex items-center justify-center hover:bg-white/10 transition-colors">
+      <div className="flex justify-between items-center mb-8 sm:mb-12">
+        <button onClick={onBack} className="w-10 h-10 sm:w-12 sm:h-12 rounded-full liquid-panel flex items-center justify-center hover:bg-white/10 transition-all hover:scale-110 active:scale-90">
           <ArrowLeft className="w-5 h-5 text-[#adc6ff]" />
         </button>
-        <h2 className="label-ethereal kinetic-text">{title}</h2>
-        <div className="w-12" />
+        <h2 className="label-ethereal kinetic-text text-xs sm:text-sm">{title}</h2>
+        <div className="w-10 sm:w-12" />
       </div>
       {children}
     </div>
@@ -400,25 +400,34 @@ function App() {
               {/* Left Column: Systems & Focus OS */}
               <div className="lg:col-span-4 space-y-6 sm:space-y-8">
                 <section className="space-y-4">
-                  <h3 className="label-ethereal ml-2">Sisteme Nucleu</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-3 sm:gap-4">
+                  <h3 className="label-ethereal ml-2">Sisteme Lora</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
                     {[
-                      { id: 'tasks', icon: CheckCircle2, label: 'Tasks', color: 'text-emerald-400' },
-                      { id: 'projects', icon: Briefcase, label: 'Proiecte', color: 'text-indigo-400' },
-                      { id: 'map', icon: MapPin, label: 'Hartă', color: 'text-blue-500' },
-                      { id: 'finance', icon: Wallet, label: 'Bani', color: 'text-emerald-500' },
-                      { id: 'uni', icon: GraduationCap, label: 'Academic', color: 'text-orange-500' },
-                      { id: 'gym', icon: Dumbbell, label: 'Sală', color: 'text-red-500' },
-                      { id: 'skills', icon: Flame, label: 'Skills', color: 'text-yellow-500' },
-                      { id: 'shop', icon: ShoppingCart, label: 'Shop', color: 'text-purple-500' },
-                      { id: 'reading', icon: BookOpen, label: 'Cărți', color: 'text-orange-400' },
-                      { id: 'nutrition', icon: Apple, label: 'Nutriție', color: 'text-rose-400' }
+                      { id: 'tasks', icon: CheckCircle2, label: 'Tasks', color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
+                      { id: 'projects', icon: Briefcase, label: 'Proiecte', color: 'text-indigo-400', bg: 'bg-indigo-400/10' },
+                      { id: 'calendar', icon: Calendar, label: 'Planificare', color: 'text-sky-400', bg: 'bg-sky-400/10' },
+                      { id: 'finance', icon: Wallet, label: 'Tezaur', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+                      { id: 'uni', icon: GraduationCap, label: 'Academic', color: 'text-amber-400', bg: 'bg-amber-400/10' },
+                      { id: 'gym', icon: Dumbbell, label: 'Sală', color: 'text-rose-500', bg: 'bg-rose-500/10' },
+                      { id: 'skills', icon: Zap, label: 'Skills', color: 'text-purple-400', bg: 'bg-purple-400/10' },
+                      { id: 'notes', icon: Brain, label: 'Note', color: 'text-blue-400', bg: 'bg-blue-400/10' },
+                      { id: 'memory', icon: Database, label: 'Memorie', color: 'text-indigo-400', bg: 'bg-indigo-400/10' },
+                      { id: 'shop', icon: ShoppingBag, label: 'Shop', color: 'text-pink-400', bg: 'bg-pink-400/10' },
+                      { id: 'reading', icon: BookOpen, label: 'Lectură', color: 'text-orange-400', bg: 'bg-orange-400/10' },
+                      { id: 'nutrition', icon: Apple, label: 'Nutriție', color: 'text-rose-400', bg: 'bg-rose-400/10' },
+                      { id: 'map', icon: MapPin, label: 'Sistem Map', color: 'text-cyan-400', bg: 'bg-cyan-400/10' }
                     ].map(m => (
-                      <button key={m.id} onClick={() => setView(m.id as View)} className="flex lg:flex-row flex-col items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/10 transition-all hover:scale-[1.02] active:scale-[0.98] group">
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-8 lg:h-8 rounded-xl bg-white/[0.05] flex items-center justify-center group-hover:bg-white/10 transition-colors">
-                          <m.icon className={`w-4 h-4 sm:w-5 sm:h-5 lg:w-4 lg:h-4 ${m.color}`} />
+                      <button 
+                        key={m.id} 
+                        onClick={() => setView(m.id as View)} 
+                        className="liquid-panel flex items-center gap-4 p-3 hover:bg-white/[0.05] transition-all group hover:translate-x-1 active:scale-[0.98]"
+                      >
+                        <div className={`w-10 h-10 rounded-xl ${m.bg} flex items-center justify-center transition-all group-hover:scale-110`}>
+                          <m.icon className={`w-5 h-5 ${m.color}`} />
                         </div>
-                        <span className="text-[7px] sm:text-[8px] lg:text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-white transition-colors text-center">{m.label}</span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8c909f] group-hover:text-white transition-colors">
+                          {m.label}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -591,7 +600,34 @@ function App() {
               </GlassCard>
               
               <div className="space-y-6">
-                <h3 className="label-ethereal ml-2">Discipline Active</h3>
+                <h3 className="label-ethereal ml-2 flex justify-between items-center">
+                  <span>Discipline Active</span>
+                  {uniSummary?.restante?.length > 0 && (
+                    <span className="text-[10px] text-red-400 font-black animate-pulse">
+                      {uniSummary.restante.length} Restanțe Critice
+                    </span>
+                  )}
+                </h3>
+
+                {uniSummary?.restante?.length > 0 && (
+                  <div className="space-y-4">
+                    {uniSummary.restante.map((r: any) => {
+                      const daysLeft = Math.ceil((new Date(r.exam_date).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+                      return (
+                        <div key={r.id} className="liquid-panel p-6 border-red-500/20 bg-red-500/5 hover:bg-red-500/10 transition-all flex justify-between items-center">
+                          <div className="space-y-1">
+                            <p className="font-bold text-red-400">{r.subject_name}</p>
+                            <p className="text-[10px] text-gray-500 uppercase font-black">{new Date(r.exam_date).toLocaleDateString('ro-RO')} • {r.room || 'TBD'}</p>
+                          </div>
+                          <div className="text-right">
+                             <p className="text-xl font-black text-red-500">{daysLeft > 0 ? `${daysLeft} zile` : 'Azi!'}</p>
+                             <p className="label-ethereal text-[8px] opacity-40">Countdown</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 {uniSummary?.subjects?.map((s: any) => {
                    const attPct = s.total_logged > 0 ? Math.round((s.attended_count / s.total_logged) * 100) : 0;
                    const isLowAtt = s.total_logged > 0 && attPct < (s.min_attendance_pct || 70);

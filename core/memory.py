@@ -178,3 +178,85 @@ async def get_context_memory(
     except Exception as e:
         print(f"ERROR in get_context_memory: {e}")
         return "Eroare la recuperarea memoriei."
+
+
+async def optimize_user_memory(pool, client, user_id: int) -> str:
+    """Uses Gemini to deduplicate and clean up all memories for a user."""
+    from db.queries.memory import list_all_memories, delete_fact, update_grade  # reusing update logic if needed
+    # Actually I need a generic update_memory_fact which I'll add if not there
+
+    try:
+        memories = await list_all_memories(pool)
+        if not memories:
+            return "Nu am nicio amintire de optimizat."
+
+        facts_text = ""
+        for m in memories:
+            facts_text += f"ID: {m['id']} | [{m['category']}] {m['fact']}\n"
+
+        prompt = f"""
+Analyze the following list of facts remembered about the user.
+Identify redundant, repetitive, or conflicting information.
+Propose a cleanup plan to make the memory concise and unique.
+
+RULES:
+1. If two facts are almost identical, keep the most detailed one and mark the other for deletion.
+2. If two facts can be merged into one concise fact, propose the merge.
+3. Remove trivial or nonsensical facts.
+4. Keep the output in Romanian, third person.
+
+CURRENT MEMORIES:
+{facts_text}
+
+RETURN ONLY a JSON object (no markdown):
+{{
+  "to_delete": [id1, id2, ...],
+  "to_update": [
+    {{ "id": id, "fact": "new fact text", "category": "..." }}
+  ],
+  "to_add": [
+    {{ "fact": "new merged fact", "category": "..." }}
+  ]
+}}
+"""
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model="gemini-2.5-flash",
+            contents=[types.Content(role="user", parts=[types.Part(text=prompt)])],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.1,
+            ),
+        )
+
+        plan = json.loads(response.text.strip())
+        
+        async with pool.acquire() as conn:
+            # 1. Delete
+            for fid in plan.get("to_delete", []):
+                await conn.execute("DELETE FROM memory_facts WHERE id = $1", fid)
+            
+            # 2. Update
+            for item in plan.get("to_update", []):
+                await conn.execute(
+                    "UPDATE memory_facts SET fact = $1, category = $2 WHERE id = $3",
+                    item["fact"], item["category"], item["id"]
+                )
+            
+            # 3. Add
+            for item in plan.get("to_add", []):
+                await conn.execute(
+                    "INSERT INTO memory_facts (user_id, fact, category, source) VALUES ($1, $2, $3, 'optimization')",
+                    user_id, item["fact"], item["category"]
+                )
+
+        total_deleted = len(plan.get("to_delete", []))
+        total_updated = len(plan.get("to_update", []))
+        total_added = len(plan.get("to_add", []))
+        
+        return f"Optimizare completă! 🧠✨\nAm eliminat {total_deleted} duplicate și am consolidat {total_updated + total_added} amintiri."
+
+    except Exception as e:
+        print(f"ERROR in optimize_user_memory: {e}")
+        traceback.print_exc()
+        return "A apărut o eroare la optimizarea memoriei."

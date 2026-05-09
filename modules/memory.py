@@ -75,6 +75,28 @@ async def handle_memory_callback(query, pool, data: str):
                 await query.edit_message_text(
                     text, parse_mode="MarkdownV2", reply_markup=markup
                 )
+        
+        elif data == "memory:optimize":
+            print("DEBUG: Processing memory:optimize", flush=True)
+            await query.answer("Optimizez memoria cu AI... 🧠✨", show_alert=False)
+            
+            # This might take a few seconds, so we show a loading message if possible
+            # But for now we just call it
+            from core.memory import optimize_user_memory
+            from core.gemini import get_gemini_client
+            
+            client = get_gemini_client()
+            user_id = query.from_user.id
+            
+            reply = await optimize_user_memory(pool, client, user_id)
+            await query.message.reply_text(reply)
+            
+            # Refresh view
+            text, markup, _ = await handle_memory_intent(pool, "memory_view", {})
+            await query.edit_message_text(
+                text, parse_mode="MarkdownV2", reply_markup=markup
+            )
+            
     except Exception as e:
         print(f"ERROR in handle_memory_callback: {e}")
         import traceback
@@ -214,6 +236,16 @@ async def handle_memory_intent(
             None,
             None,
         )
+
+    elif intent == "memory_optimize":
+        from core.memory import optimize_user_memory
+        from core.gemini import get_gemini_client
+        
+        user_id = data.get("user_id")
+        client = get_gemini_client()
+        
+        reply = await optimize_user_memory(pool, client, user_id)
+        return safe_markdown(reply), None, None
 
     return "Modulul de memorie a primit o intenție necunoscută.", None, None
 

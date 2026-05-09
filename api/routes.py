@@ -224,12 +224,14 @@ async def get_uni_summary(request):
 
         subjects = await uni_queries.list_subjects(pool)
         exams = await uni_queries.get_upcoming_exams(pool)
+        restante = await uni_queries.get_restante(pool)
         avg = await uni_queries.get_general_average(pool)
 
         return web.json_response(
             {
                 "subjects": [serialize_dic(s) for s in subjects],
                 "upcoming_exams": [serialize_dic(e) for e in exams],
+                "restante": [serialize_dic(r) for r in restante],
                 "average_grade": avg,
             }
         )

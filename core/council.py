@@ -142,29 +142,20 @@ async def send_feedback_to_cto(
         return False
 
 
-@with_retry(max_attempts=3, base_delay=1.0)
+@with_retry(max_attempts=3, base_delay=60.0)
 async def send_report_to_council(
     project_id: str,
-    tasks_completed: List[Dict[str, Any]],
-    summary: str = "",
+    payload: Dict[str, Any],
 ) -> bool:
     """Sends daily report to Council API."""
     if not COUNCIL_API_URL:
         return False
 
-    report = {
-        "project_id": project_id,
-        "date": str.today().isoformat() if hasattr(str, "today") else "",
-        "tasks_completed": len(tasks_completed),
-        "tasks": [t.get("title", "") for t in tasks_completed if t.get("title")],
-        "summary": summary,
-    }
-
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
                 f"{COUNCIL_API_URL}/report/{project_id}",
-                json=report,
+                json=payload,
                 headers=_get_headers(),
             )
             return response.status_code == 200

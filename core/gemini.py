@@ -393,6 +393,7 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
       Returnează dashboard-ul cu faptele salvate.
     - intent="memory_delete" — "șterge amintirea X", "uită că fumez", "anulează faptul că...". 
       Data: {{"fact_id": string (ex: "#05"), "query": string (căutare text dacă ID lipsește)}}
+    - intent="memory_optimize" — "optimizează-ți memoria", "șterge duplicatele din ce știi despre mine", "curăță memoria".
 20. Workout: module="workout":
     - intent="workout_log" pentru înregistrarea unui antrenament (gym, fotbal, cardio, alergare etc.).
         * REGULI de extragere date pentru `workout_log`:
@@ -429,9 +430,16 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - intent="uni_list" pentru situația academică ("situația mea la facultate", "materiile mele", "media mea").
     - intent="uni_log_attendance" pentru a RAPORTA că AI FOST sau AI LIPSIT. (Ex: "am fost la MRU seminar", "am lipsit de la Statistică", "nu am mers la X").
     - intent="uni_add_grade" pentru note ("am luat X la Y", "notă X la materia Y").
-    - intent="uni_add_exam" pentru examene ("examen la X pe data Y", "am colocviu la X").
+    - intent="uni_add_exam" pentru examene ("examen la X pe data Y", "am colocviu la X"). Dacă userul zice "restanță" → setează exam_type="restanta".
     - intent="uni_exams" pentru sesiunea de examene ("ce examene am", "sesiunea mea").
+    - intent="uni_restante" pentru lista de restanțe ("ce restanțe am", "lista de restanțe").
     - intent="uni_attendance_warning" pentru verificarea prezenței ("cum stau cu prezențele", "am probleme cu prezența").
+    - intent="uni_update_subject" pentru a MODIFICA/RENUMI o materie ("schimbă prof-ul la X", "pune 5 credite la Y", "renumește materia X în Z").
+    - intent="uni_delete_subject" pentru a ȘTERGE o materie ("șterge materia X", "nu mai fac cursul Y").
+    - intent="uni_update_grade" pentru a MODIFICA o notă ("schimbă nota 8 în 9 la X", "schimbă tipul notei de la X din parțial în final").
+    - intent="uni_delete_grade" pentru a ȘTERGE o notă ("șterge nota 8 de la X").
+    - intent="uni_update_exam" pentru a MODIFICA un examen ("schimbă sala la examenul de X", "mută examenul de X pe 20 mai", "schimbă tipul examenului X în restanță").
+    - intent="uni_delete_exam" pentru a ȘTERGE un examen ("șterge examenul de la X").
 25. Nutrition: module="nutrition":
     - intent="meal_log" pentru logarea unei mese ("am mâncat la prânz 150g pui", "mic dejun: 3 ouă").
         * data={{ "meal_type": "mic_dejun|pranz|cina|gustare", "description": string, "calories": float, "protein": float, "carbs": float, "fat": float }}
@@ -484,6 +492,8 @@ Exemple de output JSON pentru workout_log:
   Output: {{ "intent": "uni_log_attendance", "module": "university", "data": {{ "subject": "Statistică", "attended": false, "date": "{now.strftime("%Y-%m-%d")}" }}, "reply": "Statistică Inferențială — absent ❌ înregistrat." }}
 - Input: "adaugă materia Contabilitate"
   Output: {{ "intent": "uni_add_subject", "module": "university", "data": {{ "name": "Contabilitate" }}, "reply": "Contabilitate adăugată. 📚" }}
+- Input: "am restanță la Statistică pe 1 septembrie în sala 201"
+  Output: {{ "intent": "uni_add_exam", "module": "university", "data": {{ "subject": "Statistică", "exam_date": "2026-09-01", "exam_type": "restanta", "location": "sala 201" }}, "reply": "Am notat restanța la Statistică pe 1 septembrie. 📚" }}
 - Input: "am făcut gym 50 min push day, bench press 60kg 5 reps, am ars 300 calorii"
   Output: {{ "intent": "workout_log", "module": "workout", "data": {{ "sport_name": "Gym", "duration_min": 50, "calories": 300, "notes": "push day", "exercises": [{{ "name": "Bench Press", "sets": null, "reps": 5, "weight_kg": 60.0 }}] }}, "reply": "Gym 50min salvat — 300 kcal arse. 💪" }}
 - Input: "am alergat 5km în 30 de minute"
