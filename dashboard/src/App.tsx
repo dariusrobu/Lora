@@ -589,91 +589,75 @@ function App() {
 
         {/* --- Specific Module Views --- */}
         {view === 'uni' && (
-          <ViewContainer title="Academic" onBack={() => setView('home')}>
-            <div className="space-y-12 pb-32">
-              <GlassCard className="bg-gradient-to-br from-[#ffb786]/10 to-transparent p-10">
-                <div className="flex justify-between items-center">
-                  <p className="text-6xl font-thin tracking-tighter text-[#ffb786]">{uniSummary?.average_grade || '—'}</p>
-                  <TrendingUp className="text-[#ffb786] w-10 h-10 opacity-50" />
-                </div>
-                <p className="label-ethereal mt-4">Media Generală • Sesiune Curentă</p>
-              </GlassCard>
-              
-              <div className="space-y-6">
-                <h3 className="label-ethereal ml-2 flex justify-between items-center">
-                  <span>Discipline Active</span>
-                  {uniSummary?.restante?.length > 0 && (
-                    <span className="text-[10px] text-red-400 font-black animate-pulse">
-                      {uniSummary.restante.length} Restanțe Critice
-                    </span>
-                  )}
-                </h3>
+          <ViewContainer title="Sistem Academic" onBack={() => setView('home')}>
+             <div className="space-y-12 pb-32">
+                <GlassCard className="bg-gradient-to-br from-[#ffb786]/10 to-transparent p-10 relative overflow-hidden group">
+                   <div className="absolute top-0 right-0 w-64 h-64 bg-[#ffb786]/5 rounded-full blur-[100px] -mr-32 -mt-32" />
+                   <div className="flex justify-between items-center relative z-10">
+                      <p className="text-7xl font-thin tracking-tighter text-white">{uniSummary?.average_grade || '—'}</p>
+                      <div className="w-16 h-16 rounded-2xl bg-[#ffb786]/10 flex items-center justify-center">
+                         <TrendingUp className="text-[#ffb786] w-8 h-8" />
+                      </div>
+                   </div>
+                   <p className="label-ethereal mt-6 tracking-[0.3em] opacity-40">Media Generală • Sesiune Curentă</p>
+                </GlassCard>
+                
+                <div className="space-y-8">
+                   <div className="flex items-center gap-3 ml-2">
+                      <div className="w-2 h-2 rounded-full bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.5)]" />
+                      <h3 className="label-ethereal tracking-[0.3em]">Discipline Active</h3>
+                      <div className="h-[1px] flex-grow bg-white/5 ml-2" />
+                   </div>
 
-                {uniSummary?.restante?.length > 0 && (
-                  <div className="space-y-4">
-                    {uniSummary.restante.map((r: any) => {
-                      const daysLeft = Math.ceil((new Date(r.exam_date).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
-                      return (
-                        <div key={r.id} className="liquid-panel p-6 border-red-500/20 bg-red-500/5 hover:bg-red-500/10 transition-all flex justify-between items-center">
-                          <div className="space-y-1">
-                            <p className="font-bold text-red-400">{r.subject_name}</p>
-                            <p className="text-[10px] text-gray-500 uppercase font-black">{new Date(r.exam_date).toLocaleDateString('ro-RO')} • {r.room || 'TBD'}</p>
-                          </div>
-                          <div className="text-right">
-                             <p className="text-xl font-black text-red-500">{daysLeft > 0 ? `${daysLeft} zile` : 'Azi!'}</p>
-                             <p className="label-ethereal text-[8px] opacity-40">Countdown</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                {uniSummary?.subjects?.map((s: any) => {
-                   const attPct = s.total_logged > 0 ? Math.round((s.attended_count / s.total_logged) * 100) : 0;
-                   const isLowAtt = s.total_logged > 0 && attPct < (s.min_attendance_pct || 70);
-                   return (
-                     <div key={s.id} className="liquid-panel p-8 space-y-8 hover:bg-white/5 transition-all">
-                        <div className="flex justify-between items-start">
-                          <div className="space-y-1">
-                            <p className="font-light text-2xl tracking-tight">{s.name}</p>
-                            <p className="label-ethereal text-[8px] opacity-40">{s.class_type || 'Curs / Seminar'}</p>
-                          </div>
-                          <div className="text-right">
-                             <p className="text-3xl font-thin text-[#adc6ff]">{s.avg_grade || '—'}</p>
-                             <p className="label-ethereal text-[8px] opacity-40">Media</p>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-6">
-                           <div className="space-y-3">
-                              <p className="label-ethereal text-[8px]">Prezență</p>
-                              <div className="flex items-end gap-3">
-                                 <p className={`text-2xl font-light ${isLowAtt ? 'text-red-400' : 'text-white'}`}>{attPct}%</p>
-                                 <div className="h-1.5 flex-1 bg-white/5 rounded-full overflow-hidden mb-2">
-                                    <div className={`h-full ${isLowAtt ? 'bg-red-400' : 'bg-[#4cd7f6]'} opacity-50`} style={{ width: `${attPct}%` }} />
+                   <div className="grid gap-4">
+                      {uniSummary?.subjects?.map((s: any) => {
+                         const attPct = s.total_logged > 0 ? Math.round((s.attended_count / s.total_logged) * 100) : 0;
+                         const isLowAtt = s.total_logged > 0 && attPct < (s.min_attendance_pct || 70);
+                         return (
+                           <div key={s.id} className="liquid-panel p-6 space-y-6 hover:bg-white/[0.05] transition-all group">
+                              <div className="flex justify-between items-start">
+                                 <div className="flex items-center gap-5">
+                                    <div className="w-12 h-12 rounded-xl bg-[#ffb786]/5 flex items-center justify-center">
+                                       <GraduationCap className="w-6 h-6 text-[#ffb786]" />
+                                    </div>
+                                    <div className="space-y-1">
+                                       <p className="font-light text-2xl tracking-tight">{s.name}</p>
+                                       <p className="label-ethereal text-[8px] opacity-30 uppercase tracking-widest">{s.class_type || 'Curs / Seminar'}</p>
+                                    </div>
+                                 </div>
+                                 <div className="text-right space-y-1">
+                                    <p className={`text-3xl font-thin ${isLowAtt ? 'text-red-400' : 'text-[#ffb786]'}`}>{attPct}%</p>
+                                    <p className="label-ethereal text-[8px] opacity-20">Prezență</p>
                                  </div>
                               </div>
-                           </div>
-                           <div className="space-y-3">
-                              <p className="label-ethereal text-[8px]">Note</p>
-                              <div className="flex flex-wrap gap-2">
-                                 {s.grades?.map((g: any, i: number) => (
-                                   <span key={i} className="w-8 h-8 flex items-center justify-center liquid-panel text-xs font-light text-[#adc6ff]">{g.grade}</span>
-                                 ))}
-                                 {(!s.grades || s.grades.length === 0) && <span className="text-[10px] text-gray-700 italic">Nicio notă logată</span>}
+                              
+                              <div className="w-full h-[1px] bg-white/5 rounded-full overflow-hidden">
+                                 <motion.div 
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${attPct}%` }}
+                                    className={`h-full ${isLowAtt ? 'bg-red-500' : 'bg-[#ffb786]'} opacity-40`}
+                                 />
+                              </div>
+
+                              <div className="flex justify-between items-center">
+                                 <div className="flex gap-2">
+                                    {s.grades?.map((g: any, i: number) => (
+                                      <span key={i} className="px-3 py-1 liquid-panel text-[10px] font-black text-[#ffb786] bg-[#ffb786]/5">{g.grade}</span>
+                                    ))}
+                                 </div>
+                                 <span className="label-ethereal text-[8px] opacity-20">{s.credits || 0} Credite</span>
                               </div>
                            </div>
-                        </div>
-                     </div>
-                   );
-                })}
-              </div>
-            </div>
+                         );
+                      })}
+                   </div>
+                </div>
+             </div>
           </ViewContainer>
         )}
 
         {view === 'shop' && (
-          <ViewContainer title="Cumpărături" onBack={() => setView('home')}>
+          <ViewContainer title="Shopping List" onBack={() => setView('home')}>
              <div className="space-y-12 pb-32">
                <div className="flex justify-between items-center px-2">
                   <div className="space-y-1">
@@ -711,48 +695,69 @@ function App() {
 
         {view === 'notes' && (
           <ViewContainer title="Creier / Note" onBack={() => setView('home')}>
-             <div className="space-y-4">
-                {notes.map(n => (
-                  <GlassCard key={n.id} className="space-y-3">
-                     <div className="flex justify-between items-start">
-                        <Pin className={`w-4 h-4 ${n.is_pinned ? 'text-blue-500' : 'text-gray-700'}`} />
-                        <span className="text-[8px] font-black uppercase text-gray-500">{new Date(n.created_at).toLocaleDateString()}</span>
+             <div className="space-y-8 pb-32">
+                <div className="flex items-center gap-3 ml-2">
+                   <div className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_10px_#60a5fa]" />
+                   <h3 className="label-ethereal tracking-[0.3em]">Arhivă Gânduri</h3>
+                   <div className="h-[1px] flex-grow bg-white/5 ml-2" />
+                </div>
+                <div className="grid gap-4">
+                   {notes.map(n => (
+                     <div key={n.id} className="liquid-panel p-6 space-y-4 hover:bg-white/[0.05] transition-all group relative">
+                        <div className="flex justify-between items-start">
+                           <div className="w-10 h-10 rounded-xl bg-blue-500/5 flex items-center justify-center">
+                              <Pin className={`w-4 h-4 ${n.is_pinned ? 'text-blue-400' : 'text-gray-600'}`} />
+                           </div>
+                           <span className="label-ethereal text-[8px] opacity-20">{new Date(n.created_at).toLocaleDateString('ro-RO')}</span>
+                        </div>
+                        <p className="text-xl font-light leading-relaxed text-white/90">{n.content}</p>
+                        <div className="flex flex-wrap gap-2">
+                           {n.tags?.map((t: string) => (
+                             <span key={t} className="text-[9px] font-black text-blue-400/60 bg-blue-400/5 px-2 py-1 rounded-md border border-blue-400/10">#{t.toUpperCase()}</span>
+                           ))}
+                        </div>
                      </div>
-                     <p className="text-sm font-medium leading-relaxed">{n.content}</p>
-                     <div className="flex gap-2">
-                        {n.tags?.map((t: string) => <span key={t} className="text-[8px] font-black text-blue-500 bg-blue-500/10 px-2 py-1 rounded-md">#{t}</span>)}
-                     </div>
-                  </GlassCard>
-                ))}
+                   ))}
+                </div>
              </div>
           </ViewContainer>
         )}
 
         {view === 'memory' && (
           <ViewContainer title="Memorie Core" onBack={() => setView('home')}>
-             <div className="space-y-6 pb-20">
-                <GlassCard className="bg-gradient-to-br from-emerald-500/10 to-transparent">
-                   <div className="flex justify-between items-center">
-                      <p className="text-3xl font-black tracking-tighter">{memories.length}</p>
-                      <Brain className="text-emerald-500 w-8 h-8" />
+             <div className="space-y-12 pb-32">
+                <GlassCard className="bg-gradient-to-br from-emerald-500/10 to-transparent p-10 relative overflow-hidden group">
+                   <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-[100px] -mr-32 -mt-32" />
+                   <div className="flex justify-between items-center relative z-10">
+                      <p className="text-7xl font-thin tracking-tighter text-white">{memories.length}</p>
+                      <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+                         <Brain className="text-emerald-500 w-8 h-8" />
+                      </div>
                    </div>
-                   <p className="text-[10px] font-black uppercase text-gray-500 mt-2 tracking-widest">Fapte Memorate</p>
+                   <p className="label-ethereal mt-6 tracking-[0.3em] opacity-40 uppercase">Fragmente de Memorie Extrase</p>
                 </GlassCard>
                 
-                <div className="space-y-4">
+                <div className="space-y-12">
                    {['personal', 'preference', 'pattern', 'achievement', 'relationship', 'goal'].map(cat => {
                       const catMems = memories.filter(m => m.category === cat);
                       if (catMems.length === 0) return null;
                       return (
-                        <section key={cat} className="space-y-3">
-                           <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-500 px-2">{cat}</h4>
-                           <div className="space-y-2">
+                        <section key={cat} className="space-y-6">
+                           <div className="flex items-center gap-3 ml-2">
+                              <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_#10b981]" />
+                              <h4 className="label-ethereal tracking-[0.3em]">{cat}</h4>
+                              <div className="h-[1px] flex-grow bg-white/5 ml-2" />
+                           </div>
+                           <div className="grid gap-4">
                               {catMems.map(m => (
-                                <div key={m.id} className="p-4 bg-white/[0.03] border border-white/5 rounded-2xl">
-                                   <p className="text-sm font-medium leading-relaxed">{m.fact}</p>
-                                   <div className="flex justify-between items-center mt-2">
-                                      <span className="text-[7px] font-black uppercase text-gray-600">{new Date(m.created_at).toLocaleDateString()}</span>
-                                      <span className="text-[7px] font-black uppercase text-emerald-500/50">Confidență: {Math.round(m.confidence * 100)}%</span>
+                                <div key={m.id} className="liquid-panel p-6 space-y-4 hover:bg-white/[0.05] transition-all">
+                                   <p className="text-xl font-light leading-relaxed text-white/90">{m.fact}</p>
+                                   <div className="flex justify-between items-center pt-2 border-t border-white/5">
+                                      <span className="label-ethereal text-[8px] opacity-20 uppercase tracking-widest">{new Date(m.created_at).toLocaleDateString('ro-RO')}</span>
+                                      <div className="flex items-center gap-2">
+                                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/30" />
+                                         <span className="label-ethereal text-[8px] text-emerald-500/50 uppercase font-black">Confidență: {Math.round(m.confidence * 100)}%</span>
+                                      </div>
                                    </div>
                                 </div>
                               ))}
@@ -766,68 +771,110 @@ function App() {
         )}
 
         {view === 'health' && (
-          <ViewContainer title="Sănătate" onBack={() => setView('home')}>
-             <div className="grid grid-cols-3 gap-4 mb-8">
-                <GlassCard className="p-4 text-center space-y-1">
-                   <Moon className="mx-auto w-4 h-4 text-indigo-500" />
-                   <p className="text-lg font-black">{healthLogs[0]?.sleep_hours || '—'}</p>
-                   <p className="text-[7px] font-black uppercase text-gray-500">Sleep</p>
-                </GlassCard>
-                <GlassCard className="p-4 text-center space-y-1">
-                   <Droplets className="mx-auto w-4 h-4 text-blue-500" />
-                   <p className="text-lg font-black">{healthLogs[0]?.water_ml || 0}</p>
-                   <p className="text-[7px] font-black uppercase text-gray-500">Water</p>
-                </GlassCard>
-                <GlassCard className="p-4 text-center space-y-1">
-                   <Scale className="mx-auto w-4 h-4 text-emerald-500" />
-                   <p className="text-lg font-black">{healthLogs[0]?.weight_kg || '—'}</p>
-                   <p className="text-[7px] font-black uppercase text-gray-500">Weight</p>
-                </GlassCard>
-             </div>
-             <div className="space-y-4">
-                {healthLogs.map(l => (
-                   <div key={l.id} className="p-4 bg-white/5 rounded-2xl flex justify-between items-center">
-                      <div>
-                        <p className="font-bold text-sm">{new Date(l.log_date).toLocaleDateString('ro-RO', { weekday: 'long' })}</p>
-                        <p className="text-[9px] text-gray-500 uppercase tracking-widest">Calitate somn: {l.sleep_quality || '—'}</p>
-                      </div>
-                      <div className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${l.nutrition === 'great' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-orange-500/10 text-orange-400'}`}>{l.nutrition}</div>
+          <ViewContainer title="Status Vital" onBack={() => setView('home')}>
+             <div className="space-y-12 pb-32">
+                <div className="grid grid-cols-3 gap-4">
+                   {[
+                     { icon: Moon, val: healthLogs[0]?.sleep_hours || '—', label: 'Somn', color: 'text-indigo-400', bg: 'bg-indigo-400/10' },
+                     { icon: Droplets, val: healthLogs[0]?.water_ml || 0, label: 'Apă', color: 'text-blue-400', bg: 'bg-blue-400/10' },
+                     { icon: Scale, val: healthLogs[0]?.weight_kg || '—', label: 'Greutate', color: 'text-emerald-400', bg: 'bg-emerald-400/10' }
+                   ].map((stat, i) => (
+                     <div key={i} className="liquid-panel p-6 text-center space-y-4 group hover:bg-white/[0.05] transition-all">
+                        <div className={`w-10 h-10 rounded-xl ${stat.bg} mx-auto flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                           <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                        </div>
+                        <div>
+                           <p className="text-2xl font-light tracking-tighter">{stat.val}</p>
+                           <p className="label-ethereal text-[8px] opacity-30 uppercase tracking-widest mt-1">{stat.label}</p>
+                        </div>
+                     </div>
+                   ))}
+                </div>
+
+                <div className="space-y-8">
+                   <div className="flex items-center gap-3 ml-2">
+                      <div className="w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.5)]" />
+                      <h3 className="label-ethereal tracking-[0.3em]">Istoric Vital</h3>
+                      <div className="h-[1px] flex-grow bg-white/5 ml-2" />
                    </div>
-                ))}
+                   <div className="grid gap-3">
+                      {healthLogs.map(l => (
+                        <div key={l.id} className="liquid-panel p-5 flex justify-between items-center hover:bg-white/[0.05] transition-all group">
+                           <div className="flex items-center gap-5">
+                              <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center group-hover:rotate-12 transition-transform">
+                                 <Heart className="w-6 h-6 text-rose-400 opacity-50 group-hover:opacity-100" />
+                              </div>
+                              <div>
+                                 <p className="text-xl font-light tracking-tight">{new Date(l.log_date).toLocaleDateString('ro-RO', { weekday: 'long', day: 'numeric', month: 'short' })}</p>
+                                 <p className="label-ethereal text-[8px] opacity-30 uppercase tracking-widest mt-1">Calitate somn: {l.sleep_quality || '—'}</p>
+                              </div>
+                           </div>
+                           <div className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] liquid-panel border-none ${l.nutrition === 'great' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-orange-500/10 text-orange-400'}`}>
+                              {l.nutrition}
+                           </div>
+                        </div>
+                      ))}
+                   </div>
+                </div>
              </div>
           </ViewContainer>
         )}
 
         {view === 'calendar' && (
           <ViewContainer title="Planificare" onBack={() => setView('home')}>
-             <div className="space-y-6">
-                <div className="space-y-3">
-                   {calendarToday?.events?.map((e: any) => (
-                      <div key={e.id} className="p-5 bg-blue-600/10 border border-blue-500/20 rounded-[28px] space-y-2">
-                         <div className="flex justify-between items-center">
-                            <p className="font-black text-blue-500 text-lg">{e.title}</p>
-                            <span className="text-xs font-black text-blue-400">{e.event_time?.slice(0, 5) || 'Toată ziua'}</span>
-                         </div>
-                         <p className="text-xs text-gray-400 font-medium">{e.description}</p>
-                      </div>
-                   ))}
-                   {(!calendarToday?.events || calendarToday.events.length === 0) && <p className="text-center py-6 text-xs text-gray-700 font-black uppercase tracking-widest">Fără evenimente logate</p>}
-                </div>
-                <div className="space-y-3">
-                   <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-500 px-2">Orar Academic</h4>
-                   {calendarToday?.schedule?.map((s: any) => (
-                      <div key={s.id} className="p-4 bg-white/5 rounded-2xl flex justify-between items-center">
-                         <div className="flex gap-4 items-center">
-                            <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
-                            <div>
-                               <p className="font-bold text-sm">{s.subject_name}</p>
-                               <p className="text-[9px] text-gray-500 font-bold uppercase">{s.class_type} | {s.room}</p>
-                            </div>
-                         </div>
-                         <p className="text-xs font-black">{s.start_time.slice(0, 5)}</p>
-                      </div>
-                   ))}
-                </div>
+             <div className="space-y-12 pb-32">
+                <section className="space-y-8">
+                   <div className="flex items-center gap-3 ml-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
+                      <h3 className="label-ethereal tracking-[0.3em]">Evenimente Azi</h3>
+                      <div className="h-[1px] flex-grow bg-white/5 ml-2" />
+                   </div>
+                   
+                   <div className="grid gap-4">
+                      {calendarToday?.events?.map((e: any) => (
+                        <div key={e.id} className="liquid-panel p-6 flex items-center gap-6 group hover:bg-white/[0.05] transition-all">
+                           <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex flex-col items-center justify-center border border-blue-500/20">
+                              <span className="text-[10px] font-black text-blue-400 uppercase tracking-tighter">{e.event_time?.slice(0, 5) || 'All'}</span>
+                              <span className="text-[8px] font-black text-blue-400/40 uppercase">Day</span>
+                           </div>
+                           <div className="flex-grow space-y-1">
+                              <p className="text-2xl font-light tracking-tight text-white group-hover:text-[#adc6ff] transition-colors">{e.title}</p>
+                              <p className="label-ethereal text-[10px] opacity-30 leading-relaxed line-clamp-1">{e.description || 'Nicio descriere definită.'}</p>
+                           </div>
+                        </div>
+                      ))}
+                      {(!calendarToday?.events || calendarToday.events.length === 0) && (
+                        <div className="py-12 text-center liquid-panel border-dashed border-white/5 opacity-40">
+                           <p className="label-ethereal text-[10px] tracking-[0.3em]">Liniște Digitală • Fără Evenimente</p>
+                        </div>
+                      )}
+                   </div>
+                </section>
+
+                <section className="space-y-8">
+                   <div className="flex items-center gap-3 ml-2">
+                      <div className="w-2 h-2 rounded-full bg-orange-400 shadow-[0_0_10px_rgba(251,146,60,0.5)]" />
+                      <h3 className="label-ethereal tracking-[0.3em]">Orar Academic</h3>
+                      <div className="h-[1px] flex-grow bg-white/5 ml-2" />
+                   </div>
+                   <div className="grid gap-3">
+                      {calendarToday?.schedule?.map((s: any) => (
+                        <div key={s.id} className="liquid-panel p-5 flex items-center gap-6 hover:bg-white/[0.05] transition-all group">
+                           <div className="w-14 h-14 rounded-2xl bg-orange-400/10 flex items-center justify-center border border-orange-400/20">
+                              <p className="text-xl font-thin text-orange-400">{s.start_time.slice(0, 5)}</p>
+                           </div>
+                           <div className="flex-grow space-y-1">
+                              <p className="text-xl font-light tracking-tight">{s.subject_name}</p>
+                              <div className="flex items-center gap-3 opacity-30">
+                                 <span className="text-[9px] label-ethereal tracking-widest uppercase">{s.class_type}</span>
+                                 <span className="w-1 h-1 rounded-full bg-white/20" />
+                                 <span className="text-[9px] label-ethereal tracking-widest uppercase">{s.room}</span>
+                              </div>
+                           </div>
+                        </div>
+                      ))}
+                   </div>
+                </section>
              </div>
           </ViewContainer>
         )}
@@ -1043,44 +1090,53 @@ function App() {
         {view === 'finance' && (
           <ViewContainer title="Tezaur" onBack={() => setView('home')}>
              <div className="space-y-12 pb-32">
-                <div className="focus-panel p-12 text-center relative overflow-hidden group">
+                <div className="liquid-panel p-12 text-center relative overflow-hidden group bg-gradient-to-br from-emerald-500/5 to-transparent">
                    <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-[100px] -mr-32 -mt-32" />
-                   <p className="label-ethereal mb-4 opacity-50">Lichiditate Totală</p>
-                   <p className="text-7xl font-thin tracking-tighter text-white">{finance?.balance || 0} <span className="text-xl font-light opacity-30">LEI</span></p>
+                   <p className="label-ethereal mb-6 tracking-[0.4em] opacity-40">Lichiditate Totală</p>
+                   <p className="text-8xl font-thin tracking-tighter text-white">
+                      {finance?.balance || 0} <span className="text-2xl font-light text-emerald-400/40 tracking-normal ml-2">RON</span>
+                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
-                   <div className="liquid-panel p-8 space-y-2">
-                      <p className="label-ethereal text-[8px] text-emerald-400">Flux Intrare (30z)</p>
-                      <p className="text-3xl font-thin text-white">+{finance?.total_income || 0}</p>
+                <div className="grid grid-cols-2 gap-4">
+                   <div className="liquid-panel p-8 space-y-3 bg-gradient-to-br from-emerald-500/5 to-transparent">
+                      <p className="label-ethereal text-[9px] tracking-widest text-emerald-400">Flux Intrare</p>
+                      <p className="text-4xl font-thin text-white">+{finance?.total_income || 0}</p>
                    </div>
-                   <div className="liquid-panel p-8 space-y-2">
-                      <p className="label-ethereal text-[8px] text-red-400">Flux Ieșire (30z)</p>
-                      <p className="text-3xl font-thin text-white">-{finance?.total_expenses || 0}</p>
+                   <div className="liquid-panel p-8 space-y-3 bg-gradient-to-br from-red-500/5 to-transparent">
+                      <p className="label-ethereal text-[9px] tracking-widest text-red-400">Flux Ieșire</p>
+                      <p className="text-4xl font-thin text-white">-{finance?.total_expenses || 0}</p>
                    </div>
                 </div>
 
-                <section className="space-y-6">
-                   <h3 className="label-ethereal ml-2">Arhivă Tranzacții</h3>
-                   <div className="space-y-4">
+                <div className="space-y-8">
+                   <div className="flex items-center gap-3 ml-2">
+                      <div className="w-2 h-2 rounded-full bg-[#adc6ff] shadow-[0_0_10px_#adc6ff]" />
+                      <h3 className="label-ethereal tracking-[0.3em]">Arhivă Tranzacții</h3>
+                      <div className="h-[1px] flex-grow bg-white/5 ml-2" />
+                   </div>
+
+                   <div className="grid gap-3">
                       {financeHistory.map((tx: any) => (
-                        <div key={tx.id} className="liquid-panel p-6 flex justify-between items-center hover:bg-white/5 transition-all group">
-                           <div className="flex gap-6 items-center">
-                              <div className={`w-12 h-12 rounded-2xl liquid-panel border-none flex items-center justify-center ${tx.type === 'income' ? 'bg-emerald-500/5 text-emerald-400' : 'bg-red-400/5 text-red-400'}`}>
-                                 {tx.type === 'income' ? <TrendingUp className="w-5 h-5" /> : <Wallet className="w-5 h-5" />}
-                              </div>
-                              <div className="space-y-1">
-                                 <p className="font-light text-lg tracking-tight group-hover:text-[#adc6ff] transition-colors">{tx.description || tx.category}</p>
-                                 <p className="label-ethereal text-[8px] opacity-40">{tx.category} • {new Date(tx.tx_date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' })}</p>
+                        <div key={tx.id} className="liquid-panel p-4 flex items-center gap-5 hover:bg-white/[0.05] transition-all group">
+                           <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${tx.type === 'income' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-400/10 text-red-400'} group-hover:scale-110`}>
+                              {tx.type === 'income' ? <TrendingUp className="w-6 h-6" /> : <Wallet className="w-6 h-6" />}
+                           </div>
+                           <div className="flex-grow space-y-1">
+                              <p className="text-xl font-light tracking-tight text-white/90 group-hover:text-white transition-colors">{tx.description || tx.category}</p>
+                              <div className="flex items-center gap-4">
+                                 <span className="text-[9px] label-ethereal tracking-widest opacity-30 uppercase">{tx.category}</span>
+                                 <span className="w-1 h-1 rounded-full bg-white/10" />
+                                 <span className="text-[9px] label-ethereal tracking-widest opacity-30">{new Date(tx.tx_date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' })}</span>
                               </div>
                            </div>
-                           <p className={`text-xl font-light tabular-nums ${tx.type === 'income' ? 'text-emerald-400' : 'text-white'}`}>
+                           <p className={`text-2xl font-thin tabular-nums ${tx.type === 'income' ? 'text-emerald-400' : 'text-white'}`}>
                               {tx.type === 'income' ? '+' : '-'}{tx.amount}
                            </p>
                         </div>
                       ))}
                    </div>
-                </section>
+                </div>
              </div>
           </ViewContainer>
         )}
