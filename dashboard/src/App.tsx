@@ -1205,45 +1205,50 @@ function App() {
         )}
 
         {view === 'projects' && (
-          <ViewContainer title="Proiecte" onBack={() => setView('home')}>
-             <div className="space-y-8 pb-32">
-                {projects.map((p: any) => {
-                  const total = (p.pending_tasks || 0) + (p.completed_tasks || 0);
-                  const progress = total > 0 ? Math.round((p.completed_tasks / total) * 100) : 0;
-                  
-                  return (
-                    <div key={p.id} className="liquid-panel p-8 space-y-8 group hover:bg-white/5 transition-all">
-                       <div className="flex justify-between items-start">
-                          <div className="space-y-2">
-                             <div className="flex items-center gap-4">
-                                <h3 className="text-2xl font-light tracking-tight">{p.name}</h3>
-                                {p.priority === 'high' && <Zap className="w-4 h-4 text-orange-400 fill-orange-400/20" />}
+          <ViewContainer title="Arhivă Proiecte" onBack={() => setView('home')}>
+             <div className="space-y-12 pb-32">
+                <div className="grid gap-4">
+                   {projects.map((p: any) => {
+                     const total = (p.pending_tasks || 0) + (p.completed_tasks || 0);
+                     const progress = total > 0 ? Math.round((p.completed_tasks / total) * 100) : 0;
+                     
+                     return (
+                       <div key={p.id} className="liquid-panel p-6 space-y-6 group hover:bg-white/[0.05] transition-all cursor-pointer">
+                          <div className="flex justify-between items-start">
+                             <div className="flex items-center gap-5">
+                                <div className="w-14 h-14 rounded-2xl bg-[#adc6ff]/5 flex items-center justify-center group-hover:rotate-6 transition-transform">
+                                   <Database className="w-7 h-7 text-[#adc6ff] opacity-40 group-hover:opacity-100" />
+                                </div>
+                                <div className="space-y-1">
+                                   <div className="flex items-center gap-3">
+                                      <h3 className="text-2xl font-light tracking-tight text-white">{p.name}</h3>
+                                      {p.priority === 'high' && <Zap className="w-3 h-3 text-rose-400 animate-pulse" />}
+                                   </div>
+                                   <p className="label-ethereal text-[8px] opacity-30 tracking-[0.2em] uppercase">{p.category || 'General'}</p>
+                                </div>
                              </div>
-                             <p className="text-xs font-light text-[#8c909f] leading-relaxed max-w-lg line-clamp-2">{p.description || 'Nicio descriere definită.'}</p>
+                             <div className="text-right">
+                                <p className="text-3xl font-thin text-[#adc6ff]">{progress}%</p>
+                                <p className="label-ethereal text-[8px] opacity-20">Progres</p>
+                             </div>
                           </div>
-                          <span className={`label-ethereal text-[8px] px-3 py-1 liquid-panel border-none ${
-                            p.priority === 'high' ? 'bg-red-400/5 text-red-400' : 'bg-[#adc6ff]/5 text-[#adc6ff]'
-                          }`}>
-                             {p.priority}
-                          </span>
-                       </div>
 
-                       <div className="space-y-4">
-                          <div className="flex justify-between items-end">
-                             <span className="label-ethereal text-[9px] opacity-40">Progres: {progress}%</span>
-                             <span className="label-ethereal text-[9px] opacity-40">{p.completed_tasks}/{total} Tasks</span>
-                          </div>
-                          <div className="w-full h-[1px] bg-white/5 rounded-full overflow-hidden">
+                          <div className="w-full h-[2px] bg-white/5 rounded-full overflow-hidden">
                              <motion.div 
                                initial={{ width: 0 }}
                                animate={{ width: `${progress}%` }}
-                               className={`h-full ${progress === 100 ? 'bg-emerald-500' : p.overdue_tasks > 0 ? 'bg-red-500' : 'bg-[#3b82f6]'} opacity-40`}
+                               className={`h-full ${progress === 100 ? 'bg-emerald-500' : p.overdue_tasks > 0 ? 'bg-red-500' : 'bg-[#adc6ff]'} opacity-40 shadow-[0_0_15px_rgba(173,198,255,0.3)]`}
                              />
                           </div>
+
+                          <div className="flex justify-between items-center pt-2">
+                             <p className="text-[10px] font-light text-white/40 leading-relaxed max-w-md line-clamp-1">{p.description || 'Nicio descriere definită.'}</p>
+                             <span className="label-ethereal text-[8px] opacity-20">{p.completed_tasks}/{total} Tasks</span>
+                          </div>
                        </div>
-                    </div>
-                  );
-                })}
+                     );
+                   })}
+                </div>
              </div>
           </ViewContainer>
         )}
@@ -1251,30 +1256,42 @@ function App() {
         {view === 'reading' && (
           <ViewContainer title="Lectură & Knowledge" onBack={() => setView('home')}>
             <div className="space-y-12 pb-32">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid gap-4">
                 {readingList.map((book: any) => (
-                  <GlassCard key={book.id} className="space-y-6">
+                  <div key={book.id} className="liquid-panel p-6 space-y-6 hover:bg-white/[0.05] transition-all group">
                     <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <h4 className="text-xl font-bold tracking-tight">{book.title}</h4>
-                        <p className="label-ethereal text-[8px] opacity-40">{book.author}</p>
+                      <div className="flex items-center gap-5">
+                         <div className="w-14 h-14 rounded-2xl bg-orange-400/5 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <BookOpen className="w-7 h-7 text-orange-400 opacity-40 group-hover:opacity-100" />
+                         </div>
+                         <div className="space-y-1">
+                            <h4 className="text-2xl font-light tracking-tight text-white">{book.title}</h4>
+                            <p className="label-ethereal text-[8px] opacity-30 tracking-[0.2em] uppercase">{book.author}</p>
+                         </div>
                       </div>
-                      <BookOpen className="w-5 h-5 text-orange-400 opacity-40" />
+                      <div className="text-right">
+                         <p className="text-3xl font-thin text-orange-400">{book.progress_pct}%</p>
+                         <p className="label-ethereal text-[8px] opacity-20">Lecturat</p>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                       <div className="flex justify-between text-[9px] label-ethereal opacity-40">
-                          <span>Progres</span>
-                          <span>{book.progress_pct}%</span>
-                       </div>
-                       <div className="w-full h-[2px] bg-white/5 rounded-full overflow-hidden">
-                          <motion.div initial={{ width: 0 }} animate={{ width: `${book.progress_pct}%` }} className="h-full bg-orange-400 opacity-40" />
-                       </div>
+                    
+                    <div className="w-full h-[2px] bg-white/5 rounded-full overflow-hidden">
+                       <motion.div 
+                          initial={{ width: 0 }} 
+                          animate={{ width: `${book.progress_pct}%` }} 
+                          className="h-full bg-orange-400 opacity-40 shadow-[0_0_10px_rgba(251,146,60,0.3)]" 
+                       />
                     </div>
-                  </GlassCard>
+
+                    <div className="flex justify-between items-center text-[9px] label-ethereal opacity-20">
+                       <span>Ultima sesiune: {book.last_read ? new Date(book.last_read).toLocaleDateString('ro-RO') : 'N/A'}</span>
+                       <span>{book.total_pages ? `${book.current_page}/${book.total_pages} pag` : 'Progres digital'}</span>
+                    </div>
+                  </div>
                 ))}
                 {readingList.length === 0 && (
-                  <div className="col-span-full py-24 text-center liquid-panel border-dashed border-white/5">
-                    <p className="label-ethereal text-[10px]">Nicio carte în curs de lectură</p>
+                  <div className="py-24 text-center liquid-panel border-dashed border-white/5 opacity-40">
+                    <p className="label-ethereal text-[10px] tracking-[0.3em]">Bibliotecă în așeptare</p>
                   </div>
                 )}
               </div>
