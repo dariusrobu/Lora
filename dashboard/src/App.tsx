@@ -934,82 +934,109 @@ function App() {
 
         {view === 'skills' && (
           <ViewContainer title={selectedSkill ? "Evoluție" : "Abilități"} onBack={() => selectedSkill ? setSelectedSkill(null) : setView('home')}>
-            <div className="space-y-12 pb-32">
-               {selectedSkill ? (
-                 <div className="space-y-12">
-                    <div className="text-center space-y-8 p-12 liquid-panel">
-                       <p className="label-ethereal">Loghează progres</p>
-                       <h2 className="text-5xl font-thin tracking-tighter text-[#adc6ff]">{selectedSkill.name}</h2>
-                       <div className="flex justify-center items-end gap-4">
-                          <input 
-                            type="number" 
-                            value={logValue} 
-                            onChange={(e) => setLogValue(e.target.value)}
-                            placeholder="0"
-                            className="bg-transparent text-6xl font-thin w-40 text-center outline-none border-b-[0.5px] border-[#3b82f6]/20 focus:border-[#3b82f6] transition-all placeholder:opacity-10"
-                            autoFocus
-                          />
-                          <span className="label-ethereal pb-3 opacity-40">{selectedSkill.unit}</span>
-                       </div>
-                    </div>
-                    <button 
-                      onClick={async () => {
-                        await fetch('/api/skills/log', { method: 'POST', headers: HEADERS, body: JSON.stringify({ skill_id: selectedSkill.id, value: logValue, metric: selectedSkill.unit }) });
-                        setSelectedSkill(null); setLogValue(''); fetchData();
-                      }}
-                      className="w-full py-6 primary-button text-sm uppercase tracking-[0.2em] font-light"
-                    >
-                      Sincronizează Datele
-                    </button>
-                 </div>
-               ) : (
-                 <div className="space-y-12">
-                   {Array.from(new Set(skills.map(s => s.category || 'Personal'))).sort().map(cat => {
-                     const catSkills = skills.filter(s => (s.category || 'Personal') === cat);
-                     if (catSkills.length === 0) return null;
-                     return (
-                       <section key={cat} className="space-y-6">
-                          <h4 className="label-ethereal ml-2">{cat}</h4>
-                          <div className="space-y-4">
-                             {catSkills.map(s => (
-                               <div key={s.id} className="liquid-panel p-8 space-y-6 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => { setSelectedSkill(s); setLogValue(''); }}>
-                                  <div className="flex justify-between items-start">
-                                     <div className="space-y-2">
-                                        <div className="flex items-center gap-4">
-                                           <p className="font-light text-2xl tracking-tight group-hover:text-[#adc6ff] transition-colors">{s.name}</p>
-                                           {s.streak > 0 && (
-                                              <div className="flex items-center gap-2 bg-orange-500/5 text-orange-400 px-3 py-1 rounded-full border-[0.5px] border-orange-500/10">
-                                                 <Flame className="w-3 h-3" />
-                                                 <span className="label-ethereal text-[8px]">{s.streak}z</span>
-                                              </div>
-                                           )}
-                                        </div>
-                                        <p className="label-ethereal text-[8px] opacity-40">Nivel {s.level || 1} • XP {s.total_exp || 0}</p>
-                                     </div>
-                                     <p className="text-3xl font-thin text-[#4cd7f6]">{s.progress || 0}%</p>
-                                  </div>
-                                  
-                                  <div className="w-full h-[1px] bg-white/5 rounded-full overflow-hidden">
-                                     <motion.div 
-                                        initial={{ width: 0 }}
-                                        animate={{ width: `${s.progress || 0}%` }}
-                                        className="h-full bg-[#4cd7f6] opacity-40 shadow-[0_0_20px_rgba(76,215,246,0.3)]"
-                                     />
-                                  </div>
+             <div className="space-y-12 pb-32">
+                {selectedSkill ? (
+                  <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-12">
+                     <div className="text-center space-y-6">
+                        <p className="label-ethereal tracking-[0.4em] opacity-40">Progres Nou</p>
+                        <h2 className="text-6xl font-thin tracking-tighter text-[#adc6ff]">{selectedSkill.name}</h2>
+                     </div>
+                     
+                     <div className="relative group">
+                        <div className="absolute -inset-10 bg-blue-500/5 blur-3xl rounded-full group-hover:bg-blue-500/10 transition-all" />
+                        <div className="relative flex items-center justify-center gap-4">
+                           <input 
+                             type="number" 
+                             value={logValue} 
+                             onChange={(e) => setLogValue(e.target.value)}
+                             placeholder="0"
+                             className="bg-transparent text-8xl font-thin w-48 text-center outline-none border-b-[0.5px] border-[#3b82f6]/20 focus:border-[#3b82f6] transition-all placeholder:opacity-5"
+                             autoFocus
+                           />
+                           <span className="label-ethereal text-xl pb-6 opacity-30 tracking-widest">{selectedSkill.unit}</span>
+                        </div>
+                     </div>
 
-                                  <div className="flex justify-between items-center">
-                                     <span className="label-ethereal text-[8px] opacity-30">Ultima actualizare: {s.last_log_date ? new Date(s.last_log_date).toLocaleDateString('ro-RO') : '—'}</span>
-                                     {s.last_value && <span className="label-ethereal text-[8px] text-[#adc6ff]">{s.last_value} {s.unit}</span>}
-                                  </div>
-                               </div>
-                             ))}
-                          </div>
-                       </section>
-                     );
-                   })}
-                 </div>
-               )}
-            </div>
+                     <button 
+                       onClick={async () => {
+                         await fetch(`${BASE_URL}/api/skills/log`, { method: 'POST', headers: HEADERS, body: JSON.stringify({ skill_id: selectedSkill.id, value: logValue, metric: selectedSkill.unit }) });
+                         setSelectedSkill(null); setLogValue(''); fetchData();
+                       }}
+                       className="px-12 py-6 liquid-panel border-blue-500/20 text-[#adc6ff] text-xs uppercase tracking-[0.4em] font-black hover:bg-blue-500/10 hover:scale-105 active:scale-95 transition-all"
+                     >
+                       Sincronizează
+                     </button>
+                  </div>
+                ) : (
+                  <div className="space-y-16">
+                    {Array.from(new Set(skills.map(s => s.category || 'Personal'))).sort().map(cat => {
+                      const catSkills = skills.filter(s => (s.category || 'Personal') === cat);
+                      if (catSkills.length === 0) return null;
+                      
+                      let CatIcon = Zap;
+                      if (cat.toLowerCase().includes('academic') || cat.toLowerCase().includes('uni')) CatIcon = GraduationCap;
+                      if (cat.toLowerCase().includes('sport') || cat.toLowerCase().includes('fizic')) CatIcon = Dumbbell;
+                      if (cat.toLowerCase().includes('lectur')) CatIcon = BookOpen;
+                      if (cat.toLowerCase().includes('finan')) CatIcon = Wallet;
+
+                      return (
+                        <section key={cat} className="space-y-8">
+                           <div className="flex items-center gap-4 ml-2">
+                              <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
+                                 <CatIcon className="w-4 h-4 text-[#adc6ff]" />
+                              </div>
+                              <h4 className="label-ethereal tracking-[0.3em]">{cat}</h4>
+                           </div>
+
+                           <div className="grid gap-4">
+                              {catSkills.map(s => (
+                                <div 
+                                  key={s.id} 
+                                  className="liquid-panel p-6 space-y-6 hover:bg-white/[0.05] transition-all cursor-pointer group" 
+                                  onClick={() => { setSelectedSkill(s); setLogValue(''); }}
+                                >
+                                   <div className="flex justify-between items-start">
+                                      <div className="flex items-center gap-5">
+                                         <div className="w-12 h-12 rounded-xl bg-[#adc6ff]/5 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <TrendingUp className="w-5 h-5 text-[#adc6ff]" />
+                                         </div>
+                                         <div className="space-y-1">
+                                            <p className="font-light text-2xl tracking-tight text-white/90 group-hover:text-white transition-colors">{s.name}</p>
+                                            <div className="flex items-center gap-3">
+                                               <span className="label-ethereal text-[8px] opacity-40 uppercase tracking-widest">Nivel {s.level || 1}</span>
+                                               {s.streak > 0 && (
+                                                  <div className="flex items-center gap-1.5 text-orange-400">
+                                                     <Flame className="w-2.5 h-2.5" />
+                                                     <span className="text-[9px] font-black">{s.streak}d</span>
+                                                  </div>
+                                               )}
+                                            </div>
+                                         </div>
+                                      </div>
+                                      <p className="text-4xl font-thin text-[#4cd7f6] opacity-80">{s.progress || 0}%</p>
+                                   </div>
+                                   
+                                   <div className="w-full h-[2px] bg-white/5 rounded-full overflow-hidden">
+                                      <motion.div 
+                                         initial={{ width: 0 }}
+                                         animate={{ width: `${s.progress || 0}%` }}
+                                         className="h-full bg-gradient-to-r from-[#4cd7f6]/20 to-[#4cd7f6] shadow-[0_0_15px_rgba(76,215,246,0.5)]"
+                                      />
+                                   </div>
+
+                                   <div className="flex justify-between items-center pt-2">
+                                      <span className="label-ethereal text-[8px] opacity-20 uppercase tracking-widest">XP {s.total_exp || 0} • {s.last_log_date ? new Date(s.last_log_date).toLocaleDateString('ro-RO') : 'No data'}</span>
+                                      {s.last_value && <span className="text-[10px] font-bold text-[#adc6ff]/60">+{s.last_value} {s.unit}</span>}
+                                   </div>
+                                </div>
+                              ))}
+                           </div>
+                        </section>
+                      );
+                    })}
+                  </div>
+                )}
+             </div>
           </ViewContainer>
         )}
 
@@ -1070,24 +1097,37 @@ function App() {
                   }, {})
                 ).map(([proj, projTasks]: [string, any]) => (
                   <section key={proj} className="space-y-6">
-                     <h3 className="label-ethereal ml-2 flex justify-between items-center">
-                        <span>{proj}</span>
-                        <span className="opacity-30">{projTasks.length}</span>
-                     </h3>
-                     <div className="space-y-4">
+                     <div className="flex items-center gap-3 ml-2">
+                        <div className="w-2 h-2 rounded-full bg-[#adc6ff] shadow-[0_0_10px_rgba(173,198,255,0.5)]" />
+                        <h3 className="label-ethereal tracking-[0.3em]">{proj}</h3>
+                        <div className="h-[1px] flex-grow bg-white/5 ml-2" />
+                        <span className="text-[10px] font-bold opacity-20">{projTasks.length}</span>
+                     </div>
+                     <div className="grid gap-3">
                         {projTasks.map((t: any) => (
                           <div 
                             key={t.id} 
-                            className={`liquid-panel p-6 flex items-center justify-between group cursor-pointer hover:bg-white/5 transition-all ${t.priority === 'high' ? 'border-l-[2px] border-l-red-400/50' : ''}`}
-                            onClick={() => fetch(`/api/tasks/${t.id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ action: 'complete' }) }).then(fetchData)}
+                            className={`liquid-panel p-4 flex items-center gap-5 group cursor-pointer hover:bg-white/[0.05] transition-all relative overflow-hidden ${t.priority === 'high' ? 'border-r-rose-500/20 border-r-2' : ''}`}
+                            onClick={() => fetch(`${BASE_URL}/api/tasks/${t.id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ action: 'complete' }) }).then(fetchData)}
                           >
-                            <div className="flex items-center gap-6">
-                               <div className={`w-5 h-5 rounded-md border-[0.5px] transition-all flex items-center justify-center ${t.priority === 'high' ? 'border-red-400/50' : 'border-white/20'}`}>
-                                  <div className={`w-2 h-2 rounded-full ${t.priority === 'high' ? 'bg-red-400 shadow-[0_0_10px_#ef4444]' : 'bg-white/20'}`} />
-                               </div>
-                               <p className="font-light text-lg tracking-tight group-hover:translate-x-1 transition-transform">{t.title}</p>
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${t.priority === 'high' ? 'bg-rose-500/10 text-rose-400' : 'bg-white/5 text-gray-500'} group-hover:scale-110`}>
+                               {t.priority === 'high' ? <Zap className="w-5 h-5 fill-rose-400/20" /> : <CheckCircle2 className="w-5 h-5 opacity-20 group-hover:opacity-100 transition-opacity" />}
                             </div>
-                            {t.due_date && <span className="label-ethereal text-[8px] opacity-30">{new Date(t.due_date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' })}</span>}
+                            <div className="flex-grow space-y-1">
+                               <p className="font-light text-xl tracking-tight text-white/90 group-hover:text-white transition-colors">{t.title}</p>
+                               <div className="flex items-center gap-4">
+                                 {t.due_date && (
+                                   <div className="flex items-center gap-1.5 opacity-40">
+                                     <Calendar className="w-3 h-3" />
+                                     <span className="text-[10px] label-ethereal tracking-wider">{new Date(t.due_date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' })}</span>
+                                   </div>
+                                 )}
+                                 {t.priority === 'high' && <span className="text-[8px] font-black text-rose-400 uppercase tracking-[0.2em]">Priority High</span>}
+                               </div>
+                            </div>
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity pr-2">
+                               <CheckCircle2 className="w-6 h-6 text-emerald-400/50" />
+                            </div>
                           </div>
                         ))}
                      </div>
