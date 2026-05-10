@@ -203,11 +203,15 @@ async def start_bot():
                 id SERIAL PRIMARY KEY,
                 item TEXT NOT NULL,
                 list_name TEXT NOT NULL DEFAULT 'General',
+                category TEXT,
                 is_packed BOOLEAN DEFAULT FALSE,
                 trip_type TEXT DEFAULT 'both',
-                created_at TIMESTAMP DEFAULT NOW()
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_travel_items_list ON travel_items(list_name);
+            ALTER TABLE travel_items ADD COLUMN IF NOT EXISTS category TEXT;
+            ALTER TABLE travel_items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
         """)
 
         # User Profile Init (Safe now that columns exist)
