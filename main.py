@@ -196,6 +196,19 @@ async def start_bot():
             CREATE INDEX IF NOT EXISTS idx_saved_locations_user ON saved_locations(user_id);
         """)
 
+        # Travel Items Table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS travel_items (
+                id SERIAL PRIMARY KEY,
+                item TEXT NOT NULL,
+                list_name TEXT NOT NULL DEFAULT 'General',
+                is_packed BOOLEAN DEFAULT FALSE,
+                trip_type TEXT DEFAULT 'both',
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_travel_items_list ON travel_items(list_name);
+        """)
+
         # User Profile Init (Safe now that columns exist)
         await conn.execute(
             """

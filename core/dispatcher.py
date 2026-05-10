@@ -66,6 +66,6 @@ async def execute_module_intent(pool, module, intent, data, reply, bot):
         logger.error(f"Module execution failed | module: {module} | error: {e}")
         traceback.print_exc()
         await log_execution(pool, intent, module, False, type(e).__name__, str(e))
-        from bot.formatter import safe_markdown
+        from bot.formatter import escape_md
 
-        return safe_markdown(f"⚠️ Eroare modul {module}: {str(e)}"), None, None
+        return f"⚠️ Eroare modul {module}: {escape_md(str(e))}", None, None
