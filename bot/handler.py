@@ -1954,6 +1954,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             await handle_health_callback(query, pool, data)
             return
 
+        if data.startswith("travel:"):
+            from modules.travel import handle_travel_callback
+            await handle_travel_callback(query, pool, data)
+            return
+
         if data.startswith("uni:"):
             await handle_uni_callback(query, pool, data)
             return

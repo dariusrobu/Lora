@@ -627,3 +627,16 @@ CREATE TABLE IF NOT EXISTS saved_locations (
     UNIQUE(user_id, name)
 );
 CREATE INDEX IF NOT EXISTS idx_saved_locations_user ON saved_locations(user_id);
+
+-- ── Travel & Luggage ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS travel_items (
+    id SERIAL PRIMARY KEY,
+    item TEXT NOT NULL,
+    list_name TEXT NOT NULL, -- e.g. 'Cluj', 'General', 'Ski'
+    category TEXT,
+    trip_type TEXT DEFAULT 'both' CHECK (trip_type IN ('departure', 'return', 'both')),
+    is_packed BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_travel_list_name ON travel_items(list_name);

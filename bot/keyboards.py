@@ -976,3 +976,36 @@ def memory_main_keyboard() -> InlineKeyboardMarkup:
             ],
         ]
     )
+
+# ── Travel module keyboards ──────────────────────────────────────────
+
+def travel_list_keyboard(items: list, list_name: str) -> InlineKeyboardMarkup:
+    keyboard = []
+    # Build buttons for unpacked items primarily
+    for i in range(0, len(items), 2):
+        row = []
+        item1 = items[i]
+        label1 = f"⬜ {item1['item'][:15]}" if not item1['is_packed'] else f"✅ {item1['item'][:15]}"
+        row.append(
+            InlineKeyboardButton(
+                label1,
+                callback_data=make_callback_data("travel", "toggle", item1["id"], list_name),
+            )
+        )
+        
+        if i + 1 < len(items):
+            item2 = items[i+1]
+            label2 = f"⬜ {item2['item'][:15]}" if not item2['is_packed'] else f"✅ {item2['item'][:15]}"
+            row.append(
+                InlineKeyboardButton(
+                    label2,
+                    callback_data=make_callback_data("travel", "toggle", item2["id"], list_name),
+                )
+            )
+        keyboard.append(row)
+
+    keyboard.append([
+        InlineKeyboardButton("🧹 Resetează", callback_data=make_callback_data("travel", "clear", list_name)),
+        InlineKeyboardButton("📋 Vezi lista", callback_data=make_callback_data("travel", "list", list_name))
+    ])
+    return InlineKeyboardMarkup(keyboard)

@@ -719,6 +719,51 @@ async def post_skill_log(request):
         return web.json_response({"error": str(e)}, status=500)
 
 
+@require_auth
+async def get_travel_lists(request):
+    try:
+        pool = request.app["pool"]
+        import db.queries.travel as travel_queries
+
+        lists = await travel_queries.get_all_travel_lists(pool)
+        return web.json_response(lists)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@require_auth
+async def get_travel_items_api(request):
+    try:
+        pool = request.app["pool"]
+        list_name = request.query.get("list_name")
+        if not list_name:
+            return web.json_response({"error": "Missing list_name"}, status=400)
+
+        import db.queries.travel as travel_queries
+
+        items = await travel_queries.get_travel_items(pool, list_name)
+        return web.json_response([serialize_dic(dict(i)) for i in items])
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@require_auth
+async def patch_travel_item(request):
+    try:
+        pool = request.app["pool"]
+        item_id = int(request.match_info["item_id"])
+        data = await request.json()
+
+        import db.queries.travel as travel_queries
+
+        if "is_packed" in data:
+            await travel_queries.toggle_packed_status(pool, item_id, bool(data["is_packed"]))
+        
+        return web.json_response({"status": "success"})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
 def setup_api_routes(app):
     app.router.add_get("/api/projects", get_projects)
     app.router.add_get("/api/projects/{project_id}", get_project_by_id)
@@ -750,3 +795,6 @@ def setup_api_routes(app):
     app.router.add_get("/api/focus/status", get_focus_status)
     app.router.add_get("/api/skills", get_skills_status)
     app.router.add_post("/api/skills/log", post_skill_log)
+    app.router.add_get("/api/travel/lists", get_travel_lists)
+    app.router.add_get("/api/travel/items", get_travel_items_api)
+    app.router.add_patch("/api/travel/items/{item_id}", patch_travel_item)

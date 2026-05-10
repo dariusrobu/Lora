@@ -468,6 +468,20 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - intent="list_wish" — "ce am pe wishlist", "arată-mi lista de dorințe", "wish list".
     - intent="delete_wish" — "șterge X din wishlist", "nu mai vreau X".
       Data: {{"item": string}}
+
+32. Travel & Luggage: module="travel":
+    - intent="travel_add" — "adaugă pe lista de Cluj laptopul", "pune haine și încărcător pe lista de travel". 
+      Data: {{"items": string (comma separated), "list_name": string, "trip_type": "departure|return|both"}}
+    - intent="travel_list" — "ce trebuie să iau la Cluj", "lista de bagaj pentru munte".
+      Data: {{"list_name": string, "trip_type": "departure|return|both"}}
+    - intent="travel_check" — "plec la Cluj", "mă întorc acasă de la București", "astăzi plec".
+      Data: {{"list_name": string, "trip_type": "departure|return"}}
+      REGULĂ: Folosește acest intent când userul anunță că PLEACĂ sau se ÎNTOARCE dintr-o călătorie.
+    - intent="travel_packed" — "am luat laptopul", "am pus hainele în bagaj".
+      Data: {{"item": string, "list_name": string}}
+    - intent="travel_clear" — "resetează lista de Cluj", "șterge lista de bagaj".
+      Data: {{"list_name": string, "reset_only": boolean}}
+
 26. Schedule: module="schedule":
     - intent="schedule_today" pentru orarul de azi ("ce cursuri am azi", "orarul de azi", "ce am la facultate").
     - intent="schedule_week" pentru orarul săptămânii ("orarul săptămânii", "ce am săptămâna asta").
@@ -554,6 +568,14 @@ A: intent="memory_search", module="memory", data={{"query": "sah"}}, reply="Caut
 *** COMPLEX CHAIN (TASK + REMINDER + FINANCE) ***
 U: "arată task-urile la Licență, apoi adaugă reminder la 21:00 să învăț și zi-mi dacă am bani de pizza de 50 lei"
 A: intent="add_reminder", module="events", data={{ "title": "să învăț", "event_time": "21:00", "date": "{now.strftime("%Y-%m-%d")}" }}, reply="Reminder setat pentru 21:00. 🔔", additional_intents=[{{ "intent":"list_tasks", "module":"tasks", "data":{{ "project":"Licență" }}, "reply":"Iată task-urile tale." }}, {{ "intent":"finance_summary", "module":"finance", "data":{{}}, "reply":"Verific dacă ai bani de pizza." }}]
+
+*** TRAVEL & LUGGAGE ***
+U: "adaugă pe lista de Cluj: laptop, haine, încărcător"
+A: intent="travel_add", module="travel", data={{ "items": "laptop, haine, încărcător", "list_name": "Cluj" }}, reply="Am adăugat obiectele pe lista de Cluj. 🧳"
+U: "plec la Cluj"
+A: intent="travel_check", module="travel", data={{ "list_name": "Cluj", "trip_type": "departure" }}, reply="Drum bun! Verifică lista de bagaj."
+U: "am luat laptopul"
+A: intent="travel_packed", module="travel", data={{ "item": "laptop", "list_name": "Cluj" }}, reply="Bifat! 💻"
 """
 
     contents = []

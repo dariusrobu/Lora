@@ -5,7 +5,7 @@ import {
   Heart, Flame, Brain, Play, Pause, RotateCcw,
   TrendingUp, Star, Moon, Droplets, Scale,
   Pin, MapPin, Search, Sun, Cloud, CloudRain, CloudDrizzle, CloudSnow, CloudLightning,
-  Briefcase, Zap, BookOpen, Apple, Calendar, Database, ShoppingBag
+  Briefcase, Zap, BookOpen, Apple, Calendar, Database, ShoppingBag, Plane
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -65,7 +65,7 @@ const TiltCard = ({ children, className, onClick }: any) => {
   );
 };
 
-type View = 'home' | 'map' | 'uni' | 'gym' | 'skills' | 'shop' | 'notes' | 'health' | 'calendar' | 'finance' | 'tasks' | 'projects' | 'memory' | 'reading' | 'nutrition';
+type View = 'home' | 'map' | 'uni' | 'gym' | 'skills' | 'shop' | 'notes' | 'health' | 'calendar' | 'finance' | 'tasks' | 'projects' | 'memory' | 'reading' | 'nutrition' | 'travel';
 
 // --- Shared Components ---
 const GlassCard = ({ children, className = "", onClick }: any) => (
@@ -112,6 +112,9 @@ function App() {
   const [memories, setMemories] = useState<any[]>([]);
   const [readingList, setReadingList] = useState<any[]>([]);
   const [nutritionLogs, setNutritionLogs] = useState<any[]>([]);
+  const [travelLists, setTravelLists] = useState<string[]>([]);
+  const [travelItems, setTravelItems] = useState<any[]>([]);
+  const [selectedTravelList, setSelectedTravelList] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<any>(null);
   const [logValue, setLogValue] = useState('');
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -149,6 +152,25 @@ function App() {
   }, [timerActive, timeLeft]);
 
 
+  const fetchTravelItems = async (listName: string) => {
+    const r = await fetch(`${BASE_URL}/api/travel/items?list_name=${listName}`, { headers: HEADERS });
+    if (r.ok) {
+      const data = await r.json();
+      setTravelItems(data);
+    }
+  };
+
+  const toggleTravelItem = async (itemId: number, isPacked: boolean) => {
+    const r = await fetch(`${BASE_URL}/api/travel/items/${itemId}`, {
+      method: 'PATCH',
+      headers: HEADERS,
+      body: JSON.stringify({ is_packed: isPacked })
+    });
+    if (r.ok && selectedTravelList) {
+      fetchTravelItems(selectedTravelList);
+    }
+  };
+
   const fetchData = async () => {
     const fetchModule = async (url: string, defaultValue: any = null) => {
       const controller = new AbortController();
@@ -176,7 +198,7 @@ function App() {
 
     try {
       setErrorMessage(null);
-      const [t, f, u, g, s, shop, n, h, c, f_hist, prof, w, projs, mems, read, nutr] = await Promise.all([
+      const [t, f, u, g, s, shop, n, h, c, f_hist, prof, w, projs, mems, read, nutr, travel] = await Promise.all([
         fetchModule('/api/tasks?status=all', []),
         fetchModule('/api/finances/summary'),
         fetchModule('/api/university/summary'),
@@ -192,7 +214,8 @@ function App() {
         fetchModule('/api/projects', []),
         fetchModule('/api/memory', []),
         fetchModule('/api/reading', []),
-        fetchModule('/api/nutrition', [])
+        fetchModule('/api/nutrition', []),
+        fetchModule('/api/travel/lists', [])
       ]);
 
       setTasks(t);
@@ -211,6 +234,7 @@ function App() {
       setMemories(mems);
       setReadingList(read);
       setNutritionLogs(nutr);
+      setTravelLists(travel);
     } catch (e: any) {
       console.error("Global fetch error:", e);
       setErrorMessage(e.message || "Eroare necunoscută la sincronizare");
@@ -410,6 +434,7 @@ function App() {
                       { id: 'notes', icon: Brain, label: 'Note', color: 'text-blue-400', bg: 'bg-blue-400/10' },
                       { id: 'memory', icon: Database, label: 'Memorie', color: 'text-indigo-400', bg: 'bg-indigo-400/10' },
                       { id: 'shop', icon: ShoppingBag, label: 'Shop', color: 'text-pink-400', bg: 'bg-pink-400/10' },
+                      { id: 'travel', icon: Plane, label: 'Travel', color: 'text-blue-300', bg: 'bg-blue-300/10' },
                       { id: 'reading', icon: BookOpen, label: 'Lectură', color: 'text-orange-400', bg: 'bg-orange-400/10' },
                       { id: 'nutrition', icon: Apple, label: 'Nutriție', color: 'text-rose-400', bg: 'bg-rose-400/10' },
                       { id: 'map', icon: MapPin, label: 'Sistem Map', color: 'text-cyan-400', bg: 'bg-cyan-400/10' }
@@ -1293,6 +1318,71 @@ function App() {
                 )}
               </div>
             </div>
+          </ViewContainer>
+        )}
+
+        {view === 'travel' && (
+          <ViewContainer title="Sistem Travel" onBack={() => {
+            if (selectedTravelList) setSelectedTravelList(null);
+            else setView('home');
+          }}>
+             <div className="space-y-12 pb-32">
+                {selectedTravelList ? (
+                  <div className="space-y-8">
+                     <div className="flex items-center gap-3 ml-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_10px_#60a5fa]" />
+                        <h3 className="label-ethereal tracking-[0.3em]">{selectedTravelList}</h3>
+                        <div className="h-[1px] flex-grow bg-white/5 ml-2" />
+                     </div>
+                     <div className="grid gap-4">
+                        {travelItems.map(i => (
+                          <div 
+                            key={i.id} 
+                            className={`liquid-panel p-6 flex items-center justify-between transition-all cursor-pointer group ${i.is_packed ? 'opacity-40 grayscale' : 'hover:bg-white/5'}`}
+                            onClick={() => toggleTravelItem(i.id, !i.is_packed)}
+                          >
+                             <div className="flex items-center gap-6">
+                                <div className={`w-6 h-6 rounded-lg border-[0.5px] transition-all flex items-center justify-center ${i.is_packed ? 'bg-[#3b82f6] border-[#3b82f6]' : 'border-white/20 group-hover:border-white/40'}`}>
+                                   {i.is_packed && <CheckCircle2 className="w-4 h-4 text-white" />}
+                                </div>
+                                <p className={`text-lg font-light tracking-tight ${i.is_packed ? 'line-through' : ''}`}>{i.item}</p>
+                             </div>
+                             <span className="label-ethereal text-[8px] opacity-40 px-3 py-1 liquid-panel border-none">
+                                {i.trip_type === 'departure' ? 'Plec' : i.trip_type === 'return' ? 'Întors' : 'Ambele'}
+                             </span>
+                          </div>
+                        ))}
+                        {travelItems.length === 0 && (
+                          <div className="py-24 text-center liquid-panel border-dashed border-white/5 opacity-40">
+                             <p className="label-ethereal text-[10px] tracking-[0.3em]">Lista este goală</p>
+                          </div>
+                        )}
+                     </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                     {travelLists.map(listName => (
+                        <GlassCard key={listName} className="p-8 group" onClick={() => {
+                          setSelectedTravelList(listName);
+                          fetchTravelItems(listName);
+                        }}>
+                           <div className="flex justify-between items-center">
+                              <div className="space-y-1">
+                                 <h4 className="text-2xl font-light tracking-tight text-white group-hover:text-[#adc6ff] transition-colors">{listName}</h4>
+                                 <p className="label-ethereal text-[8px] opacity-30 uppercase tracking-[0.2em]">Vezi Bagaj</p>
+                              </div>
+                              <Plane className="w-6 h-6 text-blue-400/20 group-hover:text-blue-400 group-hover:scale-125 transition-all" />
+                           </div>
+                        </GlassCard>
+                     ))}
+                     {travelLists.length === 0 && (
+                       <div className="col-span-2 py-32 text-center liquid-panel border-dashed border-white/5 opacity-40">
+                          <p className="label-ethereal text-[10px] tracking-[0.3em]">Nicio listă de travel detectată</p>
+                       </div>
+                     )}
+                  </div>
+                )}
+             </div>
           </ViewContainer>
         )}
 
