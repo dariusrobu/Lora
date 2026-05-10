@@ -41,7 +41,7 @@ async def handle_travel_intent(
         reply = f"🧳 *Lista de bagaj: {escape_md(list_name)}*\n"
         if trip_type and trip_type != 'both':
             dir_text = "Plecare" if trip_type == "departure" else "Întoarcere"
-            reply += f"方向: _{dir_text}_\n"
+            reply += f"Direcție: _{escape_md(dir_text)}_\n"
         reply += "━━━━━━━━━━━━━━━━━━━━\n"
         
         for i in items:

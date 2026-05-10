@@ -458,6 +458,7 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
 30. Shopping: module="shopping":
     - intent="add_item" — "adaugă pe lista de cumpărături X", "pune pe listă Y".
       Data: {{"item": string, "category": string | null}}
+      IMPORTANT: Dacă userul menționează o locație sau "plecare/întoarcere" (ex: "lista de Cluj"), folosește modulul `travel`.
     - intent="list_items" — "ce am de cumpărat", "vezi lista de cumpărături".
     - intent="delete_item" — "șterge X de pe listă", "am luat Y".
     - intent="clear_items" — "curăță lista", "șterge tot ce am cumpărat", "clear shopping list".
@@ -572,6 +573,8 @@ A: intent="add_reminder", module="events", data={{ "title": "să învăț", "eve
 *** TRAVEL & LUGGAGE ***
 U: "adaugă pe lista de Cluj: laptop, haine, încărcător"
 A: intent="travel_add", module="travel", data={{ "items": "laptop, haine, încărcător", "list_name": "Cluj" }}, reply="Am adăugat obiectele pe lista de Cluj. 🧳"
+U: "pune perna pe lista de plecare la cluj"
+A: intent="travel_add", module="travel", data={{ "items": "perna", "list_name": "Cluj", "trip_type": "departure" }}, reply="Am adăugat perna pe lista de plecare pentru Cluj. 🧳"
 U: "plec la Cluj"
 A: intent="travel_check", module="travel", data={{ "list_name": "Cluj", "trip_type": "departure" }}, reply="Drum bun! Verifică lista de bagaj."
 U: "am luat laptopul"
