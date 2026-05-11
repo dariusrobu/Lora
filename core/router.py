@@ -143,7 +143,7 @@ async def _route_single_intent(
         # Complex Correction (Re-run Gemini)
         from core.gemini import analyze_intent
         context = f"Utilizatorul vrea să corecteze ultima acțiune: {json.dumps(last_intent)}. Corecția este: {correction_text}"
-        new_intent = await analyze_intent(correction_text, context=context)
+        new_intent = await analyze_intent(pool, correction_text, context=context)
         return await _route_single_intent(pool, new_intent, bot)
 
     # No module or 'chat' intent -> Just Chat

@@ -75,6 +75,7 @@ async def handle_university_intent(
         subject_name = data.get("subject", "")
         attended = data.get("attended", True)
         class_date = data.get("date", date.today())
+        notes = data.get("notes") or data.get("reflection")
 
         if not subject_name:
             return "La ce materie?", None
@@ -88,7 +89,7 @@ async def handle_university_intent(
 
             class_date = datetime.strptime(class_date, "%Y-%m-%d").date()
 
-        await uni_queries.log_attendance(pool, subject["id"], attended, class_date)
+        await uni_queries.log_attendance(pool, subject["id"], attended, class_date, notes=notes)
 
         status = "prezent ✅" if attended else "absent ❌"
         return (

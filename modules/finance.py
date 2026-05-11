@@ -19,7 +19,12 @@ async def handle_finance_intent(
         return await _handle_log_expense(pool, data)
 
     elif intent == "finance_summary" or intent == "view_finance":
-        res_text, res_markup = await _generate_finance_summary_text(pool)
+        tx_date = data.get("date")
+        if isinstance(tx_date, str):
+            from datetime import datetime
+            tx_date = datetime.strptime(tx_date, "%Y-%m-%d").date()
+        
+        res_text, res_markup = await _generate_finance_summary_text(pool, tx_date)
         return res_text, res_markup, None
 
     elif intent == "finance_chart":
@@ -201,19 +206,22 @@ async def _set_budget(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
     return f"✅ Buget de *{limit} RON* setat pentru *{escape_md(category)}*.", None
 
 
-async def _generate_finance_summary_text(pool) -> Tuple[str, Any]:
+async def _generate_finance_summary_text(pool, target_date: Optional[date] = None) -> Tuple[str, Any]:
     today = date.today()
-    daily_total = await finance_queries.get_daily_total(pool, today)
-    daily_txs = await finance_queries.get_daily_transactions(pool, today)
+    target_date = target_date or today
+    daily_total = await finance_queries.get_daily_total(pool, target_date)
+    daily_txs = await finance_queries.get_daily_transactions(pool, target_date)
     budget_status = await finance_queries.get_budget_status(pool)
 
     # Header
-    text = f"💰 *Finanțe — {today.strftime('%d %b %Y')}*\n\n"
-    text += f"💸 *Cheltuieli azi:* {daily_total:.2f} RON\n\n"
+    date_str = target_date.strftime('%d %b %Y')
+    label = "Azi" if target_date == today else date_str
+    text = f"💰 *Finanțe — {label}*\n\n"
+    text += f"💸 *Cheltuieli {label.lower()}:* {daily_total:.2f} RON\n\n"
 
     # Today's breakdown
     if daily_txs:
-        text += "📝 *Tranzacții azi:*\n"
+        text += f"📝 *Tranzacții {label.lower()}:*\n"
         for tx in daily_txs:
             icon = "🔻" if tx["type"] == "expense" else "🔹"
             desc = f" — {tx['description']}" if tx["description"] else ""

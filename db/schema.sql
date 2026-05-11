@@ -70,6 +70,9 @@ CREATE TABLE IF NOT EXISTS conversation_state (
     module      TEXT,                   -- which module the pending action belongs to
     action      TEXT,                   -- pending action e.g. 'delete'
     item_id     INT,                    -- id of the item being acted on
+    last_intent JSONB,                  -- last successfully executed intent (for undo)
+    last_inserted_id INT,               -- last inserted row ID (for undo)
+    last_module TEXT,                   -- last module used (for undo)
     extra       JSONB,                  -- any additional context needed to complete the action
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
@@ -237,6 +240,8 @@ CREATE TABLE IF NOT EXISTS journal_entries (
     entry_date       DATE NOT NULL UNIQUE,
     reflection_text  TEXT,
     mood             VARCHAR(20) CHECK (mood IN ('great','good','neutral','bad','terrible', NULL)),
+    task_completion  VARCHAR(20),
+    skipped          BOOLEAN DEFAULT FALSE,
     tomorrow_focus   TEXT,
     created_at       TIMESTAMPTZ DEFAULT NOW()
 );
@@ -509,6 +514,7 @@ CREATE TABLE IF NOT EXISTS attendances (
     subject_id      INTEGER REFERENCES subjects(id) ON DELETE CASCADE,
     class_date      DATE NOT NULL,
     attended        BOOLEAN NOT NULL,  -- TRUE = present, FALSE = absent
+    notes           TEXT,
     created_at      TIMESTAMP DEFAULT NOW(),
     UNIQUE(schedule_id, class_date)
 );

@@ -68,16 +68,17 @@ async def get_subject_by_id(pool, subject_id: int) -> dict | None:
         return dict(row) if row else None
 
 
-async def log_attendance(pool, subject_id, attended, class_date) -> None:
+async def log_attendance(pool, subject_id, attended, class_date, notes=None) -> None:
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO attendances (subject_id, attended, class_date)
-            VALUES ($1, $2, $3)
+            INSERT INTO attendances (subject_id, attended, class_date, notes)
+            VALUES ($1, $2, $3, $4)
         """,
             subject_id,
             attended,
             class_date,
+            notes,
         )
 
 
@@ -201,7 +202,7 @@ async def get_attendance_warnings(pool) -> list:
         return [dict(r) for r in rows]
 
 
-async def log_attendance_by_schedule(pool, schedule_id: int, attended: bool) -> None:
+async def log_attendance_by_schedule(pool, schedule_id: int, attended: bool, notes: str = None) -> None:
     """Loghează prezența folosind ID-ul din schedule."""
     from datetime import date
 
@@ -211,7 +212,7 @@ async def log_attendance_by_schedule(pool, schedule_id: int, attended: bool) -> 
             "SELECT subject_id FROM schedule WHERE id = $1", schedule_id
         )
         if row:
-            await log_attendance(pool, row["subject_id"], attended, date.today())
+            await log_attendance(pool, row["subject_id"], attended, date.today(), notes=notes)
 
 
 async def update_subject(pool, subject_id: int, **kwargs) -> None:

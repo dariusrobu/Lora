@@ -57,23 +57,36 @@ async def set_state(
         )
 
 
+class CustomEncoder(json.JSONEncoder):
+    """Handles non-serializable objects like datetime."""
+    def default(self, obj):
+        from datetime import datetime, date, time
+        if isinstance(obj, (datetime, date, time)):
+            return obj.isoformat()
+        return super().default(obj)
+
+
 async def save_last_action(pool, intent_response: Dict[str, Any], item_id: Optional[int] = None):
     """Saves the last executed action for potential undo/correction."""
     module = intent_response.get("module")
-    # Store full intent response as JSON
-    intent_json = json.dumps(intent_response)
     
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            UPDATE conversation_state 
-            SET last_intent = $1, last_inserted_id = $2, last_module = $3
-            WHERE state_key = 'current'
-            """,
-            intent_json,
-            item_id,
-            module
-        )
+    try:
+        # Store full intent response as JSON
+        intent_json = json.dumps(intent_response, cls=CustomEncoder)
+        
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE conversation_state 
+                SET last_intent = $1, last_inserted_id = $2, last_module = $3
+                WHERE state_key = 'current'
+                """,
+                intent_json,
+                item_id,
+                module
+            )
+    except Exception as e:
+        print(f"⚠️ Failed to save_last_action: {e}")
 
 
 async def clear_state(pool):

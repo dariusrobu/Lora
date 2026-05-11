@@ -3023,14 +3023,23 @@ async def handle_eod_callback(query, pool, data):
         await clear_state(pool)
 
         # Generate and send summary
-        await query.edit_message_text("Generez sumarul zilei... 📊")
-        summary = await generate_eod_summary(pool, mood, value)
-
+        # Transition to Journal Questions
+        questions = (
+            "Am notat\\! ✍️\\n\\n"
+            "Răspunde la cele 3 întrebări ca să închidem ziua:\\n"
+            "*1\\.* Ce a mers bine azi?\\n"
+            "*2\\.* Ce ai vrea să faci diferit?\\n"
+            "*3\\.* Cum vrei să arate ziua de mâine? \\(tasks, program, priorități\\)\\n\\n"
+            "📌 *La ce oră te trezești mâine?* \\(ex: la 7, pe la 8:30\\)"
+        )
+        
         await query.edit_message_text(
-            f"📊 *Rezumatul zilei tale:*\\n\\n{safe_markdown(summary)}\\n\\nNoapte bună! 🌙",
+            questions,
             parse_mode="MarkdownV2",
         )
-
+        
+        from core.state import set_state
+        await set_state(pool, "awaiting_evening_response", "journal", "save", None)
 
 async def generate_eod_summary(pool, mood, task_completion):
     """Generates a 2-3 line summary via Gemini based on today's activity."""

@@ -62,10 +62,10 @@ async def send_daily_report(application, pool) -> bool:
         # 4. Finance Summary
         async with pool.acquire() as conn:
             fin_total = await conn.fetchval(
-                "SELECT SUM(amount) FROM finances WHERE DATE(transaction_date) = CURRENT_DATE AND type = 'expense'"
+                "SELECT SUM(amount) FROM finances WHERE DATE(tx_date) = CURRENT_DATE AND type = 'expense'"
             )
             fin_cat = await conn.fetch(
-                "SELECT category, SUM(amount) as total FROM finances WHERE DATE(transaction_date) = CURRENT_DATE AND type = 'expense' GROUP BY category"
+                "SELECT category, SUM(amount) as total FROM finances WHERE DATE(tx_date) = CURRENT_DATE AND type = 'expense' GROUP BY category"
             )
             finance_summary = {
                 "total": float(fin_total) if fin_total else 0.0,
@@ -596,7 +596,11 @@ async def send_eod_reflection(application, pool, force=False):
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         report_status = await send_daily_report(application, pool)
-        report_text = "\n\n_Raport trimis la Council ✓_" if report_status else "\n\n_Raport Council: eșuat ✗_"
+        report_text = ""
+        if report_status:
+            report_text = "\n\n_Raport trimis la Council ✓_"
+        elif os.getenv("COUNCIL_API_URL"):
+             report_text = "\n\n_Raport Council: eșuat ✗_"
 
         message = (
             f"🌙 *Bună seara, {escape_md(name)}\\!* \n\n"
@@ -1728,16 +1732,16 @@ def setup_scheduler(application, pool):
 
 
 
-    # 4. Journal Night - 3 reflection questions at 22:00
-    j_h, j_m = map(int, JOURNAL_NIGHT_TIME.split(":"))
-    scheduler.add_job(
-        send_journal_night,
-        "cron",
-        hour=j_h,
-        minute=j_m,
-        misfire_grace_time=3600,
-        args=[application, pool],
-    )
+    # 4. Journal Night - Disabled (Consolidated into EOD Reflection)
+    # j_h, j_m = map(int, JOURNAL_NIGHT_TIME.split(":"))
+    # scheduler.add_job(
+    #     send_journal_night,
+    #     "cron",
+    #     hour=j_h,
+    #     minute=j_m,
+    #     misfire_grace_time=3600,
+    #     args=[application, pool],
+    # )
 
     scheduler.add_job(
         send_weekly_review,

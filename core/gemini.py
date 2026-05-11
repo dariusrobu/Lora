@@ -19,6 +19,23 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 _api_available = True
 _failure_count = 0
 
+async def get_embedding(text: str) -> List[float]:
+    """
+    Generates a 768-dimensional embedding for the given text using text-embedding-004.
+    """
+    if not text:
+        return []
+    
+    try:
+        response = client.models.embed_content(
+            model="text-embedding-004",
+            contents=text,
+            config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
+        )
+        return response.embeddings[0].values
+    except Exception as e:
+        logging.error(f"Error generating embedding: {e}")
+        return []
 
 def preprocess_text(text: str) -> str:
     """
@@ -387,8 +404,9 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
       - "vuse", "glo", "iqos", "țigări" → categoria "tigari".
       - "uber", "bolt", "benzina" → categoria "transport".
       - Dacă nu ești sigur, folosește obiectul ca și categorie (ex: "cafea").
-    - intent="finance_summary" — "cum stau cu banii", "sumar finanțe", "bugetul meu". 
-      Returnează tranzacțiile de azi cu ID-uri.
+    - intent="finance_summary" — "cum stau cu banii", "sumar finanțe", "bugetul meu", "ce am cheltuit ieri". 
+      Data: {{"date": "YYYY-MM-DD" (opțional, default azi)}}
+      Returnează tranzacțiile din ziua respectivă cu ID-uri.
     - intent="delete_finance" — "șterge cheltuiala cu ID X", "șterge tranzacția X".
       Data: {{"id": integer}}
     - intent="finance_undo" — "șterge ultima tranzacție", "am greșit suma".
@@ -793,6 +811,25 @@ A: intent="travel_packed", module="travel", data={{ "item": "laptop", "list_name
             "reply": "Sunt offline momentan, încearcă din nou în câteva minute. 🔧",
             "needs_confirmation": False,
         }
+
+
+async def analyze_intent(pool, text: str, context: str = "") -> Dict[str, Any]:
+    """
+    Legacy wrapper for get_gemini_response, used for simple intent analysis 
+    without history/full context logic.
+    """
+    from core.config import TELEGRAM_USER_ID
+    
+    return await get_gemini_response(
+        pool=pool,
+        user_id=TELEGRAM_USER_ID,
+        user_message=text,
+        user_name="User",
+        tone="direct",
+        context_snapshot=context,
+        history=[],
+        system_hint="Analizează acest mesaj și returnează intent-ul corect."
+    )
 
 
 async def get_proactive_response(system_instruction: str, data_summary: str) -> str:

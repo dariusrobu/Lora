@@ -219,7 +219,14 @@ async def handle_event_intent(
             event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
             event_time = None
             if time_str:
-                event_time = datetime.strptime(time_str, "%H:%M").time()
+                try:
+                    event_time = datetime.strptime(time_str, "%H:%M").time()
+                except ValueError:
+                    # Fallback for ISO times with seconds (Gemini often returns this)
+                    try:
+                        event_time = datetime.strptime(time_str, "%H:%M:%S").time()
+                    except ValueError:
+                        raise ValueError(f"Invalid time format: {time_str}")
         except Exception:
             return (
                 "Nu am putut parse data sau ora. Te rog folosește formatul YYYY-MM-DD și HH:MM.",
