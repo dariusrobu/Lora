@@ -726,8 +726,12 @@ async def get_travel_lists(request):
         import db.queries.travel as travel_queries
 
         lists = await travel_queries.get_all_travel_lists(pool)
+        print(f"📡 API: Travel lists found: {lists}", flush=True)
         return web.json_response(lists)
     except Exception as e:
+        print(f"❌ API ERROR (travel_lists): {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         return web.json_response({"error": str(e)}, status=500)
 
 
