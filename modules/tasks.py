@@ -887,14 +887,30 @@ async def _save_prompt_to_conversation(pool, prompt: str) -> None:
     await save_message(pool, TELEGRAM_USER_ID, "assistant", prompt)
 
 
-async def undo_last_action(pool, item_id: int) -> Tuple[str, Any, Any]:
-    """Rolls back the last task creation."""
-    row = await task_queries.get_task(pool, item_id)
-    if not row:
-        return "Nu am ce să anulez.", None, None
+async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
+    """Rolls back the last task action (add or complete)."""
+    if not item_id:
+        return False, "ID invalid."
+
+    task = await task_queries.get_task(pool, item_id)
+    if not task:
+        return False, "Task-ul nu mai există."
 
     try:
-        await pool.execute("DELETE FROM tasks WHERE id = $1", item_id)
-        return f"🗑️ Am anulat task-ul: *{escape_md(row['title'])}*\\.", None, None
-    except Exception:
-        return "Task-ul a fost deja șters sau nu există.", None, None
+        if intent == "add_task":
+            # Physically delete or mark as deleted? Query has deleted_at.
+            await task_queries.delete_task(pool, item_id)
+            return True, f"task adăugat: '{task['title']}'"
+        
+        elif intent == "complete_task":
+            # Restore to pending
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE tasks SET status = 'pending', completed_at = NULL, updated_at = NOW() WHERE id = $1",
+                    item_id
+                )
+            return True, f"completarea task-ului: '{task['title']}'"
+            
+        return False, f"Intent-ul '{intent}' nu suportă undo."
+    except Exception as e:
+        return False, str(e)

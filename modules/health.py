@@ -487,24 +487,21 @@ async def _save_prompt_to_conversation(pool, prompt: str) -> None:
     await save_message(pool, TELEGRAM_USER_ID, "assistant", prompt)
 
 
-async def undo_last_action(pool, item_id: int) -> str:
-    """Rolls back the last health log entry (or clears fields)."""
+async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
+    """Rolls back the last health log entry."""
     if not item_id:
-        return "Nu am ce să anulez."
+        return False, "ID invalid."
 
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT log_date FROM health_logs WHERE id = $1", item_id
         )
         if not row:
-            return "Nu am ce să anulez.", None, None
+            return False, "Log-ul de sănătate nu mai există."
 
     try:
-        await pool.execute("DELETE FROM health_logs WHERE id = $1", item_id)
-        return (
-            f"🗑️ Am anulat log-ul de sănătate din data de *{row['log_date']}*\\.",
-            None,
-            None,
-        )
-    except Exception:
-        return "Log-ul de sănătate a fost deja șters sau nu există.", None, None
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM health_logs WHERE id = $1", item_id)
+        return True, f"log-ul de sănătate din data de {row['log_date']}"
+    except Exception as e:
+        return False, str(e)

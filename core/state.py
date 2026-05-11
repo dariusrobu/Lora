@@ -12,15 +12,18 @@ async def get_state(pool) -> Optional[Dict[str, Any]]:
             return None
 
         # Row might exist but all relevant fields be null
-        if row["state_type"] is None:
+        if row["state_type"] is None and row["last_intent"] is None:
             return None
 
         data = dict(row)
-        if data.get("extra") and isinstance(data["extra"], str):
-            try:
-                data["extra"] = json.loads(data["extra"])
-            except json.JSONDecodeError:
-                pass
+        
+        # Parse JSON fields
+        for field in ["extra", "last_intent"]:
+            if data.get(field) and isinstance(data[field], str):
+                try:
+                    data[field] = json.loads(data[field])
+                except json.JSONDecodeError:
+                    pass
         return data
 
 
@@ -54,8 +57,27 @@ async def set_state(
         )
 
 
+async def save_last_action(pool, intent_response: Dict[str, Any], item_id: Optional[int] = None):
+    """Saves the last executed action for potential undo/correction."""
+    module = intent_response.get("module")
+    # Store full intent response as JSON
+    intent_json = json.dumps(intent_response)
+    
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE conversation_state 
+            SET last_intent = $1, last_inserted_id = $2, last_module = $3
+            WHERE state_key = 'current'
+            """,
+            intent_json,
+            item_id,
+            module
+        )
+
+
 async def clear_state(pool):
-    """Resets the state to null/idle."""
+    """Resets the state to null/idle (preserving last action for undo)."""
     async with pool.acquire() as conn:
         await conn.execute(
             """

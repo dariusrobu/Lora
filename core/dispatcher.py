@@ -69,3 +69,15 @@ async def execute_module_intent(pool, module, intent, data, reply, bot):
         from bot.formatter import escape_md
 
         return f"⚠️ Eroare modul {module}: {escape_md(str(e))}", None, None
+async def undo_last_action(pool, module, intent, item_id):
+    """
+    Calls the undo_last_action function of the specified module.
+    """
+    try:
+        mod = importlib.import_module(f"modules.{module}")
+        if hasattr(mod, "undo_last_action"):
+            return await mod.undo_last_action(pool, intent, item_id)
+        return False, f"Modulul '{module}' nu suportă anularea acțiunilor."
+    except Exception as e:
+        logger.error(f"Undo failed | module: {module} | error: {e}")
+        return False, str(e)

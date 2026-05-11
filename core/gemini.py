@@ -580,6 +580,16 @@ A: intent="memory_search", module="memory", data={{"query": "sah"}}, reply="Caut
 U: "arată task-urile la Licență, apoi adaugă reminder la 21:00 să învăț și zi-mi dacă am bani de pizza de 50 lei"
 A: intent="add_reminder", module="events", data={{ "title": "să învăț", "event_time": "21:00", "date": "{now.strftime("%Y-%m-%d")}" }}, reply="Reminder setat pentru 21:00. 🔔", additional_intents=[{{ "intent":"list_tasks", "module":"tasks", "data":{{ "project":"Licență" }}, "reply":"Iată task-urile tale." }}, {{ "intent":"finance_summary", "module":"finance", "data":{{}}, "reply":"Verific dacă ai bani de pizza." }}]
 
+*** UNDO & CORRECTION (CRITIC) ***
+U: "nu asta vroiam"
+A: intent="correct_last", module=None, data={{"correction_text": "nu asta vroiam"}}, reply="Nicio problemă, anulez ultima acțiune. ⌛"
+
+U: "am greșit, pune 50 lei nu 30"
+A: intent="correct_last", module=None, data={{"correction_text": "pune 50 lei nu 30"}}, reply="Corectez imediat suma la 50 RON. ✅"
+
+U: "undo"
+A: intent="correct_last", module=None, data={{"correction_text": "undo"}}, reply="Anulez ultima acțiune... ⌛"
+
 *** MULTI-INTENT EXAMPLES (CRITIC - urmează exact aceste tipare) ***
 U: "adaugă task să trimit oferta și loghează 200 lei cheltuieli birou"
 A: intent="add_task", module="tasks", data={{"title": "să trimit oferta", "priority": "medium"}}, reply="Task adăugat + 200 RON birou logat ✅", additional_intents=[{{"intent": "finance_log", "module": "finance", "data": {{"amount": 200, "type": "expense", "category": "birou", "description": "cheltuieli birou"}}, "reply": "200 RON birou ✅", "confidence": 1.0, "needs_confirmation": false, "needs_agent": false}}]

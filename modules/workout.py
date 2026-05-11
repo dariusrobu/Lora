@@ -696,14 +696,17 @@ async def _save_prompt_to_conversation(pool, prompt: str) -> None:
     await save_message(pool, TELEGRAM_USER_ID, "assistant", prompt)
 
 
-async def undo_last_action(pool, item_id: int) -> str:
+async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
     """Rolls back the last workout entry."""
     if not item_id:
-        return "Nu am ce să anulez."
+        return False, "ID invalid."
 
     workout = await workout_queries.get_workout_by_id(pool, item_id)
     if not workout:
-        return "Antrenamentul a fost deja șters sau nu există."
+        return False, "Antrenamentul nu mai există."
 
-    await workout_queries.delete_workout(pool, item_id)
-    return f"🗑️ Am anulat antrenamentul: *{escape_md(workout['sport_name'])}* din {workout['workout_date']}\\."
+    try:
+        await workout_queries.delete_workout(pool, item_id)
+        return True, f"antrenamentul: {workout['sport_name']} din {workout['workout_date']}"
+    except Exception as e:
+        return False, str(e)

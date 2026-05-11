@@ -376,26 +376,23 @@ async def handle_finance_message(update, pool, state: dict, text: str) -> None:
         await clear_state(pool)
 
 
-async def undo_last_action(pool, item_id: int) -> str:
+async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
     """Rolls back the last transaction."""
     if not item_id:
-        return "Nu am ce să anulez."
+        return False, "ID invalid."
 
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT amount, category, description FROM finances WHERE id = $1", item_id
         )
         if not row:
-            return "Nu am ce să anulez.", None, None
+            return False, "Tranzacția nu mai există."
 
     try:
-        await pool.execute("DELETE FROM finances WHERE id = $1", item_id)
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM finances WHERE id = $1", item_id)
+        
         desc = f" ({row['description']})" if row.get("description") else ""
-        return (
-            f"🗑️ Am anulat tranzacția: *{row['amount']} RON* la *{row['category']}*{escape_md(desc)}\\.",
-            None,
-            None,
-        )
+        return True, f"tranzacția: {row['amount']} RON la {row['category']}{desc}"
     except Exception as e:
-        print(f"DEBUG: Undo finance failed: {e}")
-        return "Tranzacția a fost deja ștearsă sau nu există.", None, None
+        return False, str(e)
