@@ -2,7 +2,8 @@ import asyncio
 import json
 import traceback
 from google.genai import types
-from db.queries.memory import save_memory_fact, get_relevant_facts, update_fact_seen
+from db.queries.memory import save_memory_fact, get_relevant_facts, update_fact_seen, semantic_search_memories
+from core.embeddings import get_embedding
 
 
 async def extract_and_save_facts(
@@ -85,13 +86,16 @@ If no new facts → return []
             if not fact or confidence < 0.6:
                 continue
 
-            # Deduplication: check if a similar fact already exists
-            is_duplicate = await _is_duplicate_fact(pool, user_id, fact, category)
+            # Deduplication: check if a similar fact already exists using vector similarity
+            is_duplicate = await _is_duplicate_fact(pool, user_id, fact)
             if is_duplicate:
                 print(f"🔁 MEMORY SKIP (duplicate): [{category}] {fact}")
                 continue
 
-            await save_memory_fact(pool, user_id, category, fact, source, confidence)
+            # Generate embedding for the new fact
+            embedding = await get_embedding(fact)
+            
+            await save_memory_fact(pool, user_id, category, fact, source, confidence, embedding=embedding)
             print(f"🧠 MEMORY SAVED: [{category}] {fact}")
 
     except Exception as e:
@@ -99,38 +103,20 @@ If no new facts → return []
         traceback.print_exc()
 
 
-async def _is_duplicate_fact(pool, user_id: int, new_fact: str, category: str) -> bool:
-    """Checks if a similar fact already exists in memory using keyword overlap and fuzzy matching."""
+async def _is_duplicate_fact(pool, user_id: int, new_fact: str) -> bool:
+    """Checks if a similar fact already exists using semantic similarity."""
     try:
-        # 1. Clean and tokenize the new fact
-        import re
-        words = [w.lower() for w in re.findall(r'\w+', new_fact) if len(w) >= 3]
-        if not words:
+        embedding = await get_embedding(new_fact)
+        if not embedding:
             return False
             
-        async with pool.acquire() as conn:
-            # 2. Check for prefix match (fast)
-            prefix = new_fact[:30].strip().lower()
-            existing_prefix = await conn.fetchval(
-                "SELECT id FROM memory_facts WHERE user_id = $1 AND LOWER(fact) ILIKE $2 LIMIT 1",
-                user_id, f"%{prefix}%"
-            )
-            if existing_prefix:
+        similar_facts = await semantic_search_memories(pool, user_id, embedding, limit=1)
+        if similar_facts:
+            # Check cosine similarity threshold
+            similarity = similar_facts[0].get("similarity", 0)
+            if similarity > 0.92: # High threshold for exact duplicates
                 return True
-
-            # 3. Keyword overlap check (more robust)
-            # We search for facts that contain at least 2 of the main keywords
-            search_pattern = " & ".join(words[:3]) # Use first 3 keywords
-            existing_semantic = await conn.fetchval(
-                """
-                SELECT id FROM memory_facts 
-                WHERE user_id = $1 
-                AND to_tsvector('simple', fact) @@ to_tsquery('simple', $2)
-                LIMIT 1
-                """,
-                user_id, search_pattern
-            )
-            return existing_semantic is not None
+        return False
             
     except Exception as e:
         print(f"Deduplication check error: {e}")
@@ -151,24 +137,18 @@ async def get_context_memory(
         A formatted string of relevant facts.
     """
     try:
-        # Simple keyword extraction from the current message
-        keywords = [
-            word.lower().rstrip(".,!?")
-            for word in current_message.split()
-            if len(word) >= 3
-        ]
+        # Fetch relevant facts by semantic similarity
+        embedding = await get_embedding(current_message)
+        facts = await semantic_search_memories(pool, user_id, embedding, limit=10)
 
-        # 1. Fetch relevant facts by keywords
-        facts = []
-        if keywords:
-            facts = await get_relevant_facts(pool, keywords)
+        # 2. Filter by similarity threshold for context relevance
+        # Only keep facts with similarity > 0.65 for general context
+        facts = [f for f in facts if f.get("similarity", 0) > 0.65]
 
-        # 2. If we have a category hint, fetch a few from that category too
+        # 3. If we have a category hint, fetch a few from that category too (legacy fallback)
         if category_hint:
             from db.queries.memory import get_all_facts_by_category
-
             cat_facts = await get_all_facts_by_category(pool, category_hint)
-            # Merge and avoid duplicates
             existing_ids = {f["id"] for f in facts}
             for cf in cat_facts[:3]:
                 if cf["id"] not in existing_ids:
@@ -269,3 +249,26 @@ RETURN ONLY a JSON object (no markdown):
         print(f"ERROR in optimize_user_memory: {e}")
         traceback.print_exc()
         return "A apărut o eroare la optimizarea memoriei."
+
+
+async def backfill_memories(pool) -> str:
+    """Generates embeddings for all memories that don't have one."""
+    from db.queries.memory import list_all_memories
+    try:
+        memories = await list_all_memories(pool)
+        count = 0
+        for m in memories:
+            if not m.get("embedding"):
+                emb = await get_embedding(m["fact"])
+                if emb:
+                    emb_str = str(emb)
+                    async with pool.acquire() as conn:
+                        await conn.execute(
+                            "UPDATE memory_facts SET embedding = $1 WHERE id = $2",
+                            emb_str, m["id"]
+                        )
+                    count += 1
+        return f"✅ Am generat embedding-uri pentru {count} amintiri."
+    except Exception as e:
+        print(f"ERROR in backfill_memories: {e}")
+        return "Eroare la backfill."

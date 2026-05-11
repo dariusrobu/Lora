@@ -254,8 +254,10 @@ async def search_memory_core(pool, topic: str, user_id: int) -> Dict[str, Any]:
     """Aggregates search results from memory_facts and message_history."""
     from db.queries.history import search_history
     from db.queries.memory import semantic_search_memories
+    from core.embeddings import get_embedding
 
-    facts = await semantic_search_memories(pool, user_id, topic)
+    embedding = await get_embedding(topic)
+    facts = await semantic_search_memories(pool, user_id, embedding)
     history = await search_history(pool, user_id, topic)
 
     return {"facts": facts, "history": history}

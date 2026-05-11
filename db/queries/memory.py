@@ -9,13 +9,17 @@ async def save_memory_fact(
     source: str,
     confidence: float = 1.0,
     expires_at: str = None,
+    embedding: List[float] = None,
 ) -> int:
     """Saves a new memory fact to the database."""
+    # Convert embedding to string for pgvector if it's a list
+    embedding_str = str(embedding) if embedding else None
+    
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO memory_facts (user_id, category, fact, source, confidence, expires_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO memory_facts (user_id, category, fact, source, confidence, expires_at, embedding)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING id
             """,
             user_id,
@@ -24,6 +28,7 @@ async def save_memory_fact(
             source,
             confidence,
             expires_at,
+            embedding_str,
         )
         return row["id"]
 
@@ -216,35 +221,25 @@ async def search_memories(pool, query: str) -> List[Dict[str, Any]]:
 
 
 async def semantic_search_memories(
-    pool, user_id: int, query: str, limit: int = 5
+    pool, user_id: int, query_embedding: List[float], limit: int = 5
 ) -> List[Dict[str, Any]]:
-    """Searches memories using unaccented ILIKE for Romanian compatibility."""
-    # Clean query, filter short words
-    words = [w for w in query.split() if len(w) >= 3]
-    if not words:
-        return []
+    """Searches memories using vector similarity (cosine distance)."""
+    # Convert embedding to string for pgvector if it's a list
+    emb_str = str(query_embedding) if query_embedding else None
 
     async with pool.acquire() as conn:
-        # Build a search condition that checks each word against the unaccented fact
-        conditions = []
-        params = [user_id]
-        for i, word in enumerate(words, start=2):
-            conditions.append(f"unaccent(fact) ILIKE unaccent(${i})")
-            params.append(f"%{word}%")
-
-        where_clause = " OR ".join(conditions)
-        limit_param_idx = len(params) + 1
-        params.append(limit)
-
-        sql = f"""
-            SELECT *
+        rows = await conn.fetch(
+            """
+            SELECT *, 1 - (embedding <=> $2) as similarity
             FROM memory_facts
-            WHERE user_id = $1 AND ({where_clause})
-            ORDER BY confidence DESC, created_at DESC
-            LIMIT ${limit_param_idx}
-        """
-
-        rows = await conn.fetch(sql, *params)
+            WHERE user_id = $1 AND embedding IS NOT NULL
+            ORDER BY similarity DESC
+            LIMIT $3
+            """,
+            user_id,
+            emb_str,
+            limit,
+        )
         return [dict(r) for r in rows]
 
 async def get_random_memory_lane(pool) -> Optional[Dict[str, Any]]:
