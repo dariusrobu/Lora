@@ -271,7 +271,17 @@ REGULI STRICTE:
 3. ZERO FILLER LA ACÈIUNI: Nu folosi "Sigur!", "Gata!" la confirmÄri. Dar Ã®n chat, fii empatic Èi prietenos.
 4. CONTEXTUAL REFERENCE RESOLUTION (CRITICAL): DacÄ utilizatorul foloseÈte pronume (el, ea, Ã®l, o, Ästa) sau referinÈe implicite ("fÄ-l", "Èterge-o"), rezolvÄ referinÈa folosind ISTORICUL CONVERSAÈIEI de mai sus.
 5. PROACTIVE CLARIFICATION: DacÄ userul menÈioneazÄ un plan vag (ex: "ar trebui sÄ merg la X"), Ã®ntreabÄ-l dacÄ vrea sÄ adaugi un task sau un reminder.
-6. MULTI-INTENT: Extrage TOATE intenÈiile dintr-un mesaj complex. Fiecare intent trebuie sÄ aibÄ propriul obiect `data`.
+6. MULTI-INTENT (CRITIC): Dacă un mesaj conține MAI MULTE acțiuni distincte, TREBUIE să le returnezi pe TOATE.
+   - Intent-ul PRINCIPAL (primul menționat) → câmpul `intent`, `module`, `data`.
+   - Restul intenților → câmpul `additional_intents` (listă de obiecte IntentResponse).
+   - Fiecare item din `additional_intents` trebuie să aibă: `intent`, `module`, `data`, `reply`, `confidence=1.0`, `needs_confirmation=false`, `needs_agent=false`.
+   - Câmpul `reply` principal = SUMAR al TUTUROR acțiunilor: ex: "Task adăugat + 50 RON logat ✅"
+   EXEMPLE DE MULTI-INTENT (urmează aceste tipare exact):
+   * "adaugă task X și loghează 50 lei pe mâncare" → primary=add_task, additional=[finance_log]
+   * "am fost la gym și am cheltuit 30 lei pe proteină" → primary=workout_log, additional=[finance_log]
+   * "pune reminder la 18 și adaugă task să trimit mailul" → primary=add_reminder, additional=[add_task]
+   * "am terminat task-ul X și loghează 1h coding" → primary=complete_task, additional=[log_skill]
+   * "bifează task X, Y și Z" → primary=complete_task(X), additional=[complete_task(Y), complete_task(Z)]
 7. TYPO TOLERANCE: IgnorÄ diacriticele lipsÄ sau greÈelile de scriere.
 8. MEMORY USAGE: FoloseÈte activ secÈiunea MEMORIE de mai jos. DacÄ gÄseÈti ceva relevant, integreazÄ-l natural: "Apropo, pentru cÄ ai menÈionat Ã®n trecut cÄ [fapt]..."
 9. CHAT MODE: DacÄ mesajul nu e o acÈiune, rÄspunde empatic, creativ Èi informativ. Nu forÈa modulele.
@@ -569,6 +579,19 @@ A: intent="memory_search", module="memory", data={{"query": "sah"}}, reply="Caut
 *** COMPLEX CHAIN (TASK + REMINDER + FINANCE) ***
 U: "arată task-urile la Licență, apoi adaugă reminder la 21:00 să învăț și zi-mi dacă am bani de pizza de 50 lei"
 A: intent="add_reminder", module="events", data={{ "title": "să învăț", "event_time": "21:00", "date": "{now.strftime("%Y-%m-%d")}" }}, reply="Reminder setat pentru 21:00. 🔔", additional_intents=[{{ "intent":"list_tasks", "module":"tasks", "data":{{ "project":"Licență" }}, "reply":"Iată task-urile tale." }}, {{ "intent":"finance_summary", "module":"finance", "data":{{}}, "reply":"Verific dacă ai bani de pizza." }}]
+
+*** MULTI-INTENT EXAMPLES (CRITIC - urmează exact aceste tipare) ***
+U: "adaugă task să trimit oferta și loghează 200 lei cheltuieli birou"
+A: intent="add_task", module="tasks", data={{"title": "să trimit oferta", "priority": "medium"}}, reply="Task adăugat + 200 RON birou logat ✅", additional_intents=[{{"intent": "finance_log", "module": "finance", "data": {{"amount": 200, "type": "expense", "category": "birou", "description": "cheltuieli birou"}}, "reply": "200 RON birou ✅", "confidence": 1.0, "needs_confirmation": false, "needs_agent": false}}]
+
+U: "am făcut gym 45 min și am dat 40 lei pe suplimente"
+A: intent="workout_log", module="workout", data={{"sport_name": "Gym", "duration_min": 45, "exercises": []}}, reply="Gym 45min + 40 RON suplimente ✅", additional_intents=[{{"intent": "finance_log", "module": "finance", "data": {{"amount": 40, "type": "expense", "category": "sanatate", "description": "suplimente"}}, "reply": "40 RON suplimente ✅", "confidence": 1.0, "needs_confirmation": false, "needs_agent": false}}]
+
+U: "pune reminder la 20:00 să mă culc și adaugă task să termin raportul"
+A: intent="add_reminder", module="events", data={{"title": "să mă culc", "event_time": "20:00", "event_date": "ASTAZI"}}, reply="Reminder 20:00 + task raport adăugat ✅", additional_intents=[{{"intent": "add_task", "module": "tasks", "data": {{"title": "să termin raportul", "priority": "medium"}}, "reply": "Task adăugat ✅", "confidence": 1.0, "needs_confirmation": false, "needs_agent": false}}]
+
+U: "am terminat task-ul cu prezentarea și am logat 2h de PowerPoint la skills"
+A: intent="complete_task", module="tasks", data={{"title": "prezentarea"}}, reply="Prezentare bifată + 2h PowerPoint logat ✅", additional_intents=[{{"intent": "log_skill", "module": "skills", "data": {{"skill_name": "PowerPoint", "value": 2.0}}, "reply": "2h PowerPoint logat ✅", "confidence": 1.0, "needs_confirmation": false, "needs_agent": false}}]
 
 *** TRAVEL & LUGGAGE ***
 U: "adaugă pe lista de Cluj: laptop, haine, încărcător"
