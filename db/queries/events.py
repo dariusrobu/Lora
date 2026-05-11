@@ -126,7 +126,7 @@ async def get_events_needing_reminder(
             """
             SELECT e.* FROM events e
             WHERE (
-                -- Events with time-based reminders (widened window ±15 min)
+                -- 1. Events with time-based reminders (standard window)
                 (e.event_type = 'event' AND e.event_time IS NOT NULL
                   AND e.reminded_at IS NULL
                   AND e.event_date = CURRENT_DATE
@@ -135,14 +135,21 @@ async def get_events_needing_reminder(
                       BETWEEN (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time - INTERVAL '15 minutes'
                               AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time + INTERVAL '15 minutes')
                 OR
-                -- Reminders with specific time: send at their scheduled time (widened window ±15 min)
+                -- 2. Reminders with specific time (standard window)
                 (e.event_type = 'reminder' AND e.event_time IS NOT NULL
                   AND e.reminded_at IS NULL
                   AND e.event_date = CURRENT_DATE
                   AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time
                       BETWEEN e.event_time - INTERVAL '15 minutes' AND e.event_time + INTERVAL '15 minutes')
                 OR
-                -- Reminders without specific time: send on event date at 08:55-09:15 (widened window)
+                -- 3. CATCH-UP: Reminders/Events from last 2 hours that were MISSED (bot was down)
+                (e.reminded_at IS NULL
+                  AND e.event_date = CURRENT_DATE
+                  AND e.event_time IS NOT NULL
+                  AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time > e.event_time
+                  AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time < e.event_time + INTERVAL '2 hours')
+                OR
+                -- 4. Reminders without specific time (morning slot)
                 (e.event_type = 'reminder' AND e.event_time IS NULL
                   AND e.reminded_at IS NULL
                   AND e.event_date = CURRENT_DATE
