@@ -637,29 +637,16 @@ async def handle_reading_message(update, pool, state: dict) -> bool:
 
             author = None
             total_pages = None
+            clean_title = title
 
-            match = re.match(
-                r"(.+?)(?:,?\s*de\s+(.+?))?(?:,?\s*(\d+)\s*(?:pag|pagini|pages)?)?$",
-                title,
-                re.IGNORECASE,
-            )
-            print(
-                f"📖 DEBUG: after regex match, title='{title}', match={match}",
-                flush=True,
-            )
+            match = re.search(r"(.+?)(?:\s+de\s+(.+?))?(?:,\s*(\d+)\s*(?:pag|pagini|pages)?)?$", title, re.IGNORECASE)
             if match:
-                title = match.group(1).strip() or msg_text
+                clean_title = match.group(1).strip()
                 author = match.group(2).strip() if match.group(2) else None
-                pages_str = match.group(3)
-                total_pages = int(pages_str) if pages_str else None
-                print(
-                    f"📖 DEBUG: parsed - title='{title}', author='{author}', pages={total_pages}",
-                    flush=True,
-                )
-
-            print(f"📖 DEBUG: calling add_book with title='{title}'", flush=True)
-            await reading_queries.add_book(pool, title, author, total_pages)
-            print("📖 DEBUG: add_book completed", flush=True)
+                if match.group(3):
+                    total_pages = int(match.group(3))
+            
+            await reading_queries.add_book(pool, clean_title, author, total_pages)
             await clear_state(pool)
 
             author_str = f" de {author}" if author else ""
@@ -671,28 +658,56 @@ async def handle_reading_message(update, pool, state: dict) -> bool:
             return True
 
         elif state_type == "reading_update_pages":
-            try:
-                pages = int(msg_text)
+            import re
+            
+            current_page = None
+            total_pages = None
+            
+            # Support "56/150" or just "56"
+            match = re.match(r"(\d+)(?:\s*[\/\\,]\s*(\d+))?", msg_text)
+            if match:
+                current_page = int(match.group(1))
+                if match.group(2):
+                    total_pages = int(match.group(2))
+            
+            if current_page is not None:
                 book = await reading_queries.get_book_by_id(pool, item_id)
-                await reading_queries.update_progress(pool, item_id, pages)
+                
+                # Update current page
+                await reading_queries.update_progress(pool, item_id, current_page)
+                
+                # If total pages provided, update that too
+                if total_pages:
+                    from db.queries.reading import update_book_total_pages
+                    try:
+                        # We need a query for this. Let's check if it exists or use generic update.
+                        from db.queries.reading import update_book
+                        await update_book(pool, item_id, total_pages=total_pages)
+                    except ImportError:
+                        # Fallback to direct SQL if query not exported
+                        async with pool.acquire() as conn:
+                            await conn.execute("UPDATE reading_books SET total_pages = $1 WHERE id = $2", total_pages, item_id)
+                
                 await clear_state(pool)
 
+                # Re-fetch book to get updated total_pages for progress bar
+                book = await reading_queries.get_book_by_id(pool, item_id)
+                
+                progress_str = ""
                 if book and book.get("total_pages"):
-                    pct = int((pages / book["total_pages"]) * 100)
+                    pct = int((current_page / book["total_pages"]) * 100)
                     filled = min(pct // 10, 10)
                     bar = "█" * filled + "░" * (10 - filled)
                     progress_str = f"\n`{bar}` {pct}%"
-                else:
-                    progress_str = ""
 
                 await update.message.reply_text(
-                    f"✅ Progres actualizat: pagina *{pages}*{progress_str}",
+                    f"✅ Progres actualizat: pagina *{current_page}*{progress_str}",
                     parse_mode="MarkdownV2",
                 )
                 return True
-            except ValueError:
+            else:
                 await update.message.reply_text(
-                    "❌ Te rog introdu un număr valid de pagini\\.",
+                    "❌ Te rog introdu un număr valid (ex: `56` sau `56/150`)\\.",
                     parse_mode="MarkdownV2",
                 )
                 return True
