@@ -671,22 +671,12 @@ async def handle_reading_message(update, pool, state: dict) -> bool:
                     total_pages = int(match.group(2))
             
             if current_page is not None:
-                book = await reading_queries.get_book_by_id(pool, item_id)
-                
                 # Update current page
                 await reading_queries.update_progress(pool, item_id, current_page)
                 
                 # If total pages provided, update that too
                 if total_pages:
-                    from db.queries.reading import update_book_total_pages
-                    try:
-                        # We need a query for this. Let's check if it exists or use generic update.
-                        from db.queries.reading import update_book
-                        await update_book(pool, item_id, total_pages=total_pages)
-                    except ImportError:
-                        # Fallback to direct SQL if query not exported
-                        async with pool.acquire() as conn:
-                            await conn.execute("UPDATE reading_books SET total_pages = $1 WHERE id = $2", total_pages, item_id)
+                    await reading_queries.update_book(pool, item_id, total_pages=total_pages)
                 
                 await clear_state(pool)
 

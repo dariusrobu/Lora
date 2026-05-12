@@ -218,3 +218,16 @@ async def get_books_by_status(pool, status: str) -> list:
             status,
         )
         return [dict(r) for r in rows]
+async def update_book(pool, book_id: int, **kwargs) -> None:
+    if not kwargs:
+        return
+    
+    fields = []
+    values = [book_id]
+    for i, (key, value) in enumerate(kwargs.items(), start=2):
+        fields.append(f"{key} = ${i}")
+        values.append(value)
+        
+    query = f"UPDATE books SET {', '.join(fields)} WHERE id = $1"
+    async with pool.acquire() as conn:
+        await conn.execute(query, *values)
