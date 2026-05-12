@@ -248,6 +248,9 @@ async def handle_health_message(update, pool, state: dict, text: str) -> None:
 async def _handle_upsert(
     pool, intent: str, data: Dict[str, Any], log_date: date
 ) -> Tuple[str, Any, Optional[int]]:
+    sleep_hours = data.get("sleep_hours")
+    sleep_quality = data.get("sleep_quality")
+    water_ml = data.get("water_ml") or data.get("amount_ml")
     nutrition = data.get("nutrition")
     weight_kg = data.get("weight_kg")
     cigarettes = data.get("cigarettes")
