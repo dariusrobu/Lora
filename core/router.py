@@ -56,7 +56,7 @@ async def check_module_health() -> Dict[str, str]:
     return status
 
 
-async def route_intent(pool, intent_response: Any, bot=None):
+async def route_intent(pool, intent_response: Any, user_id: int, bot=None):
     """
     Routes the Gemini intent(s) to the appropriate module(s).
     Supports multi-intent and agentic diversion.
@@ -66,7 +66,7 @@ async def route_intent(pool, intent_response: Any, bot=None):
         all_replies = []
         last_kb = None
         for item in intent_response:
-            rep, kb, _ = await _route_single_intent(pool, item, bot)
+            rep, kb, _ = await _route_single_intent(pool, item, user_id, bot)
             if rep:
                 all_replies.append(rep)
             if kb:
@@ -74,11 +74,11 @@ async def route_intent(pool, intent_response: Any, bot=None):
         return "\n\n".join(all_replies), last_kb, None
 
     # 2. Handle Single Response
-    return await _route_single_intent(pool, intent_response, bot)
+    return await _route_single_intent(pool, intent_response, user_id, bot)
 
 
 async def _route_single_intent(
-    pool, intent_response: Dict[str, Any], bot=None
+    pool, intent_response: Dict[str, Any], user_id: int, bot=None
 ) -> Tuple[str, Any, Optional[int]]:
     """Internal router for a single intent object."""
     module = intent_response.get("module")
@@ -144,7 +144,7 @@ async def _route_single_intent(
         from core.gemini import analyze_intent
         context = f"Utilizatorul vrea să corecteze ultima acțiune: {json.dumps(last_intent)}. Corecția este: {correction_text}"
         new_intent = await analyze_intent(pool, correction_text, context=context)
-        return await _route_single_intent(pool, new_intent, bot)
+        return await _route_single_intent(pool, new_intent, user_id, bot)
 
     # No module or 'chat' intent -> Just Chat
     if not module or module == "chat":
@@ -155,7 +155,7 @@ async def _route_single_intent(
 
     try:
         reply_text, keyboard, item_id = await execute_module_intent(
-            pool, module, intent, data, reply, bot
+            pool, module, intent, data, reply, user_id, bot
         )
 
         # Logging & Memory
@@ -188,7 +188,7 @@ async def _route_single_intent(
         if additional:
             replies = [reply_text]
             for extra in additional:
-                e_rep, _, _ = await _route_single_intent(pool, extra, bot)
+                e_rep, _, _ = await _route_single_intent(pool, extra, user_id, bot)
                 if e_rep:
                     replies.append(e_rep)
             return "\n\n".join(replies), keyboard, item_id

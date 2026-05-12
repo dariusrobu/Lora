@@ -11,7 +11,7 @@ from core.config import TELEGRAM_USER_ID
 
 
 async def handle_health_intent(
-    pool, intent: str, data: Dict[str, Any], bot=None
+    pool, intent: str, data: Dict[str, Any], user_id: int = None, bot=None
 ) -> Tuple[str, Any, Optional[int]]:
     today = date.today()
 
@@ -23,7 +23,7 @@ async def handle_health_intent(
         "log_nutrition",
         "nutrition_log",
     ]:
-        return await _handle_upsert(pool, intent, data, today)
+        return await _handle_upsert(pool, intent, data, today, user_id=user_id)
 
     elif intent == "log_cigarettes":
         count = data.get("cigarettes") or 1
@@ -232,7 +232,7 @@ async def handle_health_message(update, pool, state: dict, text: str) -> None:
 
 
 async def _handle_upsert(
-    pool, intent: str, data: Dict[str, Any], log_date: date
+    pool, intent: str, data: Dict[str, Any], log_date: date, user_id: int = None
 ) -> Tuple[str, Any, Optional[int]]:
     sleep_hours = data.get("sleep_hours")
     sleep_quality = data.get("sleep_quality")
@@ -271,16 +271,17 @@ async def _handle_upsert(
     if cigarettes is not None:
         log = await health_queries.get_health_log(pool, log_date)
         total = log.get("cigarettes", 0) if log else 0
-        warning = await _get_cigarette_warning(pool, log_date, total)
+        warning = await _get_cigarette_warning(pool, log_date, total, user_id)
         msg += warning
 
     from bot.formatter import safe_markdown
     return safe_markdown(msg), None, log_id
 
 
-async def _get_cigarette_warning(pool, log_date: date, total: int) -> str:
+async def _get_cigarette_warning(pool, log_date: date, total: int, user_id: int = None) -> str:
     """Helper to generate Tough Love warnings for cigarettes."""
-    profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
+    target_uid = user_id or TELEGRAM_USER_ID
+    profile = await profile_queries.get_user_profile(pool, target_uid)
     tone = profile.get("tone", "warm")
     
     warning = ""

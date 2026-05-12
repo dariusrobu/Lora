@@ -619,7 +619,7 @@ async def message_handler(
                 "reply": "Generăm graficul tău... 📊",
             }
             final_reply, reply_markup, _ = await route_intent(
-                pool, intent_response, bot=context.bot
+                pool, intent_response, user_id=telegram_id, bot=context.bot
             )
             if final_reply:
                 # Save assistant reply to history
@@ -688,7 +688,7 @@ async def message_handler(
                     }
                     await clear_state(pool)
                     final_reply, reply_markup, _ = await route_intent(
-                        pool, intent_response, bot=context.bot
+                        pool, intent_response, user_id=telegram_id, bot=context.bot
                     )
                     await update.message.reply_text(
                         final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup

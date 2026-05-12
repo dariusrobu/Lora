@@ -28,10 +28,10 @@ async def upsert_health_log(
             DO UPDATE SET 
             sleep_hours   = COALESCE($2, health_logs.sleep_hours),
             sleep_quality = COALESCE($3, health_logs.sleep_quality),
-            water_ml      = COALESCE($4, health_logs.water_ml),
+            water_ml      = COALESCE(health_logs.water_ml, 0) + COALESCE($4, 0),
             nutrition     = COALESCE($5, health_logs.nutrition),
             weight_kg     = COALESCE($6, health_logs.weight_kg),
-            cigarettes    = COALESCE($7, health_logs.cigarettes),
+            cigarettes    = COALESCE(health_logs.cigarettes, 0) + COALESCE($7, 0),
             notes         = COALESCE($8, health_logs.notes),
             updated_at    = NOW()
             RETURNING id

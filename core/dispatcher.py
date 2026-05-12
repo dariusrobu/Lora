@@ -6,7 +6,7 @@ from db.queries.log import log_execution
 logger = logging.getLogger("core.dispatcher")
 
 
-async def execute_module_intent(pool, module, intent, data, reply, bot):
+async def execute_module_intent(pool, module, intent, data, reply, user_id, bot):
     """
     Dispatcher point for all modules.
     Ensures a 3-tuple return: (reply_text, keyboard, item_id)
@@ -40,10 +40,13 @@ async def execute_module_intent(pool, module, intent, data, reply, bot):
         import inspect
 
         sig = inspect.signature(handler)
+        params = {}
         if "bot" in sig.parameters:
-            result = await handler(pool, intent, data, bot)
-        else:
-            result = await handler(pool, intent, data)
+            params["bot"] = bot
+        if "user_id" in sig.parameters:
+            params["user_id"] = user_id
+            
+        result = await handler(pool, intent, data, **params)
 
         # UNIVERSAL SAFETY WRAPPER: Force result to (text, markup, item_id)
         reply_text, markup, item_id = "", None, None
