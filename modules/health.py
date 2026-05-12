@@ -274,7 +274,8 @@ async def _handle_upsert(
         warning = await _get_cigarette_warning(pool, log_date, total)
         msg += warning
 
-    return escape_md(msg), None, log_id
+    from bot.formatter import safe_markdown
+    return safe_markdown(msg), None, log_id
 
 
 async def _get_cigarette_warning(pool, log_date: date, total: int) -> str:
