@@ -20,9 +20,16 @@ async def handle_health_intent(
         "log_weight",
         "log_nutrition",
         "nutrition_log",
-        "log_cigarettes",
     ]:
         return await _handle_upsert(pool, intent, data, today)
+
+    elif intent == "log_cigarettes":
+        count = data.get("cigarettes") or 1
+        new_total = await health_queries.add_cigarettes(pool, today, count)
+        
+        msg = f"✅ \\+{count} țigări adăugate\\.\n🚬 *Total azi:* {new_total}"
+        log = await health_queries.get_health_log(pool, today)
+        return msg, None, log["id"] if log else None
 
     elif intent == "log_water":
         water_ml = data.get("water_ml") or data.get("amount_ml")
