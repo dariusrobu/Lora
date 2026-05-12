@@ -791,9 +791,7 @@ async def message_handler(
                     intent_response["clarification_needed"] = False
 
                 await clear_state(pool)
-                final_reply, reply_markup, _ = await route_intent(
-                    pool, intent_response, bot=context.bot
-                )
+                final_reply, reply_markup, _ = await route_intent(pool, intent_response, user_id=telegram_id, bot=context.bot)
                 await update.message.reply_text(
                     final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup
                 )
@@ -1291,9 +1289,7 @@ Returnează EXCLUSIV JSON valid:
                     "needs_agent": False,
                 }
                 await clear_state(pool)
-                final_reply, reply_markup, _ = await route_intent(
-                    pool, intent_response, bot=context.bot
-                )
+                final_reply, reply_markup, _ = await route_intent(pool, intent_response, user_id=telegram_id, bot=context.bot)
                 await update.message.reply_text(
                     final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup
                 )
@@ -1317,9 +1313,7 @@ Returnează EXCLUSIV JSON valid:
                 )
 
                 await clear_state(pool)
-                final_reply, reply_markup, _ = await route_intent(
-                    pool, intent_response, bot=context.bot
-                )
+                final_reply, reply_markup, _ = await route_intent(pool, intent_response, user_id=telegram_id, bot=context.bot)
                 await update.message.reply_text(
                     final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup
                 )
@@ -1763,7 +1757,7 @@ Reguli:
         # 7. Route intent and get final reply + keyboard
         intent_response["_user_message"] = text
         final_reply, reply_markup, _ = await route_intent(
-            pool, intent_response, bot=context.bot
+            pool, intent_response, user_id=telegram_id, bot=context.bot
         )
         print(f"📡 ROUTER: Reply length={len(final_reply) if final_reply else 0}")
 
