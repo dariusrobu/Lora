@@ -545,7 +545,7 @@ async def check_contextual_nudges(application, pool):
                                 tone = profile.get("tone", "warm")
                                 
                                 if tone == "direct":
-                                    msg = f"🔥 *DISCIPLINĂ ZERO\!* Streak\-ul tău de {streak} la {escape_md(s['id'])} e pe moarte\. Îți bați joc de tot progresul? Mișcă\-te ACUM și loghează antrenamentul, altfel resetez tot\!"
+                                    msg = rf"🔥 *DISCIPLINĂ ZERO\!* Streak\-ul tău de {streak} la {escape_md(s['id'])} e pe moarte\. Îți bați joc de tot progresul? Mișcă\-te ACUM și loghează antrenamentul, altfel resetez tot\!"
                                 else:
                                     msg = "💪 Streak-ul tău e în pericol! Nu ai logat antrenamentul azi. Mai ai timp pentru o sesiune scurtă."
                                 
@@ -754,8 +754,6 @@ După acest Reality Check, adaugă cele 3 întrebări standard:
         
         if not reality_check_text:
             reality_check_text = (
-                "Răspunde la cele 3 întrebări ca să închidem ziua:
-"
                 "Răspunde la cele 3 întrebări ca să închidem ziua:\n"
                 "*1.* Ce a mers bine azi?\n"
                 "*2.* Ce ai vrea să faci diferit?\n"
