@@ -592,7 +592,6 @@ async def handle_task_intent(
         return "⚠️ Nu am putut trimite feedback la CTO.", None, None
 
     elif intent == "edit_task":
-        print(f"DEBUG TASK EDIT: data={data}")
         task_id = data.get("id")
         # Try to find task by search term
         search_term = str(
@@ -684,8 +683,6 @@ async def handle_task_intent(
             # Convert both to string for reliable comparison (ISO format)
             old_due_str = str(old_task.get("due_date")) if old_task.get("due_date") else None
             new_due_str = str(upd["due_date"]) if upd["due_date"] else None
-            
-            print(f"DEBUG PROCRASTINATION: old={old_due_str}, new={new_due_str}")
             
             if new_due_str and (not old_due_str or new_due_str > old_due_str):
                 # User is pushing the task further
