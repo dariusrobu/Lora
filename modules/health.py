@@ -29,21 +29,7 @@ async def handle_health_intent(
         count = data.get("cigarettes") or 1
         new_total = await health_queries.add_cigarettes(pool, today, count)
         
-        profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
-        tone = profile.get("tone", "warm")
-        
-        warning = ""
-        if new_total >= 10:
-            if tone == "direct":
-                warning = "\n\n⚠️ *STOP\!* Deja ești la a 10\-a țigară\. Îți bați joc de sănătate și de bani\. Oprește\-te ACUM\!"
-            else:
-                warning = "\n\n⚠️ Atenție: Ai ajuns la 10 țigări azi. Poate e momentul să iei o pauză? 🚭"
-        elif new_total >= 5:
-            if tone == "direct":
-                warning = "\n\n⚠️ Deja a 5\-a? Ai grijă, disciplina începe să dispară\. Reconcentrează\-te\!"
-            else:
-                warning = "\n\n⚠️ Ai fumat deja 5 țigări. Încearcă să reduci ritmul."
-
+        warning = await _get_cigarette_warning(pool, today, new_total)
         msg = f"✅ \\+{count} țigări adăugate\\.\n🚬 *Total azi:* {new_total}{warning}"
         log = await health_queries.get_health_log(pool, today)
         return msg, None, log["id"] if log else None
@@ -281,7 +267,33 @@ async def _handle_upsert(
         parts.append(f"țigări: {cigarettes} ✓")
 
     msg = "✅ Health logat: " + " + ".join(parts)
+    
+    if cigarettes is not None:
+        log = await health_queries.get_health_log(pool, log_date)
+        total = log.get("cigarettes", 0) if log else 0
+        warning = await _get_cigarette_warning(pool, log_date, total)
+        msg += warning
+
     return escape_md(msg), None, log_id
+
+
+async def _get_cigarette_warning(pool, log_date: date, total: int) -> str:
+    """Helper to generate Tough Love warnings for cigarettes."""
+    profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
+    tone = profile.get("tone", "warm")
+    
+    warning = ""
+    if total >= 10:
+        if tone == "direct":
+            warning = "\n\n⚠️ *STOP\!* Deja ești la a 10\-a țigară\. Îți bați joc de sănătate și de bani\. Oprește\-te ACUM\!"
+        else:
+            warning = "\n\n⚠️ Atenție: Ai ajuns la 10 țigări azi. Poate e momentul să iei o pauză? 🚭"
+    elif total >= 5:
+        if tone == "direct":
+            warning = "\n\n⚠️ Deja a 5\-a? Ai grijă, disciplina începe să dispară\. Reconcentrează\-te\!"
+        else:
+            warning = "\n\n⚠️ Ai fumat deja 5 țigări. Încearcă să reduci ritmul."
+    return warning
 
 
 FOOD_MACROS = {
