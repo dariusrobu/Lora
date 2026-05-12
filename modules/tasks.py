@@ -592,6 +592,7 @@ async def handle_task_intent(
         return "⚠️ Nu am putut trimite feedback la CTO.", None, None
 
     elif intent == "edit_task":
+        print(f"DEBUG TASK EDIT: data={data}")
         task_id = data.get("id")
         # Try to find task by search term
         search_term = str(
