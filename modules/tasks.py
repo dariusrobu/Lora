@@ -820,7 +820,6 @@ async def get_tasks_dashboard(pool) -> Tuple[str, Any]:
         lines.append(rf"🔴 *{overdue}* sunt restante\!")
 
     # Decomposition Suggestion (Anti-Overwhelm/Procrastination)
-    from datetime import datetime, timedelta
     now = datetime.now()
     stale_tasks = [t for t in tasks if t.get("priority") == "high" and t.get("created_at") and t["created_at"].replace(tzinfo=None) < now.replace(tzinfo=None) - timedelta(days=2)]
     if stale_tasks:
