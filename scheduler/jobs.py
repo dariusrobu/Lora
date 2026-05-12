@@ -348,6 +348,7 @@ STIL: Modern Assistant (Structurat dar uman).
 - Antet cu data și locația (Locația ta actuală: {city}).
 - Secțiuni clare cu titluri în MAJUSCULE (ex: 🎯 PRIORITĂȚI).
 - Ton: {tone}, Romglish natural.
+{f"- PERSONALITATE: Ești EXTREM de autoritară, critică și exigentă. Dacă utilizatorul are task-uri overdue sau restanțe, ceartă-l dur. Nimic nu e destul de bine. Folosește un limbaj tăios și disciplinar." if tone == "direct" else ""}
 
 CUPRINS (Include doar dacă există date):
 1. ANTET: Ziua curentă | {city}. (Folosește datele meteo: {briefing_data.get('weather')}).
@@ -605,11 +606,19 @@ async def send_eod_reflection(application, pool, force=False):
         elif os.getenv("COUNCIL_API_URL"):
              report_text = "\n\n_Raport Council: eșuat ✗_"
 
-        message = (
-            f"🌙 *Bună seara, {escape_md(name)}\\!* \n\n"
-            "E timpul pentru o scurtă reflexie\\. *Cum a fost ziua ta azi?*"
-            + report_text
-        )
+        tone = profile.get("tone", "warm")
+        if tone == "direct":
+            message = (
+                f"🌙 *Raportează, {escape_md(name)}\\!* \n\n"
+                "Ziua s-a terminat. Sper că n-ai irosit-o degeaba. *Cum a fost ziua ta (dacă ai curajul să raportezi)?*"
+                + report_text
+            )
+        else:
+            message = (
+                f"🌙 *Bună seara, {escape_md(name)}\\!* \n\n"
+                "E timpul pentru o scurtă reflexie\\. *Cum a fost ziua ta azi?*"
+                + report_text
+            )
 
         await application.bot.send_message(
             chat_id=TELEGRAM_USER_ID,
