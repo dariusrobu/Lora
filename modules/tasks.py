@@ -663,6 +663,9 @@ async def handle_task_intent(
                 None,
             )
 
+        # Fetch old task state for comparison
+        old_task = await task_queries.get_task(pool, task_id)
+        
         await task_queries.update_task(pool, task_id, **upd)
 
         # Immediate sync to Reminders
@@ -675,9 +678,8 @@ async def handle_task_intent(
 
         # Procrastination Check
         procrastination_msg = ""
-        task = await task_queries.get_task(pool, task_id)
-        if "due_date" in upd and task:
-            old_due = task.get("due_date")
+        if "due_date" in upd and old_task:
+            old_due = old_task.get("due_date")
             new_due = upd["due_date"]
             if new_due and (not old_due or new_due > old_due):
                 # User is pushing the task further
@@ -690,6 +692,8 @@ async def handle_task_intent(
                     procrastination_msg = "\n\n🔥 *TAXĂ PE PROCRASTINARE\!* Amâni iar? Amânarea e eșec cu încetinitorul\. Sper că ai o scuză incredibilă, altfel ești doar leneș\."
                 else:
                     procrastination_msg = "\n\n⚠️ Amânarea task-urilor importante poate duce la stres mai târziu. Ești sigur?"
+        
+        task = await task_queries.get_task(pool, task_id)
         from bot.keyboards import task_keyboard
 
         return (
