@@ -308,7 +308,7 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
 
 
 async def handle_task_intent(
-    pool, intent: str, data: Dict[str, Any]
+    pool, intent: str, data: Dict[str, Any], user_id: int = None, bot=None
 ) -> Tuple[str, Any, Optional[int]]:
     """Handles task-related intents and returns reply text + keyboard + item_id."""
 
@@ -675,19 +675,21 @@ async def handle_task_intent(
 
         # Procrastination Check
         procrastination_msg = ""
+        task = await task_queries.get_task(pool, task_id)
         if "due_date" in upd and task:
             old_due = task.get("due_date")
             new_due = upd["due_date"]
             if new_due and (not old_due or new_due > old_due):
                 # User is pushing the task further
-                profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
+                from db.queries.profile import get_user_profile
+                from core.config import TELEGRAM_USER_ID
+                target_uid = user_id or TELEGRAM_USER_ID
+                profile = await get_user_profile(pool, target_uid)
                 tone = profile.get("tone", "warm")
                 if tone == "direct":
                     procrastination_msg = "\n\n🔥 *TAXĂ PE PROCRASTINARE\!* Amâni iar? Amânarea e eșec cu încetinitorul\. Sper că ai o scuză incredibilă, altfel ești doar leneș\."
                 else:
                     procrastination_msg = "\n\n⚠️ Amânarea task-urilor importante poate duce la stres mai târziu. Ești sigur?"
-
-        task = await task_queries.get_task(pool, task_id)
         from bot.keyboards import task_keyboard
 
         return (
