@@ -10,6 +10,7 @@ async def upsert_health_log(
     water_ml: Optional[int] = None,
     nutrition: Optional[str] = None,
     weight_kg: Optional[float] = None,
+    cigarettes: Optional[int] = None,
     notes: Optional[str] = None,
 ) -> None:
     """
@@ -20,18 +21,19 @@ async def upsert_health_log(
         row = await conn.fetchrow(
             """
             INSERT INTO health_logs (
-                log_date, sleep_hours, sleep_quality, water_ml, nutrition, weight_kg, notes
+                log_date, sleep_hours, sleep_quality, water_ml, nutrition, weight_kg, cigarettes, notes
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (log_date) 
             DO UPDATE SET 
-                sleep_hours   = COALESCE($2, health_logs.sleep_hours),
-                sleep_quality = COALESCE($3, health_logs.sleep_quality),
-                water_ml      = COALESCE($4, health_logs.water_ml),
-                nutrition     = COALESCE($5, health_logs.nutrition),
-                weight_kg     = COALESCE($6, health_logs.weight_kg),
-                notes         = COALESCE($7, health_logs.notes),
-                updated_at    = NOW()
+            sleep_hours   = COALESCE($2, health_logs.sleep_hours),
+            sleep_quality = COALESCE($3, health_logs.sleep_quality),
+            water_ml      = COALESCE($4, health_logs.water_ml),
+            nutrition     = COALESCE($5, health_logs.nutrition),
+            weight_kg     = COALESCE($6, health_logs.weight_kg),
+            cigarettes    = COALESCE($7, health_logs.cigarettes),
+            notes         = COALESCE($8, health_logs.notes),
+            updated_at    = NOW()
             RETURNING id
             """,
             log_date,
@@ -40,9 +42,31 @@ async def upsert_health_log(
             water_ml,
             nutrition,
             weight_kg,
+            cigarettes,
             notes,
         )
         return row["id"]
+
+
+async def add_cigarettes(pool, log_date: date, count: int) -> int:
+    """
+    Adds cigarettes to the existing count for the day. Returns the new total.
+    """
+    async with pool.acquire() as conn:
+        new_total = await conn.fetchval(
+            """
+            INSERT INTO health_logs (log_date, cigarettes)
+            VALUES ($1, $2)
+            ON CONFLICT (log_date) 
+            DO UPDATE SET 
+                cigarettes = COALESCE(health_logs.cigarettes, 0) + EXCLUDED.cigarettes,
+                updated_at = NOW()
+            RETURNING cigarettes
+            """,
+            log_date,
+            count,
+        )
+        return new_total
 
 
 async def add_water(pool, log_date: date, ml_to_add: int) -> int:
@@ -94,6 +118,8 @@ async def get_health_summary(pool, days: int = 7) -> Dict[str, Any]:
                 MODE() WITHIN GROUP (ORDER BY sleep_quality) as common_sleep_quality,
                 AVG(water_ml) as avg_water,
                 MAX(water_ml) as max_water,
+                AVG(cigarettes) as avg_cigarettes,
+                SUM(cigarettes) as total_cigarettes,
                 MIN(weight_kg) FILTER (WHERE weight_kg > 0) as min_weight,
                 MAX(weight_kg) FILTER (WHERE weight_kg > 0) as max_weight,
                 COUNT(*) FILTER (WHERE nutrition IN ('great', 'good')) as good_nutrition_days,

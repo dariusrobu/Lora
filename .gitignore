@@ -18,3 +18,5 @@ lora.pid
 !db/schema.sql
 com.lora.bot.plist
 .DS_Store
+bot.log*
+__pycache__/

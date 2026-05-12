@@ -180,6 +180,7 @@ async def start_bot():
             ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS longitude NUMERIC;
             ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS city_name TEXT;
             ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS current_location_name TEXT;
+            ALTER TABLE health_logs ADD COLUMN IF NOT EXISTS cigarettes INT DEFAULT 0;
         """)
 
         # Saved Locations Table

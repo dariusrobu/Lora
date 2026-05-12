@@ -20,6 +20,7 @@ async def handle_health_intent(
         "log_weight",
         "log_nutrition",
         "nutrition_log",
+        "log_cigarettes",
     ]:
         return await _handle_upsert(pool, intent, data, today)
 
@@ -114,6 +115,14 @@ async def handle_health_callback(query, pool, data: str) -> None:
             await query.edit_message_text(prompt, parse_mode="MarkdownV2")
             await _save_prompt_to_conversation(pool, prompt)
 
+        elif action == "log_cigarettes":
+            await set_state(
+                pool, "awaiting_health_input", "health", "log_cigarettes", None
+            )
+            prompt = "🚬 *Câte țigări ai fumat?*\n_\\(ex: 1, 5, am fumat 3\\)_"
+            await query.edit_message_text(prompt, parse_mode="MarkdownV2")
+            await _save_prompt_to_conversation(pool, prompt)
+
         elif action == "cancel":
             await clear_state(pool)
             text, markup = await _generate_health_summary_text(pool)
@@ -168,6 +177,11 @@ async def handle_health_message(update, pool, state: dict, text: str) -> None:
             if match:
                 data["weight_kg"] = float(match.group(1))
 
+        elif action == "log_cigarettes":
+            match = re.search(r"(\d+)", text)
+            if match:
+                data["cigarettes"] = int(match.group(1))
+
         elif action == "log_nutrition":
             items = _parse_meal_text(text)
             if items:
@@ -205,11 +219,9 @@ async def handle_health_message(update, pool, state: dict, text: str) -> None:
 async def _handle_upsert(
     pool, intent: str, data: Dict[str, Any], log_date: date
 ) -> Tuple[str, Any, Optional[int]]:
-    sleep_hours = data.get("sleep_hours")
-    sleep_quality = data.get("sleep_quality")
-    water_ml = data.get("water_ml")
     nutrition = data.get("nutrition")
     weight_kg = data.get("weight_kg")
+    cigarettes = data.get("cigarettes")
     notes = data.get("notes")
 
     log_id = await health_queries.upsert_health_log(
@@ -220,6 +232,7 @@ async def _handle_upsert(
         water_ml=water_ml,
         nutrition=nutrition,
         weight_kg=weight_kg,
+        cigarettes=cigarettes,
         notes=notes,
     )
 
@@ -232,6 +245,8 @@ async def _handle_upsert(
         parts.append(f"{weight_kg}kg ✓")
     if nutrition is not None:
         parts.append(f"nutriție: {nutrition} ✓")
+    if cigarettes is not None:
+        parts.append(f"țigări: {cigarettes} ✓")
 
     msg = "✅ Health logat: " + " + ".join(parts)
     return escape_md(msg), None, log_id
@@ -359,6 +374,7 @@ async def _generate_health_summary_text(pool) -> Tuple[str, Any]:
         f"😴 *Somn:* medie {avg_sleep:.1f}h · {common_quality}\n"
         f"💧 *Apă:* medie {int(avg_water)}ml · max {max_water}ml\n"
         f"⚖️ *Greutate:* {recent_weight}kg (trend: {trend_emoji})\n"
+        f"🚬 *Țigări:* medie {summary.get('avg_cigarettes', 0):.1f}/zi · total {int(summary.get('total_cigarettes', 0))}\n"
         f"🍎 *Nutriție Azi:* {nutri_text}"
     )
 
@@ -450,6 +466,8 @@ async def _generate_today_logs_text(pool) -> Tuple[str, Any]:
             metrics.append(f"💧 *Apă:* {health['water_ml']}ml")
         if health.get("weight_kg"):
             metrics.append(f"⚖️ *Greutate:* {health['weight_kg']}kg")
+        if health.get("cigarettes"):
+            metrics.append(f"🚬 *Țigări:* {health['cigarettes']}")
         if health.get("notes"):
             metrics.append(f"📝 *Note:* {health['notes']}")
 

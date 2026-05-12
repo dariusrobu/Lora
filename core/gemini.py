@@ -369,8 +369,9 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - Folosește acest intent când utilizatorul cere O ANALIZĂ a vieții/obiceiurilor sale ("ce observi la mine", "cum stau cu obiceiurile în ultima vreme", "analizează-mi productivitatea"). NU folosi view_skills pentru asta!
     - Cuvinte cheie: "ce patterns ai observat", "analizează", "insights", "tendințe", "ce poți să-mi spui despre obiceiurile mele".
 18. Health: module="health":
-    - intent="health_log" pentru înregistrare (somn, apă, nutriție, greutate). Poate loga mai multe odată.
-      Data: {{"sleep_hours": float, "sleep_quality": "great|good|neutral|bad|terrible", "water_ml": integer, "weight_kg": float, "nutrition": string, "notes": string}}
+    - intent="health_log" pentru înregistrare (somn, apă, nutriție, greutate, țigări). Poate loga mai multe odată.
+      Data: {{"sleep_hours": float, "sleep_quality": "great|good|neutral|bad|terrible", "water_ml": integer, "weight_kg": float, "cigarettes": integer, "nutrition": string, "notes": string}}
+    - intent="log_cigarettes" pentru a loga numărul de țigări (ex: "am fumat o țigară", "am fumat 5 țigări").
     - intent="log_water" pentru a ADĂUGA apă la totalul zilei (ex: "am mai băut 500ml").
     - intent="health_summary" pentru rezumatul text (ultimele 7 zile).
     - intent="health_chart" pentru grafice (somn, apă, greutate) pe ultimele 30 zile.
