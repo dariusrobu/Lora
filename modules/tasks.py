@@ -683,6 +683,8 @@ async def handle_task_intent(
             old_due_str = str(old_task.get("due_date")) if old_task.get("due_date") else None
             new_due_str = str(upd["due_date"]) if upd["due_date"] else None
             
+            print(f"DEBUG PROCRASTINATION: old={old_due_str}, new={new_due_str}")
+            
             if new_due_str and (not old_due_str or new_due_str > old_due_str):
                 # User is pushing the task further
                 from db.queries.profile import get_user_profile
