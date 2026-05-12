@@ -362,13 +362,16 @@ CUPRINS (Include doar dacă există date):
 REGULI STRICTE:
 - MarkdownV2 (caractere RAW).
 - NU TĂIA TEXTUL. Dacă începi o secțiune, trebuie să o termini complet.
+- Dacă datele sunt voluminoase, sintetizează-le dar NU le elimina.
+- Răspunde cu TOATE secțiunile solicitate (1-8) dacă există date pentru ele.
 - Fii specific și precis. Răspunde cu întregul conținut solicitat.
 """
 
-        gemini_context = json.dumps(briefing_data, indent=2, cls=UniversalEncoder)
+        gemini_context = json.dumps(briefing_data, cls=UniversalEncoder)
 
         # 4. Generate text via Gemini
         briefing_text_raw = await get_proactive_response(instruction, gemini_context)
+        print(f"DEBUG: Morning briefing raw text length: {len(briefing_text_raw or '')}", flush=True)
 
         if not briefing_text_raw or briefing_text_raw.strip() == "":
             briefing_text_raw = "Bună dimineața! Se pare că azi e o zi liberă sau nu am date noi. Bucură-te de liniște! ☀️"
