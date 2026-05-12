@@ -673,11 +673,25 @@ async def handle_task_intent(
         except Exception as e:
             print(f"Error triggering task sync: {e}")
 
+        # Procrastination Check
+        procrastination_msg = ""
+        if "due_date" in upd and task:
+            old_due = task.get("due_date")
+            new_due = upd["due_date"]
+            if new_due and (not old_due or new_due > old_due):
+                # User is pushing the task further
+                profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
+                tone = profile.get("tone", "warm")
+                if tone == "direct":
+                    procrastination_msg = "\n\n🔥 *TAXĂ PE PROCRASTINARE\!* Amâni iar? Amânarea e eșec cu încetinitorul\. Sper că ai o scuză incredibilă, altfel ești doar leneș\."
+                else:
+                    procrastination_msg = "\n\n⚠️ Amânarea task-urilor importante poate duce la stres mai târziu. Ești sigur?"
+
         task = await task_queries.get_task(pool, task_id)
         from bot.keyboards import task_keyboard
 
         return (
-            f"Actualizat ✅ *{escape_md(task['title'])}*",
+            f"Actualizat ✅ *{escape_md(task['title'])}*{procrastination_msg}",
             task_keyboard(task_id),
             task_id,
         )
@@ -795,6 +809,14 @@ async def get_tasks_dashboard(pool) -> Tuple[str, Any]:
     lines.append(rf"✅ *{total}* task\-uri active pe *{len(projects)}* proiecte\.")
     if overdue > 0:
         lines.append(rf"🔴 *{overdue}* sunt restante\!")
+
+    # Decomposition Suggestion (Anti-Overwhelm/Procrastination)
+    from datetime import datetime, timedelta
+    now = datetime.now()
+    stale_tasks = [t for t in tasks if t.get("priority") == "high" and t.get("created_at") and t["created_at"].replace(tzinfo=None) < now.replace(tzinfo=None) - timedelta(days=2)]
+    if stale_tasks:
+        t = stale_tasks[0]
+        lines.append(f"\n💡 *DECOMPUNERE OBLIGATORIE:* Task-ul *{escape_md(t['title'])}* stă de 2 zile la prioritate mare. E clar că e prea greu. Sparge-l în 3 sub-task-uri acum!")
 
     lines.append("\n*Repartiție pe proiecte:*")
     for proj, count in projects.items():

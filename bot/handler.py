@@ -1858,13 +1858,13 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 keyboard = [
                     [
                         InlineKeyboardButton(
-                            "👔 Formal", callback_data="profile_set_tone:formal"
-                        ),
-                        InlineKeyboardButton(
-                            "😎 Casual", callback_data="profile_set_tone:casual"
+                            "😊 Warm", callback_data="profile_set_tone:warm"
                         ),
                         InlineKeyboardButton(
                             "🎯 Direct", callback_data="profile_set_tone:direct"
+                        ),
+                        InlineKeyboardButton(
+                            "⚡ Brief", callback_data="profile_set_tone:brief"
                         ),
                     ]
                 ]
@@ -1875,7 +1875,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             elif data.startswith("profile_set_tone:"):
                 new_tone = data.split(":")[1]
                 await pool.execute(
-                    "UPDATE user_profile SET preferred_tone = $1 WHERE telegram_id = $2",
+                    "UPDATE user_profile SET tone = $1 WHERE telegram_id = $2",
                     new_tone,
                     update.effective_user.id,
                 )
@@ -2901,7 +2901,7 @@ async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
         return
 
     name = profile.get("name", "Utilizator")
-    tone = profile.get("preferred_tone", "direct")
+    tone = profile.get("tone", "warm")
     start = profile.get("active_hours_start", "08:00")
     end = profile.get("active_hours_end", "22:00")
     

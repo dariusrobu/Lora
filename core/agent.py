@@ -36,6 +36,7 @@ from core.config import TIMEZONE, TELEGRAM_USER_ID
 # Tools definition for Gemini
 # We use FunctionDeclaration for precise manual control over execution and DB pool injection.
 agent_tools = types.Tool(
+    google_search=types.GoogleSearchRetrieval(),
     function_declarations=[
         types.FunctionDeclaration(
             name="tool_get_tasks",

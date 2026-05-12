@@ -88,6 +88,20 @@ async def handle_project_intent(
 
         if meta:
             lines.append(" | ".join(meta))
+            
+        # Escalation in Detail View
+        if detail.get("deadline") and detail.get("status") == "active":
+            today_val = date.today()
+            days_left = (detail["deadline"] - today_val).days
+            progress = detail.get("progress_pct", 0)
+            
+            profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
+            tone = profile.get("tone", "warm")
+            
+            if days_left <= 3 and progress < 80 and tone == "direct":
+                lines.append("\n🚨 *STATUS CRITIC:* Deadline-ul e peste 3 zile și ești la doar " + str(progress) + "%! Ești pe cale să eșuezi lamentabil. Începe să lucrezi ACUM!")
+            elif days_left <= 7 and progress < 50 and tone == "direct":
+                lines.append("\n⚠️ *STATUS ALERTĂ:* Progres mult prea lent pentru deadline-ul de săptămâna viitoare. Mișcă-te!")
 
         pending = detail.get("pending_count", 0)
         total = detail.get("task_count", 0)
@@ -134,17 +148,30 @@ async def handle_project_intent(
             else f"🏗 *{status_filter.title()} Projects:*"
         )
         lines = [header]
+        today_val = date.today()
         for p in projects:
             status_str = f" ({p['status']})" if p["status"] != "active" else ""
             pending = p.get("pending_tasks", 0)
             overdue = p.get("overdue_tasks", 0)
             progress = p.get("progress_pct", 0)
+            deadline = p.get("deadline")
+            
+            # Escalation Logic
+            escalation = ""
+            if deadline and p["status"] == "active":
+                days_left = (deadline - today_val).days
+                if days_left <= 3 and progress < 80:
+                    escalation = " 🚨 *URGENT/EȘEC IMINENT\!*"
+                elif days_left <= 7 and progress < 50:
+                    escalation = " ⚠️ *ÎN PERICOL\!*"
+
             task_info = f" 📋{pending}" if pending else ""
             if overdue > 0:
                 task_info += f" ⚠️{overdue}"
             if progress > 0:
                 task_info += f" 📊{progress}%"
-            lines.append(f"• *{escape_md(p['name'])}*{status_str}{task_info}")
+            
+            lines.append(f"• *{escape_md(p['name'])}*{status_str}{task_info}{escalation}")
         return "\n".join(lines), None, None
 
     elif intent == "update_project":

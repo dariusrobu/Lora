@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from bot.formatter import escape_md, safe_markdown
 import db.queries.health as health_queries
+import db.queries.profile as profile_queries
+from core.config import TELEGRAM_USER_ID
 
 
 async def handle_health_intent(
@@ -27,7 +29,22 @@ async def handle_health_intent(
         count = data.get("cigarettes") or 1
         new_total = await health_queries.add_cigarettes(pool, today, count)
         
-        msg = f"✅ \\+{count} țigări adăugate\\.\n🚬 *Total azi:* {new_total}"
+        profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
+        tone = profile.get("tone", "warm")
+        
+        warning = ""
+        if new_total >= 10:
+            if tone == "direct":
+                warning = "\n\n⚠️ *STOP\!* Deja ești la a 10\-a țigară\. Îți bați joc de sănătate și de bani\. Oprește\-te ACUM\!"
+            else:
+                warning = "\n\n⚠️ Atenție: Ai ajuns la 10 țigări azi. Poate e momentul să iei o pauză? 🚭"
+        elif new_total >= 5:
+            if tone == "direct":
+                warning = "\n\n⚠️ Deja a 5\-a? Ai grijă, disciplina începe să dispară\. Reconcentrează\-te\!"
+            else:
+                warning = "\n\n⚠️ Ai fumat deja 5 țigări. Încearcă să reduci ritmul."
+
+        msg = f"✅ \\+{count} țigări adăugate\\.\n🚬 *Total azi:* {new_total}{warning}"
         log = await health_queries.get_health_log(pool, today)
         return msg, None, log["id"] if log else None
 

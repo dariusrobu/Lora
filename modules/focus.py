@@ -84,7 +84,19 @@ async def handle_focus_intent(
             elapsed = int(
                 (now - row["created_at"].replace(tzinfo=pytz.utc)).total_seconds() / 60
             )
+            total = row["duration_min"]
             await focus_queries.interrupt_session(pool, session_id, elapsed)
+
+            # Tough Love Reaction
+            import db.queries.profile as profile_queries
+            profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
+            tone = profile.get("tone", "warm")
+            
+            penalty = ""
+            if tone == "direct":
+                penalty = f"\n\n🔥 *PENIBIL\!* Ai rezistat doar {elapsed}/{total} minute\. Concentrarea ta e la pământ\. Data viitoare nu mă mai pune să pornesc timer-ul dacă n-ai de gând să muncești\!"
+            else:
+                penalty = f"\n\n⚠️ Sesiune întreruptă la minutul {elapsed}/{total}. Încearcă să fii mai concentrat data viitoare."
 
             # Try to remove the scheduled job if possible
             try:
@@ -98,7 +110,7 @@ async def handle_focus_intent(
                 pass
 
         await clear_state(pool)
-        return "Sesiune întreruptă\\. Ce ai reușit să faci?", None
+        return f"Sesiune întreruptă\\.{penalty}", None
 
     elif intent == "focus_list":
         sessions = await focus_queries.get_recent_sessions(pool, days=7)

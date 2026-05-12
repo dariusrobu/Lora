@@ -116,7 +116,20 @@ async def _handle_log_expense(
         pool, tx_type=tx_type, amount=amount, category=category, description=description
     )
 
-    msg = f"✅ {amount} RON la *{category}* înregistrat\\."
+    # Budget Check (Shock Alert)
+    budget_warning = ""
+    if tx_type == "expense":
+        status = await finance_queries.get_budget_status(pool)
+        for b in status:
+            if b["category"].lower() == category.lower():
+                spent = float(b["current_spent"])
+                limit = float(b["monthly_limit"])
+                if limit > 0 and spent > limit:
+                    budget_warning = f"\n\n🚨 *AUDIT DE URGENȚĂ\!* Ai depășit bugetul pentru *{escape_md(category)}* cu {spent - limit:.2f} RON\. Te oprești acum sau vrei să terminăm luna pe minus? 🛑"
+                elif limit > 0 and spent > limit * 0.8:
+                    budget_warning = f"\n\n⚠️ *ATENȚIE\!* Ești la {spent/limit*100:.1f}\\% din bugetul pentru {escape_md(category)}\. Începe să tai din cheltuieli\!"
+
+    msg = f"✅ {amount} RON la *{category}* înregistrat\\.{budget_warning}"
     if description:
         msg = f"✅ {amount} RON — *{description}* ({category}) înregistrat\\."
 

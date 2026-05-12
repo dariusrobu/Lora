@@ -26,93 +26,100 @@ import db.queries.finance as finance_queries
 import db.queries.health as health_queries
 
 
+async def _build_eod_payload(pool) -> dict:
+    """Helper to collect all relevant data for the end of the day."""
+    today = date.today()
+    
+    # 1. Tasks Completed
+    completed = await task_queries.get_completed_tasks_today(pool)
+
+    # 2. Tasks Created Today
+    async with pool.acquire() as conn:
+        created_rows = await conn.fetch(
+            "SELECT title FROM tasks WHERE DATE(created_at) = CURRENT_DATE AND deleted_at IS NULL"
+        )
+        tasks_created = [{"title": r["title"]} for r in created_rows]
+
+    # 3. Tasks Pending Overdue
+    async with pool.acquire() as conn:
+        overdue_rows = await conn.fetch(
+            "SELECT title, due_date FROM tasks WHERE status != 'done' AND due_date < CURRENT_DATE AND deleted_at IS NULL"
+        )
+        tasks_pending_overdue = [
+            {"title": r["title"], "due_date": r["due_date"].isoformat() if r["due_date"] else None} 
+            for r in overdue_rows
+        ]
+
+    # 4. Finance Summary
+    async with pool.acquire() as conn:
+        fin_total = await conn.fetchval(
+            "SELECT SUM(amount) FROM finances WHERE DATE(tx_date) = CURRENT_DATE AND type = 'expense' AND deleted_at IS NULL"
+        )
+        fin_cat = await conn.fetch(
+            "SELECT category, SUM(amount) as total FROM finances WHERE DATE(tx_date) = CURRENT_DATE AND type = 'expense' AND deleted_at IS NULL GROUP BY category"
+        )
+        finance_summary = {
+            "total": float(fin_total) if fin_total else 0.0,
+            "per_category": {r["category"]: float(r["total"]) for r in fin_cat}
+        }
+
+    # 5. Active Goals
+    async with pool.acquire() as conn:
+        goals_rows = await conn.fetch(
+            "SELECT title, progress_percent FROM goals WHERE status = 'active' AND deleted_at IS NULL"
+        )
+        active_goals = [
+            {"title": r["title"], "progress_percent": float(r["progress_percent"]) if r["progress_percent"] else 0.0} 
+            for r in goals_rows
+        ]
+
+    # 6. Health
+    async with pool.acquire() as conn:
+        health_row = await conn.fetchrow(
+            "SELECT mood, energy, cigarettes, sleep_hours, water_ml FROM health_logs WHERE log_date = CURRENT_DATE"
+        )
+        mood = int(health_row["mood"]) if health_row and health_row["mood"] is not None else None
+        energy = int(health_row["energy"]) if health_row and health_row["energy"] is not None else None
+        cigs = int(health_row["cigarettes"]) if health_row and health_row["cigarettes"] is not None else 0
+        sleep = float(health_row["sleep_hours"]) if health_row and health_row["sleep_hours"] is not None else None
+        water = int(health_row["water_ml"]) if health_row and health_row["water_ml"] is not None else 0
+
+    # 7. Streaks Active
+    from db.queries.skills import get_skill_streak
+    async with pool.acquire() as conn:
+        skills = await conn.fetch("SELECT id, name FROM skills WHERE deleted_at IS NULL")
+    
+    streaks_active = []
+    for s in skills:
+        streak = await get_skill_streak(pool, s["id"])
+        if streak > 0:
+            streaks_active.append({"name": s["name"], "streak": streak})
+
+    return {
+        "tasks_completed": completed or [],
+        "tasks_created": tasks_created or [],
+        "tasks_pending_overdue": tasks_pending_overdue or [],
+        "finance_summary": finance_summary,
+        "active_goals": active_goals or [],
+        "mood": mood,
+        "energy": energy,
+        "cigarettes": cigs,
+        "sleep_hours": sleep,
+        "water_ml": water,
+        "streaks_active": streaks_active or [],
+        "date": today.isoformat()
+    }
+
 async def send_daily_report(application, pool) -> bool:
     """Collects and sends daily report to Council API."""
     try:
-        import json
         from core.council import send_report_to_council
         from core.config import TELEGRAM_USER_ID as TG_ID
-        from datetime import date
         from db.queries.log import log_execution
-        import traceback
-
-        today = date.today()
-        project_id = str(TG_ID)
-
-        # 1. Tasks Completed
-        completed = await task_queries.get_completed_tasks_today(pool)
-
-        # 2. Tasks Created Today
-        async with pool.acquire() as conn:
-            created_rows = await conn.fetch(
-                "SELECT title FROM tasks WHERE DATE(created_at) = CURRENT_DATE"
-            )
-            tasks_created = [{"title": r["title"]} for r in created_rows]
-
-        # 3. Tasks Pending Overdue
-        async with pool.acquire() as conn:
-            overdue_rows = await conn.fetch(
-                "SELECT title, due_date FROM tasks WHERE status != 'done' AND due_date < CURRENT_DATE AND deleted_at IS NULL"
-            )
-            tasks_pending_overdue = [
-                {"title": r["title"], "due_date": r["due_date"].isoformat() if r["due_date"] else None} 
-                for r in overdue_rows
-            ]
-
-        # 4. Finance Summary
-        async with pool.acquire() as conn:
-            fin_total = await conn.fetchval(
-                "SELECT SUM(amount) FROM finances WHERE DATE(tx_date) = CURRENT_DATE AND type = 'expense'"
-            )
-            fin_cat = await conn.fetch(
-                "SELECT category, SUM(amount) as total FROM finances WHERE DATE(tx_date) = CURRENT_DATE AND type = 'expense' GROUP BY category"
-            )
-            finance_summary = {
-                "total": float(fin_total) if fin_total else 0.0,
-                "per_category": {r["category"]: float(r["total"]) for r in fin_cat}
-            }
-
-        # 5. Active Goals
-        async with pool.acquire() as conn:
-            goals_rows = await conn.fetch(
-                "SELECT title, progress_percent FROM goals WHERE status = 'active'"
-            )
-            active_goals = [
-                {"title": r["title"], "progress_percent": float(r["progress_percent"]) if r["progress_percent"] else 0.0} 
-                for r in goals_rows
-            ]
-
-        # 6. Mood and Energy
-        async with pool.acquire() as conn:
-            health_row = await conn.fetchrow(
-                "SELECT mood, energy FROM health_logs WHERE log_date = CURRENT_DATE"
-            )
-            mood = int(health_row["mood"]) if health_row and health_row["mood"] is not None else None
-            energy = int(health_row["energy"]) if health_row and health_row["energy"] is not None else None
-
-        # 7. Streaks Active
-        from db.queries.skills import get_skill_streak
-        async with pool.acquire() as conn:
-            skills = await conn.fetch("SELECT id, name FROM skills")
         
-        streaks_active = []
-        for s in skills:
-            streak = await get_skill_streak(pool, s["id"])
-            if streak > 0:
-                streaks_active.append({"name": s["name"], "streak": streak})
-
-        # Payload construction
-        payload = {
-            "tasks_completed": completed or [],
-            "tasks_created": tasks_created or [],
-            "tasks_pending_overdue": tasks_pending_overdue or [],
-            "finance_summary": finance_summary,
-            "active_goals": active_goals or [],
-            "mood": mood,
-            "energy": energy,
-            "streaks_active": streaks_active or [],
-            "date": today.isoformat()
-        }
+        payload = await _build_eod_payload(pool)
+        project_id = str(TG_ID)
+        today = date.today()
 
         # Send report
         result = await send_report_to_council(
@@ -133,6 +140,7 @@ async def send_daily_report(application, pool) -> bool:
 
         if result:
             print(f"Report sent to Council for {today}.", flush=True)
+
 
         if COUNCIL_GROUP_CHAT_ID and COUNCIL_GROUP_CHAT_ID != "":
             task_titles = [t.get("title") for t in completed if t.get("title")]
@@ -359,6 +367,7 @@ CUPRINS (Include doar dacă există date):
 6. 🔥 HABIT STREAKS: Menționează skill-urile cu streak.
 7. 🧠 MEMORY LANE: O referință la progresul tău pe termen lung.
 8. 💡 LORA INSIGHT: Alinierea cu obiectivele tale.
+9. ⚔️ PROVOCAREA ZILEI: O provocare specifică bazată pe eșecurile de ieri (ex: "Azi maxim 3 țigări" sau "Zero cheltuieli inutile").
 
 REGULI STRICTE:
 - MarkdownV2 (caractere RAW).
@@ -532,9 +541,16 @@ async def check_contextual_nudges(application, pool):
                         for s in skills:
                             streak = await skill_queries.get_skill_streak(pool, s["id"])
                             if streak >= 1:
-                                msg = "💪 Streak-ul tău e în pericol! Nu ai logat antrenamentul azi. Mai ai timp pentru o sesiune scurtă."
+                                profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
+                                tone = profile.get("tone", "warm")
+                                
+                                if tone == "direct":
+                                    msg = f"🔥 *DISCIPLINĂ ZERO\!* Streak\-ul tău de {streak} la {escape_md(s['id'])} e pe moarte\. Îți bați joc de tot progresul? Mișcă\-te ACUM și loghează antrenamentul, altfel resetez tot\!"
+                                else:
+                                    msg = "💪 Streak-ul tău e în pericol! Nu ai logat antrenamentul azi. Mai ai timp pentru o sesiune scurtă."
+                                
                                 await application.bot.send_message(
-                                    chat_id=TELEGRAM_USER_ID, text=msg
+                                    chat_id=TELEGRAM_USER_ID, text=safe_markdown(msg), parse_mode=ParseMode.MARKDOWN_V2
                                 )
                                 await _mark_nudge_sent(pool, "workout_streak_risk")
                                 break
@@ -704,24 +720,52 @@ async def send_journal_night(application, pool):
         name = profile.get("name", "User")
         print(f"Starting journal night for {today}...", flush=True)
 
-        from db.queries.tasks import get_completed_tasks_today
+        # 2. Gather Prioritized EOD Context
+        from core.gemini import get_proactive_response
+        from bot.formatter import safe_markdown, split_message
+        
+        eod_data = await _build_eod_payload(pool)
+        
+        instruction = f"""Ești Lora, într-un mod TOUGH LOVE și STRATEGIC. 
+Generezi un 'EXECUTIVE REALITY CHECK' pentru finalul zilei lui {name}.
 
-        v_tasks = await get_completed_tasks_today(pool)
-        task_count = len(v_tasks)
-        task_status = (
-            f"{task_count} tasks completate"
-            if task_count > 0
-            else "niciun task completat"
-        )
+STIL: Confruntare constructivă. Fără menajamente, dar cu scopul de a disciplina.
+- Folosește linii: ━━━━━━━━━━━━━━━━━━━━
+- Dacă are task-uri pending/overdue, ceartă-l dur pentru amânare.
+- Dacă a cheltuit mult, confruntă-l cu bugetul.
+- Dacă a fumat mult ({eod_data.get('cigarettes', 0)} țigări), fii EXTREM de tăioasă.
+- Dacă a avut o zi productivă, recunoaște succesul dar cere și mai mult pentru mâine.
+
+STRUCTURĂ:
+1. 🪞 OGLINDA ZILEI: Analiza dură a datelor de azi.
+2. 📉 DISCREPANȚE: Unde a eșuat disciplina?
+3. 🏁 CONCLUZIE: O singură propoziție care să-l facă să se gândească înainte de culcare.
+
+După acest Reality Check, adaugă cele 3 întrebări standard:
+1. Ce a mers bine azi?
+2. Ce ai vrea să faci diferit?
+3. Cum vrei să arate ziua de mâine? (tasks, program, priorități)
+
+📌 La ce oră te trezești mâine? (ex: la 7, pe la 8:30)
+"""
+        
+        gemini_context = json.dumps(eod_data, default=str)
+        reality_check_text = await get_proactive_response(instruction, gemini_context)
+        
+        if not reality_check_text:
+            reality_check_text = (
+                "Răspunde la cele 3 întrebări ca să închidem ziua:
+"
+                "Răspunde la cele 3 întrebări ca să închidem ziua:\n"
+                "*1.* Ce a mers bine azi?\n"
+                "*2.* Ce ai vrea să faci diferit?\n"
+                "*3.* Cum vrei să arate ziua de mâine?\n\n"
+                "📌 *La ce oră te trezești mâine?*"
+            )
 
         message = (
             f"🌙 *Bună seara, {escape_md(name)}.*\n\n"
-            f"Azi ai {task_status}.\n\n"
-            "Răspunde la cele 3 întrebări ca să închidem ziua:\n"
-            "*1.* Ce a mers bine azi?\n"
-            "*2.* Ce ai vrea să faci diferit?\n"
-            "*3.* Cum vrei să arate ziua de mâine? \\(tasks, program, priorități\\)\n\n"
-            "📌 *La ce oră te trezești mâine?* \\(ex: la 7, pe la 8:30\\)"
+            + safe_markdown(reality_check_text)
         )
 
         try:
