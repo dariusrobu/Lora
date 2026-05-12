@@ -11,11 +11,15 @@ async def get_state(pool) -> Optional[Dict[str, Any]]:
         if not row:
             return None
 
-        # Row might exist but all relevant fields be null
-        if row["state_type"] is None and row["last_intent"] is None:
-            return None
-
         data = dict(row)
+        
+        # Row might exist but all relevant fields be null
+        # Use .get() to avoid KeyErrors if columns are missing in the DB
+        state_type = data.get("state_type")
+        last_intent = data.get("last_intent")
+        
+        if state_type is None and last_intent is None:
+            return None
         
         # Parse JSON fields
         for field in ["extra", "last_intent"]:
