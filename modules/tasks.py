@@ -679,9 +679,11 @@ async def handle_task_intent(
         # Procrastination Check
         procrastination_msg = ""
         if "due_date" in upd and old_task:
-            old_due = old_task.get("due_date")
-            new_due = upd["due_date"]
-            if new_due and (not old_due or new_due > old_due):
+            # Convert both to string for reliable comparison (ISO format)
+            old_due_str = str(old_task.get("due_date")) if old_task.get("due_date") else None
+            new_due_str = str(upd["due_date"]) if upd["due_date"] else None
+            
+            if new_due_str and (not old_due_str or new_due_str > old_due_str):
                 # User is pushing the task further
                 from db.queries.profile import get_user_profile
                 from core.config import TELEGRAM_USER_ID
