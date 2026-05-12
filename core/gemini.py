@@ -375,6 +375,7 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - intent="log_water" pentru a ADĂUGA apă la totalul zilei (ex: "am mai băut 500ml").
     - intent="health_summary" pentru rezumatul text (ultimele 7 zile).
     - intent="health_chart" pentru grafice (somn, apă, greutate) pe ultimele 30 zile.
+    - intent="health_status_today" pentru a afla starea curentă (ex: "câte țigări am fumat azi", "câtă apă am băut").
     - Regulă conversie APĂ: "2L" / "2 litri" → 2000 | "un pahar" → 250 | "500ml" → 500.
     - Regulă SOMN (CRITICAL): 
       - "7h30/7 și jumătate" → 7.5.

@@ -47,6 +47,11 @@ async def handle_health_intent(
         log = await health_queries.get_health_log(pool, today)
         return msg, None, log["id"] if log else None
 
+    elif intent == "health_status_today":
+        log = await health_queries.get_health_log(pool, today)
+        cigs = log.get("cigarettes", 0) if log else 0
+        return f"🚬 Azi ai fumat *{cigs}* țigări până acum\\.", None, None
+
     elif intent == "health_summary":
         res_text, res_markup = await _generate_health_summary_text(pool)
         return res_text, res_markup, None
