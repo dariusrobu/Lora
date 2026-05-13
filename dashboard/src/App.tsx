@@ -6,7 +6,7 @@ import {
   TrendingUp, Star, Moon, Droplets, Scale,
   Pin, MapPin, Search, Sun, Cloud, CloudRain, CloudDrizzle, CloudSnow, CloudLightning,
   Briefcase, Zap, BookOpen, Apple, Calendar, Database, ShoppingBag, Plane,
-  Target, Timer, BarChart3, Newspaper, Layout, Bell, Cpu, Smile, Cigarette
+  Target, Timer, BarChart3, Newspaper, Layout, Bell, Cpu, Smile
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -153,8 +153,6 @@ function App() {
   const [moodLogs, setMoodLogs] = useState<any[]>([]);
   const [insights, setInsights] = useState<any>(null);
   const [news, setNews] = useState<any[]>([]);
-  const [planner, setPlanner] = useState<any[]>([]);
-  const [events, setEvents] = useState<any[]>([]);
   const [systemStats, setSystemStats] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [memories, setMemories] = useState<any[]>([]);
@@ -246,7 +244,7 @@ function App() {
 
     try {
       setErrorMessage(null);
-      const [t, f, u, g, s, shop, n, h, c, f_hist, prof, w, projs, mems, read, nutr, travel, goalsData, moodData, insightsData, newsData, plannerData, eventsData, systemData] = await Promise.all([
+      const [t, f, u, g, s, shop, n, h, c, f_hist, prof, w, projs, mems, read, nutr, travel, goalsData, moodData, insightsData, newsData, systemData] = await Promise.all([
         fetchModule('/api/tasks?status=all', []),
         fetchModule('/api/finances/summary'),
         fetchModule('/api/university/summary'),
@@ -268,8 +266,6 @@ function App() {
         fetchModule('/api/mood', []),
         fetchModule('/api/insights'),
         fetchModule('/api/news', []),
-        fetchModule('/api/planner', []),
-        fetchModule('/api/events', []),
         fetchModule('/api/system/stats')
       ]);
 
@@ -294,8 +290,6 @@ function App() {
       setMoodLogs(moodData || []);
       setInsights(insightsData);
       setNews(newsData || []);
-      setPlanner(plannerData || []);
-      setEvents(eventsData || []);
       setSystemStats(systemData);
     } catch (e: any) {
       console.error("Global fetch error:", e);
@@ -1601,6 +1595,8 @@ function App() {
                </div>
             </div>
           </ViewContainer>
+        )}
+
         {view === 'goals' && (
           <ViewContainer title="Obiective Strategice" onBack={() => setView('home')}>
              <div className="space-y-8 pb-32">
@@ -1727,9 +1723,9 @@ function App() {
                       <span className="label-ethereal">Toate sistemele nominale</span>
                    </div>
                    <div className="space-y-2 opacity-40 text-[10px] font-mono">
-                      <p>> Sincronizare baza de date... OK</p>
-                      <p>> Verificare vector embeddings... OK</p>
-                      <p>> Rulare analize euristice... OK</p>
+                      <p>{'>'} Sincronizare baza de date... OK</p>
+                      <p>{'>'} Verificare vector embeddings... OK</p>
+                      <p>{'>'} Rulare analize euristice... OK</p>
                    </div>
                 </div>
              </div>
