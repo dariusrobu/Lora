@@ -134,6 +134,9 @@ const moduleGroups = [
 function App() {
   const [view, setView] = useState<View>('home');
   const [modulePage, setModulePage] = useState(0);
+  const [taskFilter, setTaskFilter] = useState<'active' | 'done'>('active');
+  const [noteSearch, setNoteSearch] = useState('');
+  const [selectedTag, setSelectedTag] = useState('toate');
   const [tasks, setTasks] = useState<any[]>([]);
   const [finance, setFinance] = useState<any>(null);
   const [uniSummary, setUniSummary] = useState<any>(null);
@@ -695,6 +698,31 @@ function App() {
                    <p className="label-ethereal mt-6 tracking-[0.3em] opacity-40">Media Generală • Sesiune Curentă</p>
                 </GlassCard>
                 
+                {/* Upcoming Exams */}
+                {uniSummary?.exams?.length > 0 && (
+                  <div className="space-y-8">
+                     <div className="flex items-center gap-3 ml-2">
+                        <div className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_10px_#fbbf24]" />
+                        <h3 className="label-ethereal tracking-[0.3em]">Calendar Examene</h3>
+                        <div className="h-[1px] flex-grow bg-white/5 ml-2" />
+                     </div>
+                     <div className="grid gap-3">
+                        {uniSummary.exams.map((e: any) => (
+                          <div key={e.id} className="liquid-panel p-5 flex justify-between items-center bg-gradient-to-r from-amber-500/5 to-transparent">
+                             <div className="space-y-1">
+                                <p className="font-bold">{e.subject_name}</p>
+                                <p className="label-ethereal text-[8px] opacity-40">{e.exam_type || 'Examen'}</p>
+                             </div>
+                             <div className="text-right">
+                                <p className="text-xl font-thin">{new Date(e.exam_date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' })}</p>
+                                <p className="label-ethereal text-[8px] opacity-40">{e.exam_time || '--:--'}</p>
+                             </div>
+                          </div>
+                        ))}
+                     </div>
+                  </div>
+                )}
+
                 <div className="space-y-8">
                    <div className="flex items-center gap-3 ml-2">
                       <div className="w-2 h-2 rounded-full bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.5)]" />
@@ -737,6 +765,7 @@ function App() {
                                     {s.grades?.map((g: any, i: number) => (
                                       <span key={i} className="px-3 py-1 liquid-panel text-[10px] font-black text-[#ffb786] bg-[#ffb786]/5">{g.grade}</span>
                                     ))}
+                                    {(!s.grades || s.grades.length === 0) && <span className="label-ethereal text-[8px] opacity-20 italic">Fără note</span>}
                                  </div>
                                  <span className="label-ethereal text-[8px] opacity-20">{s.credits || 0} Credite</span>
                               </div>
@@ -752,36 +781,53 @@ function App() {
         {view === 'shop' && (
           <ViewContainer title="Shopping List" onBack={() => setView('home')}>
              <div className="space-y-12 pb-32">
-               <div className="flex justify-between items-center px-2">
-                  <div className="space-y-1">
-                    <p className="text-4xl font-thin tracking-tight">{shopping.filter(i => !i.is_bought).length}</p>
-                    <p className="label-ethereal text-[8px]">Produse de achiziționat</p>
-                  </div>
-                  <button 
-                    onClick={() => fetch('/api/shopping/clear', { method: 'DELETE', headers: HEADERS }).then(fetchData)} 
-                    className="label-ethereal text-red-400 hover:text-red-300 transition-colors p-4 liquid-panel"
-                  >
-                    Arhivează
-                  </button>
-               </div>
+                <div className="flex justify-between items-center px-2">
+                   <div className="space-y-1">
+                     <p className="text-4xl font-thin tracking-tight">{shopping.filter(i => !i.is_bought).length}</p>
+                     <p className="label-ethereal text-[8px]">Produse de achiziționat</p>
+                   </div>
+                   <button 
+                     onClick={() => fetch(`${BASE_URL}/api/shopping/clear`, { method: 'DELETE', headers: HEADERS }).then(fetchData)} 
+                     className="label-ethereal text-red-400 hover:text-red-300 transition-colors p-4 liquid-panel"
+                   >
+                     Arhivează
+                   </button>
+                </div>
 
-               <div className="space-y-4">
-                  {shopping.map(i => (
-                    <div 
-                      key={i.id} 
-                      className={`liquid-panel p-6 flex items-center justify-between transition-all cursor-pointer group ${i.is_bought ? 'opacity-40 grayscale' : 'hover:bg-white/5'}`}
-                      onClick={() => fetch(`/api/shopping/${i.id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ is_bought: !i.is_bought }) }).then(fetchData)}
-                    >
-                       <div className="flex items-center gap-6">
-                          <div className={`w-6 h-6 rounded-lg border-[0.5px] transition-all flex items-center justify-center ${i.is_bought ? 'bg-[#4cd7f6] border-[#4cd7f6]' : 'border-white/20 group-hover:border-white/40'}`}>
-                             {i.is_bought && <CheckCircle2 className="w-4 h-4 text-black" />}
-                          </div>
-                          <p className={`text-lg font-light tracking-tight ${i.is_bought ? 'line-through' : ''}`}>{i.item}</p>
-                       </div>
-                       <span className="label-ethereal text-[8px] opacity-40 px-3 py-1 liquid-panel border-none">{i.category}</span>
-                    </div>
-                  ))}
-               </div>
+                <div className="space-y-12">
+                   {Object.entries(
+                     shopping.reduce((acc: any, i) => {
+                       const cat = i.category || 'Altele';
+                       if (!acc[cat]) acc[cat] = [];
+                       acc[cat].push(i);
+                       return acc;
+                     }, {})
+                   ).map(([cat, items]: [string, any]) => (
+                     <section key={cat} className="space-y-6">
+                        <div className="flex items-center gap-3 ml-2">
+                           <div className="w-2 h-2 rounded-full bg-pink-400 shadow-[0_0_10px_#f472b6]" />
+                           <h3 className="label-ethereal tracking-[0.3em]">{cat}</h3>
+                           <div className="h-[1px] flex-grow bg-white/5 ml-2" />
+                        </div>
+                        <div className="grid gap-3">
+                           {items.map((i: any) => (
+                             <div 
+                               key={i.id} 
+                               className={`liquid-panel p-6 flex items-center justify-between transition-all cursor-pointer group ${i.is_bought ? 'opacity-40 grayscale' : 'hover:bg-white/5'}`}
+                               onClick={() => fetch(`${BASE_URL}/api/shopping/${i.id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ is_bought: !i.is_bought }) }).then(fetchData)}
+                             >
+                                <div className="flex items-center gap-6">
+                                   <div className={`w-6 h-6 rounded-lg border-[0.5px] transition-all flex items-center justify-center ${i.is_bought ? 'bg-[#4cd7f6] border-[#4cd7f6]' : 'border-white/20 group-hover:border-white/40'}`}>
+                                      {i.is_bought && <CheckCircle2 className="w-4 h-4 text-black" />}
+                                   </div>
+                                   <p className={`text-lg font-light tracking-tight ${i.is_bought ? 'line-through' : ''}`}>{i.item}</p>
+                                </div>
+                             </div>
+                           ))}
+                        </div>
+                     </section>
+                   ))}
+                </div>
              </div>
           </ViewContainer>
         )}
@@ -789,27 +835,45 @@ function App() {
         {view === 'notes' && (
           <ViewContainer title="Creier / Note" onBack={() => setView('home')}>
              <div className="space-y-8 pb-32">
-                <div className="flex items-center gap-3 ml-2">
-                   <div className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_10px_#60a5fa]" />
-                   <h3 className="label-ethereal tracking-[0.3em]">Arhivă Gânduri</h3>
-                   <div className="h-[1px] flex-grow bg-white/5 ml-2" />
+                <div className="liquid-panel p-4 flex items-center gap-4 group mx-2">
+                   <Search className="w-5 h-5 opacity-20 group-focus-within:opacity-100 transition-opacity" />
+                   <input 
+                     type="text" 
+                     placeholder="Caută în memorie..." 
+                     className="bg-transparent border-none outline-none flex-grow label-ethereal tracking-widest text-white placeholder:opacity-20"
+                     onChange={(e) => setNoteSearch(e.target.value)}
+                   />
                 </div>
-                <div className="grid gap-4">
-                   {notes.map(n => (
-                     <div key={n.id} className="liquid-panel p-6 space-y-4 hover:bg-white/[0.05] transition-all group relative">
-                        <div className="flex justify-between items-start">
-                           <div className="w-10 h-10 rounded-xl bg-blue-500/5 flex items-center justify-center">
-                              <Pin className={`w-4 h-4 ${n.is_pinned ? 'text-blue-400' : 'text-gray-600'}`} />
-                           </div>
-                           <span className="label-ethereal text-[8px] opacity-20">{new Date(n.created_at).toLocaleDateString('ro-RO')}</span>
-                        </div>
-                        <p className="text-xl font-light leading-relaxed text-white/90">{n.content}</p>
-                        <div className="flex flex-wrap gap-2">
-                           {n.tags?.map((t: string) => (
-                             <span key={t} className="text-[9px] font-black text-blue-400/60 bg-blue-400/5 px-2 py-1 rounded-md border border-blue-400/10">#{t.toUpperCase()}</span>
-                           ))}
-                        </div>
-                     </div>
+
+                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 px-2">
+                   {['toate', 'idei', 'jurnal', 'lucru'].map(tag => (
+                     <button 
+                       key={tag}
+                       onClick={(e) => { e.stopPropagation(); setSelectedTag(tag); }}
+                       className={`px-4 py-2 rounded-full text-[8px] label-ethereal border-[0.5px] transition-all whitespace-nowrap ${selectedTag === tag ? 'bg-[#adc6ff] text-black border-[#adc6ff]' : 'border-white/10 opacity-40 hover:opacity-100'}`}
+                     >
+                       {tag.toUpperCase()}
+                     </button>
+                   ))}
+                </div>
+
+                <div className="grid gap-4 px-2">
+                   {notes
+                     .filter(n => (selectedTag === 'toate' || (n.tags && n.tags.includes(selectedTag))))
+                     .filter(n => (n.title?.toLowerCase() || '').includes(noteSearch.toLowerCase()) || n.content.toLowerCase().includes(noteSearch.toLowerCase()))
+                     .map(n => (
+                      <div key={n.id} className="liquid-panel p-6 space-y-4 hover:bg-white/[0.05] transition-all group relative overflow-hidden">
+                         <div className="flex justify-between items-start relative z-10">
+                            <div className="space-y-1">
+                               <h4 className="text-xl font-light tracking-tight text-white group-hover:text-[#adc6ff] transition-colors">{n.title || 'Notă fără titlu'}</h4>
+                               <p className="label-ethereal text-[8px] opacity-30">{new Date(n.created_at).toLocaleDateString()}</p>
+                            </div>
+                            <div className={`w-10 h-10 rounded-xl ${n.is_pinned ? 'bg-blue-500/20' : 'bg-white/5'} flex items-center justify-center`}>
+                               <Pin className={`w-4 h-4 ${n.is_pinned ? 'text-blue-400' : 'text-gray-600'}`} />
+                            </div>
+                         </div>
+                         <p className="text-sm font-light leading-relaxed text-white/50 line-clamp-3 group-hover:text-white/70 transition-colors">{n.content}</p>
+                      </div>
                    ))}
                 </div>
              </div>
@@ -1181,7 +1245,7 @@ function App() {
         )}
 
         {view === 'finance' && (
-          <ViewContainer title="Tezaur" onBack={() => setView('home')}>
+          <ViewContainer title="Tezaur & Fluxuri" onBack={() => setView('home')}>
              <div className="space-y-12 pb-32">
                 <div className="liquid-panel p-12 text-center relative overflow-hidden group bg-gradient-to-br from-emerald-500/5 to-transparent">
                    <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-[100px] -mr-32 -mt-32" />
@@ -1202,15 +1266,45 @@ function App() {
                    </div>
                 </div>
 
+                {/* Category Breakdown */}
+                <div className="space-y-8">
+                   <div className="flex items-center gap-3 ml-2">
+                      <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_#10b981]" />
+                      <h3 className="label-ethereal tracking-[0.3em]">Distribuție Categorii</h3>
+                      <div className="h-[1px] flex-grow bg-white/5 ml-2" />
+                   </div>
+                   <div className="grid gap-6">
+                      {Object.entries(
+                        financeHistory.filter(t => t.type === 'expense').reduce((acc: any, t) => {
+                          acc[t.category] = (acc[t.category] || 0) + Number(t.amount);
+                          return acc;
+                        }, {})
+                      ).sort((a: any, b: any) => b[1] - a[1]).slice(0, 5).map(([cat, amt]: [string, any]) => {
+                        const pct = finance?.total_expenses > 0 ? Math.round((amt / finance.total_expenses) * 100) : 0;
+                        return (
+                          <div key={cat} className="space-y-3">
+                             <div className="flex justify-between text-[10px] label-ethereal tracking-widest">
+                                <span>{cat}</span>
+                                <span className="opacity-40">{amt} RON • {pct}%</span>
+                             </div>
+                             <div className="h-[2px] bg-white/5 rounded-full overflow-hidden">
+                                <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} className="h-full bg-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.3)]" />
+                             </div>
+                          </div>
+                        );
+                      })}
+                   </div>
+                </div>
+
                 <div className="space-y-8">
                    <div className="flex items-center gap-3 ml-2">
                       <div className="w-2 h-2 rounded-full bg-[#adc6ff] shadow-[0_0_10px_#adc6ff]" />
-                      <h3 className="label-ethereal tracking-[0.3em]">Arhivă Tranzacții</h3>
+                      <h3 className="label-ethereal tracking-[0.3em]">Istoric Recent</h3>
                       <div className="h-[1px] flex-grow bg-white/5 ml-2" />
                    </div>
 
                    <div className="grid gap-3">
-                      {financeHistory.map((tx: any) => (
+                      {financeHistory.slice(0, 15).map((tx: any) => (
                         <div key={tx.id} className="liquid-panel p-4 flex items-center gap-5 hover:bg-white/[0.05] transition-all group">
                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${tx.type === 'income' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-400/10 text-red-400'} group-hover:scale-110`}>
                               {tx.type === 'income' ? <TrendingUp className="w-6 h-6" /> : <Wallet className="w-6 h-6" />}
@@ -1235,10 +1329,22 @@ function App() {
         )}
 
         {view === 'tasks' && (
-          <ViewContainer title="Task-uri" onBack={() => setView('home')}>
+          <ViewContainer title="Task-uri & Operativ" onBack={() => setView('home')}>
              <div className="space-y-12 pb-32">
+                <div className="flex gap-4 p-1 liquid-panel rounded-2xl mx-2">
+                   {['active', 'done'].map(s => (
+                     <button 
+                       key={s}
+                       onClick={(e) => { e.stopPropagation(); setTaskFilter(s as any); }}
+                       className={`flex-1 py-3 rounded-xl text-[10px] label-ethereal transition-all ${taskFilter === s ? 'bg-white/10 text-white shadow-xl' : 'opacity-30'}`}
+                     >
+                       {s === 'active' ? 'În Lucru' : 'Finalizate'}
+                     </button>
+                   ))}
+                </div>
+
                 {Object.entries(
-                  tasks.filter(t => t.status !== 'done').reduce((acc: any, t) => {
+                  tasks.filter(t => taskFilter === 'done' ? t.status === 'done' : t.status !== 'done').reduce((acc: any, t) => {
                     const p = t.project_name || 'Fără proiect';
                     if (!acc[p]) acc[p] = [];
                     acc[p].push(t);
@@ -1247,7 +1353,7 @@ function App() {
                 ).map(([proj, projTasks]: [string, any]) => (
                   <section key={proj} className="space-y-6">
                      <div className="flex items-center gap-3 ml-2">
-                        <div className="w-2 h-2 rounded-full bg-[#adc6ff] shadow-[0_0_10px_rgba(173,198,255,0.5)]" />
+                        <div className={`w-2 h-2 rounded-full ${taskFilter === 'done' ? 'bg-emerald-500' : 'bg-[#adc6ff]'} shadow-[0_0_10px_rgba(173,198,255,0.5)]`} />
                         <h3 className="label-ethereal tracking-[0.3em]">{proj}</h3>
                         <div className="h-[1px] flex-grow bg-white/5 ml-2" />
                         <span className="text-[10px] font-bold opacity-20">{projTasks.length}</span>
@@ -1257,13 +1363,17 @@ function App() {
                           <div 
                             key={t.id} 
                             className={`liquid-panel p-4 flex items-center gap-5 group cursor-pointer hover:bg-white/[0.05] transition-all relative overflow-hidden ${t.priority === 'high' ? 'border-r-rose-500/20 border-r-2' : ''}`}
-                            onClick={() => fetch(`${BASE_URL}/api/tasks/${t.id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ action: 'complete' }) }).then(fetchData)}
+                            onClick={() => fetch(`${BASE_URL}/api/tasks/${t.id}`, { 
+                              method: 'PATCH', 
+                              headers: HEADERS, 
+                              body: JSON.stringify({ action: taskFilter === 'done' ? 'reopen' : 'complete' }) 
+                            }).then(fetchData)}
                           >
                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${t.priority === 'high' ? 'bg-rose-500/10 text-rose-400' : 'bg-white/5 text-gray-500'} group-hover:scale-110`}>
-                               {t.priority === 'high' ? <Zap className="w-5 h-5 fill-rose-400/20" /> : <CheckCircle2 className="w-5 h-5 opacity-20 group-hover:opacity-100 transition-opacity" />}
+                               {t.status === 'done' ? <CheckCircle2 className="w-5 h-5 text-emerald-400" /> : (t.priority === 'high' ? <Zap className="w-5 h-5 fill-rose-400/20" /> : <CheckCircle2 className="w-5 h-5 opacity-20 group-hover:opacity-100 transition-opacity" />)}
                             </div>
                             <div className="flex-grow space-y-1">
-                               <p className="font-light text-xl tracking-tight text-white/90 group-hover:text-white transition-colors">{t.title}</p>
+                               <p className={`font-light text-xl tracking-tight transition-all ${t.status === 'done' ? 'text-white/30 line-through' : 'text-white/90 group-hover:text-white'}`}>{t.title}</p>
                                <div className="flex items-center gap-4">
                                  {t.due_date && (
                                    <div className="flex items-center gap-1.5 opacity-40">
@@ -1274,19 +1384,16 @@ function App() {
                                  {t.priority === 'high' && <span className="text-[8px] font-black text-rose-400 uppercase tracking-[0.2em]">Priority High</span>}
                                </div>
                             </div>
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity pr-2">
-                               <CheckCircle2 className="w-6 h-6 text-emerald-400/50" />
-                            </div>
                           </div>
                         ))}
                      </div>
                   </section>
                 ))}
 
-                {tasks.filter(t => t.status !== 'done').length === 0 && (
+                {tasks.filter(t => taskFilter === 'done' ? t.status === 'done' : t.status !== 'done').length === 0 && (
                   <div className="py-32 text-center space-y-6">
-                     <CheckCircle2 className="w-12 h-12 text-emerald-500/20 mx-auto" />
-                     <p className="label-ethereal opacity-40 italic">Flux de lucru optimizat • Nicio sarcină restantă</p>
+                     <CheckCircle2 className="w-12 h-12 text-blue-500/10 mx-auto" />
+                     <p className="label-ethereal opacity-40 italic">Sistem optimizat • Nicio înregistrare în această categorie</p>
                   </div>
                 )}
              </div>
