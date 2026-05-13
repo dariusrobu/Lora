@@ -679,7 +679,7 @@ function App() {
 
         {/* --- Specific Module Views --- */}
         {view === 'uni' && (
-          <ViewContainer title="Sistem Academic" onBack={() => setView('home')}>
+          <ViewContainer key="uni" title="Sistem Academic" onBack={() => setView('home')}>
              <div className="space-y-12 pb-32">
                 <GlassCard className="bg-gradient-to-br from-[#ffb786]/10 to-transparent p-10 relative overflow-hidden group">
                    <div className="absolute top-0 right-0 w-64 h-64 bg-[#ffb786]/5 rounded-full blur-[100px] -mr-32 -mt-32" />
@@ -773,7 +773,7 @@ function App() {
         )}
 
         {view === 'shop' && (
-          <ViewContainer title="Shopping List" onBack={() => setView('home')}>
+          <ViewContainer key="shop" title="Shopping List" onBack={() => setView('home')}>
              <div className="space-y-12 pb-32">
                 <div className="flex justify-between items-center px-2">
                    <div className="space-y-1">
@@ -827,7 +827,7 @@ function App() {
         )}
 
         {view === 'notes' && (
-          <ViewContainer title="Creier / Note" onBack={() => setView('home')}>
+          <ViewContainer key="notes" title="Creier / Note" onBack={() => setView('home')}>
              <div className="space-y-8 pb-32">
                 <div className="liquid-panel p-4 flex items-center gap-4 group mx-2">
                    <Search className="w-5 h-5 opacity-20 group-focus-within:opacity-100 transition-opacity" />
@@ -1239,7 +1239,7 @@ function App() {
         )}
 
         {view === 'finance' && (
-          <ViewContainer title="Tezaur & Fluxuri" onBack={() => setView('home')}>
+          <ViewContainer key="finance" title="Tezaur & Fluxuri" onBack={() => setView('home')}>
              <div className="space-y-12 pb-32">
                 <div className="liquid-panel p-12 text-center relative overflow-hidden group bg-gradient-to-br from-emerald-500/5 to-transparent">
                    <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-[100px] -mr-32 -mt-32" />
@@ -1323,7 +1323,7 @@ function App() {
         )}
 
         {view === 'tasks' && (
-          <ViewContainer title="Task-uri & Operativ" onBack={() => setView('home')}>
+          <ViewContainer key="tasks" title="Task-uri & Operativ" onBack={() => setView('home')}>
              <div className="space-y-12 pb-32">
                 <div className="flex gap-4 p-1 liquid-panel rounded-2xl mx-2">
                    {['active', 'done'].map(s => (
@@ -1338,7 +1338,8 @@ function App() {
                 </div>
 
                 {Object.entries(
-                  tasks.filter(t => taskFilter === 'done' ? t.status === 'done' : t.status !== 'done').reduce((acc: any, t) => {
+                  (tasks || []).filter(t => t && (taskFilter === 'done' ? t.status === 'done' : t.status !== 'done')).reduce((acc: any, t) => {
+                    if (!t) return acc;
                     const p = t.project_name || 'Fără proiect';
                     if (!acc[p]) acc[p] = [];
                     acc[p].push(t);
@@ -1384,7 +1385,7 @@ function App() {
                   </section>
                 ))}
 
-                {tasks.filter(t => taskFilter === 'done' ? t.status === 'done' : t.status !== 'done').length === 0 && (
+                {(tasks || []).filter(t => t && (taskFilter === 'done' ? t.status === 'done' : t.status !== 'done')).length === 0 && (
                   <div className="py-32 text-center space-y-6">
                      <CheckCircle2 className="w-12 h-12 text-blue-500/10 mx-auto" />
                      <p className="label-ethereal opacity-40 italic">Sistem optimizat • Nicio înregistrare în această categorie</p>

@@ -206,6 +206,9 @@ async def patch_task(request):
 
         if action == "complete":
             await task_queries.complete_task(pool, task_id)
+        elif action == "reopen":
+            async with pool.acquire() as conn:
+                await conn.execute("UPDATE tasks SET status = 'pending', completed_at = NULL WHERE id = $1", task_id)
         elif action == "delete":
             await task_queries.delete_task(pool, task_id)
         else:
