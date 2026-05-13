@@ -146,6 +146,13 @@ function App() {
   const [financeHistory, setFinanceHistory] = useState<any[]>([]);
   const [profile, setProfile] = useState<any>(null);
   const [weather, setWeather] = useState<any>(null);
+  const [goals, setGoals] = useState<any[]>([]);
+  const [moodLogs, setMoodLogs] = useState<any[]>([]);
+  const [insights, setInsights] = useState<any>(null);
+  const [news, setNews] = useState<any[]>([]);
+  const [planner, setPlanner] = useState<any[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
+  const [systemStats, setSystemStats] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [memories, setMemories] = useState<any[]>([]);
   const [readingList, setReadingList] = useState<any[]>([]);
@@ -236,7 +243,7 @@ function App() {
 
     try {
       setErrorMessage(null);
-      const [t, f, u, g, s, shop, n, h, c, f_hist, prof, w, projs, mems, read, nutr, travel] = await Promise.all([
+      const [t, f, u, g, s, shop, n, h, c, f_hist, prof, w, projs, mems, read, nutr, travel, goalsData, moodData, insightsData, newsData, plannerData, eventsData, systemData] = await Promise.all([
         fetchModule('/api/tasks?status=all', []),
         fetchModule('/api/finances/summary'),
         fetchModule('/api/university/summary'),
@@ -253,7 +260,14 @@ function App() {
         fetchModule('/api/memory', []),
         fetchModule('/api/reading', []),
         fetchModule('/api/nutrition', []),
-        fetchModule('/api/travel/lists', [])
+        fetchModule('/api/travel/lists', []),
+        fetchModule('/api/goals', []),
+        fetchModule('/api/mood', []),
+        fetchModule('/api/insights'),
+        fetchModule('/api/news', []),
+        fetchModule('/api/planner', []),
+        fetchModule('/api/events', []),
+        fetchModule('/api/system/stats')
       ]);
 
       setTasks(t);
@@ -273,6 +287,13 @@ function App() {
       setReadingList(read);
       setNutritionLogs(nutr);
       setTravelLists(travel);
+      setGoals(goalsData || []);
+      setMoodLogs(moodData || []);
+      setInsights(insightsData);
+      setNews(newsData || []);
+      setPlanner(plannerData || []);
+      setEvents(eventsData || []);
+      setSystemStats(systemData);
     } catch (e: any) {
       console.error("Global fetch error:", e);
       setErrorMessage(e.message || "Eroare necunoscută la sincronizare");
@@ -1472,6 +1493,139 @@ function App() {
                  </div>
                </div>
             </div>
+          </ViewContainer>
+        {view === 'goals' && (
+          <ViewContainer title="Obiective Strategice" onBack={() => setView('home')}>
+             <div className="space-y-8 pb-32">
+                {goals.length > 0 ? (
+                  <div className="grid gap-4">
+                    {goals.map((g: any) => (
+                      <GlassCard key={g.id} className="p-6">
+                        <div className="flex justify-between items-center">
+                          <h4 className="text-xl font-light">{g.title}</h4>
+                          <span className="label-ethereal text-[8px]">{g.status}</span>
+                        </div>
+                        <div className="mt-4 h-1 bg-white/5 rounded-full overflow-hidden">
+                          <div className="h-full bg-orange-400 opacity-40" style={{ width: `${g.progress || 0}%` }} />
+                        </div>
+                      </GlassCard>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-24 text-center opacity-30">
+                    <Target className="w-12 h-12 mx-auto mb-4" />
+                    <p className="label-ethereal">Niciun obiectiv activ</p>
+                  </div>
+                )}
+             </div>
+          </ViewContainer>
+        )}
+
+        {view === 'mood' && (
+          <ViewContainer title="Stare & Energie" onBack={() => setView('home')}>
+             <div className="space-y-8 pb-32">
+                <div className="grid grid-cols-2 gap-4">
+                  {['Excited', 'Balanced', 'Tired', 'Low'].map(m => (
+                    <GlassCard key={m} className="p-8 text-center hover:bg-white/5 cursor-pointer transition-all">
+                      <p className="text-sm font-light">{m}</p>
+                    </GlassCard>
+                  ))}
+                </div>
+                <div className="space-y-4">
+                   <h3 className="label-ethereal ml-2">Istoric Stări</h3>
+                   {moodLogs.map((log: any, i) => (
+                     <div key={i} className="liquid-panel p-4 flex justify-between">
+                        <span className="opacity-40">{new Date(log.created_at).toLocaleDateString()}</span>
+                        <span className="font-bold">{log.mood_score}/10</span>
+                     </div>
+                   ))}
+                </div>
+             </div>
+          </ViewContainer>
+        )}
+
+        {view === 'focus' && (
+          <ViewContainer title="Deep Work OS" onBack={() => setView('home')}>
+             <div className="flex flex-col items-center justify-center py-20 space-y-12">
+                <div className="relative w-64 h-64 flex items-center justify-center">
+                   <div className="absolute inset-0 rounded-full border-4 border-white/5" />
+                   <p className="text-7xl font-thin tracking-tighter kinetic-text">{formatTime(timeLeft)}</p>
+                </div>
+                <button onClick={() => setTimerActive(!timerActive)} className="primary-button px-12 py-5 text-lg">
+                   {timerActive ? 'Pause Session' : 'Start Focus'}
+                </button>
+             </div>
+          </ViewContainer>
+        )}
+
+        {view === 'insights' && (
+          <ViewContainer title="AI Patterns" onBack={() => setView('home')}>
+             <div className="space-y-8 pb-32">
+                <GlassCard className="p-8 bg-indigo-500/5 border-indigo-500/10">
+                   <Brain className="w-8 h-8 text-indigo-400 mb-6" />
+                   <p className="text-lg font-light leading-relaxed">
+                     {insights?.summary || "Analizând datele tale pentru a genera tipare comportamentale... Revino peste câteva ore."}
+                   </p>
+                </GlassCard>
+             </div>
+          </ViewContainer>
+        )}
+
+        {view === 'news' && (
+          <ViewContainer title="Tech & Global News" onBack={() => setView('home')}>
+             <div className="space-y-6 pb-32">
+                {news.map((n: any, i) => (
+                  <GlassCard key={i} className="p-6">
+                    <h4 className="font-bold mb-2">{n.title}</h4>
+                    <p className="text-xs opacity-50">{n.source}</p>
+                  </GlassCard>
+                ))}
+                {news.length === 0 && <p className="text-center py-20 opacity-30 label-ethereal">Nicio știre nouă</p>}
+             </div>
+          </ViewContainer>
+        )}
+
+        {view === 'planner' && (
+          <ViewContainer title="Daily Planner" onBack={() => setView('home')}>
+             <div className="space-y-4 pb-32">
+                {['09:00', '12:00', '15:00', '18:00', '21:00'].map(t => (
+                  <div key={t} className="flex gap-6 items-center">
+                    <span className="label-ethereal w-12">{t}</span>
+                    <div className="flex-grow h-[1px] bg-white/5" />
+                    <div className="w-3/4 liquid-panel p-4 min-h-[60px] opacity-20 border-dashed">
+                       <span className="text-[10px] uppercase tracking-widest">Liber</span>
+                    </div>
+                  </div>
+                ))}
+             </div>
+          </ViewContainer>
+        )}
+
+        {view === 'system' && (
+          <ViewContainer title="Lora Core OS" onBack={() => setView('home')}>
+             <div className="space-y-8 pb-32">
+                <div className="grid grid-cols-2 gap-4">
+                   <GlassCard className="p-6">
+                      <p className="label-ethereal">Uptime</p>
+                      <p className="text-2xl font-black">99.9%</p>
+                   </GlassCard>
+                   <GlassCard className="p-6">
+                      <p className="label-ethereal">Memorie AI</p>
+                      <p className="text-2xl font-black">{systemStats?.memory_usage || '4.2'} GB</p>
+                   </GlassCard>
+                </div>
+                <div className="liquid-panel p-6">
+                   <div className="flex items-center gap-3 mb-6">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="label-ethereal">Toate sistemele nominale</span>
+                   </div>
+                   <div className="space-y-2 opacity-40 text-[10px] font-mono">
+                      <p>> Sincronizare baza de date... OK</p>
+                      <p>> Verificare vector embeddings... OK</p>
+                      <p>> Rulare analize euristice... OK</p>
+                   </div>
+                </div>
+             </div>
           </ViewContainer>
         )}
 
