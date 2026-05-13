@@ -223,7 +223,7 @@ function App() {
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       
       try {
-        const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`;
+        const fullUrl = `${url.startsWith('http') ? url : BASE_URL + url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`;
         const r = await fetch(fullUrl, { 
           headers: HEADERS,
           signal: controller.signal 
