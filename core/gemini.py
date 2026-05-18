@@ -9,7 +9,6 @@ import json
 import logging
 import re
 from pydantic import BaseModel, Field, model_validator
-from core.memory import extract_and_save_facts
 from core.context import build_temporal_context
 import google.api_core.exceptions
 
@@ -19,23 +18,25 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 _api_available = True
 _failure_count = 0
 
+
 async def get_embedding(text: str) -> List[float]:
     """
     Generates a 768-dimensional embedding for the given text using text-embedding-004.
     """
     if not text:
         return []
-    
+
     try:
         response = client.models.embed_content(
             model="text-embedding-004",
             contents=text,
-            config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
+            config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
         )
         return response.embeddings[0].values
     except Exception as e:
         logging.error(f"Error generating embedding: {e}")
         return []
+
 
 def preprocess_text(text: str) -> str:
     """
@@ -253,8 +254,16 @@ async def get_gemini_response(
     now = datetime.now(user_tz)
     tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
 
-    system_prompt = f"""
-Ești Lora, asistentul personal AI al lui {user_name}, care trăiește în Telegram.
+    system_prompt = f"""## IDENTITATE — OBLIGATORIU DE RESPECTAT ÎN ORICE RĂSPUNS
+Tu ești Lora — asistentul personal al lui [NUMELE_USER]. 
+NU ești ChatGPT, NU ești un asistent generic, NU ești un chatbot.
+Ești Lora. Vorbești în Romglish (română + termeni tehnici englezi).
+Tonul tău: direct, concis, inteligent, ușor familiar. Ca un coleg bun, nu ca un robot.
+NICIODATĂ: 'Sigur!', 'Cu plăcere!', 'Desigur!', 'Bineînțeles!'
+ÎNTOTDEAUNA: răspunsuri la obiect, maxim 2-3 propoziții pentru acțiuni simple.
+Dacă userul vorbește despre un proiect → ești conștientă de contextul lui din DB.
+
+Ești Lora, asistentul personal AI al lui [NUMELE_USER], care trăiește în Telegram.
 Ești second brain-ul lor — organizat, proactiv, inteligent, și un companion de conversație excelent.
 Ești un Life Advisor și partener de strategie: asculți, analizezi și extragi acțiuni (task-uri, cheltuieli, obiective) din orice discuție despre viață.
 Poți discuta orice subiect: știință, filosofie, tehnologie, viață personală, sfaturi, dezbateri.
@@ -263,7 +272,10 @@ Nu ieși niciodată din personaj.
 TONE: {tone}
 - warm  = caldă, prietenoasă, empatică, răspunsuri detaliate când e nevoie
 - direct = stil „Tough Love”; autoritară, exigentă și extrem de tăioasă; te ceartă dur pentru lipsa de disciplină, amânări sau vicii; oferă feedback care „doare” dar este constructiv; nu acceptă scuze; folosește sarcasmul și autoritatea pentru a te forța să fii mai bun; răspunsurile pot fi mai lungi pentru a livra lecția necesară.
-- brief  = răspunsuri scurte dar complete
+- brief  = răspunsuri scurte dar complete"""
+    system_prompt = system_prompt.replace("[NUMELE_USER]", user_name)
+
+    system_prompt += f"""
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {temporal_context}
@@ -823,11 +835,11 @@ A: intent="travel_packed", module="travel", data={{ "item": "laptop", "list_name
 
 async def analyze_intent(pool, text: str, context: str = "") -> Dict[str, Any]:
     """
-    Legacy wrapper for get_gemini_response, used for simple intent analysis 
+    Legacy wrapper for get_gemini_response, used for simple intent analysis
     without history/full context logic.
     """
     from core.config import TELEGRAM_USER_ID
-    
+
     return await get_gemini_response(
         pool=pool,
         user_id=TELEGRAM_USER_ID,
@@ -836,7 +848,7 @@ async def analyze_intent(pool, text: str, context: str = "") -> Dict[str, Any]:
         tone="direct",
         context_snapshot=context,
         history=[],
-        system_hint="Analizează acest mesaj și returnează intent-ul corect."
+        system_hint="Analizează acest mesaj și returnează intent-ul corect.",
     )
 
 
