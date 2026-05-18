@@ -74,6 +74,64 @@ async def transcribe_voice(update, context) -> tuple[str, str]:
 
         transcription = response.text.strip()
         print(f"🎙 VOICE: Transcription result: {repr(transcription)}", flush=True)
+
+        # 4.5 Post-processing transcription with Gemini to fix Romglish and project names
+        pool = context.bot_data.get("pool") if context else None
+        project_names = []
+        if pool:
+            try:
+                async with pool.acquire() as conn:
+                    rows = await conn.fetch(
+                        "SELECT name FROM projects WHERE status != 'archived'"
+                    )
+                    project_names = [row["name"] for row in rows]
+            except Exception as db_err:
+                print(
+                    f"⚠️ Failed to fetch projects for STT normalization: {db_err}",
+                    flush=True,
+                )
+
+        lista_proiecte = (
+            ", ".join(project_names) if project_names else "fără proiecte specifice"
+        )
+
+        post_prompt = (
+            f"Corectează transcrierea următoare știind că userul vorbește Romglish "
+            f"(română + termeni tehnici englezi). Proiectele cunoscute: {lista_proiecte}.\n"
+            f"Corectează doar greșeli evidente de transcriere, nu modifica sensul.\n"
+            f"Răspunde DOAR cu textul corectat."
+        )
+
+        try:
+            print("🎙 VOICE: Post-processing transcription with Gemini...", flush=True)
+            post_response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    client.models.generate_content,
+                    model="gemini-2.5-flash",
+                    contents=[
+                        types.Content(
+                            role="user",
+                            parts=[
+                                types.Part.from_text(text=post_prompt),
+                                types.Part.from_text(
+                                    text=f"Text de corectat: {transcription}"
+                                ),
+                            ],
+                        )
+                    ],
+                    config=types.GenerateContentConfig(
+                        temperature=0.1,
+                    ),
+                ),
+                timeout=20.0,
+            )
+            corrected_text = post_response.text.strip()
+            if corrected_text:
+                print(f"🎙 VOICE: Corrected text: {repr(corrected_text)}", flush=True)
+                transcription = corrected_text
+        except Exception as post_err:
+            print(f"⚠️ VOICE: STT post-processing failed: {post_err}", flush=True)
+
         return transcription, myfile.uri
 
     except Exception as e:
