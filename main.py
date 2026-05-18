@@ -72,6 +72,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+async def health_check(request):
+    """Simple health check endpoint for Render keep-alive."""
+    return web.Response(text="OK", status=200)
+
+
 async def handle_health_check(request):
     """Detailed health check endpoint."""
     pool = request.app.get("pool")
@@ -385,15 +390,10 @@ async def start_bot():
 
     app = web.Application(middlewares=[cors_middleware, log_middleware])
     app["pool"] = pool
+    app.router.add_get("/health", health_check)
     app.router.add_get("/api/health", handle_health_check)
     app.router.add_get("/api/debug", handle_debug)
     setup_api_routes(app)
-
-    async def serve_welcome(request):
-        return web.Response(
-            text="🚀 Lora Bot is ONLINE\n\nDiagnostic links:\n- /api/health\n- /api/debug\n- /api/projects\n\nDashboard is hosted separately on Render.",
-            content_type="text/plain"
-        )
 
     async def serve_welcome(request):
         return web.Response(

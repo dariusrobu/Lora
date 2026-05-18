@@ -34,6 +34,42 @@ async def build_context(pool, current_message: str = None) -> str:
 
     profile = await get_user_profile(pool, TELEGRAM_USER_ID)
 
+    async def get_projects_context():
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT 
+                    p.id, 
+                    p.name, 
+                    p.description, 
+                    p.status, 
+                    p.deadline, 
+                    p.priority, 
+                    p.category, 
+                    p.progress_pct, 
+                    p.updated_at,
+                    COALESCE(
+                        (
+                            SELECT json_agg(t_sub) FROM (
+                                SELECT t.id, t.title, t.priority, to_char(t.due_date, 'YYYY-MM-DD') as due_date
+                                FROM tasks t
+                                WHERE t.project_id = p.id AND t.status = 'pending'
+                                ORDER BY t.priority = 'high' DESC, t.due_date ASC NULLS LAST, t.id ASC
+                                LIMIT 3
+                            ) t_sub
+                        ), 
+                        '[]'::json
+                    ) as pending_tasks
+                FROM projects p
+                WHERE p.status != 'archived'
+                ORDER BY p.updated_at DESC
+            """)
+            return [dict(r) for r in rows]
+
+    from db.queries.history import get_recent_history
+
+    t_projects = get_projects_context()
+    t_history = get_recent_history(pool, TELEGRAM_USER_ID, limit=5)
+
     # 1. Prepare tasks to be executed in parallel
     t_tasks = task_queries.list_tasks(pool)
     t_events = event_queries.list_events(pool, today, today)
@@ -84,6 +120,8 @@ async def build_context(pool, current_message: str = None) -> str:
         t_notes,
         t_journal,
         t_memory,
+        t_projects,
+        t_history,
     )
 
     (
@@ -96,7 +134,35 @@ async def build_context(pool, current_message: str = None) -> str:
         notes,
         journal,
         memory_facts,
+        active_projects,
+        recent_history,
     ) = results
+
+    # 3. Process mentions and projects
+    conversation_texts = [h["content"] for h in recent_history if h.get("content")]
+    if current_message and (
+        not conversation_texts or current_message != conversation_texts[-1]
+    ):
+        conversation_texts.append(current_message)
+    conversation_texts = conversation_texts[-5:]
+
+    mentioned_projects = []
+    other_projects = []
+
+    for proj in active_projects:
+        proj_name = proj["name"]
+        mentioned = False
+        for text in conversation_texts:
+            if text and proj_name.lower() in text.lower():
+                mentioned = True
+                break
+
+        if mentioned:
+            mentioned_projects.append(proj)
+        else:
+            other_projects.append(proj)
+
+    sorted_projects = mentioned_projects + other_projects
 
     snapshot = []
     snapshot.append(f"--- STATUS CURENT ({now.strftime('%H:%M')}) ---")
@@ -126,6 +192,46 @@ async def build_context(pool, current_message: str = None) -> str:
     snapshot.append(f"Tasks pending: {len(pending)} ({len(overdue)} overdue)")
     for t in pending[:5]:
         snapshot.append(f"• {t['title']} (prioritate: {t['priority']})")
+
+    # Active Projects
+    if sorted_projects:
+        snapshot.append("\n## Proiectele active")
+        for proj in sorted_projects:
+            is_active_mention = any(
+                proj["name"].lower() in text.lower()
+                for text in conversation_texts
+                if text
+            )
+            marker = " ⚡ Proiect activ în conversație" if is_active_mention else ""
+
+            last_active = proj["updated_at"]
+            last_active_str = (
+                last_active.strftime("%Y-%m-%d %H:%M") if last_active else "N/A"
+            )
+            progress = proj.get("progress_pct") or 0
+            desc = f" - {proj['description']}" if proj.get("description") else ""
+
+            snapshot.append(f"• **{proj['name']}**{marker}{desc}")
+            snapshot.append(
+                f"  Progres: {progress}%, Ultima activitate: {last_active_str}"
+            )
+
+            p_tasks = proj.get("pending_tasks") or []
+            if isinstance(p_tasks, str):
+                import json
+
+                try:
+                    p_tasks = json.loads(p_tasks)
+                except Exception:
+                    p_tasks = []
+
+            if p_tasks:
+                snapshot.append("  Tasks deschise:")
+                for t in p_tasks[:3]:
+                    due_str = f" (due: {t['due_date']})" if t.get("due_date") else ""
+                    snapshot.append(
+                        f"    - {t['title']} [prioritate: {t['priority']}]{due_str}"
+                    )
 
     # Events
     if events:
@@ -248,9 +354,7 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
             # fetch_all_calendars_events returns a list of dicts
             all_ic_events = await fetch_all_calendars_events(days_ahead=1)
             # Filter for today
-            icloud_events = [
-                e for e in all_ic_events if e["start"].date() == today
-            ]
+            icloud_events = [e for e in all_ic_events if e["start"].date() == today]
         except Exception:
             pass
 
