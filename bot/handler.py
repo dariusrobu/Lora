@@ -143,7 +143,7 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
 
         # Get highest resolution photo
         photo_file = await update.message.photo[-1].get_file()
-        photo_bytes = await photo_file.download_as_bytearray()
+        photo_bytes = await photo_file.download_to_memory()
 
         caption = update.message.caption
 
@@ -1844,6 +1844,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             f"DEBUG: CALLBACK RECEIVED: action={action} params={params} from user={update.effective_user.id}",
             flush=True,
         )
+
+        if data.startswith("onboard:"):
+            from bot.onboarding import handle_onboarding_callback
+            await handle_onboarding_callback(update, context, pool)
+            return
 
         if data.startswith("profile_"):
             if data == "profile_edit_tone":

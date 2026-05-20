@@ -64,9 +64,9 @@ async def handle_onboarding_callback(
 
     data = query.data
 
-    if data == "onboard:tz_ok":
+    if data == "onboard:tz:ok":
         await finish_onboarding(update, context, pool)
-    elif data == "onboard:tz_change":
+    elif data == "onboard:tz:change":
         await query.edit_message_text(
             "What's your timezone? (e.g. Europe/London, America/New_York)"
         )

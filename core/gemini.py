@@ -211,11 +211,10 @@ async def _call_gemini_with_retry(pool, user_id, api_func, *args, **kwargs):
             google.api_core.exceptions.ServiceUnavailable,
             google.api_core.exceptions.DeadlineExceeded,
             asyncio.TimeoutError,
-            Exception,
         ) as e:
             last_err = e
             error_msg = str(e)
-            print(f"Gemini API attempt {i + 1} failed: {error_msg}")
+            print(f"Gemini API attempt {i + 1} failed (transient): {error_msg}")
 
             if i < len(delays):
                 await asyncio.sleep(delays[i])
@@ -229,6 +228,9 @@ async def _call_gemini_with_retry(pool, user_id, api_func, *args, **kwargs):
             if pool:
                 await _log_api_downtime(pool, "api_unavailable", user_id)
             raise last_err
+        except Exception as e:
+            print(f"Gemini API attempt {i + 1} failed (non-transient): {e}")
+            raise e
 
 
 async def get_gemini_response(

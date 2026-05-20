@@ -66,7 +66,6 @@ async def add_event_with_1day_reminder(
             )
             event_id = row["id"]
 
-            reminder_date = event_date - timedelta(days=1)
             await conn.execute(
                 """
                 INSERT INTO event_day_reminders (event_id, event_date, sent)
@@ -74,7 +73,7 @@ async def add_event_with_1day_reminder(
                 ON CONFLICT DO NOTHING
                 """,
                 event_id,
-                reminder_date,
+                event_date,
             )
             return event_id
 

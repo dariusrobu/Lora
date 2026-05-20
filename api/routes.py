@@ -771,6 +771,10 @@ async def patch_travel_item(request):
         return web.json_response({"error": str(e)}, status=500)
 
 
+async def get_ping(request):
+    return web.json_response({"status": "ok", "message": "pong"})
+
+
 def setup_api_routes(app):
     app.router.add_get("/api/projects", get_projects)
     app.router.add_get("/api/projects/{project_id}", get_project_by_id)
@@ -798,6 +802,7 @@ def setup_api_routes(app):
     app.router.add_get("/api/notes", get_notes)
     app.router.add_get("/api/health/summary", get_health_summary)
     app.router.add_get("/api/calendar/today", get_calendar_today)
+    app.router.add_get("/ping", get_ping)
     app.router.add_get("/api/workout/stats", get_workout_stats)
     app.router.add_get("/api/focus/status", get_focus_status)
     app.router.add_get("/api/skills", get_skills_status)

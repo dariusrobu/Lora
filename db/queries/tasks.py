@@ -172,7 +172,7 @@ async def get_weekly_task_stats(
     async with pool.acquire() as conn:
         # Get total added (needed for existing weekly review logic)
         added = await conn.fetchval(
-            "SELECT COUNT(*) FROM tasks WHERE created_at::date BETWEEN $1 AND $2",
+            "SELECT COUNT(*) FROM tasks WHERE created_at::date BETWEEN $1 AND $2 AND deleted_at IS NULL",
             start_date,
             end_date,
         )
@@ -187,6 +187,7 @@ async def get_weekly_task_stats(
             WHERE completed_at::date >= $1 
               AND completed_at::date <= $2
               AND status = 'done'
+              AND deleted_at IS NULL
             GROUP BY DATE(completed_at)
             ORDER BY date
             """,
@@ -215,7 +216,7 @@ async def get_completed_tasks_per_day(
             """
             SELECT completed_at::date as date, COUNT(*) as count
             FROM tasks
-            WHERE status = 'done' AND completed_at::date BETWEEN $1 AND $2
+            WHERE status = 'done' AND completed_at::date BETWEEN $1 AND $2 AND deleted_at IS NULL
             GROUP BY completed_at::date
             ORDER BY completed_at::date ASC
             """,
@@ -230,10 +231,10 @@ async def get_monthly_task_stats(pool, start_date, end_date) -> dict:
         row = await conn.fetchrow(
             """
             SELECT 
-                COUNT(*) FILTER (WHERE status = 'done' AND completed_at >= $1 AND completed_at < $2) as completed,
-                COUNT(*) FILTER (WHERE created_at >= $1 AND created_at < $2) as created
+                COUNT(*) FILTER (WHERE status = 'done' AND completed_at >= $1 AND completed_at < $2 AND deleted_at IS NULL) as completed,
+                COUNT(*) FILTER (WHERE created_at >= $1 AND created_at < $2 AND deleted_at IS NULL) as created
             FROM tasks
-            WHERE created_at >= $1 AND created_at < $2
+            WHERE (created_at >= $1 AND created_at < $2) OR (completed_at >= $1 AND completed_at < $2)
         """,
             start_date,
             end_date,
@@ -262,6 +263,7 @@ async def find_similar_tasks(pool, title: str, user_id: int) -> List[Dict[str, A
             FROM tasks
             WHERE status = 'done' 
               AND unaccent(title) ILIKE unaccent($1)
+              AND deleted_at IS NULL
             ORDER BY completed_at DESC
             LIMIT 3
             """,

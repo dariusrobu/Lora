@@ -143,6 +143,7 @@ async def send_daily_report(application, pool) -> bool:
 
 
         if COUNCIL_GROUP_CHAT_ID and COUNCIL_GROUP_CHAT_ID != "":
+            completed = payload.get("tasks_completed", [])
             task_titles = [t.get("title") for t in completed if t.get("title")]
             report_text = (
                 f"[REPORT] {today.strftime('%Y-%m-%d')}\n"
@@ -783,6 +784,12 @@ După acest Reality Check, adaugă cele 3 întrebări standard:
             from bot.tts import text_to_speech
             import os
 
+            completed_count = len(eod_data.get("tasks_completed", []))
+            if completed_count > 0:
+                task_status = f"Ai completat {completed_count} task-uri astăzi"
+            else:
+                task_status = "Nu ai completat niciun task astăzi"
+
             tts_text = f"Bună seara, {name}. {task_status}. Răspunde la cele 3 întrebări ca să închidem ziua."
             voice_file = await text_to_speech(tts_text)
             with open(voice_file, "rb") as f:
@@ -983,13 +990,7 @@ async def send_weekly_review(application, pool, force=False):
                 chat_id=TELEGRAM_USER_ID, text=chunk, parse_mode=ParseMode.MARKDOWN_V2
             )
 
-    except Exception as e:
-        print(f"CRITICAL error in send_weekly_review: {e}", flush=True)
-        import traceback
 
-        traceback.print_exc()
-
-        pass
 
         # 6. Send Voice Version (TTS)
         try:
