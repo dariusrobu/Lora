@@ -58,3 +58,7 @@ async def fetch_tech_news(limit: int = 3) -> str:
         return "Nu am putut găsi știri tech în acest moment."
 
     return "Știri Tech de ultimă oră:\n" + "\n".join(news_items[: limit * 2])
+
+async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
+    return False, "Anularea nu este disponibilă pentru modulul de știri."
+

@@ -45,7 +45,7 @@ async def update_profile_from_behavior(pool, user_id: int):
         await conn.execute(
             """
             UPDATE user_profile
-            SET frequent_categories = $1, updated_at = NOW()
+            SET frequent_categories = $1::jsonb, updated_at = NOW()
             WHERE telegram_id = $2
             """,
             json.dumps(frequent_categories),

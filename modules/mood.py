@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, Tuple, Optional
 import calendar
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -68,7 +68,9 @@ async def generate_mood_chart(pool, year: int, month: int) -> bytes:
     return buf.getvalue()
 
 
-async def handle_mood_intent(pool, intent: str, data: Dict[str, Any], bot):
+async def handle_mood_intent(
+    pool, intent: str, data: Dict[str, Any], bot
+) -> Tuple[Optional[str], Any, Optional[int]]:
     from datetime import datetime
 
     now = datetime.now()
@@ -81,6 +83,7 @@ async def handle_mood_intent(pool, intent: str, data: Dict[str, Any], bot):
         if png_bytes is None:
             return (
                 "Nu am suficiente date de mood încă. Completează jurnalul câteva zile și reîncearcă. ✍️",
+                None,
                 None,
             )
 
@@ -111,12 +114,12 @@ async def handle_mood_intent(pool, intent: str, data: Dict[str, Any], bot):
             caption=caption,
             parse_mode=ParseMode.MARKDOWN_V2,
         )
-        return None, None  # Already sent
+        return None, None, None  # Already sent
 
     elif intent == "log_mood":
         mood = data.get("mood")
         if not mood:
-            return "Cum te simți azi? (ex: excelent, ok, slab)", None
+            return "Cum te simți azi? (ex: excelent, ok, slab)", None, None
 
         from db.queries.journal import save_journal_entry, get_journal_entry
         from datetime import date
@@ -131,6 +134,12 @@ async def handle_mood_intent(pool, intent: str, data: Dict[str, Any], bot):
         return (
             f"Am notat! Mă bucur să știu că te simți *{escape_md(mood)}* azi\\! ❤️",
             None,
+            None,
         )
 
-    return "Mood module is active!", None
+    return "Mood module is active!", None, None
+
+
+async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
+    return False, "Anularea nu este disponibilă pentru starea de spirit (este parte din jurnalul zilnic)."
+

@@ -96,3 +96,7 @@ async def check_weather_for_alerts(lat: float, lon: float) -> Optional[str]:
     except Exception as e:
         print(f"Weather alert check exception: {e}")
         return None
+
+async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
+    return False, "Anularea nu este disponibilă pentru vreme, fiind o acțiune de citire."
+

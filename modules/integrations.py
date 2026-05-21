@@ -50,10 +50,14 @@ async def handle_integrations_intent(
         if not unread:
             return f"Nu ai mesaje noi necitite pe {service}. 📥", None, None
         
-        reply = f"Ultimile mesaje pe {service}:\\n"
+        reply = f"Ultimile mesaje pe {service}:\n"
         for i, m in enumerate(unread, 1):
-            reply += f"{i}. *{m['subject']}* de la {m['from']}\\n"
+            reply += f"{i}. *{m['subject']}* de la {m['from']}\n"
         
         return reply, None, None
 
     return "Modulul integrări este activ!", None, None
+
+async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
+    return False, "Anularea nu este disponibilă pentru integrările externe (Mac/Email)."
+
