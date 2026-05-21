@@ -11,24 +11,25 @@ from bot.keyboards import travel_list_keyboard
 
 async def handle_travel_intent(
     pool, intent: str, data: Dict[str, Any]
-) -> Tuple[str, Any]:
+) -> Tuple[str, Any, Optional[int]]:
     if intent == "travel_add":
         items_str = data.get("items") or data.get("item")
         list_name = data.get("list_name") or "General"
         trip_type = data.get("trip_type", "both")
         
         if not items_str:
-            return "Ce vrei să adaug pe lista de travel? 🤔", None
+            return "Ce vrei să adaug pe lista de travel? 🤔", None, None
             
         # Support comma separated items
         items = [i.strip() for i in items_str.split(",") if i.strip()]
+        last_id = None
         for item in items:
-            await add_travel_item(pool, item, list_name, trip_type=trip_type)
+            last_id = await add_travel_item(pool, item, list_name, trip_type=trip_type)
             
         items_joined = ", ".join([f"*{escape_md(i)}*" for i in items])
         # Return list with keyboard after adding
         items_list = await get_travel_items(pool, list_name)
-        return f"✅ Am adăugat {items_joined} pe lista *{escape_md(list_name)}*\\.", travel_list_keyboard(items_list, list_name)
+        return f"✅ Am adăugat {items_joined} pe lista *{escape_md(list_name)}*\\.", travel_list_keyboard(items_list, list_name), last_id
 
     elif intent == "travel_list" or intent == "travel_check":
         list_name = data.get("list_name") or "General"
@@ -36,7 +37,7 @@ async def handle_travel_intent(
         
         items = await get_travel_items(pool, list_name, trip_type)
         if not items:
-            return f"Lista *{escape_md(list_name)}* este goală\\! 🎉 Drum bun\\!", None
+            return f"Lista *{escape_md(list_name)}* este goală\\! 🎉 Drum bun\\!", None, None
 
         reply = f"🧳 *Lista de bagaj: {escape_md(list_name)}*\n"
         if trip_type and trip_type != 'both':
@@ -54,23 +55,23 @@ async def handle_travel_intent(
         if intent == "travel_check":
             reply = f"🛫 *Drum bun\\!* Nu uita să verifici lista pentru *{escape_md(list_name)}*:\n\n" + reply
             
-        return reply, travel_list_keyboard(items, list_name)
+        return reply, travel_list_keyboard(items, list_name), None
 
     elif intent == "travel_packed":
         item_name = data.get("item")
         list_name = data.get("list_name") or "General"
         
         if not item_name:
-            return "Ce ai pus în bagaj? 🤔", None
+            return "Ce ai pus în bagaj? 🤔", None, None
             
         await mark_item_packed_by_name(pool, list_name, item_name)
         items = await get_travel_items(pool, list_name)
-        return f"👍 Am bifat *{escape_md(item_name)}* pe lista *{escape_md(list_name)}*\\.", travel_list_keyboard(items, list_name)
+        return f"👍 Am bifat *{escape_md(item_name)}* pe lista *{escape_md(list_name)}*\\.", travel_list_keyboard(items, list_name), None
 
     elif intent == "travel_clear":
         list_name = data.get("list_name")
         if not list_name:
-            return "Ce listă vrei să resetezi?", None
+            return "Ce listă vrei să resetezi?", None, None
             
         reset_only = data.get("reset_only", True)
         await clear_travel_list(pool, list_name, reset_only=reset_only)
@@ -78,9 +79,24 @@ async def handle_travel_intent(
         action = "resetat" if reset_only else "șters"
         items = await get_travel_items(pool, list_name) if reset_only else []
         markup = travel_list_keyboard(items, list_name) if reset_only else None
-        return f"🧹 Am {action} lista *{escape_md(list_name)}*\\.", markup
+        return f"🧹 Am {action} lista *{escape_md(list_name)}*\\.", markup, None
 
-    return "Modulul travel nu recunoaște acest intent.", None
+    return "Modulul travel nu recunoaște acest intent.", None, None
+
+async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
+    if not item_id:
+        return False, "Nu s-a găsit ID-ul entității de anulat."
+
+    from db.queries.travel import delete_travel_item
+    try:
+        if intent == "travel_add":
+            await delete_travel_item(pool, item_id)
+            return True, "Item-ul de travel a fost șters."
+        
+        return False, f"Anularea nu este implementată pentru intentul '{intent}'."
+    except Exception as e:
+        return False, f"Eroare la anulare: {str(e)}"
+
 
 async def handle_travel_callback(query, pool, data: str):
     from bot.callback_utils import parse_callback_data

@@ -95,6 +95,8 @@ async def handle_project_intent(
             days_left = (detail["deadline"] - today_val).days
             progress = detail.get("progress_pct", 0)
             
+            import db.queries.profile as profile_queries
+            from core.config import TELEGRAM_USER_ID
             profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
             tone = profile.get("tone", "warm")
             

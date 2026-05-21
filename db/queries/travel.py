@@ -1,11 +1,12 @@
 from typing import List, Dict, Any, Optional
 
-async def add_travel_item(pool, item: str, list_name: str, category: Optional[str] = None, trip_type: str = 'both'):
+async def add_travel_item(pool, item: str, list_name: str, category: Optional[str] = None, trip_type: str = 'both') -> int:
     async with pool.acquire() as conn:
-        await conn.execute(
-            "INSERT INTO travel_items (item, list_name, category, trip_type) VALUES ($1, $2, $3, $4)",
+        return await conn.fetchval(
+            "INSERT INTO travel_items (item, list_name, category, trip_type) VALUES ($1, $2, $3, $4) RETURNING id",
             item, list_name, category, trip_type
         )
+
 
 async def get_travel_items(pool, list_name: str, trip_type: Optional[str] = None) -> List[Dict[str, Any]]:
     async with pool.acquire() as conn:

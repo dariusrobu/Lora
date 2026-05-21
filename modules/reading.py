@@ -194,7 +194,7 @@ async def get_book_detail_view(pool, book_id: int) -> Tuple[str, InlineKeyboardM
 
 async def handle_reading_intent(
     pool, intent: str, data: Dict[str, Any], bot=None
-) -> Tuple[str, Optional[InlineKeyboardMarkup]]:
+) -> Tuple[str, Optional[InlineKeyboardMarkup], Optional[int]]:
     if intent == "reading_add":
         title = data.get("title", "")
         author = data.get("author")
@@ -202,27 +202,31 @@ async def handle_reading_intent(
 
         if not title:
             await set_state(pool, "reading_add_book", "reading", "add", None)
-            return "Care e titlul cărții?", None
+            return "Care e titlul cărții?", None, None
 
-        await reading_queries.add_book(pool, title, author, total_pages)
+        book_id = await reading_queries.add_book(pool, title, author, total_pages)
 
         author_str = f" de {escape_md(author)}" if author else ""
         pages_str = f", {total_pages} pagini" if total_pages else ""
-        return data.get(
-            "_original_reply",
-            f"*{escape_md(title)}*{escape_md(author_str)} adăugat în bibliotecă{escape_md(pages_str)}\\. 📚",
-        ), reading_main_keyboard()
+        return (
+            data.get(
+                "_original_reply",
+                f"*{escape_md(title)}*{escape_md(author_str)} adăugat în bibliotecă{escape_md(pages_str)}\\. 📚",
+            ),
+            reading_main_keyboard(),
+            book_id,
+        )
 
     elif intent == "reading_update":
         title = data.get("title", "")
         pages_read = data.get("pages_read")
 
         if not title or pages_read is None:
-            return "Spune-mi cartea și pagina la care ești\\.", None
+            return "Spune-mi cartea și pagina la care ești\\.", None, None
 
         book = await reading_queries.get_book_by_title(pool, title)
         if not book:
-            return f"Nu am găsit cartea *{escape_md(title)}* în bibliotecă\\.", None
+            return f"Nu am găsit cartea *{escape_md(title)}* în bibliotecă\\.", None, None
 
         await reading_queries.update_progress(pool, book["id"], pages_read)
 
@@ -233,23 +237,23 @@ async def handle_reading_intent(
             bar = "█" * filled + "░" * (10 - filled)
             progress_str = f"\n`{bar}` {pct}%"
 
-        return f"*{escape_md(book['title'])}* — pagina {pages_read}{progress_str}", None
+        return f"*{escape_md(book['title'])}* — pagina {pages_read}{progress_str}", None, book["id"]
 
     elif intent == "reading_complete":
         title = data.get("title", "")
         rating = data.get("rating")
 
         if not title:
-            return "Care carte ai terminat?", None
+            return "Care carte ai terminat?", None, None
 
         book = await reading_queries.get_book_by_title(pool, title)
         if not book:
-            return f"Nu am găsit *{escape_md(title)}* în bibliotecă\\.", None
+            return f"Nu am găsit *{escape_md(title)}* în bibliotecă\\.", None, None
 
         await reading_queries.complete_book(pool, book["id"], rating)
 
         stars = " ⭐" * int(rating) if rating else ""
-        return f"*{escape_md(book['title'])}* terminată\\.{stars}", None
+        return f"*{escape_md(book['title'])}* terminată\\.{stars}", None, book["id"]
 
     elif intent == "reading_note":
         title = data.get("title", "")
@@ -257,23 +261,25 @@ async def handle_reading_intent(
         page = data.get("page_number")
 
         if not title or not content:
-            return "Spune-mi cartea și nota\\.", None
+            return "Spune-mi cartea și nota\\.", None, None
 
         book = await reading_queries.get_book_by_title(pool, title)
         if not book:
-            return f"Nu am găsit *{escape_md(title)}*\\.", None
+            return f"Nu am găsit *{escape_md(title)}*\\.", None, None
 
-        await reading_queries.add_book_note(pool, book["id"], content, page)
+        note_id = await reading_queries.add_book_note(pool, book["id"], content, page)
         page_str = f" \\(p\\. {page}\\)" if page else ""
-        return f"Notă salvată din *{escape_md(book['title'])}*{page_str}\\. 📝", None
+        return f"Notă salvată din *{escape_md(book['title'])}*{page_str}\\. 📝", None, note_id
 
     elif intent == "reading_list":
-        return await get_reading_library_view(pool)
+        text, markup = await get_reading_library_view(pool)
+        return text, markup, None
 
     elif intent == "reading_stats":
-        return await get_reading_stats_view(pool)
+        text, markup = await get_reading_stats_view(pool)
+        return text, markup, None
 
-    return "Nu am înțeles cererea legată de cărți\\.", None
+    return "Nu am înțeles cererea legată de cărți\\.", None, None
 
 
 # ── Callback Handlers ───────────────────────────────────────────────
@@ -794,3 +800,24 @@ async def _save_prompt_to_conversation(pool, prompt: str) -> None:
     from core.config import TELEGRAM_USER_ID
 
     await save_message(pool, TELEGRAM_USER_ID, "assistant", prompt)
+
+
+async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
+    if not item_id:
+        return False, "Nu s-a găsit ID-ul entității de anulat."
+
+    try:
+        if intent == "reading_add":
+            await reading_queries.delete_book(pool, item_id)
+            return True, "Adăugarea cărții a fost anulată."
+        elif intent == "reading_complete":
+            await reading_queries.update_book(pool, item_id, status='reading', finished_at=None, rating=None)
+            return True, "Finalizarea cărții a fost anulată. Cartea este din nou în curs de citire."
+        elif intent == "reading_note":
+            await reading_queries.delete_book_note(pool, item_id)
+            return True, "Adăugarea notei a fost anulată."
+
+        return False, f"Anularea nu este implementată pentru intentul '{intent}'."
+    except Exception as e:
+        return False, f"Eroare la anulare: {str(e)}"
+

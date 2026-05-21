@@ -111,13 +111,13 @@ async def handle_skill_intent(
             )  # TODO: Suggest creation
 
         unit = data.get("unit") or skill["unit"]
-        await skill_queries.log_skill_value(
+        log_row = await skill_queries.log_skill_value(
             pool, skill["id"], float(value), metric=unit
         )
         return (
             f"✅ Am înregistrat {escape_md(str(value))} {escape_md(unit)} pentru *{escape_md(skill['name'])}*\\!",
             None,
-            skill["id"],
+            log_row["id"],
         )
 
     elif intent == "view_skills":
@@ -133,11 +133,11 @@ async def handle_skill_intent(
         if existing:
             return f"Habit-ul *{escape_md(name)}* există deja\\.", None, existing["id"]
         unit = data.get("unit", "zile" if frequency == "daily" else "ori")
-        await skill_queries.add_skill(pool, name, unit)
+        new_skill = await skill_queries.add_skill(pool, name, unit)
         return (
             f"✅ Habit *{escape_md(name)}* adăugat \\(tracking: {frequency}, unit: {unit}\\)\\.",
             None,
-            None,
+            new_skill["id"],
         )
 
     elif intent == "log_habit":
@@ -155,12 +155,12 @@ async def handle_skill_intent(
                         InlineKeyboardButton(
                             "✅ Creează și bifează",
                             callback_data=make_callback_data(
-                                "skill", "create", "confirm", name, value
+                                "skills_create_confirm", name[:30], value
                             ),
                         ),
                         InlineKeyboardButton(
                             "❌ Anulează",
-                            callback_data=make_callback_data("skills", "cancel"),
+                            callback_data=make_callback_data("skills_cancel"),
                         ),
                     ]
                 ]
@@ -170,7 +170,7 @@ async def handle_skill_intent(
                 keyboard,
                 None,
             )
-        await skill_queries.log_skill_value(
+        log_row = await skill_queries.log_skill_value(
             pool, skill["id"], float(value), metric=skill.get("unit")
         )
         streak = await skill_queries.get_skill_streak(pool, skill["id"])
@@ -178,7 +178,7 @@ async def handle_skill_intent(
         return (
             rf"✅ {escape_md(name)} bifat\. Streak: *{streak}* {streak_str}",
             None,
-            skill["id"],
+            log_row["id"],
         )
 
     elif intent == "list_habits":
@@ -194,6 +194,8 @@ async def handle_skill_intent(
             return f"Nu am găsit habit-ul *{escape_md(name)}*\\.", None, None
         await skill_queries.delete_skill(pool, skill["id"])
         return f"✅ Habit *{escape_md(name)}* șters\\.", None, skill["id"]
+
+    return "Intent necunoscut pentru Skills\\.", None, None
 
     return "Intent necunoscut pentru Skills\\.", None, None
 
@@ -441,3 +443,20 @@ async def _save_prompt_to_conversation(pool, prompt: str) -> None:
     from core.config import TELEGRAM_USER_ID
 
     await save_message(pool, TELEGRAM_USER_ID, "assistant", prompt)
+
+
+async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
+    if not item_id:
+        return False, "Nu s-a găsit ID-ul entității de anulat."
+
+    try:
+        if intent in ("log_skill", "log_habit"):
+            await skill_queries.delete_skill_log(pool, item_id)
+            return True, "Logarea progresului a fost anulată."
+        elif intent == "add_habit":
+            await skill_queries.delete_skill(pool, item_id)
+            return True, "Adăugarea habit-ului a fost anulată."
+
+        return False, f"Anularea nu este implementată pentru intentul '{intent}'."
+    except Exception as e:
+        return False, f"Eroare la anulare: {str(e)}"

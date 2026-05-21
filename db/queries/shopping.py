@@ -1,11 +1,16 @@
 from typing import List, Dict, Any, Optional
 
 
-async def add_shopping_item(pool, item: str, category: Optional[str] = None):
+async def add_shopping_item(pool, item: str, category: Optional[str] = None) -> int:
     async with pool.acquire() as conn:
-        await conn.execute(
-            "INSERT INTO shopping_list (item, category) VALUES ($1, $2)", item, category
+        return await conn.fetchval(
+            "INSERT INTO shopping_list (item, category) VALUES ($1, $2) RETURNING id", item, category
         )
+
+async def delete_item_by_id(pool, item_id: int):
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM shopping_list WHERE id = $1", item_id)
+
 
 
 async def list_shopping_items(pool, include_bought=True) -> List[Dict[str, Any]]:

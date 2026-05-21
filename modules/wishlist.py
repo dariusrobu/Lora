@@ -19,7 +19,7 @@ async def handle_wishlist_intent(
         if not item:
             return "Ce anume vrei să adaugi în Wish List? (Lipsește numele obiectului)", None, None
 
-        await wishlist_queries.add_wish_item(
+        item_id = await wishlist_queries.add_wish_item(
             pool, user_id, item, description, price, category, priority
         )
         
@@ -27,7 +27,7 @@ async def handle_wishlist_intent(
         if description:
             reply += f"\n📝 _Justificare: {escape_md(description)}_"
             
-        return reply, None, None
+        return reply, None, item_id
 
     elif intent == "list_wish":
         items = await wishlist_queries.list_wish_items(pool, user_id)
@@ -55,3 +55,18 @@ async def handle_wishlist_intent(
         return f"🗑️ Am eliminat *{escape_md(query)}* din listă.", None, None
 
     return "Modulul Wish List este pregătit!", None, None
+
+async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
+    if not item_id:
+        return False, "Nu s-a găsit ID-ul entității de anulat."
+
+    from db.queries.wishlist import delete_wish_item_by_id
+    try:
+        if intent == "add_wish":
+            await delete_wish_item_by_id(pool, item_id)
+            return True, "Obiectul a fost șters din Wish List."
+
+        return False, f"Anularea nu este implementată pentru intentul '{intent}'."
+    except Exception as e:
+        return False, f"Eroare la anulare: {str(e)}"
+

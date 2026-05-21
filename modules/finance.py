@@ -55,7 +55,7 @@ async def handle_finance_intent(
             data.get("item_id") or data.get("id") or await get_last_transaction_id(pool)
         )
         if last_id:
-            return await undo_last_action(pool, int(last_id))
+            return await undo_last_action(pool, "finance_log", int(last_id))
         return "Nu am găsit nicio tranzacție recentă de anulat.", None, None
 
     elif intent == "delete_finance" or intent == "delete_transaction":

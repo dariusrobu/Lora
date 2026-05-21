@@ -141,25 +141,25 @@ function WeatherWidget({ weather }: { weather: WeatherData | null }) {
 function TasksWidget({ tasks }: { tasks: Task[] }) {
   const active = tasks.filter(t => t.status !== 'done').slice(0, 6);
   const priorityColor: Record<string, string> = {
-    high: 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]',
-    medium: 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]',
-    low: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+    high: 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.6)]',
+    medium: 'bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.4)]',
+    low: 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.4)]'
   };
 
   return (
     <div className="liquid-panel rounded-[28px] p-8 flex flex-col h-full gap-6">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span className="label-ethereal">Priorități Active</span>
+          <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+          <span className="label-ethereal text-base">Priorități Active</span>
         </div>
-        <span className="text-xs font-black text-[#adc6ff] tabular-nums">{active.length}</span>
+        <span className="text-sm font-black text-[#adc6ff] tabular-nums">{active.length}</span>
       </div>
-      <div className="flex flex-col gap-3 flex-1 overflow-hidden">
+      <div className="flex flex-col gap-5 flex-1 overflow-hidden mt-2">
         <AnimatePresence>
           {active.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
-              <p className="label-ethereal opacity-20">Toate taskurile completate ✓</p>
+              <p className="label-ethereal opacity-20 text-lg">Toate taskurile completate ✓</p>
             </div>
           ) : (
             active.map((t, i) => (
@@ -168,13 +168,13 @@ function TasksWidget({ tasks }: { tasks: Task[] }) {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="flex items-center gap-4 group"
+                className="flex items-center gap-5 group"
               >
-                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${priorityColor[t.priority] || 'bg-gray-500'}`} />
+                <div className={`w-3 h-3 rounded-full flex-shrink-0 ${priorityColor[t.priority] || 'bg-gray-500'}`} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white/80 truncate">{t.title}</p>
+                  <p className="text-xl font-medium text-white/90 truncate leading-tight">{t.title}</p>
                   {t.project_name && (
-                    <p className="text-[9px] font-black uppercase tracking-widest text-[#8c909f] mt-0.5">{t.project_name}</p>
+                    <p className="text-xs font-black uppercase tracking-widest text-[#8c909f] mt-1">{t.project_name}</p>
                   )}
                 </div>
               </motion.div>

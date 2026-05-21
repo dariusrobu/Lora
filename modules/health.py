@@ -29,7 +29,7 @@ async def handle_health_intent(
         count = data.get("cigarettes") or 1
         new_total = await health_queries.add_cigarettes(pool, today, count)
         
-        warning = await _get_cigarette_warning(pool, today, new_total)
+        warning = await _get_cigarette_warning(pool, today, new_total, user_id)
         msg = f"✅ \\+{count} țigări adăugate\\.\n🚬 *Total azi:* {new_total}{warning}"
         log = await health_queries.get_health_log(pool, today)
         return msg, None, log["id"] if log else None

@@ -229,7 +229,7 @@ async def handle_event_intent(
                         raise ValueError(f"Invalid time format: {time_str}")
         except Exception:
             return (
-                "Nu am putut parse data sau ora. Te rog folosește formatul YYYY-MM-DD și HH:MM.",
+                "Nu am putut parsa data sau ora. Te rog folosește formatul YYYY-MM-DD și HH:MM.",
                 None,
                 None,
             )

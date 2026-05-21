@@ -172,3 +172,10 @@ async def get_skill_streak(pool, skill_id: int) -> int:
             else:
                 break
         return streak
+
+
+async def delete_skill_log(pool, log_id: int) -> bool:
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM skill_logs WHERE id = $1", log_id)
+        return result == "DELETE 1"
+

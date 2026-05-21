@@ -68,12 +68,12 @@ async def get_subject_by_id(pool, subject_id: int) -> dict | None:
         return dict(row) if row else None
 
 
-async def log_attendance(pool, subject_id, attended, class_date, notes=None) -> None:
+async def log_attendance(pool, subject_id, attended, class_date, notes=None) -> int:
     async with pool.acquire() as conn:
-        await conn.execute(
+        return await conn.fetchval(
             """
             INSERT INTO attendances (subject_id, attended, class_date, notes)
-            VALUES ($1, $2, $3, $4)
+            VALUES ($1, $2, $3, $4) RETURNING id
         """,
             subject_id,
             attended,
@@ -82,12 +82,12 @@ async def log_attendance(pool, subject_id, attended, class_date, notes=None) -> 
         )
 
 
-async def add_grade(pool, subject_id, grade, grade_type="exam", notes=None) -> None:
+async def add_grade(pool, subject_id, grade, grade_type="exam", notes=None) -> int:
     async with pool.acquire() as conn:
-        await conn.execute(
+        return await conn.fetchval(
             """
             INSERT INTO grades (subject_id, grade, grade_type, notes)
-            VALUES ($1, $2, $3, $4)
+            VALUES ($1, $2, $3, $4) RETURNING id
         """,
             subject_id,
             grade,
@@ -98,12 +98,12 @@ async def add_grade(pool, subject_id, grade, grade_type="exam", notes=None) -> N
 
 async def add_exam(
     pool, subject_id, exam_date, exam_type="examen", room=None, notes=None
-) -> None:
+) -> int:
     async with pool.acquire() as conn:
-        await conn.execute(
+        return await conn.fetchval(
             """
             INSERT INTO exams (subject_id, exam_date, exam_type, room, notes)
-            VALUES ($1, $2, $3, $4, $5)
+            VALUES ($1, $2, $3, $4, $5) RETURNING id
         """,
             subject_id,
             exam_date,

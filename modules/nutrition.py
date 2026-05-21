@@ -200,7 +200,7 @@ async def handle_nutrition_intent(
         meals = await nutrition_queries.get_daily_meals(pool, date.today())
 
         if day_totals["calories"] == 0:
-            return safe_markdown("Nu ai logat nicio masă azi. 🍎"), None
+            return safe_markdown("Nu ai logat nicio masă azi. 🍎"), None, None
 
         lines = ["🍽 *Nutriție Azi*\n"]
 
@@ -213,14 +213,6 @@ async def handle_nutrition_intent(
             lines.append(f"• `{int(m['total_calories'])} kcal` — {desc}")
 
         lines.append("")
-        lines.append(
-            f"🔥 Calorii: *{int(day_totals['calories'])}* / {targets['calories']} kcal"
-        )
-        lines.append(
-            f"💪 Proteina: *{day_totals['protein']:.1f}* / {targets['protein_g']}g"
-        )
-        lines.append(f"🍞 Carbs: *{day_totals['carbs']:.1f}* / {targets['carbs_g']}g")
-        lines.append(f"🫒 Grasimi: *{day_totals['fat']:.1f}* / {targets['fat_g']}g")
 
         cal_pct = min(int((day_totals["calories"] / targets["calories"]) * 100), 100)
         prot_pct = min(int((day_totals["protein"] / targets["protein_g"]) * 100), 100)
@@ -228,14 +220,16 @@ async def handle_nutrition_intent(
         cal_bar = "█" * (cal_pct // 10) + "░" * (10 - (cal_pct // 10))
         prot_bar = "█" * (prot_pct // 10) + "░" * (10 - (prot_pct // 10))
 
-        # Insert bars after total lines
-        # Total calories is at lines index (len(meals) + 2)
-        idx_cal = len(meals) + 2
-        lines.insert(idx_cal + 1, f"🔥 `{cal_bar}` {cal_pct}%")
-
-        # Protein is 2 lines after calorie bar
-        idx_prot = idx_cal + 3
-        lines.insert(idx_prot + 1, f"💪 `{prot_bar}` {prot_pct}%")
+        lines.append(
+            f"🔥 Calorii: *{int(day_totals['calories'])}* / {targets['calories']} kcal"
+        )
+        lines.append(f"🔥 `{cal_bar}` {cal_pct}%")
+        lines.append(
+            f"💪 Proteina: *{day_totals['protein']:.1f}* / {targets['protein_g']}g"
+        )
+        lines.append(f"💪 `{prot_bar}` {prot_pct}%")
+        lines.append(f"🍞 Carbs: *{day_totals['carbs']:.1f}* / {targets['carbs_g']}g")
+        lines.append(f"🫒 Grasimi: *{day_totals['fat']:.1f}* / {targets['fat_g']}g")
 
         return safe_markdown("\n".join(lines)), None, None
 

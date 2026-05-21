@@ -43,6 +43,11 @@ async def delete_wish_item(pool, user_id: int, item_query: str):
             user_id, f"%{item_query}%"
         )
 
+async def delete_wish_item_by_id(pool, item_id: int):
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM wishlist WHERE id = $1", item_id)
+
+
 async def get_wish_item(pool, item_id: int) -> Optional[Dict[str, Any]]:
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM wishlist WHERE id = $1", item_id)

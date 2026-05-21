@@ -261,5 +261,3 @@ async def search_memory_core(pool, topic: str, user_id: int) -> Dict[str, Any]:
     history = await search_history(pool, user_id, topic)
 
     return {"facts": facts, "history": history}
-
-    return "Modulul de memorie a primit o intenție necunoscută.", None

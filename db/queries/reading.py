@@ -77,17 +77,25 @@ async def get_book_by_title(pool, title) -> dict | None:
         return dict(row) if row else None
 
 
-async def add_book_note(pool, book_id, content, page_number=None) -> None:
+async def add_book_note(pool, book_id, content, page_number=None) -> int:
     async with pool.acquire() as conn:
-        await conn.execute(
+        return await conn.fetchval(
             """
             INSERT INTO book_notes (book_id, content, page_number)
             VALUES ($1, $2, $3)
+            RETURNING id
         """,
             book_id,
             content,
             page_number,
         )
+
+
+async def delete_book_note(pool, note_id: int) -> bool:
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM book_notes WHERE id = $1", note_id)
+        return "DELETE 1" in result
+
 
 
 async def get_book_notes(pool, book_id) -> list:

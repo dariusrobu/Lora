@@ -21,7 +21,7 @@ async def handle_note_intent(
             if project:
                 project_id = project["id"]
 
-        await note_queries.add_note(
+        note_id = await note_queries.add_note(
             pool,
             content=content,
             type=data.get("type", "note"),
@@ -32,7 +32,8 @@ async def handle_note_intent(
         project_msg = (
             f" pentru proiectul *{escape_md(project_name)}*" if project_name else ""
         )
-        return f"{type_label}{project_msg} ✅\n\n{escape_md(content)}", None, None
+        return f"{type_label}{project_msg} ✅\n\n{escape_md(content)}", None, note_id
+
 
     elif intent == "list_notes":
         type_filter = data.get("type")
@@ -96,3 +97,18 @@ async def handle_note_intent(
         return "\n".join(lines), None, None
 
     return "Note module is ready\\!", None, None
+
+
+async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
+    if not item_id:
+        return False, "Nu s-a găsit ID-ul entității de anulat."
+
+    try:
+        if intent in ("add_note", "notes_add"):
+            await note_queries.delete_note(pool, item_id)
+            return True, "Notița/Jurnalul adăugat a fost șters."
+
+        return False, f"Anularea nu este implementată pentru intentul '{intent}'."
+    except Exception as e:
+        return False, f"Eroare la anulare: {str(e)}"
+

@@ -141,7 +141,9 @@ async def handle_workout_intent(
             return (
                 f"✅ Sportul *{escape_md(name)}* a fost adăugat\\.",
                 workout_main_keyboard(),
+                None,
             )
+        return "Te rog specifică numele sportului\\.", None, None
 
     elif intent == "workout_add_exercise":
         name = data.get("name")
@@ -152,9 +154,11 @@ async def handle_workout_intent(
             return (
                 f"✅ Exercițiul *{escape_md(name)}* a fost adăugat\\.",
                 workout_main_keyboard(),
+                None,
             )
+        return "Te rog specifică numele exercițiului\\.", None, None
 
-    return "Nu am înțeles cererea legată de antrenamente.", None
+    return "Nu am înțeles cererea legată de antrenamente.", None, None
 
 
 # ── Workout Dashboard UI Functions ─────────────────────────────
