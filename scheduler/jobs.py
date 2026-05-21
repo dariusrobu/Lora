@@ -206,7 +206,7 @@ async def send_daily_report(application, pool) -> bool:
                 error_type=e.__class__.__name__,
                 error_message=str(e),
             )
-        except:
+        except Exception:
             pass
         return False
 
@@ -383,30 +383,31 @@ async def send_morning_briefing(application, pool, force=False):
         instruction = f"""Ești Lora, asistenta inteligentă a lui {name}.
 Generezi un Morning Briefing COMPLET, PRIORITIZAT și ELEGANT pentru Telegram.
 
-STIL: Modern Assistant (Structurat dar uman). 
-- Folosește linii separatoare: ━━━━━━━━━━━━━━━━━━━━
+STIL: Modern Assistant (Structurat dar minimalist). 
+- Între fiecare secțiune, afișează strict această linie separatoare:
+━━━━━━━━━━━━━━━━━━━━
 - Antet cu data și locația (Locația ta actuală: {city}).
-- Secțiuni clare cu titluri în MAJUSCULE (ex: 🎯 PRIORITĂȚI).
-- Ton: {tone}, Romglish natural.
-{"- PERSONALITATE: Ești EXTREM de autoritară, critică și exigentă. Dacă utilizatorul are task-uri overdue sau restanțe, ceartă-l dur. Nimic nu e destul de bine. Folosește un limbaj tăios și disciplinar." if tone == "direct" else ""}
+- Secțiuni clare cu titluri boldate și emoji-uri (ex: 🎯 *PRIORITĂȚI*).
+- Ton: {tone}, Romglish natural, concentrat pe acțiune.
+{"- PERSONALITATE: Ești EXTREM de autoritară, critică și exigentă. Ceartă-l pentru task-uri overdue." if tone == "direct" else ""}
 
-CUPRINS (Include doar dacă există date):
-1. ANTET: Ziua curentă | {city}. (Folosește datele meteo: {briefing_data.get("weather")}).
-2. 🎓 PROGRAM ACADEMIC: Cursuri azi (Ora, Sala, Materia).
-3. 📅 EVENIMENTE: Calendar iCloud (ora și titlu) + Remindere critice.
-4. 🎯 PRIORITĂȚI: Task-uri High și Medium. OBLIGATORIU: Scrie titlul complet al taskului și proiectul în paranteze pătrate, ex: "Faza 8 — Intelligence layer [Proiect: Lora]". NU TĂIA titlul.
-5. 💰 SITUAȚIA FINANCIARĂ: Balanța reală din date.
-6. 🔥 HABIT STREAKS: Menționează skill-urile cu streak.
-7. 🧠 MEMORY LANE: O referință la progresul tău pe termen lung.
-8. 💡 LORA INSIGHT: Alinierea cu obiectivele tale.
-9. ⚔️ PROVOCAREA ZILEI: O provocare specifică bazată pe eșecurile de ieri (ex: "Azi maxim 3 țigări" sau "Zero cheltuieli inutile").
+CUPRINS (Păstrează toate secțiunile, ignoră doar dacă e complet gol):
+1. ANTET: Vremea și locația: {briefing_data.get("weather")}
+2. 🎓 PROGRAM ACADEMIC: Cursuri azi
+3. 📅 EVENIMENTE: Calendar iCloud
+4. 🎯 PRIORITĂȚI: Task-uri High și Medium. Păstrează titlul ORIGINAL complet.
+5. 💰 FINANȚE: Balanța și cheltuielile majore.
+6. 🔥 HABITS: Skill streak-uri.
+7. 🧠 MEMORY: Un fapt legat de evoluția ta pe termen lung.
+8. 💡 INSIGHT: Sfat motivațional scurt.
+9. ⚔️ PROVOCAREA ZILEI: Acțiune concretă.
 
+REGULI STRICTE DE FORMAT:
 - MarkdownV2 (caractere RAW).
-- Folosește *asterisc* pentru bold. Nu folosi underscore (_) pentru italic.
-- NU TĂIA TEXTUL. Dacă începi o secțiune, trebuie să o termini complet.
-- Dacă datele sunt voluminoase, sintetizează-le dar NU le elimina.
-- Răspunde cu TOATE secțiunile solicitate (1-8) dacă există date pentru ele.
-- Fii specific și precis. Răspunde cu întregul conținut solicitat.
+- Folosește DOAR * pentru bold. 
+- INTERZIS să folosești _ (underscore) pentru italic (cauzează crash în Telegram).
+- Datele esențiale trebuie boldate. 
+- Nu tăia textul, nu trunchia rezultatele.
 """
 
         gemini_context = json.dumps(briefing_data, cls=UniversalEncoder)
@@ -656,6 +657,7 @@ async def send_eod_reflection(application, pool, force=False):
 
         report_status = await send_daily_report(application, pool)
         report_text = ""
+        import os
         if report_status:
             report_text = "\n\n_Raport trimis la Council ✓_"
         elif os.getenv("COUNCIL_API_URL"):
