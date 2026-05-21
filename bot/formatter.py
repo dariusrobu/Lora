@@ -17,20 +17,31 @@ def escape_md(text: str) -> str:
 def safe_markdown(text: str) -> str:
     """
     Cleans up a message for Telegram MarkdownV2 without over-escaping.
-    It attempts to preserve *bold* and `code` formatting from Gemini.
+    It attempts to preserve *bold* and `code` formatting from Gemini,
+    but escapes them if they are unbalanced to prevent crashes.
     """
     if not text:
         return ""
 
-    # Characters that MUST be escaped in MarkdownV2 (excluding *, `, _ for formatting)
-    # Note: hyphen '-' is critical and often missed.
-    must_escape = r"[]()~>#+-=|{}.!"
+    # Characters that MUST be escaped in MarkdownV2.
+    # We include '_' because LLMs often use it in URLs or IDs, breaking italics.
+    must_escape = r"[]()~>#+-=|{}.!_"
 
     # We use regex to avoid double-escaping if a backslash is already there
     for char in must_escape:
         # Match char NOT preceded by a backslash
         pattern = f"(?<!\\\\){re.escape(char)}"
         text = re.sub(pattern, f"\\{char}", text)
+
+    # Balance asterisks (*). If odd, escape them all to prevent crash.
+    unescaped_stars = len(re.findall(r"(?<!\\)\*", text))
+    if unescaped_stars % 2 != 0:
+        text = re.sub(r"(?<!\\)\*", r"\*", text)
+
+    # Balance backticks (`). If odd, escape them all.
+    unescaped_ticks = len(re.findall(r"(?<!\\)`", text))
+    if unescaped_ticks % 2 != 0:
+        text = re.sub(r"(?<!\\)`", r"\`", text)
 
     return text
 

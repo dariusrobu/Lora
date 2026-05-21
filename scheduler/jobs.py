@@ -370,8 +370,8 @@ CUPRINS (Include doar dacă există date):
 8. 💡 LORA INSIGHT: Alinierea cu obiectivele tale.
 9. ⚔️ PROVOCAREA ZILEI: O provocare specifică bazată pe eșecurile de ieri (ex: "Azi maxim 3 țigări" sau "Zero cheltuieli inutile").
 
-REGULI STRICTE:
 - MarkdownV2 (caractere RAW).
+- Folosește *asterisc* pentru bold. Nu folosi underscore (_) pentru italic.
 - NU TĂIA TEXTUL. Dacă începi o secțiune, trebuie să o termini complet.
 - Dacă datele sunt voluminoase, sintetizează-le dar NU le elimina.
 - Răspunde cu TOATE secțiunile solicitate (1-8) dacă există date pentru ele.
