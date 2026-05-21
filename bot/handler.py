@@ -2210,7 +2210,8 @@ async def show_uni_dashboard(message_or_query, pool, send_new: bool = False):
     warn_str = f"⚠️ {len(warnings)} materii sub minim" if warnings else "✅ Toate ok"
 
     text = (
-        f"🎓 *Viața Academică*\n\n"
+        f"🎓 *Viața Academică*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
         f"📅 Semestrul II — săptămâna *{week_num}* \\({escape_md(week_label)}\\)\n"
         f"📊 Medie generală: {avg_str}\n"
         f"👁 Prezențe: {escape_md(warn_str)}\n"

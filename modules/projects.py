@@ -337,7 +337,7 @@ async def get_projects_dashboard(pool) -> Tuple[str, Any]:
     total_pending = sum(p.get("pending_tasks", 0) for p in projects)
     total_overdue = sum(p.get("overdue_tasks", 0) for p in projects)
 
-    lines = ["🏗 *Dashboard Proiecte*\n"]
+    lines = ["🏗 *Dashboard Proiecte*\n━━━━━━━━━━━━━━━━━━━━"]
     lines.append(f"📊 Total proiecte active: *{total_active}*")
     lines.append(f"📋 Total task\\-uri active: *{total_pending}*")
     if total_overdue > 0:
