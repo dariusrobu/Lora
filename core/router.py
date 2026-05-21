@@ -115,10 +115,15 @@ async def _route_single_intent(
     # Handle Intent Correction (Undo/Correct)
     if intent == "correct_last":
         from core.state import get_state
+
         state = await get_state(pool)
         if not state or not state.get("last_intent"):
-            return "Nu am găsit nicio acțiune recentă pe care să o corectez. 🤔", None, None
-        
+            return (
+                "Nu am găsit nicio acțiune recentă pe care să o corectez. 🤔",
+                None,
+                None,
+            )
+
         last_intent = state["last_intent"]
         last_module = state.get("last_module")
         last_item_id = state.get("last_inserted_id")
@@ -126,22 +131,35 @@ async def _route_single_intent(
         correction_text = data.get("correction_text", "").lower()
 
         # Simple Undo
-        if any(kw in correction_text for kw in ["anulează", "undo", "șterge", "nu asta"]):
+        if any(
+            kw in correction_text for kw in ["anulează", "undo", "șterge", "nu asta"]
+        ):
             if last_module and last_item_id:
                 from core.dispatcher import undo_last_action
-                success, msg = await undo_last_action(pool, last_module, intent_name, last_item_id)
+
+                success, msg = await undo_last_action(
+                    pool, last_module, intent_name, last_item_id
+                )
                 if success:
                     from core.state import clear_state
+
                     await clear_state(pool)
                     # Also clear last_intent so we don't undo twice
                     async with pool.acquire() as conn:
-                        await conn.execute("UPDATE conversation_state SET last_intent = NULL WHERE state_key = 'current'")
+                        await conn.execute(
+                            "UPDATE conversation_state SET last_intent = NULL WHERE state_key = 'current'"
+                        )
                     return f"Am anulat ultima acțiune: {msg} 🗑️", None, None
                 return f"Nu am putut anula acțiunea: {msg} ❌", None, None
-            return "Am înțeles că vrei să anulezi, dar nu am găsit un ID valid pentru ultima acțiune. 🔧", None, None
+            return (
+                "Am înțeles că vrei să anulezi, dar nu am găsit un ID valid pentru ultima acțiune. 🔧",
+                None,
+                None,
+            )
 
         # Complex Correction (Re-run Gemini)
         from core.gemini import analyze_intent
+
         context = f"Utilizatorul vrea să corecteze ultima acțiune: {json.dumps(last_intent)}. Corecția este: {correction_text}"
         new_intent = await analyze_intent(pool, correction_text, context=context)
         return await _route_single_intent(pool, new_intent, user_id, bot)
@@ -160,9 +178,10 @@ async def _route_single_intent(
 
         # Logging & Memory
         await log_execution(pool, intent, module, True)
-        
+
         # Save for Undo/Correction
         from core.state import save_last_action
+
         await save_last_action(pool, intent_response, item_id)
 
         # Auto-memory extraction (if present in intent_response)

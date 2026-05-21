@@ -15,17 +15,29 @@ async def handle_shopping_intent(
         item = data.get("item")
         category = data.get("category")
         if not item:
-            return "Ce vrei să adaug pe listă? (Nu am prins numele obiectului)", None, None
+            return (
+                "⚠️ Atenție: Nu ai specificat ce vrei să adaugi pe listă. Te rog să repeți.",
+                None,
+                None,
+            )
 
         item_id = await add_shopping_item(pool, item, category)
-        return f"✅ Am adăugat *{escape_md(item)}* pe lista de cumpărături.", None, item_id
+        return (
+            f"✅ Item-ul *{escape_md(item)}* a fost adăugat cu succes pe lista de cumpărături.",
+            None,
+            item_id,
+        )
 
     elif intent == "list_items":
         items = await list_shopping_items(pool, include_bought=False)
         if not items:
-            return "Lista de cumpărături e goală! 🎉", None, None
+            return (
+                "🛒 *Lista de cumpărături:*\n━━━━━━━━━━━━━━━━━━━━\nLista este goală.",
+                None,
+                None,
+            )
 
-        reply = "🛒 *Lista de cumpărături:*\n"
+        reply = "🛒 *Lista de cumpărături:*\n━━━━━━━━━━━━━━━━━━━━\n"
         for i in items:
             cat = f" ({escape_md(i['category'])})" if i["category"] else ""
             reply += f"• {escape_md(i['item'])}{cat}\n"
@@ -35,33 +47,40 @@ async def handle_shopping_intent(
     elif intent == "delete_item":
         item = data.get("item")
         if not item:
-            return "Ce vrei să șterg de pe listă?", None, None
+            return (
+                "⚠️ Atenție: Nu ai specificat ce vrei să ștergi de pe listă.",
+                None,
+                None,
+            )
 
         await delete_item_by_name(pool, item)
-        return f"🗑️ Am șters *{escape_md(item)}* de pe listă.", None, None
+        return f"🗑️ Item-ul *{escape_md(item)}* a fost șters de pe listă.", None, None
 
     elif intent == "clear_items":
         await clear_bought_items(pool)
         return (
-            "🧹 Am curățat lista de cumpărături (am șters toate produsele bifate).",
+            "🗑️ Lista de cumpărături a fost curățată cu succes (produsele bifate au fost șterse).",
             None,
             None,
         )
 
-    return "Modulul shopping nu recunoaște acest intent.", None, None
+    return "❌ Eroare: Modulul shopping nu recunoaște acest intent.", None, None
 
 
 async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
     if not item_id:
-        return False, "Nu s-a găsit ID-ul entității de anulat."
+        return False, "❌ Eroare: Nu s-a găsit ID-ul entității de anulat."
 
     from db.queries.shopping import delete_item_by_id
+
     try:
         if intent == "add_item":
             await delete_item_by_id(pool, item_id)
-            return True, "Obiectul adăugat a fost șters de pe lista de cumpărături."
+            return True, "🗑️ Item-ul adăugat a fost șters de pe lista de cumpărături."
 
-        return False, f"Anularea nu este implementată pentru intentul '{intent}'."
+        return (
+            False,
+            f"❌ Eroare: Anularea nu este implementată pentru intentul '{intent}'.",
+        )
     except Exception as e:
-        return False, f"Eroare la anulare: {str(e)}"
-
+        return False, f"❌ Eroare la anulare: {str(e)}"

@@ -2,7 +2,6 @@ from typing import Dict, Any, Tuple, Optional
 from datetime import datetime
 import core.icloud as calendar_core
 from bot.formatter import escape_md
-import asyncio
 
 
 async def handle_calendar_module_intent(
@@ -13,9 +12,12 @@ async def handle_calendar_module_intent(
     if intent == "calendar_today":
         events = await calendar_core.fetch_all_calendars_events(days_ahead=1)
         if not events:
-            return "📅 Nu ai evenimente planificate pentru azi în Apple Calendar.", None
+            return (
+                "⚠️ Atenție: Nu ai evenimente planificate pentru azi în Apple Calendar.",
+                None,
+            )
 
-        lines = ["📅 *Evenimente Azi (Apple Calendar):*"]
+        lines = ["📅 *Evenimente Azi (Apple Calendar):*\n━━━━━━━━━━━━━━━━━━━━"]
         for e in events:
             time_str = e["start"].strftime("%H:%M")
             lines.append(
@@ -27,9 +29,9 @@ async def handle_calendar_module_intent(
     elif intent == "calendar_week":
         events = await calendar_core.fetch_all_calendars_events(days_ahead=7)
         if not events:
-            return "📅 Nu ai evenimente planificate săptămâna aceasta.", None
+            return "⚠️ Atenție: Nu ai evenimente planificate săptămâna aceasta.", None
 
-        lines = ["📅 *Evenimente Săptămâna Aceasta:*"]
+        lines = ["📅 *Evenimente Săptămâna Aceasta:*\n━━━━━━━━━━━━━━━━━━━━"]
         current_date = None
         for e in events:
             event_date = e["start"].date()
@@ -53,7 +55,7 @@ async def handle_calendar_module_intent(
 
         if not summary or not start_str:
             return (
-                "❌ Am nevoie de un titlu și o oră pentru a adăuga în calendar.",
+                "❌ Eroare: Am nevoie de un titlu și o oră pentru a adăuga în calendar.",
                 None,
             )
 
@@ -77,7 +79,7 @@ async def handle_calendar_module_intent(
             )
 
             return (
-                f"✅ Eveniment adăugat în Apple Calendar: *{escape_md(summary)}*\n⏰ {start_dt.strftime('%H:%M')}",
+                f"✅ Eveniment adăugat: *{escape_md(summary)}* ⏰ {start_dt.strftime('%H:%M')}",
                 None,
             )
         except Exception as e:
@@ -102,7 +104,7 @@ async def handle_calendar_module_intent(
         )
 
         msg = (
-            f"🔄 *Sincronizare Ecosistem Apple COMPLETĂ* (v2.1)\n"
+            f"🔄 *Sincronizare Ecosistem Apple COMPLETĂ* (v2.1)\n━━━━━━━━━━━━━━━━━━━━\n"
             f"_{datetime.now().strftime('%H:%M:%S')}_\n\n"
             f"• 🎓 Cursuri: {s_stats['created']} noi\n"
             f"• 🎓 Examene: {ex_stats['created']} noi\n"
@@ -114,4 +116,4 @@ async def handle_calendar_module_intent(
         )
         return msg, None
 
-    return "Intent calendar nerecunoscut.", None
+    return "❌ Eroare: Intent calendar nerecunoscut.", None

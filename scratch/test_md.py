@@ -1,5 +1,6 @@
 import re
 
+
 def safe_markdown(text: str) -> str:
     if not text:
         return ""
@@ -8,6 +9,7 @@ def safe_markdown(text: str) -> str:
         pattern = f"(?<!\\\\){re.escape(char)}"
         text = re.sub(pattern, f"\\{char}", text)
     return text
+
 
 test_text = "Hello! (World) - [Test] + = | { } . # > ~"
 print(f"Original: {test_text}")

@@ -22,8 +22,9 @@ async def handle_finance_intent(
         tx_date = data.get("date")
         if isinstance(tx_date, str):
             from datetime import datetime
+
             tx_date = datetime.strptime(tx_date, "%Y-%m-%d").date()
-        
+
         res_text, res_markup = await _generate_finance_summary_text(pool, tx_date)
         return res_text, res_markup, None
 
@@ -61,13 +62,13 @@ async def handle_finance_intent(
     elif intent == "delete_finance" or intent == "delete_transaction":
         tx_id = data.get("id") or data.get("item_id")
         if not tx_id:
-            return "Te rog să specifici ID-ul tranzacției de șters.", None, None
+            return "⚠️ Atenție: Specifică ID-ul tranzacției de șters.", None, None
         from db.queries.finance import delete_transaction
 
         success = await delete_transaction(pool, int(tx_id))
         if success:
-            return f"✅ Tranzacția cu ID {tx_id} a fost ștearsă.", None, tx_id
-        return f"❌ Nu am găsit tranzacția cu ID {tx_id}.", None, None
+            return f"🗑️ Tranzacția cu ID {tx_id} a fost ștearsă.", None, tx_id
+        return f"❌ Eroare: Nu am putut găsi tranzacția cu ID {tx_id}.", None, None
 
 
 async def _handle_log_expense(
@@ -96,7 +97,7 @@ async def _handle_log_expense(
                 results.append(f"✅ {amount} RON{desc_str} ({category})")
 
         if not results:
-            return "Nu am reușit să extrag nicio cheltuială validă. 💸", None, None
+            return "⚠️ Atenție: Nu am extras nicio cheltuială validă.", None, None
 
         daily_total = await finance_queries.get_daily_total(pool, date.today())
         final_msg = "\n".join(results)
@@ -110,7 +111,7 @@ async def _handle_log_expense(
     tx_type = data.get("type", "expense")
 
     if amount is None:
-        return "Te rog să specifici suma (ex: 50 RON). 💸", None, None
+        return "⚠️ Atenție: Specifică o sumă (ex: 50 RON).", None, None
 
     tx_id = await finance_queries.log_transaction(
         pool, tx_type=tx_type, amount=amount, category=category, description=description
@@ -127,11 +128,11 @@ async def _handle_log_expense(
                 if limit > 0 and spent > limit:
                     budget_warning = f"\n\n🚨 *AUDIT DE URGENȚĂ\!* Ai depășit bugetul pentru *{escape_md(category)}* cu {spent - limit:.2f} RON\. Te oprești acum sau vrei să terminăm luna pe minus? 🛑"
                 elif limit > 0 and spent > limit * 0.8:
-                    budget_warning = f"\n\n⚠️ *ATENȚIE\!* Ești la {spent/limit*100:.1f}\\% din bugetul pentru {escape_md(category)}\. Începe să tai din cheltuieli\!"
+                    budget_warning = f"\n\n⚠️ *ATENȚIE\!* Ești la {spent / limit * 100:.1f}\\% din bugetul pentru {escape_md(category)}\. Începe să tai din cheltuieli\!"
 
-    msg = f"✅ {amount} RON la *{category}* înregistrat\\.{budget_warning}"
+    msg = f"💰 Cheltuială logată: *{amount} RON* (Categoria: *{escape_md(category)}*).{budget_warning}"
     if description:
-        msg = f"✅ {amount} RON — *{description}* ({category}) înregistrat\\."
+        msg = f"💰 Cheltuială logată: *{amount} RON* — *{escape_md(description)}* (Categoria: *{escape_md(category)}*).{budget_warning}"
 
     daily_total = await finance_queries.get_daily_total(pool, date.today())
     msg += f"\n💸 *Cheltuieli azi:* {daily_total:.2f} RON"
@@ -143,13 +144,14 @@ async def _list_categories(pool) -> Tuple[str, Any]:
     """Lists all finance categories."""
     categories = await finance_queries.list_categories(pool)
     if not categories:
-        return "Nu ai nicio categorie. 💸", None, None
+        return "✅ Nu ai nicio categorie de cheltuieli.", None, None
 
-    lines = ["📁 *Categorii de cheltuieli:*\n"]
+    lines = ["📁 *Categorii de Cheltuieli*", "━━━━━━━━━━━━━━━━━━━━"]
     for cat in categories:
         icon = cat.get("icon", "💰")
         lines.append(f"{icon} {cat['name']}")
 
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
     text = "\n".join(lines)
     keyboard = InlineKeyboardMarkup(
         [
@@ -176,25 +178,25 @@ async def _add_category(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
     keywords = data.get("keywords", [])
 
     if not name:
-        return "Ce nume pentru categorie?", None, None
+        return "⚠️ Atenție: Specifică un nume pentru categorie.", None, None
 
     try:
         await finance_queries.add_category(pool, name, icon, keywords)
-        return f"✅ Categorie *{escape_md(name)}* adăugată!", None
+        return f"✅ Categoria *{escape_md(name)}* a fost adăugată cu succes.", None
     except Exception as e:
-        return f"Eroare: {str(e)}", None
+        return f"❌ Eroare: {str(e)}", None
 
 
 async def _delete_category(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
     """Deletes a finance category."""
     name = data.get("name")
     if not name:
-        return "Ce categorie să șterg?", None, None
+        return "⚠️ Atenție: Specifică o categorie pe care vrei să o ștergi.", None, None
 
     success = await finance_queries.delete_category(pool, name)
     if success:
-        return f"✅ Categorie *{escape_md(name)}* ștearsă!", None
-    return f"Nu am găsit categoria *{escape_md(name)}*.", None
+        return f"🗑️ Categoria *{escape_md(name)}* a fost ștearsă.", None
+    return f"❌ Eroare: Nu am putut găsi categoria *{escape_md(name)}*.", None
 
 
 async def _set_budget(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
@@ -204,22 +206,27 @@ async def _set_budget(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
 
     if not category or not limit:
         return (
-            "Specifică categoria și limita (ex: 'setează buget 500 RON pentru mâncare').",
+            "⚠️ Atenție: Specifică categoria și limita (ex: 'buget 500 RON mâncare').",
             None,
         )
 
     try:
         limit = float(limit)
     except (ValueError, TypeError):
-        return "Suma trebuie să fie un număr.", None, None
+        return "❌ Eroare: Suma trebuie să fie un număr.", None, None
 
     from db.queries.finance import set_budget_limit
 
     await set_budget_limit(pool, category, limit)
-    return f"✅ Buget de *{limit} RON* setat pentru *{escape_md(category)}*.", None
+    return (
+        f"✏️ Bugetul pentru *{escape_md(category)}* a fost actualizat la *{limit} RON*.",
+        None,
+    )
 
 
-async def _generate_finance_summary_text(pool, target_date: Optional[date] = None) -> Tuple[str, Any]:
+async def _generate_finance_summary_text(
+    pool, target_date: Optional[date] = None
+) -> Tuple[str, Any]:
     today = date.today()
     target_date = target_date or today
     daily_total = await finance_queries.get_daily_total(pool, target_date)
@@ -227,9 +234,9 @@ async def _generate_finance_summary_text(pool, target_date: Optional[date] = Non
     budget_status = await finance_queries.get_budget_status(pool)
 
     # Header
-    date_str = target_date.strftime('%d %b %Y')
+    date_str = target_date.strftime("%d %b %Y")
     label = "Azi" if target_date == today else date_str
-    text = f"💰 *Finanțe — {label}*\n\n"
+    text = f"💰 *Finanțe — {label}*\n━━━━━━━━━━━━━━━━━━━━\n"
     text += f"💸 *Cheltuieli {label.lower()}:* {daily_total:.2f} RON\n\n"
 
     # Today's breakdown
@@ -412,7 +419,7 @@ async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
     try:
         async with pool.acquire() as conn:
             await conn.execute("DELETE FROM finances WHERE id = $1", item_id)
-        
+
         desc = f" ({row['description']})" if row.get("description") else ""
         return True, f"tranzacția: {row['amount']} RON la {row['category']}{desc}"
     except Exception as e:

@@ -14,7 +14,7 @@ async def save_memory_fact(
     """Saves a new memory fact to the database."""
     # Convert embedding to string for pgvector if it's a list
     embedding_str = str(embedding) if embedding else None
-    
+
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -241,6 +241,7 @@ async def semantic_search_memories(
             limit,
         )
         return [dict(r) for r in rows]
+
 
 async def get_random_memory_lane(pool) -> Optional[Dict[str, Any]]:
     """Gets a random fact from at least 7 days ago for 'Memory Lane'."""

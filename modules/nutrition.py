@@ -167,12 +167,12 @@ async def handle_nutrition_intent(
         day_totals = await nutrition_queries.get_daily_totals(pool, date.today())
         targets = await nutrition_queries.get_nutrition_targets(pool)
 
-        lines = [f"🍽 *{meal_type.replace('_', ' ').title()}* inregistrat!"]
+        lines = [f"✅ Masă logată: *{meal_type.replace('_', ' ').title()}*"]
         lines.append(
-            f"🔥 *{int(total_cal)}* kcal | 💪 *{total_prot:.1f}g* P | 🍞 *{total_carbs:.1f}g* C | 🫒 *{total_fat:.1f}g* F"
+            f"🔥 *{int(total_cal)} kcal* | 💪 *{total_prot:.1f}g* P | 🍞 *{total_carbs:.1f}g* C | 🫒 *{total_fat:.1f}g* F"
         )
 
-        lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━━━")
         cal_pct = int((day_totals["calories"] / targets["calories"]) * 100)
         cal_bar = "█" * min(cal_pct // 10, 10) + "░" * max(10 - cal_pct // 10, 0)
         lines.append(
@@ -190,7 +190,7 @@ async def handle_nutrition_intent(
         if cal_rem > 0:
             lines.append(f"\n🍴 Mai poti consuma *{cal_rem}* kcal azi.")
         else:
-            lines.append("\n⚠️ Ai depasit targetul de calorii pe azi.")
+            lines.append("\n⚠️ Atenție: Ai depășit targetul de calorii pe azi.")
 
         return safe_markdown("\n".join(lines)), None, None
 
@@ -200,9 +200,13 @@ async def handle_nutrition_intent(
         meals = await nutrition_queries.get_daily_meals(pool, date.today())
 
         if day_totals["calories"] == 0:
-            return safe_markdown("Nu ai logat nicio masă azi. 🍎"), None, None
+            return (
+                safe_markdown("⚠️ Atenție: Nu ai logat nicio masă azi. 🍎"),
+                None,
+                None,
+            )
 
-        lines = ["🍽 *Nutriție Azi*\n"]
+        lines = ["🍽 *Nutriție Azi*\n━━━━━━━━━━━━━━━━━━━━"]
 
         # Add list of meals
         for m in meals:
@@ -212,7 +216,7 @@ async def handle_nutrition_intent(
                 desc = desc[:37] + "..."
             lines.append(f"• `{int(m['total_calories'])} kcal` — {desc}")
 
-        lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━━━")
 
         cal_pct = min(int((day_totals["calories"] / targets["calories"]) * 100), 100)
         prot_pct = min(int((day_totals["protein"] / targets["protein_g"]) * 100), 100)
@@ -237,7 +241,7 @@ async def handle_nutrition_intent(
         targets = await nutrition_queries.get_nutrition_targets(pool)
         return (
             safe_markdown(
-                f"🎯 *Targeturi Zilnice*\n\n"
+                f"🎯 *Targeturi Zilnice*\n━━━━━━━━━━━━━━━━━━━━\n"
                 f"🔥 Calorii: *{targets['calories']}* kcal\n"
                 f"💪 Proteina: *{targets['protein_g']}g*\n"
                 f"🍞 Carbs: *{targets['carbs_g']}g*\n"
@@ -247,4 +251,8 @@ async def handle_nutrition_intent(
             None,
         )
 
-    return safe_markdown("Nu am inteles cererea legata de nutritie. 🤔"), None, None
+    return (
+        safe_markdown("❌ Eroare: Nu am înțeles cererea legată de nutriție. 🤔"),
+        None,
+        None,
+    )

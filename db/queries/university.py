@@ -202,7 +202,9 @@ async def get_attendance_warnings(pool) -> list:
         return [dict(r) for r in rows]
 
 
-async def log_attendance_by_schedule(pool, schedule_id: int, attended: bool, notes: str = None) -> None:
+async def log_attendance_by_schedule(
+    pool, schedule_id: int, attended: bool, notes: str = None
+) -> None:
     """Loghează prezența folosind ID-ul din schedule."""
     from datetime import date
 
@@ -212,7 +214,9 @@ async def log_attendance_by_schedule(pool, schedule_id: int, attended: bool, not
             "SELECT subject_id FROM schedule WHERE id = $1", schedule_id
         )
         if row:
-            await log_attendance(pool, row["subject_id"], attended, date.today(), notes=notes)
+            await log_attendance(
+                pool, row["subject_id"], attended, date.today(), notes=notes
+            )
 
 
 async def update_subject(pool, subject_id: int, **kwargs) -> None:

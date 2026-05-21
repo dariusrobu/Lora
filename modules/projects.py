@@ -44,7 +44,7 @@ async def handle_project_intent(
 
         meta_str = f" ({', '.join(meta_parts)})" if meta_parts else ""
         return (
-            f"Done ✅ Created project *{escape_md(name)}*{meta_str}\\.",
+            f"✅ Proiectul *{escape_md(name)}* a fost adăugat cu succes.",
             None,
             project_id,
         )
@@ -59,11 +59,17 @@ async def handle_project_intent(
             project = await project_queries.get_project(pool, data["id"])
 
         if not project:
-            return "Ce proiect vrei să vezi?", None
+            return (
+                "⚠️ Atenție: Specifică un proiect pe care vrei să-l vizualizezi.",
+                None,
+            )
 
         detail = await project_queries.get_project_detail(pool, project["id"])
         if not detail:
-            return f"Project *{escape_md(project['name'])}* not found\\.", None
+            return (
+                f"❌ Eroare: Nu am putut găsi proiectul *{escape_md(project['name'])}*.",
+                None,
+            )
 
         lines = [f"📂 *{escape_md(detail['name'])}*"]
         if detail.get("description"):
@@ -88,22 +94,29 @@ async def handle_project_intent(
 
         if meta:
             lines.append(" | ".join(meta))
-            
+
         # Escalation in Detail View
         if detail.get("deadline") and detail.get("status") == "active":
             today_val = date.today()
             days_left = (detail["deadline"] - today_val).days
             progress = detail.get("progress_pct", 0)
-            
+
             import db.queries.profile as profile_queries
             from core.config import TELEGRAM_USER_ID
+
             profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
             tone = profile.get("tone", "warm")
-            
+
             if days_left <= 3 and progress < 80 and tone == "direct":
-                lines.append("\n🚨 *STATUS CRITIC:* Deadline-ul e peste 3 zile și ești la doar " + str(progress) + "%! Ești pe cale să eșuezi lamentabil. Începe să lucrezi ACUM!")
+                lines.append(
+                    "\n🚨 *STATUS CRITIC:* Deadline-ul e peste 3 zile și ești la doar "
+                    + str(progress)
+                    + "%! Ești pe cale să eșuezi lamentabil. Începe să lucrezi ACUM!"
+                )
             elif days_left <= 7 and progress < 50 and tone == "direct":
-                lines.append("\n⚠️ *STATUS ALERTĂ:* Progres mult prea lent pentru deadline-ul de săptămâna viitoare. Mișcă-te!")
+                lines.append(
+                    "\n⚠️ *STATUS ALERTĂ:* Progres mult prea lent pentru deadline-ul de săptămâna viitoare. Mișcă-te!"
+                )
 
         pending = detail.get("pending_count", 0)
         total = detail.get("task_count", 0)
@@ -138,16 +151,16 @@ async def handle_project_intent(
 
         if not projects:
             msg = (
-                f"You have no *{escape_md(status_filter)}* projects\\."
+                f"✅ Nu ai niciun proiect *{escape_md(status_filter)}*."
                 if status_filter
-                else "You have no active projects\\."
+                else "✅ Nu ai proiecte active."
             )
             return msg, None, None
 
         header = (
-            "🏗 *All Projects:*"
+            "📂 *Toate Proiectele*\n━━━━━━━━━━━━━━━━━━━━"
             if not status_filter
-            else f"🏗 *{status_filter.title()} Projects:*"
+            else f"📂 *Proiecte {status_filter.title()}*\n━━━━━━━━━━━━━━━━━━━━"
         )
         lines = [header]
         today_val = date.today()
@@ -157,7 +170,7 @@ async def handle_project_intent(
             overdue = p.get("overdue_tasks", 0)
             progress = p.get("progress_pct", 0)
             deadline = p.get("deadline")
-            
+
             # Escalation Logic
             escalation = ""
             if deadline and p["status"] == "active":
@@ -172,8 +185,11 @@ async def handle_project_intent(
                 task_info += f" ⚠️{overdue}"
             if progress > 0:
                 task_info += f" 📊{progress}%"
-            
-            lines.append(f"• *{escape_md(p['name'])}*{status_str}{task_info}{escalation}")
+
+            lines.append(
+                f"• *{escape_md(p['name'])}*{status_str}{task_info}{escalation}"
+            )
+        lines.append("━━━━━━━━━━━━━━━━━━━━")
         return "\n".join(lines), None, None
 
     elif intent == "update_project":
@@ -186,7 +202,7 @@ async def handle_project_intent(
                 project_id = project["id"]
 
         if not project_id:
-            return "Ce proiect vrei să actualizezi?", None
+            return "⚠️ Atenție: Specifică un proiect pentru actualizare.", None
 
         update_data = {}
         if data.get("name"):
@@ -208,11 +224,11 @@ async def handle_project_intent(
         if update_data:
             await project_queries.update_project(pool, project_id, **update_data)
             return (
-                f"Updated project *{escape_md(name or str(project_id))}* ✅",
+                f"✏️ Proiectul *{escape_md(name or str(project_id))}* a fost actualizat.",
                 None,
                 project_id,
             )
-        return "No changes to apply.", None, None
+        return "⚠️ Atenție: Nicio modificare specificată.", None, None
 
     elif intent == "update_progress":
         project_id = data.get("id")
@@ -225,14 +241,14 @@ async def handle_project_intent(
                 project_id = project["id"]
 
         if not project_id:
-            return "Pentru ce proiect?", None, None
+            return "⚠️ Atenție: Specifică un proiect.", None, None
 
         if progress is not None:
             progress = max(0, min(100, int(progress)))
             await project_queries.update_project(
                 pool, project_id, progress_pct=progress
             )
-            return f"Progress updated to *{progress}%* ✅", None, project_id
+            return f"✏️ Progresul a fost actualizat la *{progress}%*.", None, project_id
 
         current = await project_queries.get_project(pool, project_id)
         if current:
@@ -258,11 +274,11 @@ async def handle_project_intent(
 
         project = await project_queries.get_project(pool, project_id)
         if not project:
-            return "I couldn't find that project\\.", None, None
+            return "❌ Eroare: Nu am putut găsi proiectul.", None, None
 
         await project_queries.archive_project(pool, project_id)
         return (
-            f"Project *{escape_md(project['name'])}* has been archived 📦\\. All tasks are still there, but it won't show in your active list\\.",
+            f"📦 Proiectul *{escape_md(project['name'])}* a fost arhivat.",
             None,
             project_id,
         )
@@ -277,11 +293,11 @@ async def handle_project_intent(
                 project_id = project["id"]
 
         if not project_id:
-            return "Ce proiect vrei să ștergi?", None
+            return "⚠️ Atenție: Specifică un proiect pe care vrei să-l ștergi.", None
 
         project = await project_queries.get_project(pool, project_id)
         if not project:
-            return "I couldn't find that project\\.", None, None
+            return "❌ Eroare: Nu am putut găsi proiectul.", None, None
 
         from core.state import set_state
 
@@ -290,7 +306,7 @@ async def handle_project_intent(
         from bot.keyboards import confirmation_keyboard
 
         return (
-            f"Are you sure you want to delete project *{escape_md(project['name'])}*?\\nTasks linked to it will NOT be deleted\\.",
+            f"⚠️ Sigur vrei să ștergi proiectul *{escape_md(project['name'])}*?\nTask-urile asociate nu vor fi șterse.",
             confirmation_keyboard("projects", "delete", project_id),
             project_id,
         )
@@ -298,17 +314,17 @@ async def handle_project_intent(
     elif intent == "delete_project_confirmed":
         project_id = data.get("id")
         if not project_id:
-            return "I couldn't find that project\\.", None, None
+            return "❌ Eroare: Nu am putut găsi proiectul.", None, None
 
         project = await project_queries.get_project(pool, project_id)
         if project:
             await project_queries.delete_project(pool, project_id)
             return (
-                f"Project *{escape_md(project['name'])}* has been deleted\\.",
+                f"🗑️ Proiectul *{escape_md(project['name'])}* a fost șters.",
                 None,
                 project_id,
             )
-        return "Project already deleted or not found\\.", None, None
+        return "❌ Eroare: Proiectul a fost deja șters sau nu există.", None, None
 
     return "Modulul de proiecte funcționează corect.", None, None
 

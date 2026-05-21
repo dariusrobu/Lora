@@ -1,15 +1,15 @@
 import subprocess
-from typing import Optional, List, Dict
-import os
+from typing import Optional, List
+
 
 def run_applescript(script: str) -> str:
     """Executes an AppleScript and returns the output."""
     try:
         process = subprocess.Popen(
-            ['osascript', '-e', script],
+            ["osascript", "-e", script],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
         )
         stdout, stderr = process.communicate()
         if stderr:
@@ -20,7 +20,9 @@ def run_applescript(script: str) -> str:
         print(f"Failed to run AppleScript: {e}")
         return ""
 
+
 # --- Apple Notes ---
+
 
 def create_apple_note(title: str, body: str, folder: str = "Notes") -> bool:
     """Creates a new note in Apple Notes."""
@@ -36,6 +38,7 @@ def create_apple_note(title: str, body: str, folder: str = "Notes") -> bool:
     '''
     return run_applescript(script) != ""
 
+
 def list_apple_notes(folder: str = "Notes") -> List[str]:
     """Lists titles of notes in a folder."""
     script = f'''
@@ -48,7 +51,9 @@ def list_apple_notes(folder: str = "Notes") -> List[str]:
     result = run_applescript(script)
     return [n.strip() for n in result.split(",")] if result else []
 
+
 # --- Apple Clock (Alarms) ---
+
 
 def set_apple_alarm(label: str, hour: int, minute: int) -> bool:
     """Sets an alarm in the Clock app (macOS Ventura+)."""
@@ -59,8 +64,10 @@ def set_apple_alarm(label: str, hour: int, minute: int) -> bool:
     '''
     return run_applescript(script) != ""
 
+
 # --- Apple Reminders ---
 # (Already handled by iCloud CalDAV, but AppleScript is faster for local check)
+
 
 def add_apple_reminder(title: str, due_date: Optional[str] = None) -> bool:
     """Adds a reminder via AppleScript."""
@@ -72,7 +79,9 @@ def add_apple_reminder(title: str, due_date: Optional[str] = None) -> bool:
     '''
     return run_applescript(script) != ""
 
+
 # --- Apple Mail ---
+
 
 def send_apple_mail(recipient: str, subject: str, body: str) -> bool:
     """Sends an email using the Mail app."""

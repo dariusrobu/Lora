@@ -10,7 +10,7 @@ async def handle_insights_intent(
         reply = await generate_insights(pool)
         return reply, None, None
 
-    return "Modulul insights este pregătit!", None, None
+    return "✅ Modulul insights este pregătit\\.", None, None
 
 
 async def get_recent_insight_types(pool, days=5) -> set:
@@ -170,7 +170,7 @@ async def generate_insights(pool) -> str:
         final_lines.append(msg)
 
     if not final_lines:
-        return "Nu am suficiente date pentru patterns semnificative."
+        return "ℹ️ Nu am suficiente date pentru patterns semnificative\\."
 
     return safe_markdown("\n\n".join(final_lines))
 

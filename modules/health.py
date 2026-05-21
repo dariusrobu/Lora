@@ -28,7 +28,7 @@ async def handle_health_intent(
     elif intent == "log_cigarettes":
         count = data.get("cigarettes") or 1
         new_total = await health_queries.add_cigarettes(pool, today, count)
-        
+
         warning = await _get_cigarette_warning(pool, today, new_total, user_id)
         msg = f"✅ \\+{count} țigări adăugate\\.\n🚬 *Total azi:* {new_total}{warning}"
         log = await health_queries.get_health_log(pool, today)
@@ -37,14 +37,18 @@ async def handle_health_intent(
     elif intent == "log_water":
         water_ml = data.get("water_ml") or data.get("amount_ml")
         if not water_ml:
-            return "Câți ml ai băut? 💧", None, None
+            return (
+                '⚠️ Atenție: Nu ai specificat câți ml ai băut. Te rog să repeți, ex: "Am băut 500ml".',
+                None,
+                None,
+            )
 
         new_total = await health_queries.add_water(pool, today, water_ml)
         target = await _get_water_target(pool)
         pct = min(int((new_total / target) * 100), 100)
         bar = "█" * (pct // 10) + "░" * (10 - (pct // 10))
 
-        msg = f"✅ \\+{water_ml}ml adăugați\\.\n💧 *Total azi:* {new_total}/{target}ml\n`{bar}` {pct}\\%"
+        msg = f"✅ Apă logată: *{water_ml}ml*.\n💧 Total azi: *{new_total}/{target}ml*\n`{bar}` {pct}\\%"
         # We use today's log ID for undo. add_water doesn't return the ID, but we can fetch it or just not support undo for water yet.
         # Actually, let's get the ID if we want to support undo.
         log = await health_queries.get_health_log(pool, today)
@@ -68,7 +72,9 @@ async def handle_health_intent(
         return res_text, res_markup, None
 
     return (
-        escape_md("Nu sunt sigură cum să procesez această cerere pentru sănătate. 🤔"),
+        escape_md(
+            "❌ Eroare: Nu am putut procesa cererea legată de sănătate. Verifica sintaxa."
+        ),
         None,
         None,
     )
@@ -149,8 +155,10 @@ async def handle_health_callback(query, pool, data: str) -> None:
     except Exception as e:
         print(f"ERROR in handle_health_callback: {e}")
         traceback.print_exc()
-        await query.answer("A apărut o eroare.")
-        await query.message.reply_text("A apărut o eroare. Te rog să încerci din nou.")
+        await query.answer("❌ Eroare")
+        await query.message.reply_text(
+            "❌ Eroare: A apărut o eroare la procesarea acțiunii de sănătate. Te rog să încerci din nou."
+        )
 
 
 async def handle_health_message(update, pool, state: dict, text: str) -> None:
@@ -228,7 +236,9 @@ async def handle_health_message(update, pool, state: dict, text: str) -> None:
     except Exception as e:
         print(f"ERROR in handle_health_message: {e}")
         traceback.print_exc()
-        await update.message.reply_text("A apărut o eroare. Te rog să încerci din nou.")
+        await update.message.reply_text(
+            "❌ Eroare: A apărut o eroare la procesarea mesajului tău de sănătate. Te rog să încerci din nou."
+        )
 
 
 async def _handle_upsert(
@@ -266,8 +276,8 @@ async def _handle_upsert(
     if cigarettes is not None:
         parts.append(f"țigări: {cigarettes} ✓")
 
-    msg = "✅ Health logat: " + " + ".join(parts)
-    
+    msg = "✅ Health logat: *" + " + ".join(parts) + "*"
+
     if cigarettes is not None:
         log = await health_queries.get_health_log(pool, log_date)
         total = log.get("cigarettes", 0) if log else 0
@@ -275,15 +285,18 @@ async def _handle_upsert(
         msg += warning
 
     from bot.formatter import safe_markdown
+
     return safe_markdown(msg), None, log_id
 
 
-async def _get_cigarette_warning(pool, log_date: date, total: int, user_id: int = None) -> str:
+async def _get_cigarette_warning(
+    pool, log_date: date, total: int, user_id: int = None
+) -> str:
     """Helper to generate Tough Love warnings for cigarettes."""
     target_uid = user_id or TELEGRAM_USER_ID
     profile = await profile_queries.get_user_profile(pool, target_uid)
     tone = profile.get("tone", "warm")
-    
+
     warning = ""
     if total >= 10:
         if tone == "direct":
@@ -390,7 +403,7 @@ async def _generate_health_summary_text(pool) -> Tuple[str, Any]:
     if not summary or summary.get("total_days", 0) == 0:
         return (
             safe_markdown(
-                "Nu am destule date pentru un rezumat încă. Mai loghează câteva zile! 📊"
+                "⚠️ Atenție: Nu am destule date pentru un rezumat încă. Mai loghează câteva zile! 📊"
             ),
             health_summary_keyboard(),
         )
@@ -416,12 +429,14 @@ async def _generate_health_summary_text(pool) -> Tuple[str, Any]:
         nutri_text = f"{int(nutrition_today['calories'])}/{targets['calories']} kcal ({cal_pct}%) · {int(nutrition_today['protein'])}g P"
 
     text = (
-        "📊 *Health — ultimele 7 zile*\n\n"
+        "📊 *Health — ultimele 7 zile*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
         f"😴 *Somn:* medie {avg_sleep:.1f}h · {common_quality}\n"
         f"💧 *Apă:* medie {int(avg_water)}ml · max {max_water}ml\n"
         f"⚖️ *Greutate:* {recent_weight}kg (trend: {trend_emoji})\n"
         f"🚬 *Țigări:* medie {summary.get('avg_cigarettes', 0):.1f}/zi · total {int(summary.get('total_cigarettes', 0))}\n"
-        f"🍎 *Nutriție Azi:* {nutri_text}"
+        f"🍎 *Nutriție Azi:* {nutri_text}\n"
+        "━━━━━━━━━━━━━━━━━━━━"
     )
 
     text = safe_markdown(text)
@@ -433,7 +448,7 @@ async def _generate_health_chart(pool) -> Tuple[str, Any]:
     if len(history) < 3:
         return (
             safe_markdown(
-                "Am nevoie de măcar 3 zile logate pentru a genera un grafic relevant. 📉"
+                "⚠️ Atenție: Am nevoie de măcar 3 zile logate pentru a genera un grafic relevant. 📉"
             ),
             None,
         )
@@ -498,9 +513,11 @@ async def _generate_today_logs_text(pool) -> Tuple[str, Any]:
     totals = await nutrition_queries.get_daily_totals(pool, today)
 
     if not health and not meals:
-        return safe_markdown("Nu ai logat nimic pentru azi încă. 🍎💧"), None
+        return safe_markdown("⚠️ Atenție: Nu ai logat nimic pentru azi încă. 🍎💧"), None
 
-    text = f"📜 *Jurnal Sănătate — {today.strftime('%d %b %Y')}*\n\n"
+    text = (
+        f"📜 *Jurnal Sănătate — {today.strftime('%d %b %Y')}*\n━━━━━━━━━━━━━━━━━━━━\n"
+    )
 
     if health:
         metrics = []
@@ -518,7 +535,7 @@ async def _generate_today_logs_text(pool) -> Tuple[str, Any]:
             metrics.append(f"📝 *Note:* {health['notes']}")
 
         if metrics:
-            text += "\n".join(metrics) + "\n\n"
+            text += "\n".join(metrics) + "\n━━━━━━━━━━━━━━━━━━━━\n"
 
     if meals:
         text += "🍎 *Mese:* \n"
@@ -528,6 +545,7 @@ async def _generate_today_logs_text(pool) -> Tuple[str, Any]:
 
         text += f"\n🔥 *Total Calorii:* {int(totals['calories'])} kcal\n"
         text += f"📊 *Macros:* {int(totals['protein'])}g P · {int(totals['carbs'])}g C · {int(totals['fat'])}g F\n"
+        text += "━━━━━━━━━━━━━━━━━━━━\n"
     else:
         text += "🍎 *Mese:* Nicio masă logată încă.\n"
 
@@ -554,14 +572,14 @@ async def _save_prompt_to_conversation(pool, prompt: str) -> None:
 async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
     """Rolls back the last health log entry."""
     if not item_id:
-        return False, "ID invalid."
+        return False, "❌ Eroare: ID invalid."
 
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT log_date FROM health_logs WHERE id = $1", item_id
         )
         if not row:
-            return False, "Log-ul de sănătate nu mai există."
+            return False, "❌ Eroare: Log-ul de sănătate nu mai există."
 
     try:
         async with pool.acquire() as conn:

@@ -13,7 +13,6 @@ from core.config import (
     MORNING_BRIEFING_TIME,
     EOD_REFLECTION_TIME,
     HABIT_REMINDER_TIME,
-    JOURNAL_NIGHT_TIME,
     COUNCIL_GROUP_CHAT_ID,
 )
 from bot.formatter import escape_md, safe_markdown
@@ -29,7 +28,7 @@ import db.queries.health as health_queries
 async def _build_eod_payload(pool) -> dict:
     """Helper to collect all relevant data for the end of the day."""
     today = date.today()
-    
+
     # 1. Tasks Completed
     completed = await task_queries.get_completed_tasks_today(pool)
 
@@ -46,7 +45,10 @@ async def _build_eod_payload(pool) -> dict:
             "SELECT title, due_date FROM tasks WHERE status != 'done' AND due_date < CURRENT_DATE AND deleted_at IS NULL"
         )
         tasks_pending_overdue = [
-            {"title": r["title"], "due_date": r["due_date"].isoformat() if r["due_date"] else None} 
+            {
+                "title": r["title"],
+                "due_date": r["due_date"].isoformat() if r["due_date"] else None,
+            }
             for r in overdue_rows
         ]
 
@@ -60,7 +62,7 @@ async def _build_eod_payload(pool) -> dict:
         )
         finance_summary = {
             "total": float(fin_total) if fin_total else 0.0,
-            "per_category": {r["category"]: float(r["total"]) for r in fin_cat}
+            "per_category": {r["category"]: float(r["total"]) for r in fin_cat},
         }
 
     # 5. Active Goals
@@ -69,7 +71,12 @@ async def _build_eod_payload(pool) -> dict:
             "SELECT title, progress_percent FROM goals WHERE status = 'active' AND deleted_at IS NULL"
         )
         active_goals = [
-            {"title": r["title"], "progress_percent": float(r["progress_percent"]) if r["progress_percent"] else 0.0} 
+            {
+                "title": r["title"],
+                "progress_percent": float(r["progress_percent"])
+                if r["progress_percent"]
+                else 0.0,
+            }
             for r in goals_rows
         ]
 
@@ -78,17 +85,40 @@ async def _build_eod_payload(pool) -> dict:
         health_row = await conn.fetchrow(
             "SELECT mood, energy, cigarettes, sleep_hours, water_ml FROM health_logs WHERE log_date = CURRENT_DATE"
         )
-        mood = int(health_row["mood"]) if health_row and health_row["mood"] is not None else None
-        energy = int(health_row["energy"]) if health_row and health_row["energy"] is not None else None
-        cigs = int(health_row["cigarettes"]) if health_row and health_row["cigarettes"] is not None else 0
-        sleep = float(health_row["sleep_hours"]) if health_row and health_row["sleep_hours"] is not None else None
-        water = int(health_row["water_ml"]) if health_row and health_row["water_ml"] is not None else 0
+        mood = (
+            int(health_row["mood"])
+            if health_row and health_row["mood"] is not None
+            else None
+        )
+        energy = (
+            int(health_row["energy"])
+            if health_row and health_row["energy"] is not None
+            else None
+        )
+        cigs = (
+            int(health_row["cigarettes"])
+            if health_row and health_row["cigarettes"] is not None
+            else 0
+        )
+        sleep = (
+            float(health_row["sleep_hours"])
+            if health_row and health_row["sleep_hours"] is not None
+            else None
+        )
+        water = (
+            int(health_row["water_ml"])
+            if health_row and health_row["water_ml"] is not None
+            else 0
+        )
 
     # 7. Streaks Active
     from db.queries.skills import get_skill_streak
+
     async with pool.acquire() as conn:
-        skills = await conn.fetch("SELECT id, name FROM skills WHERE deleted_at IS NULL")
-    
+        skills = await conn.fetch(
+            "SELECT id, name FROM skills WHERE deleted_at IS NULL"
+        )
+
     streaks_active = []
     for s in skills:
         streak = await get_skill_streak(pool, s["id"])
@@ -107,8 +137,9 @@ async def _build_eod_payload(pool) -> dict:
         "sleep_hours": sleep,
         "water_ml": water,
         "streaks_active": streaks_active or [],
-        "date": today.isoformat()
+        "date": today.isoformat(),
     }
+
 
 async def send_daily_report(application, pool) -> bool:
     """Collects and sends daily report to Council API."""
@@ -116,16 +147,13 @@ async def send_daily_report(application, pool) -> bool:
         from core.council import send_report_to_council
         from core.config import TELEGRAM_USER_ID as TG_ID
         from db.queries.log import log_execution
-        
+
         payload = await _build_eod_payload(pool)
         project_id = str(TG_ID)
         today = date.today()
 
         # Send report
-        result = await send_report_to_council(
-            project_id=project_id,
-            payload=payload
-        )
+        result = await send_report_to_council(project_id=project_id, payload=payload)
 
         # Log to execution_log
         payload_size = len(json.dumps(payload, default=str))
@@ -135,12 +163,13 @@ async def send_daily_report(application, pool) -> bool:
             module="jobs",
             success=result,
             error_type=None,
-            error_message=f"Payload size: {payload_size} bytes" if result else f"Failed to send report. Payload size: {payload_size} bytes"
+            error_message=f"Payload size: {payload_size} bytes"
+            if result
+            else f"Failed to send report. Payload size: {payload_size} bytes",
         )
 
         if result:
             print(f"Report sent to Council for {today}.", flush=True)
-
 
         if COUNCIL_GROUP_CHAT_ID and COUNCIL_GROUP_CHAT_ID != "":
             completed = payload.get("tasks_completed", [])
@@ -158,22 +187,24 @@ async def send_daily_report(application, pool) -> bool:
                 text=report_text,
             )
             print("Report posted to Council group.", flush=True)
-            
+
         return result
 
     except Exception as e:
         import traceback
+
         print(f"CRITICAL error in send_daily_report: {e}", flush=True)
         traceback.print_exc()
         try:
             from db.queries.log import log_execution
+
             await log_execution(
                 pool=pool,
                 intent="council_report",
                 module="jobs",
                 success=False,
                 error_type=e.__class__.__name__,
-                error_message=str(e)
+                error_message=str(e),
             )
         except:
             pass
@@ -357,10 +388,10 @@ STIL: Modern Assistant (Structurat dar uman).
 - Antet cu data și locația (Locația ta actuală: {city}).
 - Secțiuni clare cu titluri în MAJUSCULE (ex: 🎯 PRIORITĂȚI).
 - Ton: {tone}, Romglish natural.
-{f"- PERSONALITATE: Ești EXTREM de autoritară, critică și exigentă. Dacă utilizatorul are task-uri overdue sau restanțe, ceartă-l dur. Nimic nu e destul de bine. Folosește un limbaj tăios și disciplinar." if tone == "direct" else ""}
+{"- PERSONALITATE: Ești EXTREM de autoritară, critică și exigentă. Dacă utilizatorul are task-uri overdue sau restanțe, ceartă-l dur. Nimic nu e destul de bine. Folosește un limbaj tăios și disciplinar." if tone == "direct" else ""}
 
 CUPRINS (Include doar dacă există date):
-1. ANTET: Ziua curentă | {city}. (Folosește datele meteo: {briefing_data.get('weather')}).
+1. ANTET: Ziua curentă | {city}. (Folosește datele meteo: {briefing_data.get("weather")}).
 2. 🎓 PROGRAM ACADEMIC: Cursuri azi (Ora, Sala, Materia).
 3. 📅 EVENIMENTE: Calendar iCloud (ora și titlu) + Remindere critice.
 4. 🎯 PRIORITĂȚI: Task-uri High și Medium. OBLIGATORIU: Scrie titlul complet al taskului și proiectul în paranteze pătrate, ex: "Faza 8 — Intelligence layer [Proiect: Lora]". NU TĂIA titlul.
@@ -382,7 +413,10 @@ CUPRINS (Include doar dacă există date):
 
         # 4. Generate text via Gemini
         briefing_text_raw = await get_proactive_response(instruction, gemini_context)
-        print(f"DEBUG: Morning briefing raw text length: {len(briefing_text_raw or '')}", flush=True)
+        print(
+            f"DEBUG: Morning briefing raw text length: {len(briefing_text_raw or '')}",
+            flush=True,
+        )
 
         if not briefing_text_raw or briefing_text_raw.strip() == "":
             briefing_text_raw = "Bună dimineața! Se pare că azi e o zi liberă sau nu am date noi. Bucură-te de liniște! ☀️"
@@ -542,16 +576,20 @@ async def check_contextual_nudges(application, pool):
                         for s in skills:
                             streak = await skill_queries.get_skill_streak(pool, s["id"])
                             if streak >= 1:
-                                profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
+                                profile = await profile_queries.get_user_profile(
+                                    pool, TELEGRAM_USER_ID
+                                )
                                 tone = profile.get("tone", "warm")
-                                
+
                                 if tone == "direct":
                                     msg = rf"🔥 *DISCIPLINĂ ZERO\!* Streak\-ul tău de {streak} la {escape_md(s['id'])} e pe moarte\. Îți bați joc de tot progresul? Mișcă\-te ACUM și loghează antrenamentul, altfel resetez tot\!"
                                 else:
                                     msg = "💪 Streak-ul tău e în pericol! Nu ai logat antrenamentul azi. Mai ai timp pentru o sesiune scurtă."
-                                
+
                                 await application.bot.send_message(
-                                    chat_id=TELEGRAM_USER_ID, text=safe_markdown(msg), parse_mode=ParseMode.MARKDOWN_V2
+                                    chat_id=TELEGRAM_USER_ID,
+                                    text=safe_markdown(msg),
+                                    parse_mode=ParseMode.MARKDOWN_V2,
                                 )
                                 await _mark_nudge_sent(pool, "workout_streak_risk")
                                 break
@@ -621,7 +659,7 @@ async def send_eod_reflection(application, pool, force=False):
         if report_status:
             report_text = "\n\n_Raport trimis la Council ✓_"
         elif os.getenv("COUNCIL_API_URL"):
-             report_text = "\n\n_Raport Council: eșuat ✗_"
+            report_text = "\n\n_Raport Council: eșuat ✗_"
 
         tone = profile.get("tone", "warm")
         if tone == "direct":
@@ -723,10 +761,10 @@ async def send_journal_night(application, pool):
 
         # 2. Gather Prioritized EOD Context
         from core.gemini import get_proactive_response
-        from bot.formatter import safe_markdown, split_message
-        
+        from bot.formatter import safe_markdown
+
         eod_data = await _build_eod_payload(pool)
-        
+
         instruction = f"""Ești Lora, într-un mod TOUGH LOVE și STRATEGIC. 
 Generezi un 'EXECUTIVE REALITY CHECK' pentru finalul zilei lui {name}.
 
@@ -734,7 +772,7 @@ STIL: Confruntare constructivă. Fără menajamente, dar cu scopul de a discipli
 - Folosește linii: ━━━━━━━━━━━━━━━━━━━━
 - Dacă are task-uri pending/overdue, ceartă-l dur pentru amânare.
 - Dacă a cheltuit mult, confruntă-l cu bugetul.
-- Dacă a fumat mult ({eod_data.get('cigarettes', 0)} țigări), fii EXTREM de tăioasă.
+- Dacă a fumat mult ({eod_data.get("cigarettes", 0)} țigări), fii EXTREM de tăioasă.
 - Dacă a avut o zi productivă, recunoaște succesul dar cere și mai mult pentru mâine.
 
 STRUCTURĂ:
@@ -749,10 +787,10 @@ După acest Reality Check, adaugă cele 3 întrebări standard:
 
 📌 La ce oră te trezești mâine? (ex: la 7, pe la 8:30)
 """
-        
+
         gemini_context = json.dumps(eod_data, default=str)
         reality_check_text = await get_proactive_response(instruction, gemini_context)
-        
+
         if not reality_check_text:
             reality_check_text = (
                 "Răspunde la cele 3 întrebări ca să închidem ziua:\n"
@@ -762,9 +800,8 @@ După acest Reality Check, adaugă cele 3 întrebări standard:
                 "📌 *La ce oră te trezești mâine?*"
             )
 
-        message = (
-            f"🌙 *Bună seara, {escape_md(name)}.*\n\n"
-            + safe_markdown(reality_check_text)
+        message = f"🌙 *Bună seara, {escape_md(name)}.*\n\n" + safe_markdown(
+            reality_check_text
         )
 
         try:
@@ -989,8 +1026,6 @@ async def send_weekly_review(application, pool, force=False):
             await application.bot.send_message(
                 chat_id=TELEGRAM_USER_ID, text=chunk, parse_mode=ParseMode.MARKDOWN_V2
             )
-
-
 
         # 6. Send Voice Version (TTS)
         try:
@@ -1785,8 +1820,6 @@ def setup_scheduler(application, pool):
         args=[application, pool],
     )
 
-
-
     # 4. Journal Night - Disabled (Consolidated into EOD Reflection)
     # j_h, j_m = map(int, JOURNAL_NIGHT_TIME.split(":"))
     # scheduler.add_job(
@@ -1991,6 +2024,7 @@ async def check_weather_alerts_job(application, pool):
     """Periodic check for severe weather based on user location."""
     try:
         from modules.weather import check_weather_for_alerts
+
         profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
         if not profile:
             return
@@ -2001,9 +2035,7 @@ async def check_weather_alerts_job(application, pool):
             alert_msg = await check_weather_for_alerts(float(lat), float(lon))
             if alert_msg:
                 await application.bot.send_message(
-                    chat_id=TELEGRAM_USER_ID,
-                    text=alert_msg,
-                    parse_mode="Markdown"
+                    chat_id=TELEGRAM_USER_ID, text=alert_msg, parse_mode="Markdown"
                 )
                 print(f"🌦️ Weather alert sent: {alert_msg}")
     except Exception as e:

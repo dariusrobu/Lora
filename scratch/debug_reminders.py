@@ -5,8 +5,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 async def debug_reminders():
-    conn = await asyncpg.connect(os.getenv('DATABASE_URL'))
+    conn = await asyncpg.connect(os.getenv("DATABASE_URL"))
     # Reminders created on Sunday (May 10)
     rows = await conn.fetch("""
         SELECT * FROM events 
@@ -16,8 +17,10 @@ async def debug_reminders():
     """)
     print("Reminders created on Sunday:")
     for r in rows:
-        print(f"- Title: {r['title']} | Date: {r['event_date']} | Time: {r['event_time']} | Reminded At: {r['reminded_at']}")
-        
+        print(
+            f"- Title: {r['title']} | Date: {r['event_date']} | Time: {r['event_time']} | Reminded At: {r['reminded_at']}"
+        )
+
     # Reminders set FOR Sunday
     rows = await conn.fetch("""
         SELECT * FROM events 
@@ -27,9 +30,12 @@ async def debug_reminders():
     """)
     print("\nReminders set FOR Sunday:")
     for r in rows:
-        print(f"- Title: {r['title']} | Date: {r['event_date']} | Time: {r['event_time']} | Reminded At: {r['reminded_at']} | Created At: {r['created_at']}")
-        
+        print(
+            f"- Title: {r['title']} | Date: {r['event_date']} | Time: {r['event_time']} | Reminded At: {r['reminded_at']} | Created At: {r['created_at']}"
+        )
+
     await conn.close()
+
 
 if __name__ == "__main__":
     asyncio.run(debug_reminders())

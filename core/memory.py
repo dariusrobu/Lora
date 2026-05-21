@@ -2,7 +2,11 @@ import asyncio
 import json
 import traceback
 from google.genai import types
-from db.queries.memory import save_memory_fact, get_relevant_facts, update_fact_seen, semantic_search_memories
+from db.queries.memory import (
+    save_memory_fact,
+    update_fact_seen,
+    semantic_search_memories,
+)
 from core.embeddings import get_embedding
 
 
@@ -94,8 +98,10 @@ If no new facts → return []
 
             # Generate embedding for the new fact
             embedding = await get_embedding(fact)
-            
-            await save_memory_fact(pool, user_id, category, fact, source, confidence, embedding=embedding)
+
+            await save_memory_fact(
+                pool, user_id, category, fact, source, confidence, embedding=embedding
+            )
             print(f"🧠 MEMORY SAVED: [{category}] {fact}")
 
     except Exception as e:
@@ -109,15 +115,17 @@ async def _is_duplicate_fact(pool, user_id: int, new_fact: str) -> bool:
         embedding = await get_embedding(new_fact)
         if not embedding:
             return False
-            
-        similar_facts = await semantic_search_memories(pool, user_id, embedding, limit=1)
+
+        similar_facts = await semantic_search_memories(
+            pool, user_id, embedding, limit=1
+        )
         if similar_facts:
             # Check cosine similarity threshold
             similarity = similar_facts[0].get("similarity", 0)
-            if similarity > 0.92: # High threshold for exact duplicates
+            if similarity > 0.92:  # High threshold for exact duplicates
                 return True
         return False
-            
+
     except Exception as e:
         print(f"Deduplication check error: {e}")
         return False
@@ -148,6 +156,7 @@ async def get_context_memory(
         # 3. If we have a category hint, fetch a few from that category too (legacy fallback)
         if category_hint:
             from db.queries.memory import get_all_facts_by_category
+
             cat_facts = await get_all_facts_by_category(pool, category_hint)
             existing_ids = {f["id"] for f in facts}
             for cf in cat_facts[:3]:
@@ -172,7 +181,7 @@ async def get_context_memory(
 
 async def optimize_user_memory(pool, client, user_id: int) -> str:
     """Uses Gemini to deduplicate and clean up all memories for a user."""
-    from db.queries.memory import list_all_memories, delete_fact
+    from db.queries.memory import list_all_memories
 
     try:
         memories = await list_all_memories(pool)
@@ -219,30 +228,34 @@ RETURN ONLY a JSON object (no markdown):
         )
 
         plan = json.loads(response.text.strip())
-        
+
         async with pool.acquire() as conn:
             # 1. Delete
             for fid in plan.get("to_delete", []):
                 await conn.execute("DELETE FROM memory_facts WHERE id = $1", fid)
-            
+
             # 2. Update
             for item in plan.get("to_update", []):
                 await conn.execute(
                     "UPDATE memory_facts SET fact = $1, category = $2 WHERE id = $3",
-                    item["fact"], item["category"], item["id"]
+                    item["fact"],
+                    item["category"],
+                    item["id"],
                 )
-            
+
             # 3. Add
             for item in plan.get("to_add", []):
                 await conn.execute(
                     "INSERT INTO memory_facts (user_id, fact, category, source) VALUES ($1, $2, $3, 'optimization')",
-                    user_id, item["fact"], item["category"]
+                    user_id,
+                    item["fact"],
+                    item["category"],
                 )
 
         total_deleted = len(plan.get("to_delete", []))
         total_updated = len(plan.get("to_update", []))
         total_added = len(plan.get("to_add", []))
-        
+
         return f"Optimizare completă! 🧠✨\nAm eliminat {total_deleted} duplicate și am consolidat {total_updated + total_added} amintiri."
 
     except Exception as e:
@@ -254,6 +267,7 @@ RETURN ONLY a JSON object (no markdown):
 async def backfill_memories(pool) -> str:
     """Generates embeddings for all memories that don't have one."""
     from db.queries.memory import list_all_memories
+
     try:
         memories = await list_all_memories(pool)
         count = 0
@@ -265,7 +279,8 @@ async def backfill_memories(pool) -> str:
                     async with pool.acquire() as conn:
                         await conn.execute(
                             "UPDATE memory_facts SET embedding = $1 WHERE id = $2",
-                            emb_str, m["id"]
+                            emb_str,
+                            m["id"],
                         )
                     count += 1
         return f"✅ Am generat embedding-uri pentru {count} amintiri."

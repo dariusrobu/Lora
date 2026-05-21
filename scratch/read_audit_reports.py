@@ -19,8 +19,10 @@ with open(transcript_path, "r") as f:
                 # Avoid printing the command itself
                 if "python3 -c" in content:
                     continue
-                reports.append(f"--- STEP {step.get('step_index')} (Source: {step.get('source')}) ---\n{content}\n")
-        except Exception as e:
+                reports.append(
+                    f"--- STEP {step.get('step_index')} (Source: {step.get('source')}) ---\n{content}\n"
+                )
+        except Exception:
             pass
 
 with open(output_path, "w") as out:

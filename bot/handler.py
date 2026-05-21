@@ -192,13 +192,13 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         from db.queries.profile import update_user_profile
         from core.config import OPENWEATHER_API_KEY
         import httpx
-        
+
         if not update.message or not update.message.location:
             return
-            
+
         location = update.message.location
         lat, lon = location.latitude, location.longitude
-        
+
         # 1. Reverse Geocoding (get city name)
         city_name = "Locație necunoscută"
         if OPENWEATHER_API_KEY:
@@ -212,23 +212,33 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 print(f"Reverse geocoding error: {e}")
 
         # 2. Persist coordinates and city
-        await update_user_profile(pool, update.effective_user.id, latitude=lat, longitude=lon, city_name=city_name)
-        
+        await update_user_profile(
+            pool,
+            update.effective_user.id,
+            latitude=lat,
+            longitude=lon,
+            city_name=city_name,
+        )
+
         # 3. Process Geofencing & Intelligent Notifications
         from core.geofencing import process_geofencing
-        await process_geofencing(pool, update.effective_user.id, lat, lon, context.application)
+
+        await process_geofencing(
+            pool, update.effective_user.id, lat, lon, context.application
+        )
 
         print(f"📍 LOCATION SYNCED: {lat}, {lon} ({city_name})")
-        
+
         # Only reply if it's a NEW message (not a Live Location update)
         if not update.edited_message:
             msg = f"📍 *Locație sincronizată\\!*\\n\nAcum suntem în *{city_name}*\\. Îți voi oferi date meteo și sugestii exacte pentru zona ta\\. 🌐"
             await update.message.reply_text(msg, parse_mode="MarkdownV2")
-        
+
     except Exception as e:
         print(f"ERROR in location_handler: {e}")
         traceback.print_exc()
         await update.message.reply_text("Nu am putut procesa locația.")
+
 
 async def set_home_command(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
     """Sets current location as HOME."""
@@ -238,60 +248,84 @@ async def set_home_command(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     profile = await get_user_profile(pool, TELEGRAM_USER_ID)
     lat = profile.get("latitude")
     lon = profile.get("longitude")
-    
+
     if not lat or not lon:
-        await update.message.reply_text("❌ Nu am locația ta curentă. Te rog trimite-mi locația mai întâi!")
+        await update.message.reply_text(
+            "❌ Nu am locația ta curentă. Te rog trimite-mi locația mai întâi!"
+        )
         return
 
     from db.queries.profile import update_user_profile
-    await update_user_profile(pool, TELEGRAM_USER_ID, home_latitude=lat, home_longitude=lon, is_at_home=True)
-    
-    msg = f"🏠 *Locație setată ca ACASĂ\\!*\\n\nDe acum voi ști când pleci și când revii pentru a-ți oferi asistență inteligentă\\. 🦾"
+
+    await update_user_profile(
+        pool, TELEGRAM_USER_ID, home_latitude=lat, home_longitude=lon, is_at_home=True
+    )
+
+    msg = "🏠 *Locație setată ca ACASĂ\\!*\\n\nDe acum voi ști când pleci și când revii pentru a-ți oferi asistență inteligentă\\. 🦾"
     await update.message.reply_text(msg, parse_mode="MarkdownV2")
 
-async def save_location_command(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
+
+async def save_location_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, pool
+):
     """Saves current location with a name."""
     if not await security_check(update):
         return
 
     name = " ".join(context.args).strip()
     if not name:
-        await update.message.reply_text("❌ Te rog specifică un nume pentru locație. Ex: `/save sala`", parse_mode="MarkdownV2")
+        await update.message.reply_text(
+            "❌ Te rog specifică un nume pentru locație. Ex: `/save sala`",
+            parse_mode="MarkdownV2",
+        )
         return
 
     profile = await get_user_profile(pool, TELEGRAM_USER_ID)
     lat = profile.get("latitude")
     lon = profile.get("longitude")
-    
+
     if not lat or not lon:
-        await update.message.reply_text("❌ Nu am locația ta curentă. Trimite-mi locația mai întâi!")
+        await update.message.reply_text(
+            "❌ Nu am locația ta curentă. Trimite-mi locația mai întâi!"
+        )
         return
 
     from db.queries.locations import add_saved_location
+
     await add_saved_location(pool, TELEGRAM_USER_ID, name, float(lat), float(lon))
-    
+
     msg = f"📍 *Locație salvată:* `{name}`\\!\n\nDe acum Lora va recunoaște acest loc și te va ajuta în funcție de context\\. 🌐"
     await update.message.reply_text(msg, parse_mode="MarkdownV2")
 
-async def list_locations_command(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
+
+async def list_locations_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, pool
+):
     """Lists all saved locations."""
     if not await security_check(update):
         return
 
     from db.queries.locations import list_saved_locations
+
     locs = await list_saved_locations(pool, TELEGRAM_USER_ID)
-    
+
     if not locs:
-        await update.message.reply_text("Nu ai nicio locație salvată încă\\. Folosește `/save nume` pentru a adăuga una\\.", parse_mode="MarkdownV2")
+        await update.message.reply_text(
+            "Nu ai nicio locație salvată încă\\. Folosește `/save nume` pentru a adăuga una\\.",
+            parse_mode="MarkdownV2",
+        )
         return
 
-    lines = [f"📍 *Locațiile tale salvate:*\n"]
+    lines = ["📍 *Locațiile tale salvate:*\n"]
     for l in locs:
         lines.append(f"• *{l['name']}* — `{l['latitude']:.4f}, {l['longitude']:.4f}`")
-        
+
     await update.message.reply_text("\n".join(lines), parse_mode="MarkdownV2")
 
-async def location_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
+
+async def location_status_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, pool
+):
     """Shows current location status and geofencing info."""
     if not await security_check(update):
         return
@@ -301,14 +335,18 @@ async def location_status_command(update: Update, context: ContextTypes.DEFAULT_
     lon = profile.get("longitude")
     city = profile.get("city_name", "Necunoscut")
     is_home = profile.get("is_at_home")
-    
+
     home_lat = profile.get("home_latitude")
     home_lon = profile.get("home_longitude")
     curr_spot = profile.get("current_location_name")
 
     status = "🏠 Acasă" if is_home else "🚀 Plecat"
     home_info = f"Setată la `{home_lat}, {home_lon}`" if home_lat else "Nesetată"
-    spot_info = f"📍 Suntem la: *{curr_spot}*" if curr_spot else "📍 Nu suntem într-o locație salvată"
+    spot_info = (
+        f"📍 Suntem la: *{curr_spot}*"
+        if curr_spot
+        else "📍 Nu suntem într-o locație salvată"
+    )
 
     msg = (
         f"📍 *Status Locație*\n"
@@ -379,7 +417,10 @@ async def message_handler(
 
             if clean_text.startswith("/briefing"):
                 from scheduler.jobs import send_morning_briefing
-                await update.message.reply_text("🔄 Pregătesc briefing-ul... un moment.")
+
+                await update.message.reply_text(
+                    "🔄 Pregătesc briefing-ul... un moment."
+                )
                 await send_morning_briefing(context.application, pool, force=True)
                 return
 
@@ -791,7 +832,9 @@ async def message_handler(
                     intent_response["clarification_needed"] = False
 
                 await clear_state(pool)
-                final_reply, reply_markup, _ = await route_intent(pool, intent_response, user_id=telegram_id, bot=context.bot)
+                final_reply, reply_markup, _ = await route_intent(
+                    pool, intent_response, user_id=telegram_id, bot=context.bot
+                )
                 await update.message.reply_text(
                     final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup
                 )
@@ -1289,7 +1332,9 @@ Returnează EXCLUSIV JSON valid:
                     "needs_agent": False,
                 }
                 await clear_state(pool)
-                final_reply, reply_markup, _ = await route_intent(pool, intent_response, user_id=telegram_id, bot=context.bot)
+                final_reply, reply_markup, _ = await route_intent(
+                    pool, intent_response, user_id=telegram_id, bot=context.bot
+                )
                 await update.message.reply_text(
                     final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup
                 )
@@ -1313,7 +1358,9 @@ Returnează EXCLUSIV JSON valid:
                 )
 
                 await clear_state(pool)
-                final_reply, reply_markup, _ = await route_intent(pool, intent_response, user_id=telegram_id, bot=context.bot)
+                final_reply, reply_markup, _ = await route_intent(
+                    pool, intent_response, user_id=telegram_id, bot=context.bot
+                )
                 await update.message.reply_text(
                     final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup
                 )
@@ -1769,20 +1816,20 @@ Reguli:
 
         # 7. Send to user
         chunks = split_message(final_reply)
-        
+
         # If input was voice, send a voice reply first (or along with text)
         voice_sent = False
-        if source == "voice" and final_reply and len(final_reply) < 1000: # Don't TTS very long messages
+        if (
+            source == "voice" and final_reply and len(final_reply) < 1000
+        ):  # Don't TTS very long messages
             try:
                 from bot.tts import text_to_speech
+
                 print(f"🎙️ Generating voice reply for {telegram_id}...", flush=True)
                 voice_path = await text_to_speech(final_reply)
                 if voice_path and os.path.exists(voice_path):
                     with open(voice_path, "rb") as f:
-                        await update.message.reply_voice(
-                            voice=f,
-                            caption="Lora 🎙️"
-                        )
+                        await update.message.reply_voice(voice=f, caption="Lora 🎙️")
                     os.remove(voice_path)
                     voice_sent = True
             except Exception as tts_err:
@@ -1847,6 +1894,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
 
         if data.startswith("onboard:"):
             from bot.onboarding import handle_onboarding_callback
+
             await handle_onboarding_callback(update, context, pool)
             return
 
@@ -1955,6 +2003,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
 
         if data.startswith("travel:"):
             from modules.travel import handle_travel_callback
+
             await handle_travel_callback(query, pool, data)
             return
 
@@ -2903,18 +2952,20 @@ async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
     tone = profile.get("tone", "warm")
     start = profile.get("active_hours_start", "08:00")
     end = profile.get("active_hours_end", "22:00")
-    
+
     # Format frequent categories if available
     categories_json = profile.get("frequent_categories", "{}")
     if isinstance(categories_json, str):
         categories = json.loads(categories_json)
     else:
         categories = categories_json
-        
+
     cat_text = ""
     if categories:
         top_cats = sorted(categories.items(), key=lambda x: x[1], reverse=True)[:3]
-        cat_text = "\n📊 *Top Categorii:* " + ", ".join([f"`{escape_md(c)}`" for c, _ in top_cats])
+        cat_text = "\n📊 *Top Categorii:* " + ", ".join(
+            [f"`{escape_md(c)}`" for c, _ in top_cats]
+        )
 
     text = (
         f"👤 *Profilul lui {escape_md(name)}*\n\n"
@@ -2934,7 +2985,7 @@ async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
         ],
         [
             InlineKeyboardButton("🔄 Refresh Profile", callback_data="profile_refresh"),
-        ]
+        ],
     ]
 
     await update.message.reply_text(
@@ -3031,14 +3082,16 @@ async def handle_eod_callback(query, pool, data):
             "*3\\.* Cum vrei să arate ziua de mâine? \\(tasks, program, priorități\\)\\n\\n"
             "📌 *La ce oră te trezești mâine?* \\(ex: la 7, pe la 8:30\\)"
         )
-        
+
         await query.edit_message_text(
             questions,
             parse_mode="MarkdownV2",
         )
-        
+
         from core.state import set_state
+
         await set_state(pool, "awaiting_evening_response", "journal", "save", None)
+
 
 async def generate_eod_summary(pool, mood, task_completion):
     """Generates a 2-3 line summary via Gemini based on today's activity."""

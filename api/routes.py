@@ -61,6 +61,7 @@ async def get_profile(request):
         pool = request.app["pool"]
         from db.queries.profile import get_user_profile
         from core.config import TELEGRAM_USER_ID
+
         profile = await get_user_profile(pool, TELEGRAM_USER_ID)
         return web.json_response(serialize_dic(profile))
     except Exception as e:
@@ -73,14 +74,16 @@ async def get_tasks(request):
         pool = request.app["pool"]
         project_id = request.query.get("project_id")
         status = request.query.get("status", "pending")
-        
+
         if status == "all":
             status = None
-            
+
         if project_id:
             project_id = int(project_id)
-            
-        tasks = await task_queries.list_tasks(pool, status=status, project_id=project_id)
+
+        tasks = await task_queries.list_tasks(
+            pool, status=status, project_id=project_id
+        )
         serialized_tasks = [serialize_dic(dict(t)) for t in tasks]
         return web.json_response(serialized_tasks)
     except Exception as e:
@@ -208,7 +211,10 @@ async def patch_task(request):
             await task_queries.complete_task(pool, task_id)
         elif action == "reopen":
             async with pool.acquire() as conn:
-                await conn.execute("UPDATE tasks SET status = 'pending', completed_at = NULL WHERE id = $1", task_id)
+                await conn.execute(
+                    "UPDATE tasks SET status = 'pending', completed_at = NULL WHERE id = $1",
+                    task_id,
+                )
         elif action == "delete":
             await task_queries.delete_task(pool, task_id)
         else:
@@ -734,6 +740,7 @@ async def get_travel_lists(request):
     except Exception as e:
         print(f"❌ API ERROR (travel_lists): {e}", flush=True)
         import traceback
+
         traceback.print_exc()
         return web.json_response({"error": str(e)}, status=500)
 
@@ -764,8 +771,10 @@ async def patch_travel_item(request):
         import db.queries.travel as travel_queries
 
         if "is_packed" in data:
-            await travel_queries.toggle_packed_status(pool, item_id, bool(data["is_packed"]))
-        
+            await travel_queries.toggle_packed_status(
+                pool, item_id, bool(data["is_packed"])
+            )
+
         return web.json_response({"status": "success"})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)

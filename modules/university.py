@@ -1,6 +1,6 @@
 # modules/university.py
 
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from datetime import date
 import db.queries.university as uni_queries
 from bot.formatter import escape_md
@@ -13,13 +13,15 @@ async def handle_university_intent(
     if intent == "uni_add_subject":
         name = data.get("name", "")
         if not name:
-            return "Care e numele materiei?", None, None
+            return "⚠️ Atenție: Specifică numele materiei.", None, None
 
         credits = data.get("credits")
         professor = data.get("professor")
         total_classes = data.get("total_classes", 0)
 
-        subject_id = await uni_queries.add_subject(pool, name, credits, professor, total_classes)
+        subject_id = await uni_queries.add_subject(
+            pool, name, credits, professor, total_classes
+        )
 
         details = []
         if credits:
@@ -28,16 +30,20 @@ async def handle_university_intent(
             details.append(f"prof. {professor}")
         details_str = f" \\({escape_md(', '.join(details))}\\)" if details else ""
 
-        return f"*{escape_md(name)}* adăugată{details_str}\\. 📚", None, subject_id
+        return (
+            f"✅ Materia *{escape_md(name)}* a fost adăugată cu succes{details_str}\\.",
+            None,
+            subject_id,
+        )
 
     elif intent == "uni_list":
         subjects = await uni_queries.list_subjects(pool)
         if not subjects:
-            return 'Nicio materie adăugată\\. Spune-mi: "adaugă materia X"\\.', None, None
+            return "✅ Nu ai nicio materie adăugată.", None, None
 
         avg = await uni_queries.get_general_average(pool)
 
-        lines = ["🎓 *Situație academică*\n"]
+        lines = ["🎓 *Situație Academică*", "━━━━━━━━━━━━━━━━━━━━"]
 
         if avg:
             lines.append(f"📊 Medie generală: *{avg}*\n")
@@ -78,22 +84,28 @@ async def handle_university_intent(
         notes = data.get("notes") or data.get("reflection")
 
         if not subject_name:
-            return "La ce materie?", None, None
+            return "⚠️ Atenție: Specifică materia.", None, None
 
         subject = await uni_queries.get_subject_by_name(pool, subject_name)
         if not subject:
-            return f"Materia *{escape_md(subject_name)}* nu e în listă\\.", None, None
+            return (
+                f"❌ Eroare: Materia *{escape_md(subject_name)}* nu a fost găsită\\.",
+                None,
+                None,
+            )
 
         if isinstance(class_date, str):
             from datetime import datetime
 
             class_date = datetime.strptime(class_date, "%Y-%m-%d").date()
 
-        att_id = await uni_queries.log_attendance(pool, subject["id"], attended, class_date, notes=notes)
+        att_id = await uni_queries.log_attendance(
+            pool, subject["id"], attended, class_date, notes=notes
+        )
 
         status = "prezent ✅" if attended else "absent ❌"
         return (
-            f"*{escape_md(subject['name'])}* — {status} înregistrat\\.",
+            f"✅ *{escape_md(subject['name'])}*: {status} înregistrat\\.",
             None,
             att_id,
         )
@@ -104,16 +116,22 @@ async def handle_university_intent(
         grade_type = data.get("grade_type", "exam")
 
         if not subject_name or grade is None:
-            return "Spune-mi materia și nota.", None, None
+            return "⚠️ Atenție: Specifică materia și nota.", None, None
 
         subject = await uni_queries.get_subject_by_name(pool, subject_name)
         if not subject:
-            return f"Materia *{escape_md(subject_name)}* nu e în listă\\.", None, None
+            return (
+                f"❌ Eroare: Materia *{escape_md(subject_name)}* nu a fost găsită\\.",
+                None,
+                None,
+            )
 
-        grade_id = await uni_queries.add_grade(pool, subject["id"], float(grade), grade_type)
+        grade_id = await uni_queries.add_grade(
+            pool, subject["id"], float(grade), grade_type
+        )
 
         return (
-            f"Notă *{grade}* la *{escape_md(subject['name'])}* \\({escape_md(grade_type)}\\) salvată\\.",
+            f"✅ Notă *{grade}* adăugată la *{escape_md(subject['name'])}* \\({escape_md(grade_type)}\\)\\.",
             None,
             grade_id,
         )
@@ -125,22 +143,28 @@ async def handle_university_intent(
         room = data.get("room") or data.get("location")
 
         if not subject_name or not exam_date:
-            return "Spune-mi materia și data examenului.", None, None
+            return "⚠️ Atenție: Specifică materia și data examenului.", None, None
 
         subject = await uni_queries.get_subject_by_name(pool, subject_name)
         if not subject:
-            return f"Materia *{escape_md(subject_name)}* nu e în listă\\.", None, None
+            return (
+                f"❌ Eroare: Materia *{escape_md(subject_name)}* nu a fost găsită\\.",
+                None,
+                None,
+            )
 
         if isinstance(exam_date, str):
             from datetime import datetime
 
             exam_date = datetime.strptime(exam_date, "%Y-%m-%d").date()
 
-        exam_id = await uni_queries.add_exam(pool, subject["id"], exam_date, exam_type, room)
+        exam_id = await uni_queries.add_exam(
+            pool, subject["id"], exam_date, exam_type, room
+        )
 
         loc_str = f" la {escape_md(room)}" if room else ""
         return (
-            f"Examen *{escape_md(subject['name'])}* pe *{exam_date.strftime('%d %b')}*{loc_str} adăugat\\. 📅",
+            f"✅ Examen *{escape_md(subject['name'])}* adăugat pentru *{exam_date.strftime('%d %b')}*{loc_str}\\.",
             None,
             exam_id,
         )
@@ -148,9 +172,9 @@ async def handle_university_intent(
     elif intent == "uni_exams":
         exams = await uni_queries.get_upcoming_exams(pool, days=60)
         if not exams:
-            return "Niciun examen înregistrat în următoarele 60 zile\\.", None, None
+            return "✅ Niciun examen în următoarele 60 zile\\.", None, None
 
-        lines = ["📅 *Examene upcoming*\n"]
+        lines = ["📅 *Următoarele Examene*", "━━━━━━━━━━━━━━━━━━━━"]
         for e in exams:
             date_str = escape_md(e["exam_date"].strftime("%d %b"))
             subject = escape_md(e["subject_name"])
@@ -163,14 +187,14 @@ async def handle_university_intent(
     elif intent == "uni_restante":
         restante = await uni_queries.get_restante(pool)
         if not restante:
-            return "Nu ai nicio restanță marcată\\. Felicitări\\! 🎉", None, None
+            return "✅ Nu ai nicio restanță marcată\\.", None, None
 
-        lines = ["📚 *Lista Restanțe*\n"]
+        lines = ["📚 *Situație Restanțe*", "━━━━━━━━━━━━━━━━━━━━"]
         for r in restante:
             date_str = escape_md(r["exam_date"].strftime("%d %b"))
             subject = escape_md(r["subject_name"])
             loc = f" · {escape_md(r['room'])}" if r.get("room") else ""
-            
+
             # Calcul zile rămase
             days_left = (r["exam_date"] - date.today()).days
             if days_left > 0:
@@ -187,9 +211,9 @@ async def handle_university_intent(
     elif intent == "uni_attendance_warning":
         warnings = await uni_queries.get_attendance_warnings(pool)
         if not warnings:
-            return "Prezențele sunt ok la toate materiile\\. ✅", None, None
+            return "✅ Prezențele sunt în regulă la toate materiile\\.", None, None
 
-        lines = ["⚠️ *Prezențe sub minim*\n"]
+        lines = ["⚠️ *Situație Prezențe (Risc)*", "━━━━━━━━━━━━━━━━━━━━"]
         for w in warnings:
             name = escape_md(w["name"])
             lines.append(
@@ -201,11 +225,15 @@ async def handle_university_intent(
     elif intent == "uni_update_subject":
         subject_name = data.get("subject")
         if not subject_name:
-            return "Ce materie vrei să modifici?", None, None
+            return "⚠️ Atenție: Specifică materia de modificat.", None, None
 
         subject = await uni_queries.get_subject_by_name(pool, subject_name)
         if not subject:
-            return f"Materia *{escape_md(subject_name)}* nu a fost găsită.", None, None
+            return (
+                f"❌ Eroare: Materia *{escape_md(subject_name)}* nu a fost găsită.",
+                None,
+                None,
+            )
 
         update_data = {}
         if "new_name" in data:
@@ -218,32 +246,48 @@ async def handle_university_intent(
             update_data["min_attendance_pct"] = data["min_attendance_pct"]
 
         if not update_data:
-            return "Ce vrei să modifici la această materie?", None, None
+            return "⚠️ Atenție: Nicio modificare specificată.", None, None
 
         await uni_queries.update_subject(pool, subject["id"], **update_data)
-        return f"Materia *{escape_md(subject['name'])}* a fost actualizată. ✅", None, None
+        return (
+            f"✏️ Materia *{escape_md(subject['name'])}* a fost actualizată.",
+            None,
+            None,
+        )
 
     elif intent == "uni_delete_subject":
         subject_name = data.get("subject")
         if not subject_name:
-            return "Ce materie vrei să ștergi?", None, None
+            return "⚠️ Atenție: Specifică materia de șters.", None, None
 
         subject = await uni_queries.get_subject_by_name(pool, subject_name)
         if not subject:
-            return f"Materia *{escape_md(subject_name)}* nu a fost găsită.", None, None
+            return (
+                f"❌ Eroare: Materia *{escape_md(subject_name)}* nu a fost găsită.",
+                None,
+                None,
+            )
 
         await uni_queries.delete_subject(pool, subject["id"])
-        return f"Materia *{escape_md(subject['name'])}* a fost ștearsă (arhivată). 🗑️", None, None
+        return f"🗑️ Materia *{escape_md(subject['name'])}* a fost ștearsă.", None, None
 
     elif intent == "uni_update_grade":
         subject_name = data.get("subject")
         old_grade = data.get("old_grade") or data.get("grade")
         if not subject_name or old_grade is None:
-            return "Spune-mi materia și nota pe care vrei să o modifici.", None, None
+            return (
+                "⚠️ Atenție: Specifică materia și nota pe care vrei să o modifici.",
+                None,
+                None,
+            )
 
         subject = await uni_queries.get_subject_by_name(pool, subject_name)
         if not subject:
-            return f"Materia *{escape_md(subject_name)}* nu a fost găsită.", None, None
+            return (
+                f"❌ Eroare: Materia *{escape_md(subject_name)}* nu a fost găsită.",
+                None,
+                None,
+            )
 
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
@@ -252,29 +296,47 @@ async def handle_university_intent(
                 float(old_grade),
             )
             if not row:
-                return f"Nu am găsit nota {old_grade} la {escape_md(subject['name'])}.", None, None
-            
+                return (
+                    f"❌ Eroare: Nu am găsit nota {old_grade} la {escape_md(subject['name'])}.",
+                    None,
+                    None,
+                )
+
             update_data = {}
             if "new_grade" in data:
                 update_data["grade"] = float(data["new_grade"])
             if "new_type" in data or "grade_type" in data:
-                update_data["grade_type"] = data.get("new_type") or data.get("grade_type")
-            
+                update_data["grade_type"] = data.get("new_type") or data.get(
+                    "grade_type"
+                )
+
             if not update_data:
-                return "Ce vrei să modifici la această notă?", None, None
-                
+                return (
+                    "⚠️ Atenție: Specifică ce vrei să modifici la această notă.",
+                    None,
+                    None,
+                )
+
             await uni_queries.update_grade(pool, row["id"], **update_data)
-            
-        return f"Nota de la *{escape_md(subject['name'])}* a fost actualizată. ✅", None, None
+
+        return (
+            f"✏️ Nota de la *{escape_md(subject['name'])}* a fost actualizată.",
+            None,
+            None,
+        )
 
     elif intent == "uni_update_exam":
         subject_name = data.get("subject")
         if not subject_name:
-            return "La ce materie vrei să modifici examenul?", None, None
+            return "⚠️ Atenție: Specifică materia.", None, None
 
         subject = await uni_queries.get_subject_by_name(pool, subject_name)
         if not subject:
-            return f"Materia *{escape_md(subject_name)}* nu a fost găsită.", None, None
+            return (
+                f"❌ Eroare: Materia *{escape_md(subject_name)}* nu a fost găsită.",
+                None,
+                None,
+            )
 
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
@@ -282,36 +344,55 @@ async def handle_university_intent(
                 subject["id"],
             )
             if not row:
-                return f"Nu am găsit niciun examen la {escape_md(subject['name'])}.", None, None
-            
+                return (
+                    f"❌ Eroare: Nu am găsit niciun examen la {escape_md(subject['name'])}.",
+                    None,
+                    None,
+                )
+
             update_data = {}
             if "new_date" in data or "exam_date" in data:
                 d = data.get("new_date") or data.get("exam_date")
                 if isinstance(d, str):
                     from datetime import datetime
+
                     d = datetime.strptime(d, "%Y-%m-%d").date()
                 update_data["exam_date"] = d
             if "new_type" in data or "exam_type" in data:
                 update_data["exam_type"] = data.get("new_type") or data.get("exam_type")
             if "new_room" in data or "room" in data or "location" in data:
-                update_data["room"] = data.get("new_room") or data.get("room") or data.get("location")
-            
+                update_data["room"] = (
+                    data.get("new_room") or data.get("room") or data.get("location")
+                )
+
             if not update_data:
-                return "Ce vrei să modifici la acest examen?", None, None
-                
+                return (
+                    "⚠️ Atenție: Nicio modificare specificată pentru examen.",
+                    None,
+                    None,
+                )
+
             await uni_queries.update_exam(pool, row["id"], **update_data)
 
-        return f"Examenul de la *{escape_md(subject['name'])}* a fost actualizat. ✅", None, None
+        return (
+            f"✏️ Examenul de la *{escape_md(subject['name'])}* a fost actualizat.",
+            None,
+            None,
+        )
 
     elif intent == "uni_delete_grade":
         subject_name = data.get("subject")
         grade_val = data.get("grade")
         if not subject_name or grade_val is None:
-            return "Spune-mi materia și nota pe care vrei să o ștergi.", None, None
+            return "⚠️ Atenție: Specifică materia și nota de șters.", None, None
 
         subject = await uni_queries.get_subject_by_name(pool, subject_name)
         if not subject:
-            return f"Materia *{escape_md(subject_name)}* nu a fost găsită.", None, None
+            return (
+                f"❌ Eroare: Materia *{escape_md(subject_name)}* nu a fost găsită.",
+                None,
+                None,
+            )
 
         # Găsește nota în DB
         async with pool.acquire() as conn:
@@ -321,11 +402,15 @@ async def handle_university_intent(
                 float(grade_val),
             )
             if not row:
-                return f"Nu am găsit nota {grade_val} la {escape_md(subject['name'])}.", None, None
+                return (
+                    f"❌ Eroare: Nu am găsit nota {grade_val} la {escape_md(subject['name'])}.",
+                    None,
+                    None,
+                )
             await uni_queries.delete_grade(pool, row["id"])
 
         return (
-            f"Nota {grade_val} de la *{escape_md(subject['name'])}* a fost ștearsă. 🗑️",
+            f"🗑️ Nota {grade_val} de la *{escape_md(subject['name'])}* a fost ștearsă.",
             None,
             None,
         )
@@ -333,11 +418,15 @@ async def handle_university_intent(
     elif intent == "uni_delete_exam":
         subject_name = data.get("subject")
         if not subject_name:
-            return "La ce materie vrei să ștergi examenul?", None, None
+            return "⚠️ Atenție: Specifică materia.", None, None
 
         subject = await uni_queries.get_subject_by_name(pool, subject_name)
         if not subject:
-            return f"Materia *{escape_md(subject_name)}* nu a fost găsită.", None, None
+            return (
+                f"❌ Eroare: Materia *{escape_md(subject_name)}* nu a fost găsită.",
+                None,
+                None,
+            )
 
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
@@ -345,11 +434,15 @@ async def handle_university_intent(
                 subject["id"],
             )
             if not row:
-                return f"Nu am găsit niciun examen la {escape_md(subject['name'])}.", None, None
+                return (
+                    f"❌ Eroare: Nu am găsit niciun examen la {escape_md(subject['name'])}.",
+                    None,
+                    None,
+                )
             await uni_queries.delete_exam(pool, row["id"])
 
         return (
-            f"Examenul de la *{escape_md(subject['name'])}* a fost șters. 🗑️",
+            f"🗑️ Examenul de la *{escape_md(subject['name'])}* a fost șters.",
             None,
             None,
         )
@@ -357,11 +450,15 @@ async def handle_university_intent(
     elif intent == "uni_delete_attendance":
         subject_name = data.get("subject")
         if not subject_name:
-            return "La ce materie vrei să ștergi prezența?", None, None
+            return "⚠️ Atenție: Specifică materia.", None, None
 
         subject = await uni_queries.get_subject_by_name(pool, subject_name)
         if not subject:
-            return f"Materia *{escape_md(subject_name)}* nu a fost găsită.", None, None
+            return (
+                f"❌ Eroare: Materia *{escape_md(subject_name)}* nu a fost găsită.",
+                None,
+                None,
+            )
 
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
@@ -369,11 +466,15 @@ async def handle_university_intent(
                 subject["id"],
             )
             if not row:
-                return f"Nu am găsit nicio prezență la {escape_md(subject['name'])}.", None, None
+                return (
+                    f"❌ Eroare: Nu am găsit nicio prezență la {escape_md(subject['name'])}.",
+                    None,
+                    None,
+                )
             await uni_queries.delete_attendance(pool, row["id"])
 
         return (
-            f"Ultima prezență de la *{escape_md(subject['name'])}* a fost ștearsă. 🗑️",
+            f"🗑️ Ultima prezență de la *{escape_md(subject['name'])}* a fost ștearsă.",
             None,
             None,
         )

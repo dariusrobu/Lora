@@ -60,7 +60,7 @@ async def handle_focus_intent(
                 )
 
         task_str = f" — *{escape_md(task)}*" if task else ""
-        return f"🎯 Focus {duration} min pornit{task_str}\\. Te las în pace\\. ⏱", None
+        return f"✅ Focus pornit: *{duration} min*{task_str}\\.", None
 
     elif intent == "focus_stop":
         from core.state import get_state, clear_state
@@ -68,7 +68,7 @@ async def handle_focus_intent(
         state = await get_state(pool)
 
         if not state or state.get("state_type") != "in_focus_session":
-            return "Nu ai nicio sesiune de focus activă\\.", None
+            return "⚠️ Atenție: Nu ai nicio sesiune de focus activă\\.", None
 
         session_id = state.get("item_id")
         user_tz = pytz.timezone(TIMEZONE)
@@ -89,14 +89,15 @@ async def handle_focus_intent(
 
             # Tough Love Reaction
             import db.queries.profile as profile_queries
+
             profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID)
             tone = profile.get("tone", "warm")
-            
+
             penalty = ""
             if tone == "direct":
                 penalty = f"\n\n🔥 *PENIBIL\!* Ai rezistat doar {elapsed}/{total} minute\. Concentrarea ta e la pământ\. Data viitoare nu mă mai pune să pornesc timer-ul dacă n-ai de gând să muncești\!"
             else:
-                penalty = f"\n\n⚠️ Sesiune întreruptă la minutul {elapsed}/{total}. Încearcă să fii mai concentrat data viitoare."
+                penalty = f"\n\n⚠️ Atenție: Sesiune întreruptă la minutul {elapsed}/{total}\\. Încearcă să fii mai concentrat data viitoare\\."
 
             # Try to remove the scheduled job if possible
             try:
@@ -110,12 +111,12 @@ async def handle_focus_intent(
                 pass
 
         await clear_state(pool)
-        return f"Sesiune întreruptă\\.{penalty}", None
+        return f"🛑 Sesiune întreruptă\\.{penalty}", None
 
     elif intent == "focus_list":
         sessions = await focus_queries.get_recent_sessions(pool, days=7)
         if not sessions:
-            return "Nicio sesiune de focus în ultimele 7 zile\\.", None
+            return "ℹ️ Nicio sesiune de focus în ultimele 7 zile\\.", None
 
         completed = [s for s in sessions if s["completed"]]
         total_min = sum(s["duration_min"] for s in completed)
@@ -140,7 +141,7 @@ async def handle_focus_intent(
 
         return "\n".join(lines), None
 
-    return "Nu am înțeles cererea legată de focus\\.", None
+    return "❌ Eroare: Nu am înțeles cererea legată de focus\\.", None
 
 
 async def send_focus_end(bot, pool, session_id: int, duration: int) -> None:

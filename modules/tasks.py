@@ -147,7 +147,7 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
             task = await task_queries.get_task(pool, task_id)
             await task_queries.complete_task(pool, task_id)
             task_title = task["title"] if task else "Task"
-            await query.answer(f"✅ Bifat: {task_title}")
+            await query.answer("✅ Task completat")
 
             # Immediate sync to Reminders
             try:
@@ -164,7 +164,7 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
                 )
             else:
                 await query.edit_message_text(
-                    f"✅ Task completat: *{escape_md(task_title)}*",
+                    f"✅ Task-ul *{escape_md(task_title)}* a fost completat.",
                     parse_mode="MarkdownV2",
                 )
 
@@ -191,7 +191,7 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
             from bot.keyboards import tasks_undo_delete_keyboard
 
             await query.edit_message_text(
-                f"🗑️ Am șters task-ul: *{escape_md(task_title)}*",
+                f"🗑️ Task-ul *{escape_md(task_title)}* a fost șters.",
                 parse_mode="MarkdownV2",
                 reply_markup=tasks_undo_delete_keyboard(task_id),
             )
@@ -205,14 +205,14 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
 
             text, markup = await get_tasks_dashboard(pool)
             await query.edit_message_text(
-                f"↩️ Am restaurat task-ul: *{escape_md(task_title)}*\n\n{text}",
+                f"↩️ Task-ul *{escape_md(task_title)}* a fost restaurat.\n\n{text}",
                 parse_mode="MarkdownV2",
                 reply_markup=markup,
             )
 
         elif action == "new":
             await set_state(pool, "awaiting_task_input", "tasks", "add", None)
-            prompt = "📝 *Adaugă task nou*\n\nScrie titlul task\\-ului \\(și opțional data sau prioritatea\\)\\.\n_Ex: Cumpără becuri mâine \\!\\!high_"
+            prompt = "📝 *Adaugă Task Nou*\n━━━━━━━━━━━━━━━━━━━━\nScrie titlul task\\-ului \\(opțional data sau prioritatea\\)\\.\n_Ex: Cumpără pâine mâine \\!\\!high_"
             await query.edit_message_text(
                 prompt,
                 parse_mode="MarkdownV2",
@@ -235,11 +235,9 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
             task_title = task["title"] if task else "Task"
             await set_state(pool, "awaiting_edit_field", "tasks", "edit", task_id)
             await query.edit_message_text(
-                f"What would you like to change about *{escape_md(task_title)}*?\\n\\n"
-                f"You can say things like:\\n"
-                f"• change title to 'Buy oat milk'\\n"
-                f"• set due date to Friday\\n"
-                f"• change priority to high",
+                f"✏️ *Editează Task: {escape_md(task_title)}*\n━━━━━━━━━━━━━━━━━━━━\n"
+                f"Ce anume vrei să schimbi?\n"
+                f"_Ex: change title to 'Buy milk', set due date to Friday_",
                 parse_mode="MarkdownV2",
             )
 
@@ -301,7 +299,7 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
         elif action == "complete":
             project_id = int(parts[2])
             await update_project_status(pool, project_id, "done")
-            await query.answer("🏁 Proiect marcat ca finalizat!")
+            await query.answer("🏁 Proiect finalizat")
             text, markup = await get_projects_list_view(pool)
             await query.edit_message_text(
                 text, parse_mode="MarkdownV2", reply_markup=markup
@@ -336,7 +334,11 @@ async def handle_task_intent(
                     if not priority and parsed.get("priority"):
                         priority = parsed.get("priority")
             if not title:
-                return "Ce task vrei să adaugi? (N-am înțeles titlul)", None, None
+                return (
+                    "⚠️ Atenție: Nu am înțeles titlul task-ului. Te rog repetă.",
+                    None,
+                    None,
+                )
 
         due_date_str = data.get("due_date")
         due_date = None
@@ -394,13 +396,13 @@ async def handle_task_intent(
 
         from bot.keyboards import task_keyboard
 
-        reply_msg = f"Am adăugat ✅ *{escape_md(title)}*"
+        reply_msg = f"✅ Task-ul *{escape_md(title)}* a fost adăugat cu succes."
         if due_date:
             from bot.formatter import format_date_short
 
-            reply_msg += f" (până pe {format_date_short(due_date)})"
+            reply_msg += f" ⏳ {format_date_short(due_date)}"
         if project_name:
-            reply_msg += f" în proiectul *{escape_md(project_name)}*"
+            reply_msg += f" 📂 {escape_md(project_name)}"
 
         # --- PROACTIVE MEMORY: Find similar tasks ---
         from core.config import TELEGRAM_USER_ID
@@ -441,9 +443,9 @@ async def handle_task_intent(
         )
         if not tasks:
             msg = (
-                f"Momentan nu ai niciun task activ pentru proiectul *{escape_md(project_name)}*\\! 🎉"
+                f"📂 Proiectul *{escape_md(project_name)}* nu are task-uri active."
                 if project_name
-                else "Niciun task restant\\! 🎉"
+                else "✅ Nu ai task-uri restante."
             )
             return msg, None, None
 
@@ -464,36 +466,32 @@ async def handle_task_intent(
             no_proj_tasks = groups.pop(no_project_key)
             groups[no_project_key] = no_proj_tasks
 
-        lines: list[str] = ["📋 *Tasks*"]
+        total_tasks = len(tasks)
+        lines: list[str] = [
+            f"📋 *Task-urile Tale* ({total_tasks} active)",
+            "━━━━━━━━━━━━━━━━━━━━",
+        ]
 
         for group_name, group_tasks in groups.items():
-            lines.append("")
-            lines.append(f"*{escape_md(group_name)}*")
+            if len(groups) > 1 and group_name != "Fără proiect":
+                lines.append(f"\n📂 *{escape_md(group_name)}*")
+
             for t in group_tasks:
-                prefix: str = ""
-                meta: list[str] = []
-
-                # Priority
                 prio = t.get("priority", "medium")
-                if prio == "high":
-                    prefix = "⚠️ "
-                    meta.append("🔥")
-                elif prio == "low":
-                    meta.append("🧊")
+                prio_str = (
+                    "High" if prio == "high" else "Low" if prio == "low" else "Medium"
+                )
 
-                # Due Date
+                due_str = ""
                 if t.get("due_date"):
                     from bot.formatter import format_date_short
 
-                    date_str = format_date_short(t["due_date"])
-                    if t["due_date"] < today:
-                        prefix = "🔴 "
-                        meta.append(f"*{escape_md(date_str)}*")
-                    else:
-                        meta.append(f"{escape_md(date_str)}")
+                    due_str = f" ⏳ {format_date_short(t['due_date'])}"
 
-                meta_str = f" \\({', '.join(meta)}\\)" if meta else ""
-                lines.append(f"{prefix}• {escape_md(t['title'])}{meta_str}")
+                lines.append(
+                    f"📌 *{escape_md(t['title'])}* \\[{prio_str}\\]{escape_md(due_str)}"
+                )
+        lines.append("━━━━━━━━━━━━━━━━━━━━")
 
         from bot.keyboards import task_list_keyboard
 
@@ -666,7 +664,7 @@ async def handle_task_intent(
 
         # Fetch old task state for comparison
         old_task = await task_queries.get_task(pool, task_id)
-        
+
         await task_queries.update_task(pool, task_id, **upd)
 
         # Immediate sync to Reminders
@@ -681,13 +679,16 @@ async def handle_task_intent(
         procrastination_msg = ""
         if "due_date" in upd and old_task:
             # Convert both to string for reliable comparison (ISO format)
-            old_due_str = str(old_task.get("due_date")) if old_task.get("due_date") else None
+            old_due_str = (
+                str(old_task.get("due_date")) if old_task.get("due_date") else None
+            )
             new_due_str = str(upd["due_date"]) if upd["due_date"] else None
-            
+
             if new_due_str and (not old_due_str or new_due_str > old_due_str):
                 # User is pushing the task further
                 from db.queries.profile import get_user_profile
                 from core.config import TELEGRAM_USER_ID
+
                 target_uid = user_id or TELEGRAM_USER_ID
                 profile = await get_user_profile(pool, target_uid)
                 tone = profile.get("tone", "warm")
@@ -695,12 +696,12 @@ async def handle_task_intent(
                     procrastination_msg = "\n\n🔥 *TAXĂ PE PROCRASTINARE\!* Amâni iar? Amânarea e eșec cu încetinitorul\. Sper că ai o scuză incredibilă, altfel ești doar leneș\."
                 else:
                     procrastination_msg = "\n\n⚠️ Amânarea task-urilor importante poate duce la stres mai târziu. Ești sigur?"
-        
+
         task = await task_queries.get_task(pool, task_id)
         from bot.keyboards import task_keyboard
 
         return (
-            f"Actualizat ✅ *{escape_md(task['title'])}*{procrastination_msg}",
+            f"✏️ Task-ul *{escape_md(task['title'])}* a fost actualizat.{procrastination_msg}",
             task_keyboard(task_id),
             task_id,
         )
@@ -733,11 +734,11 @@ async def handle_task_intent(
             # if 0 matches, we'll fall through to "Which task..."
 
         if not task_id:
-            return "Ce task vrei să șterg?", None, None
+            return "⚠️ Atenție: Specifică un task pentru a-l șterge.", None, None
 
         task = await task_queries.get_task(pool, task_id)
         if not task:
-            return "Nu am găsit task-ul.", None, None
+            return "❌ Eroare: Nu am putut găsi task-ul.", None, None
 
         from core.state import set_state
 
@@ -821,10 +822,19 @@ async def get_tasks_dashboard(pool) -> Tuple[str, Any]:
 
     # Decomposition Suggestion (Anti-Overwhelm/Procrastination)
     now = datetime.now()
-    stale_tasks = [t for t in tasks if t.get("priority") == "high" and t.get("created_at") and t["created_at"].replace(tzinfo=None) < now.replace(tzinfo=None) - timedelta(days=2)]
+    stale_tasks = [
+        t
+        for t in tasks
+        if t.get("priority") == "high"
+        and t.get("created_at")
+        and t["created_at"].replace(tzinfo=None)
+        < now.replace(tzinfo=None) - timedelta(days=2)
+    ]
     if stale_tasks:
         t = stale_tasks[0]
-        lines.append(f"\n💡 *DECOMPUNERE OBLIGATORIE:* Task-ul *{escape_md(t['title'])}* stă de 2 zile la prioritate mare. E clar că e prea greu. Sparge-l în 3 sub-task-uri acum!")
+        lines.append(
+            f"\n💡 *DECOMPUNERE OBLIGATORIE:* Task-ul *{escape_md(t['title'])}* stă de 2 zile la prioritate mare. E clar că e prea greu. Sparge-l în 3 sub-task-uri acum!"
+        )
 
     lines.append("\n*Repartiție pe proiecte:*")
     for proj, count in projects.items():
@@ -931,16 +941,16 @@ async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
             # Physically delete or mark as deleted? Query has deleted_at.
             await task_queries.delete_task(pool, item_id)
             return True, f"task adăugat: '{task['title']}'"
-        
+
         elif intent == "complete_task":
             # Restore to pending
             async with pool.acquire() as conn:
                 await conn.execute(
                     "UPDATE tasks SET status = 'pending', completed_at = NULL, updated_at = NOW() WHERE id = $1",
-                    item_id
+                    item_id,
                 )
             return True, f"completarea task-ului: '{task['title']}'"
-            
+
         return False, f"Intent-ul '{intent}' nu suportă undo."
     except Exception as e:
         return False, str(e)

@@ -13,7 +13,7 @@ async def handle_planner_intent(
         reply, keyboard = await generate_time_block(pool)
         return reply, keyboard, None
 
-    return "Modulul planner este pregătit!", None, None
+    return "✅ Modulul planner este pregătit\\.", None, None
 
 
 async def generate_time_block(pool) -> Tuple[str, None]:
@@ -109,7 +109,10 @@ Fără introduceri, fără concluzii. Doar time block-ul.
 
     result = await get_proactive_response(instruction, data_ctx)
     if not result:
-        return "Nu am putut genera time block-ul\\. Încearcă din nou\\.", None
+        return (
+            "❌ Eroare: Nu am putut genera time block-ul\\. Încearcă din nou\\.",
+            None,
+        )
 
     return safe_markdown(result), None
 

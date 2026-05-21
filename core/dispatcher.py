@@ -45,7 +45,7 @@ async def execute_module_intent(pool, module, intent, data, reply, user_id, bot)
             params["bot"] = bot
         if "user_id" in sig.parameters:
             params["user_id"] = user_id
-            
+
         result = await handler(pool, intent, data, **params)
 
         # UNIVERSAL SAFETY WRAPPER: Force result to (text, markup, item_id)
@@ -72,6 +72,8 @@ async def execute_module_intent(pool, module, intent, data, reply, user_id, bot)
         from bot.formatter import escape_md
 
         return f"⚠️ Eroare modul {module}: {escape_md(str(e))}", None, None
+
+
 async def undo_last_action(pool, module, intent, item_id):
     """
     Calls the undo_last_action function of the specified module.

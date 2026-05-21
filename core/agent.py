@@ -282,7 +282,7 @@ agent_tools = types.Tool(
                 },
             ),
         ),
-    ]
+    ],
 )
 
 

@@ -1,5 +1,4 @@
 import json
-import re
 
 input_path = "/Users/robudarius/Lora/scratch/audit_reports.txt"
 output_path = "/Users/robudarius/Lora/scratch/clean_reports.txt"
@@ -15,7 +14,7 @@ with open(input_path, "r") as f:
 clean_lines = []
 for line in content.splitlines():
     if "--- STEP" in line:
-        clean_lines.append("\n" + line + "\n" + "="*len(line))
+        clean_lines.append("\n" + line + "\n" + "=" * len(line))
         continue
     # If the line contains json, let's parse it and get the content or message
     if line.strip().startswith("{") and line.strip().endswith("}"):

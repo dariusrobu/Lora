@@ -3,7 +3,14 @@ import asyncio
 from datetime import datetime, timedelta, date, time
 from typing import List, Dict, Any, Optional
 import pytz
-from icalendar import Calendar as iCal, Event as iEvent, Todo as iTodo, Alarm as iAlarm, vText, vRecur
+from icalendar import (
+    Calendar as iCal,
+    Event as iEvent,
+    Todo as iTodo,
+    Alarm as iAlarm,
+    vText,
+    vRecur,
+)
 import recurring_ical_events
 from core.config import (
     ICLOUD_USERNAME,
@@ -453,22 +460,24 @@ def get_reminders_list(client: caldav.DAVClient) -> caldav.Calendar:
         print("⚠️ No TODO-capable calendars found via .todos() check.")
         # Fallback search by name
         for cal in calendars:
-            name = getattr(cal, 'name', str(cal.url))
+            name = getattr(cal, "name", str(cal.url))
             if "Reminders" in name or "Tasks" in name:
                 print(f"📍 Fallback found potential list by name: {name}")
                 return cal
-        print(f"⚠️ Using absolute fallback (first calendar): {calendars[0].name if hasattr(calendars[0], 'name') else calendars[0].url}")
+        print(
+            f"⚠️ Using absolute fallback (first calendar): {calendars[0].name if hasattr(calendars[0], 'name') else calendars[0].url}"
+        )
         return calendars[0]
 
     print(f"🔍 Found {len(todo_calendars)} TODO-capable calendars.")
     for cal in todo_calendars:
-        name = getattr(cal, 'name', 'Unknown')
+        name = getattr(cal, "name", "Unknown")
         print(f"  - {name} ({cal.url})")
 
     # Priority: "Lora" (exact/case-insensitive), then "Reminders", then "Tasks"
     for name_hint in ["Lora", "Reminders", "Tasks"]:
         for cal in todo_calendars:
-            name = getattr(cal, 'name', '').lower()
+            name = getattr(cal, "name", "").lower()
             if name_hint.lower() in name:
                 print(f"✅ Selected Reminders list by hint '{name_hint}': {cal.name}")
                 return cal
@@ -680,6 +689,7 @@ async def sync_tasks_to_reminders(pool) -> dict:
     except Exception as e:
         print(f"❌ Sync tasks to reminders CRITICAL error: {e}")
         import traceback
+
         traceback.print_exc()
         return stats
 
@@ -977,5 +987,3 @@ async def sync_from_icloud_to_lora(pool) -> dict:
     except Exception as e:
         print(f"Sync from iCloud error: {e}")
         return stats
-
-

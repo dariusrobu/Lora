@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any
-from datetime import date, time, timedelta
+from datetime import date, time
 
 
 async def add_event(

@@ -12,15 +12,15 @@ async def get_state(pool) -> Optional[Dict[str, Any]]:
             return None
 
         data = dict(row)
-        
+
         # Row might exist but all relevant fields be null
         # Use .get() to avoid KeyErrors if columns are missing in the DB
         state_type = data.get("state_type")
         last_intent = data.get("last_intent")
-        
+
         if state_type is None and last_intent is None:
             return None
-        
+
         # Parse JSON fields
         for field in ["extra", "last_intent"]:
             if data.get(field) and isinstance(data[field], str):
@@ -63,21 +63,25 @@ async def set_state(
 
 class CustomEncoder(json.JSONEncoder):
     """Handles non-serializable objects like datetime."""
+
     def default(self, obj):
         from datetime import datetime, date, time
+
         if isinstance(obj, (datetime, date, time)):
             return obj.isoformat()
         return super().default(obj)
 
 
-async def save_last_action(pool, intent_response: Dict[str, Any], item_id: Optional[int] = None):
+async def save_last_action(
+    pool, intent_response: Dict[str, Any], item_id: Optional[int] = None
+):
     """Saves the last executed action for potential undo/correction."""
     module = intent_response.get("module")
-    
+
     try:
         # Store full intent response as JSON
         intent_json = json.dumps(intent_response, cls=CustomEncoder)
-        
+
         async with pool.acquire() as conn:
             await conn.execute(
                 """
@@ -87,7 +91,7 @@ async def save_last_action(pool, intent_response: Dict[str, Any], item_id: Optio
                 """,
                 intent_json,
                 item_id,
-                module
+                module,
             )
     except Exception as e:
         print(f"⚠️ Failed to save_last_action: {e}")

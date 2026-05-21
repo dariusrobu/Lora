@@ -11,7 +11,7 @@ with open(output_path, "w") as out:
         for file in files:
             if file == "transcript.jsonl":
                 paths.append(os.path.join(root, file))
-                
+
     for path in sorted(paths):
         # Extract folder name (conversation ID)
         parts = path.split(os.sep)
@@ -22,16 +22,20 @@ with open(output_path, "w") as out:
             conv_id = parts[brain_idx + 1]
         except Exception:
             conv_id = "unknown"
-            
-        out.write(f"\n======================================================================\n")
+
+        out.write(
+            "\n======================================================================\n"
+        )
         out.write(f"TRANSCRIPT PATH: {path}\n")
         out.write(f"CONVERSATION ID: {conv_id}\n")
-        out.write(f"======================================================================\n")
-        
+        out.write(
+            "======================================================================\n"
+        )
+
         # Read the file
         model_messages = []
         user_messages = []
-        
+
         with open(path, "r") as f:
             for line in f:
                 try:
@@ -40,7 +44,7 @@ with open(output_path, "w") as out:
                     step_type = step.get("type")
                     content = step.get("content", "")
                     tool_calls = step.get("tool_calls", [])
-                    
+
                     if source == "USER_EXPLICIT" and content:
                         user_messages.append(content)
                     elif source == "MODEL":
@@ -52,17 +56,17 @@ with open(output_path, "w") as out:
                                 msg = tc.get("args", {}).get("Message", "")
                                 if msg:
                                     model_messages.append(f"[SEND_MESSAGE]: {msg}")
-                except Exception as e:
+                except Exception:
                     pass
-                    
+
         # Let's print the last user prompt to see the context
         if user_messages:
             out.write(f"LAST USER PROMPT:\n{user_messages[-1][:400]}\n\n")
-            
+
         # Let's print the last model response(s)
         if model_messages:
-            out.write(f"LAST MODEL RESPONSES:\n")
-            for m in model_messages[-2:]: # last 2 messages
+            out.write("LAST MODEL RESPONSES:\n")
+            for m in model_messages[-2:]:  # last 2 messages
                 out.write(f"{m}\n---\n")
         else:
             out.write("No model responses.\n")

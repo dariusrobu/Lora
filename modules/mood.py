@@ -82,7 +82,7 @@ async def handle_mood_intent(
 
         if png_bytes is None:
             return (
-                "Nu am suficiente date de mood încă. Completează jurnalul câteva zile și reîncearcă. ✍️",
+                "⚠️ Atenție: Nu am suficiente date de mood încă. Completează jurnalul câteva zile și reîncearcă. ✍️",
                 None,
                 None,
             )
@@ -100,6 +100,7 @@ async def handle_mood_intent(
 
         caption = (
             f"📊 *Mood {calendar.month_name[month]}*\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
             f"📈 Medie: `{avg:.1f}/5`\n"
             f"🌟 Cea mai bună zi: {escape_md(best_date)}\n\n"
             "_Iată evoluția ta de luna aceasta_"
@@ -119,7 +120,11 @@ async def handle_mood_intent(
     elif intent == "log_mood":
         mood = data.get("mood")
         if not mood:
-            return "Cum te simți azi? (ex: excelent, ok, slab)", None, None
+            return (
+                "⚠️ Atenție: Nu ai specificat starea de spirit. Ex: excelent, ok, slab.",
+                None,
+                None,
+            )
 
         from db.queries.journal import save_journal_entry, get_journal_entry
         from datetime import date
@@ -132,14 +137,16 @@ async def handle_mood_intent(
 
         await save_journal_entry(pool, today, reflection, mood, focus)
         return (
-            f"Am notat! Mă bucur să știu că te simți *{escape_md(mood)}* azi\\! ❤️",
+            f"✅ Starea ta de spirit (*{escape_md(mood)}*) a fost înregistrată cu succes în jurnal.",
             None,
             None,
         )
 
-    return "Mood module is active!", None, None
+    return "❌ Eroare: Modulul mood nu recunoaște acest intent.", None, None
 
 
 async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
-    return False, "Anularea nu este disponibilă pentru starea de spirit (este parte din jurnalul zilnic)."
-
+    return (
+        False,
+        "❌ Eroare: Anularea nu este disponibilă pentru starea de spirit (este parte din jurnalul zilnic).",
+    )

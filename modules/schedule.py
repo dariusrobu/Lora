@@ -15,9 +15,12 @@ async def handle_schedule_intent(
         week_label = "impară" if week_type == "odd" else "pară"
 
         if not classes:
-            return f"Nu ai cursuri azi \\(săptămână {week_label}\\)\\. 🎉", None
+            return (
+                f"⚠️ Atenție: Nu ai cursuri azi \\(săptămână {week_label}\\)\\. 🎉",
+                None,
+            )
 
-        lines = [f"📚 *Cursuri azi* — săptămână {week_label}\n"]
+        lines = [f"📚 *Cursuri azi* — săptămână {week_label}\n━━━━━━━━━━━━━━━━━━━━"]
         for c in classes:
             start = c["start_time"].strftime("%H:%M")
             end = c["end_time"].strftime("%H:%M")
@@ -33,7 +36,9 @@ async def handle_schedule_intent(
         week_schedule, days, week_type = await schedule_queries.get_week_schedule(pool)
         week_label = "impară" if week_type == "odd" else "pară"
 
-        lines = [f"📅 *Orar săptămâna aceasta* — săptămână {week_label}\n"]
+        lines = [
+            f"📅 *Orar săptămâna aceasta* — săptămână {week_label}\n━━━━━━━━━━━━━━━━━━━━"
+        ]
 
         for day_idx, day_name in days.items():
             classes = week_schedule.get(day_idx, [])
@@ -52,4 +57,4 @@ async def handle_schedule_intent(
 
         return "\n".join(lines), None
 
-    return "Nu am înțeles cererea legată de orar\\.", None
+    return "❌ Eroare: Nu am înțeles cererea legată de orar\\.", None

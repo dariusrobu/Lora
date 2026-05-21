@@ -13,7 +13,7 @@ async def handle_memory_callback(query, pool, data: str):
         if data == "memory:delete_last":
             print("DEBUG: Processing memory:delete_last", flush=True)
             await memory_queries.delete_last_fact(pool)
-            await query.answer("Am uitat ultima amintire! 💨")
+            await query.answer("🗑️ Am uitat ultima amintire!")
             # Refresh the view
             text, markup, _ = await handle_memory_intent(pool, "memory_view", {})
             await query.edit_message_text(
@@ -47,9 +47,9 @@ async def handle_memory_callback(query, pool, data: str):
         elif data == "memory:clear_all_confirmed":
             print("DEBUG: Processing memory:clear_all_confirmed", flush=True)
             await memory_queries.clear_all_memories(pool)
-            await query.answer("Memoria a fost resetată! 🧠✨")
+            await query.answer("🗑️ Memoria a fost resetată!")
             await query.edit_message_text(
-                "Memoria a fost ștearsă complet\\.", parse_mode="MarkdownV2"
+                "🗑️ Memoria a fost ștearsă complet\\.", parse_mode="MarkdownV2"
             )
 
         elif data == "memory:view_categories":
@@ -75,34 +75,34 @@ async def handle_memory_callback(query, pool, data: str):
                 await query.edit_message_text(
                     text, parse_mode="MarkdownV2", reply_markup=markup
                 )
-        
+
         elif data == "memory:optimize":
             print("DEBUG: Processing memory:optimize", flush=True)
             await query.answer("Optimizez memoria cu AI... 🧠✨", show_alert=False)
-            
+
             # This might take a few seconds, so we show a loading message if possible
             # But for now we just call it
             from core.memory import optimize_user_memory
             from core.gemini import get_gemini_client
-            
+
             client = get_gemini_client()
             user_id = query.from_user.id
-            
+
             reply = await optimize_user_memory(pool, client, user_id)
             await query.message.reply_text(reply)
-            
+
             # Refresh view
             text, markup, _ = await handle_memory_intent(pool, "memory_view", {})
             await query.edit_message_text(
                 text, parse_mode="MarkdownV2", reply_markup=markup
             )
-            
+
     except Exception as e:
         print(f"ERROR in handle_memory_callback: {e}")
         import traceback
 
         traceback.print_exc()
-        await query.answer("A apărut o eroare la procesarea butonului.")
+        await query.answer("❌ Eroare: A apărut o eroare la procesarea butonului\\.")
 
 
 async def handle_memory_intent(
@@ -114,7 +114,7 @@ async def handle_memory_intent(
         memories = await memory_queries.list_all_memories(pool)
         if not memories:
             return (
-                "Nu am salvat nicio amintire despre tine încă\\. 🧠",
+                "ℹ️ Nu am salvat nicio amintire despre tine încă\\.",
                 memory_main_keyboard(),
                 None,
             )
@@ -175,23 +175,23 @@ async def handle_memory_intent(
             if len(results) == 1:
                 fact_id = results[0]["id"]
             elif len(results) > 1:
-                text = "Am găsit mai multe amintiri similare. Pe care vrei să o șterg? (Folosește ID-ul)\n\n"
+                text = "ℹ️ Am găsit mai multe amintiri similare\\. Pe care vrei să o șterg? (Folosește ID-ul)\n\n"
                 for r in results:
                     text += f"◽ `#{r['id']}` {r['fact']}\n"
                 return safe_markdown(text), None, None
             else:
                 return (
-                    f"Nu am găsit nicio amintire legată de '{escape_md(str(query))}'.",
+                    f"❌ Eroare: Nu am găsit nicio amintire legată de '{escape_md(str(query))}'\\.",
                     None,
                     None,
                 )
 
         if fact_id:
             await memory_queries.delete_fact(pool, int(fact_id))
-            return f"✅ Amintirea `#{fact_id}` a fost ștearsă. Am uitat! 💨", None, None
+            return f"🗑️ Amintirea *#{fact_id}* a fost ștearsă\\.", None, None
 
         return (
-            "Nu am înțeles ce amintire vrei să șterg. Te rog să menționezi ID-ul (ex: #3).",
+            "⚠️ Atenție: Nu am înțeles ce amintire vrei să șterg\\. Te rog să menționezi ID-ul (ex: #3)\\.",
             None,
             None,
         )
@@ -200,7 +200,7 @@ async def handle_memory_intent(
         topic = data.get("topic")
         user_id = data.get("user_id")
         if not topic:
-            return "Despre ce anume vrei să afli ce știu?", None, None
+            return "⚠️ Atenție: Despre ce anume vrei să afli ce știu?", None, None
 
         results = await search_memory_core(pool, topic, user_id)
 
@@ -232,7 +232,7 @@ async def handle_memory_intent(
             return safe_markdown(text), None, None
 
         return (
-            f"Momentan nu am nicio informație salvată despre *{escape_md(topic)}*.",
+            f"ℹ️ Momentan nu am nicio informație salvată despre *{escape_md(topic)}*\\.",
             None,
             None,
         )
@@ -240,14 +240,18 @@ async def handle_memory_intent(
     elif intent == "memory_optimize":
         from core.memory import optimize_user_memory
         from core.gemini import get_gemini_client
-        
+
         user_id = data.get("user_id")
         client = get_gemini_client()
-        
+
         reply = await optimize_user_memory(pool, client, user_id)
         return safe_markdown(reply), None, None
 
-    return "Modulul de memorie a primit o intenție necunoscută.", None, None
+    return (
+        "❌ Eroare: Modulul de memorie a primit o intenție necunoscută\\.",
+        None,
+        None,
+    )
 
 
 async def search_memory_core(pool, topic: str, user_id: int) -> Dict[str, Any]:

@@ -105,8 +105,7 @@ async def handle_workout_intent(
         dur_str = f" · {duration} min" if duration else ""
 
         lines = [
-            "✅ *Antrenament salvat!*",
-            f"{icon} *{escape_md(sport_name)}*{dur_str}{cal_str}",
+            f"✅ Antrenament salvat: {icon} *{escape_md(sport_name)}*{dur_str}{cal_str}",
         ]
 
         if ex_summary:
@@ -143,7 +142,7 @@ async def handle_workout_intent(
                 workout_main_keyboard(),
                 None,
             )
-        return "Te rog specifică numele sportului\\.", None, None
+        return "⚠️ Atenție: Nu ai specificat numele sportului\\.", None, None
 
     elif intent == "workout_add_exercise":
         name = data.get("name")
@@ -156,9 +155,9 @@ async def handle_workout_intent(
                 workout_main_keyboard(),
                 None,
             )
-        return "Te rog specifică numele exercițiului\\.", None, None
+        return "⚠️ Atenție: Nu ai specificat numele exercițiului\\.", None, None
 
-    return "Nu am înțeles cererea legată de antrenamente.", None, None
+    return "❌ Eroare: Nu am înțeles cererea legată de antrenamente.", None, None
 
 
 # ── Workout Dashboard UI Functions ─────────────────────────────
@@ -167,10 +166,10 @@ async def handle_workout_intent(
 async def get_workout_dashboard(pool) -> Tuple[str, Any]:
     stats = await workout_queries.get_week_stats(pool)
     lines = [
-        "🏋️‍♂️ *Workout Dashboard* 🏋️‍♂️\n",
+        "🏋️‍♂️ *Workout Dashboard* 🏋️‍♂️\n━━━━━━━━━━━━━━━━━━━━",
         f"📅 Sesiuni săptămâna asta: *{stats['sessions']}*",
         f"⏱️ Volum total: *{stats['total_min']} min*",
-        f"🔥 Zile active: *{stats['active_days']}/7*\n",
+        f"🔥 Zile active: *{stats['active_days']}/7*\n━━━━━━━━━━━━━━━━━━━━\n",
     ]
 
     if stats.get("split"):
@@ -196,10 +195,10 @@ async def get_workout_dashboard(pool) -> Tuple[str, Any]:
 async def get_week_summary(pool) -> Tuple[str, Any]:
     stats = await workout_queries.get_week_stats(pool)
     lines = [
-        "📅 *Săptămâna Curentă*\n",
+        "📅 *Săptămâna Curentă*\n━━━━━━━━━━━━━━━━━━━━",
         f"Antrenamente: *{stats['sessions']}*",
         f"Timp total: *{stats['total_min']} min*",
-        f"Zile bifate: *{stats['active_days']} / 7*\n",
+        f"Zile bifate: *{stats['active_days']} / 7*\n━━━━━━━━━━━━━━━━━━━━\n",
     ]
     if stats.get("split"):
         lines.append("📈 *Repartiție*")
@@ -217,11 +216,11 @@ async def get_personal_records(pool) -> Tuple[str, Any]:
     prs = await workout_queries.get_personal_records(pool)
     if not prs:
         return (
-            "🏆 *Personal Records*\n\nÎncă nu ai înregistrat greutăți la exerciții\\.",
+            "🏆 *Personal Records*\n━━━━━━━━━━━━━━━━━━━━\nÎncă nu ai înregistrat greutăți la exerciții\\.",
             None,
         )
 
-    lines = ["🏆 *Personal Records*\n"]
+    lines = ["🏆 *Personal Records*\n━━━━━━━━━━━━━━━━━━━━"]
     for pr in prs:
         lines.append(
             f"• {escape_md(pr['exercise_name'])}: *{escape_md(str(pr['max_weight']))}kg*"
@@ -234,12 +233,12 @@ async def get_stats(pool, period_days: int) -> Tuple[str, Any]:
     stats = await workout_queries.get_long_term_stats(pool, days=period_days)
     if not stats or not stats.get("total_sessions"):
         return (
-            f"📊 *Statistici \\({period_days} zile\\)*\n\nFără date suficiente\\.",
+            f"📊 *Statistici \\({period_days} zile\\)*\n━━━━━━━━━━━━━━━━━━━━\nFără date suficiente\\.",
             workout_stats_period_keyboard(),
         )
 
     lines = [
-        f"📊 *Statistici \\({period_days} zile\\)*\n",
+        f"📊 *Statistici \\({period_days} zile\\)*\n━━━━━━━━━━━━━━━━━━━━",
         f"• Sesiuni: *{stats['total_sessions']}*",
         f"• Zile active: *{stats['active_days']}*",
         f"• Timp: *{stats['total_min']} min*",
@@ -259,13 +258,13 @@ async def get_stats(pool, period_days: int) -> Tuple[str, Any]:
 
 async def get_sports_manager(pool) -> Tuple[str, Any]:
     sports = await sport_queries.get_all_sports(pool)
-    msg = "⚙️ *Management Sporturi*\n\nAlege un sport pentru a\\-l edita/șterge, sau adaugă unul nou\\."
+    msg = "⚙️ *Management Sporturi*\n━━━━━━━━━━━━━━━━━━━━\nAlege un sport pentru a\\-l edita/șterge, sau adaugă unul nou\\."
     return msg, sports_list_keyboard(sports)
 
 
 async def get_exercises_manager(pool) -> Tuple[str, Any]:
     exercises = await workout_queries.get_all_exercises(pool)
-    msg = "🏋️ *Management Exerciții*\n\nAlege un exercițiu pentru a\\-l edita/șterge, sau adaugă unul nou\\."
+    msg = "🏋️ *Management Exerciții*\n━━━━━━━━━━━━━━━━━━━━\nAlege un exercițiu pentru a\\-l edita/șterge, sau adaugă unul nou\\."
     return msg, exercises_list_keyboard(exercises)
 
 
@@ -314,7 +313,7 @@ async def handle_workout_callback(query, pool, data: str):
             ]
         )
         await query.edit_message_text(
-            "📝 *Log Antrenament*\n\nAlege sportul:",
+            "📝 *Log Antrenament*\n━━━━━━━━━━━━━━━━━━━━\nAlege sportul:",
             parse_mode="MarkdownV2",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
@@ -482,7 +481,7 @@ async def handle_workout_callback(query, pool, data: str):
             ]
         )
         await query.edit_message_text(
-            "🗑 *Șterge antrenament*\n\nAlege antrenamentul:",
+            "🗑 *Șterge antrenament*\n━━━━━━━━━━━━━━━━━━━━\nAlege antrenamentul:",
             parse_mode="MarkdownV2",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
@@ -497,7 +496,7 @@ async def handle_workout_callback(query, pool, data: str):
                 text, parse_mode="MarkdownV2", reply_markup=markup
             )
         except Exception:
-            await query.answer("Eroare la ștergere.")
+            await query.answer("❌ Eroare la ștergere.")
 
     elif data == "workout_edit":
         recent = await workout_queries.get_recent_workouts(pool, days=30)
@@ -522,7 +521,7 @@ async def handle_workout_callback(query, pool, data: str):
             ]
         )
         await query.edit_message_text(
-            "✏️ *Editează antrenament*\n\nAlege antrenamentul pe care vrei să\\-l modifici:",
+            "✏️ *Editează antrenament*\n━━━━━━━━━━━━━━━━━━━━\nAlege antrenamentul pe care vrei să\\-l modifici:",
             parse_mode="MarkdownV2",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
@@ -686,7 +685,7 @@ async def handle_workout_message(update, pool, state: dict, text: str):
     except Exception as e:
         print(f"Error in workout state handler: {e}")
         traceback.print_exc()
-        await update.message.reply_text(f"❌ Format incorect: {e}")
+        await update.message.reply_text(f"❌ Eroare: Format incorect. {e}")
 
     finally:
         await clear_state(pool)
@@ -703,14 +702,17 @@ async def _save_prompt_to_conversation(pool, prompt: str) -> None:
 async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
     """Rolls back the last workout entry."""
     if not item_id:
-        return False, "ID invalid."
+        return False, "❌ Eroare: ID invalid."
 
     workout = await workout_queries.get_workout_by_id(pool, item_id)
     if not workout:
-        return False, "Antrenamentul nu mai există."
+        return False, "❌ Eroare: Antrenamentul nu mai există."
 
     try:
         await workout_queries.delete_workout(pool, item_id)
-        return True, f"antrenamentul: {workout['sport_name']} din {workout['workout_date']}"
+        return (
+            True,
+            f"antrenamentul: {workout['sport_name']} din {workout['workout_date']}",
+        )
     except Exception as e:
         return False, str(e)

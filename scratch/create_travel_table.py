@@ -5,8 +5,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 async def create_table():
-    database_url = os.getenv('DATABASE_URL')
+    database_url = os.getenv("DATABASE_URL")
     conn = await asyncpg.connect(database_url)
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS travel_items (
@@ -20,6 +21,7 @@ async def create_table():
     """)
     print("Table travel_items created/verified")
     await conn.close()
+
 
 if __name__ == "__main__":
     asyncio.run(create_table())

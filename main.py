@@ -1,4 +1,5 @@
 import asyncio
+
 # Deployment trigger: 2026-05-10 12:53
 import sys
 import logging
@@ -101,6 +102,7 @@ async def handle_health_check(request):
     }
     return web.json_response(status_data)
 
+
 @web.middleware
 async def cors_middleware(request, handler):
     """Enables CORS for all API requests."""
@@ -109,12 +111,17 @@ async def cors_middleware(request, handler):
         response = web.Response(status=204)
     else:
         response = await handler(request)
-    
+
     response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Lora-Api-Secret, X-Lora-Secret"
+    response.headers["Access-Control-Allow-Methods"] = (
+        "GET, POST, PATCH, DELETE, OPTIONS"
+    )
+    response.headers["Access-Control-Allow-Headers"] = (
+        "Content-Type, Authorization, Lora-Api-Secret, X-Lora-Secret"
+    )
     response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
+
 
 PID_FILE = "lora.pid"
 
@@ -156,16 +163,24 @@ def check_pid_lock():
 async def cmd_hub(update, context):
     """Send a direct link to the Lora Hub."""
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+
     dashboard_url = os.getenv("DASHBOARD_URL")
     if not dashboard_url:
         await update.message.reply_text("❌ DASHBOARD_URL nu este setată în Render.")
         return
 
-    keyboard = [[InlineKeyboardButton("📊 Deschide Lora Hub", web_app=WebAppInfo(url=dashboard_url))]]
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                "📊 Deschide Lora Hub", web_app=WebAppInfo(url=dashboard_url)
+            )
+        ]
+    ]
     await update.message.reply_text(
         "Apasă butonul de mai jos pentru a accesa dashboard-ul tău executiv:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
+
 
 async def start_bot():
     print("Starting Lora initialization (HYBRID MODE)...", flush=True)
@@ -303,18 +318,31 @@ async def start_bot():
     application.add_handler(CommandHandler("finance", finance_command))
     application.add_handler(CommandHandler("memory", memory_command))
     application.add_handler(CommandHandler("tasks", tasks_command))
-    application.add_handler(CommandHandler("sethome", partial(set_home_command, pool=pool)))
-    application.add_handler(CommandHandler("save", partial(save_location_command, pool=pool)))
-    application.add_handler(CommandHandler("locations", partial(list_locations_command, pool=pool)))
-    application.add_handler(CommandHandler("location", partial(location_status_command, pool=pool)))
-    application.add_handler(CommandHandler("briefing", partial(message_handler, pool=pool, text="/briefing")))
+    application.add_handler(
+        CommandHandler("sethome", partial(set_home_command, pool=pool))
+    )
+    application.add_handler(
+        CommandHandler("save", partial(save_location_command, pool=pool))
+    )
+    application.add_handler(
+        CommandHandler("locations", partial(list_locations_command, pool=pool))
+    )
+    application.add_handler(
+        CommandHandler("location", partial(location_status_command, pool=pool))
+    )
+    application.add_handler(
+        CommandHandler(
+            "briefing", partial(message_handler, pool=pool, text="/briefing")
+        )
+    )
     application.add_handler(CommandHandler("debug_app", debug_app_command))
     application.add_handler(CommandHandler("projects", projects_command))
 
     # 6. Startup 'Catch-up' for Morning Briefing
     async def startup_check():
-        await asyncio.sleep(10) # Wait for bot to stabilize
+        await asyncio.sleep(10)  # Wait for bot to stabilize
         from scheduler.jobs import check_wake_time_and_schedule
+
         await check_wake_time_and_schedule(application, pool)
         print("🚀 Startup briefing catch-up check completed.")
 
@@ -331,8 +359,15 @@ async def start_bot():
     application.add_handler(MessageHandler(filters.VOICE, voice_handler_with_pool))
     application.add_handler(MessageHandler(filters.PHOTO, photo_handler_with_pool))
     # Support both normal Share Location and Live Location updates (edited messages)
-    application.add_handler(MessageHandler(filters.LOCATION, location_handler_with_pool))
-    application.add_handler(MessageHandler(filters.UpdateType.EDITED_MESSAGE & filters.LOCATION, location_handler_with_pool))
+    application.add_handler(
+        MessageHandler(filters.LOCATION, location_handler_with_pool)
+    )
+    application.add_handler(
+        MessageHandler(
+            filters.UpdateType.EDITED_MESSAGE & filters.LOCATION,
+            location_handler_with_pool,
+        )
+    )
     application.add_handler(MessageHandler(filters.ALL, msg_handler_with_pool))
     application.add_handler(CallbackQueryHandler(cb_handler_with_pool))
 
@@ -342,11 +377,15 @@ async def start_bot():
             response = web.Response(status=204)
         else:
             response = await handler(request)
-        
+
         origin = request.headers.get("Origin", "*")
         response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Internal-Secret, Bypass-Tunnel-Reminder, Lora-Api-Secret"
+        response.headers["Access-Control-Allow-Methods"] = (
+            "GET, POST, PATCH, PUT, DELETE, OPTIONS"
+        )
+        response.headers["Access-Control-Allow-Headers"] = (
+            "Content-Type, Authorization, X-Internal-Secret, Bypass-Tunnel-Reminder, Lora-Api-Secret"
+        )
         response.headers["Access-Control-Allow-Credentials"] = "true"
         return response
 
@@ -365,27 +404,31 @@ async def start_bot():
     async def handle_debug(request):
         """Debug endpoint for dashboard connectivity."""
         dist_exists = os.path.exists(dist_path)
-        return web.json_response({
-            "status": "online",
-            "cors": "enabled",
-            "api_secret_set": bool(os.getenv("LORA_API_SECRET")),
-            "dashboard_dist": dist_exists,
-            "files": os.listdir(dist_path) if dist_exists else []
-        })
+        return web.json_response(
+            {
+                "status": "online",
+                "cors": "enabled",
+                "api_secret_set": bool(os.getenv("LORA_API_SECRET")),
+                "dashboard_dist": dist_exists,
+                "files": os.listdir(dist_path) if dist_exists else [],
+            }
+        )
 
     async def serve_dashboard_index(request):
         index_file = os.path.join(dist_path, "index.html")
         print(f"📄 Request for dashboard. Looking for: {index_file}", flush=True)
         if os.path.exists(index_file):
             return web.FileResponse(index_file)
-        
+
         # Diagnostic help
         error_msg = f"Dashboard build not found at {dist_path}. "
         if not os.path.exists(dist_path):
             error_msg += "Folder does not exist."
         else:
-            error_msg += f"Folder exists but index.html missing. Files: {os.listdir(dist_path)}"
-            
+            error_msg += (
+                f"Folder exists but index.html missing. Files: {os.listdir(dist_path)}"
+            )
+
         return web.Response(text=error_msg, status=404)
 
     app = web.Application(middlewares=[cors_middleware, log_middleware])
@@ -398,15 +441,19 @@ async def start_bot():
     async def serve_welcome(request):
         return web.Response(
             text="🚀 Lora Bot is ONLINE\n\nDiagnostic links:\n- /api/health\n- /api/debug\n- /api/projects\n\nDashboard is served from /",
-            content_type="text/plain"
+            content_type="text/plain",
         )
 
     if os.path.exists(dist_path):
         app.router.add_get("/", serve_dashboard_index)
-        app.router.add_static("/assets", os.path.join(dist_path, "assets"), name="dashboard_assets")
+        app.router.add_static(
+            "/assets", os.path.join(dist_path, "assets"), name="dashboard_assets"
+        )
         for f in ["favicon.ico", "favicon.svg", "manifest.json"]:
             if os.path.exists(os.path.join(dist_path, f)):
-                app.router.add_get(f"/{f}", lambda r, f=f: web.FileResponse(os.path.join(dist_path, f)))
+                app.router.add_get(
+                    f"/{f}", lambda r, f=f: web.FileResponse(os.path.join(dist_path, f))
+                )
     else:
         # Fallback if dashboard files are not in this service
         app.router.add_get("/", serve_welcome)
@@ -434,12 +481,12 @@ async def start_bot():
 
     try:
         from telegram import MenuButtonWebApp, WebAppInfo
+
         await application.bot.set_chat_menu_button(
             chat_id=TELEGRAM_USER_ID,
             menu_button=MenuButtonWebApp(
-                text="Lora Hub",
-                web_app=WebAppInfo(url=dashboard_url)
-            )
+                text="Lora Hub", web_app=WebAppInfo(url=dashboard_url)
+            ),
         )
         print(f"✅ Main Menu Button set to: {dashboard_url}", flush=True)
     except Exception as e:

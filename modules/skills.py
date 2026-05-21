@@ -17,11 +17,11 @@ async def get_skills_dashboard(pool) -> Tuple[str, InlineKeyboardMarkup]:
 
     if not skills:
         return (
-            "🧠 *Skills Tracking*\n\nNu ai skill\\-uri adăugate încă\\. Folosește butonul de mai jos pentru a începe\\!",
+            "✅ Nu ai skill\\-uri adăugate încă\\.",
             skills_list_keyboard([]),
         )
 
-    lines = ["🧠 *Skills Tracking*\n"]
+    lines = ["🧠 *Dashboard Skills*", "━━━━━━━━━━━━━━━━━━━━"]
     for s in skills:
         val = s.get("last_value")
         # Priority: last_metric (from log) > unit (from skill definition)
@@ -43,6 +43,7 @@ async def get_skills_dashboard(pool) -> Tuple[str, InlineKeyboardMarkup]:
         else:
             lines.append(f"• *{name_esc}*: _fără date_{streak_str}")
 
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
     return "\n".join(lines), skills_main_keyboard()
 
 
@@ -51,7 +52,7 @@ async def get_skill_detail_view(
 ) -> Tuple[str, InlineKeyboardMarkup]:
     skill = await skill_queries.get_skill_by_id(pool, skill_id)
     if not skill:
-        return "❌ Skill-ul nu mai există\\.", skills_main_keyboard()
+        return "❌ Eroare: Skill-ul nu mai există\\.", skills_main_keyboard()
 
     stats = await skill_queries.get_skill_stats(pool, skill_id)
     history = await skill_queries.get_skill_history(pool, skill_id, limit=5)
@@ -67,7 +68,8 @@ async def get_skill_detail_view(
     trend_icon = "📈" if stats["trend"] > 0 else "📉" if stats["trend"] < 0 else "➡️"
 
     lines = [
-        f"📊 *{title}* \\({escape_md(skill['category'])}\\)\n",
+        f"📊 *{title}* \\({escape_md(skill['category'])}\\)",
+        "━━━━━━━━━━━━━━━━━━━━",
         f"• *Streak*: {streak} 🔥" if streak > 0 else "• *Streak*: 0 ❄️",
         f"• *Medie*: {escape_md(avg_str)} {unit}",
         f"• *Best/Max*: {escape_md(max_str)} {unit}",
@@ -105,17 +107,17 @@ async def handle_skill_intent(
         if not skill:
             # Auto-create? No, better ask to create first or handle in state
             return (
-                f"❌ Nu am găsit skill-ul '{escape_md(name)}\\'\\. Vrei să îl creez?",
+                f"❌ Eroare: Nu am găsit skill-ul *{escape_md(name)}*\\.",
                 None,
                 None,
-            )  # TODO: Suggest creation
+            )
 
         unit = data.get("unit") or skill["unit"]
         log_row = await skill_queries.log_skill_value(
             pool, skill["id"], float(value), metric=unit
         )
         return (
-            f"✅ Am înregistrat {escape_md(str(value))} {escape_md(unit)} pentru *{escape_md(skill['name'])}*\\!",
+            f"✏️ Log înregistrat: *{escape_md(str(value))} {escape_md(unit)}* (Skill: *{escape_md(skill['name'])}*)\\.",
             None,
             log_row["id"],
         )
@@ -128,14 +130,18 @@ async def handle_skill_intent(
         name = data.get("name") or data.get("skill_name")
         frequency = data.get("frequency", "daily")
         if not name:
-            return "Cum se numește habit-ul?", None, None
+            return "⚠️ Atenție: Specifică un nume pentru habit.", None, None
         existing = await skill_queries.get_skill_by_name(pool, name)
         if existing:
-            return f"Habit-ul *{escape_md(name)}* există deja\\.", None, existing["id"]
+            return (
+                f"⚠️ Atenție: Habit-ul *{escape_md(name)}* există deja\\.",
+                None,
+                existing["id"],
+            )
         unit = data.get("unit", "zile" if frequency == "daily" else "ori")
         new_skill = await skill_queries.add_skill(pool, name, unit)
         return (
-            f"✅ Habit *{escape_md(name)}* adăugat \\(tracking: {frequency}, unit: {unit}\\)\\.",
+            f"✅ Habit-ul *{escape_md(name)}* a fost adăugat cu succes\\.",
             None,
             new_skill["id"],
         )
@@ -144,7 +150,11 @@ async def handle_skill_intent(
         name = data.get("name") or data.get("skill_name")
         value = data.get("value", 1)
         if not name:
-            return "Pentru ce habit vrei să loghezi?", None, None
+            return (
+                "⚠️ Atenție: Specifică habit-ul pentru care vrei să loghezi.",
+                None,
+                None,
+            )
         skill = await skill_queries.get_skill_by_name(pool, name)
         if not skill:
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -166,7 +176,7 @@ async def handle_skill_intent(
                 ]
             )
             return (
-                rf"❓ Nu am găsit habit\-ul '*{escape_md(name)}*'\. Vrei să îl creezi?",
+                rf"❌ Eroare: Nu am găsit habit\-ul *{escape_md(name)}*\.",
                 keyboard,
                 None,
             )
@@ -176,7 +186,7 @@ async def handle_skill_intent(
         streak = await skill_queries.get_skill_streak(pool, skill["id"])
         streak_str = f" 🔥{streak}" if streak > 0 else ""
         return (
-            rf"✅ {escape_md(name)} bifat\. Streak: *{streak}* {streak_str}",
+            rf"✅ Habit completat: *{escape_md(name)}*\. Streak: *{streak}* {streak_str}",
             None,
             log_row["id"],
         )
@@ -188,12 +198,16 @@ async def handle_skill_intent(
     elif intent == "delete_habit":
         name = data.get("name") or data.get("skill_name")
         if not name:
-            return "Ce habit vrei să ștergi?", None, None
+            return "⚠️ Atenție: Specifică un habit pentru a-l șterge.", None, None
         skill = await skill_queries.get_skill_by_name(pool, name)
         if not skill:
-            return f"Nu am găsit habit-ul *{escape_md(name)}*\\.", None, None
+            return (
+                f"❌ Eroare: Nu am putut găsi habit-ul *{escape_md(name)}*\\.",
+                None,
+                None,
+            )
         await skill_queries.delete_skill(pool, skill["id"])
-        return f"✅ Habit *{escape_md(name)}* șters\\.", None, skill["id"]
+        return f"🗑️ Habit-ul *{escape_md(name)}* a fost șters\\.", None, skill["id"]
 
     return "Intent necunoscut pentru Skills\\.", None, None
 

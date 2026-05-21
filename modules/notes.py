@@ -9,7 +9,7 @@ async def handle_note_intent(
     if intent in ("add_note", "notes_add"):
         content = data.get("content") or data.get("title") or data.get("text")
         if not content:
-            return "Ce anume vrei să notez? ✍️", None, None
+            return "⚠️ Atenție: Ce anume vrei să notez?", None, None
 
         project_id = data.get("project_id")
         project_name = data.get("project") or data.get("project_name")
@@ -32,8 +32,11 @@ async def handle_note_intent(
         project_msg = (
             f" pentru proiectul *{escape_md(project_name)}*" if project_name else ""
         )
-        return f"{type_label}{project_msg} ✅\n\n{escape_md(content)}", None, note_id
-
+        return (
+            f"✅ Notă salvată cu succes{project_msg}\\.\n\n{escape_md(content)}",
+            None,
+            note_id,
+        )
 
     elif intent == "list_notes":
         type_filter = data.get("type")
@@ -52,9 +55,9 @@ async def handle_note_intent(
         )
         if not notes:
             msg = (
-                f"Nu ai nicio notiță pentru *{escape_md(project_name)}*\\."
+                f"ℹ️ Nu ai nicio notiță pentru *{escape_md(project_name)}*\\."
                 if project_name
-                else "Nu ai nicio notiță salvată\\."
+                else "ℹ️ Nu ai nicio notiță salvată\\."
             )
             return msg, None, None
 
@@ -77,12 +80,12 @@ async def handle_note_intent(
     elif intent == "search_notes":
         query = data.get("query")
         if not query:
-            return "Ce anume să caut? 🔍", None, None
+            return "⚠️ Atenție: Ce anume să caut?", None, None
 
         notes = await note_queries.search_notes(pool, query)
         if not notes:
             return (
-                f"Nu am găsit nicio notiță care să conțină `{escape_md(query)}`\\.",
+                f"❌ Eroare: Nu am găsit nicio notiță care să conțină `{escape_md(query)}`\\.",
                 None,
                 None,
             )
@@ -96,19 +99,21 @@ async def handle_note_intent(
             lines.append(f"• {emoji} {escape_md(summary)}")
         return "\n".join(lines), None, None
 
-    return "Note module is ready\\!", None, None
+    return "✅ Modulul notes este pregătit\\.", None, None
 
 
 async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
     if not item_id:
-        return False, "Nu s-a găsit ID-ul entității de anulat."
+        return False, "❌ Eroare: Nu s-a găsit ID-ul entității de anulat\\."
 
     try:
         if intent in ("add_note", "notes_add"):
             await note_queries.delete_note(pool, item_id)
-            return True, "Notița/Jurnalul adăugat a fost șters."
+            return True, "🗑️ Notița/Jurnalul adăugat a fost șters\\."
 
-        return False, f"Anularea nu este implementată pentru intentul '{intent}'."
+        return (
+            False,
+            f"❌ Eroare: Anularea nu este implementată pentru intentul '{intent}'\\.",
+        )
     except Exception as e:
-        return False, f"Eroare la anulare: {str(e)}"
-
+        return False, f"❌ Eroare la anulare: {str(e)}"

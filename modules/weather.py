@@ -10,25 +10,31 @@ async def handle_weather_intent(
     if intent == "get_weather":
         from db.queries.profile import get_user_profile
         from core.config import TELEGRAM_USER_ID
-        
+
         profile = await get_user_profile(pool, TELEGRAM_USER_ID)
         lat = profile.get("latitude")
         lon = profile.get("longitude")
-        
+
         if lat and lon:
             reply = await get_weather_summary(lat=float(lat), lon=float(lon))
         else:
             city = data.get("city", WEATHER_CITY)
             reply = await get_weather_summary(city=city)
-            
+
         if not reply:
-            return "Nu am putut accesa datele meteo. Verifică API KEY-ul.", None, None
+            return (
+                "❌ Eroare: Nu am putut accesa datele meteo. Verifică API KEY-ul.",
+                None,
+                None,
+            )
         return reply, None, None
 
-    return "Modulul weather este pregătit!", None, None
+    return "❌ Eroare: Modulul weather nu recunoaște acest intent.", None, None
 
 
-async def get_weather_summary(city: str = None, lat: float = None, lon: float = None) -> Optional[str]:
+async def get_weather_summary(
+    city: str = None, lat: float = None, lon: float = None
+) -> Optional[str]:
     """
     Fetches weather data from OpenWeatherMap using city name or coordinates.
     """
@@ -54,7 +60,10 @@ async def get_weather_summary(city: str = None, lat: float = None, lon: float = 
                 desc = weather.get("description", "cer variabil")
 
                 return (
-                    f"Vremea în {name}: {desc}, {temp}°C (se simte ca {feels_like}°C)."
+                    f"☁️ *Vremea în {name}*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🌡️ Temperatură: {temp}°C (se simte ca {feels_like}°C)\n"
+                    f"📝 Detalii: {desc.capitalize()}"
                 )
             else:
                 print(f"Weather API error: {response.status_code} - {response.text}")
@@ -81,22 +90,25 @@ async def check_weather_for_alerts(lat: float, lon: float) -> Optional[str]:
                 weather_list = data.get("weather", [])
                 if not weather_list:
                     return None
-                
+
                 main_weather = weather_list[0]
                 weather_id = main_weather.get("id", 800)
                 desc = main_weather.get("description", "").capitalize()
-                
+
                 # OpenWeather IDs for Rain (5xx) and Storms (2xx) and Snow (6xx)
                 # https://openweathermap.org/weather-conditions
                 if 200 <= weather_id < 700:
                     icon = "⛈️" if weather_id < 300 else "🌧️" if weather_id < 600 else "❄️"
-                    return f"{icon} *Alertă Meteo:* {desc} în zona ta. Mai bine te pregătești!"
-                
+                    return f"⚠️ *Alertă Meteo:*\n━━━━━━━━━━━━━━━━━━━━\n{icon} {desc} în zona ta. Mai bine te pregătești!"
+
             return None
     except Exception as e:
         print(f"Weather alert check exception: {e}")
         return None
 
-async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
-    return False, "Anularea nu este disponibilă pentru vreme, fiind o acțiune de citire."
 
+async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
+    return (
+        False,
+        "❌ Eroare: Anularea nu este disponibilă pentru vreme, fiind o acțiune de citire.",
+    )

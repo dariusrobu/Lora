@@ -11,7 +11,7 @@ async def handle_goal_intent(
     if intent == "add_goal":
         title = data.get("title")
         if not title:
-            return "❌ Te rog să specifici un titlu clar pentru obiectiv.", None
+            return "⚠️ Atenție: Specifică un titlu clar pentru obiectiv.", None
         description = data.get("description")
         category = data.get("category", "Personal")
         time_horizon = data.get("time_horizon", "month")
@@ -20,7 +20,10 @@ async def handle_goal_intent(
         goal = await goal_queries.add_goal(
             pool, title, description, category, time_horizon, linked_keywords
         )
-        return f"🎯 Obiectiv adăugat: *{escape_md(goal['title'])}*", None
+        return (
+            f"✅ Obiectivul *{escape_md(goal['title'])}* a fost adăugat cu succes.",
+            None,
+        )
 
     elif intent == "view_goals":
         text, markup = await get_goals_dashboard(pool)
@@ -32,11 +35,14 @@ async def handle_goal_intent(
 
         goal = await goal_queries.get_goal_by_title(pool, goal_title)
         if not goal:
-            return f"❌ Nu am găsit obiectivul '{escape_md(goal_title)}'.", None
+            return (
+                f"❌ Eroare: Nu am putut găsi obiectivul *{escape_md(goal_title)}*.",
+                None,
+            )
 
         await goal_queries.add_subtask(pool, goal["id"], task_title)
         return (
-            f"✅ Sub-task adăugat la *{escape_md(goal['title'])}*: {escape_md(task_title)}",
+            f"✅ Sub-task-ul *{escape_md(task_title)}* a fost adăugat la *{escape_md(goal['title'])}*.",
             None,
         )
 
@@ -46,12 +52,15 @@ async def handle_goal_intent(
 
         goal = await goal_queries.get_goal_by_title(pool, goal_title)
         if not goal:
-            return f"❌ Nu am găsit obiectivul '{escape_md(goal_title)}'.", None
+            return (
+                f"❌ Eroare: Nu am putut găsi obiectivul *{escape_md(goal_title)}*.",
+                None,
+            )
 
         task = await goal_queries.get_goal_task_by_title(pool, goal["id"], task_title)
         if not task:
             return (
-                f"❌ Nu am găsit sub-task-ul '{escape_md(task_title)}' în obiectivul *{escape_md(goal['title'])}*.",
+                f"❌ Eroare: Nu am putut găsi sub-task-ul *{escape_md(task_title)}* în obiectivul *{escape_md(goal['title'])}*.",
                 None,
             )
 
@@ -59,7 +68,7 @@ async def handle_goal_intent(
 
         updated_goal = await goal_queries.get_goal_by_id(pool, goal["id"])
         return (
-            f"✅ Sub-task finalizat! Progres *{escape_md(updated_goal['title'])}*: {updated_goal['progress']}%",
+            f"✅ Sub-task completat. Progres *{escape_md(updated_goal['title'])}*: {updated_goal['progress']}%",
             None,
         )
 
@@ -67,29 +76,38 @@ async def handle_goal_intent(
         goal_title = data.get("title")
         goal = await goal_queries.get_goal_by_title(pool, goal_title)
         if not goal:
-            return f"❌ Nu am găsit obiectivul '{escape_md(goal_title)}'.", None
+            return (
+                f"❌ Eroare: Nu am putut găsi obiectivul *{escape_md(goal_title)}*.",
+                None,
+            )
         await goal_queries.complete_goal(pool, goal["id"])
-        return f"🎉 Goal completat: *{escape_md(goal['title'])}*", None
+        return f"✅ Obiectivul *{escape_md(goal['title'])}* a fost completat.", None
 
     elif intent == "delete_goal":
         goal_title = data.get("title")
         goal = await goal_queries.get_goal_by_title(pool, goal_title)
         if not goal:
-            return f"❌ Nu am găsit obiectivul '{escape_md(goal_title)}'.", None
+            return (
+                f"❌ Eroare: Nu am putut găsi obiectivul *{escape_md(goal_title)}*.",
+                None,
+            )
         await goal_queries.delete_goal(pool, goal["id"])
-        return f"🗑️ Goal șters: *{escape_md(goal['title'])}*", None
+        return f"🗑️ Obiectivul *{escape_md(goal['title'])}* a fost șters.", None
 
     elif intent == "update_goal":
         goal_title = data.get("title")
         goal = await goal_queries.get_goal_by_title(pool, goal_title)
         if not goal:
-            return f"❌ Nu am găsit obiectivul '{escape_md(goal_title)}'.", None
+            return (
+                f"❌ Eroare: Nu am putut găsi obiectivul *{escape_md(goal_title)}*.",
+                None,
+            )
 
         new_title = data.get("new_title", goal["title"])
         desc = data.get("description", goal["description"])
         cat = data.get("category", goal["category"])
         await goal_queries.update_goal(pool, goal["id"], new_title, desc, cat)
-        return f"✅ Obiectiv actualizat: *{escape_md(new_title)}*", None
+        return f"✏️ Obiectivul *{escape_md(new_title)}* a fost actualizat.", None
 
     return "Această acțiune pentru goals nu este încă suportată\\.", None
 
@@ -104,8 +122,8 @@ async def get_goals_dashboard(pool) -> Tuple[str, Any]:
     risk = overview.get("total_risk", 0)
 
     lines = [
-        "🎯 *Goals Dashboard*",
-        "━━━━━━━━━━━━━━━",
+        "🎯 *Dashboard Obiective*",
+        "━━━━━━━━━━━━━━━━━━━━",
         f"Active: *{active}* · Completate: *{completed}* · ⚠️ În pericol: *{risk}*",
     ]
     from bot.keyboards import goals_main_keyboard
@@ -120,7 +138,7 @@ async def get_active_goals(pool) -> Tuple[str, Any]:
     if not goals:
         return "🎯 Nu ai obiective active momentan\\.", goals_list_keyboard([])
 
-    lines = ["🎯 *Goals Active*\n"]
+    lines = ["🎯 *Obiective Active*", "━━━━━━━━━━━━━━━━━━━━"]
     current_cat = None
     for g in goals:
         if g["category"] != current_cat:
@@ -150,7 +168,7 @@ async def get_completed_goals(pool) -> Tuple[str, Any]:
             ]
         )
 
-    lines = ["✅ *Obiective Completate*\n"]
+    lines = ["✅ *Obiective Completate*", "━━━━━━━━━━━━━━━━━━━━"]
     for g in goals:
         date_str = g["updated_at"].strftime("%d %b %Y") if g["updated_at"] else "N\\/A"
         lines.append(f"• {escape_md(g['title'])} — {escape_md(date_str)}")
@@ -186,7 +204,7 @@ async def get_goal_detail(pool, goal_id: int) -> Tuple[str, Any]:
 
     lines = [
         f"🎯 *{title}*",
-        "━━━━━━━━━━━━━━━",
+        "━━━━━━━━━━━━━━━━━━━━",
         f"Categorie: *{category}*",
         f"Orizont de timp: *{goal_data.get('time_horizon', 'N/A')}*",
         f"Progres: `{bar}` {progress}%",
@@ -216,7 +234,7 @@ async def get_goal_detail(pool, goal_id: int) -> Tuple[str, Any]:
 
 async def get_goals_overview(pool) -> Tuple[str, Any]:
     overview = await goal_queries.get_goals_overview(pool)
-    lines = ["📊 *Overview Goals*", "━━━━━━━━━━━━━━━"]
+    lines = ["📊 *Prezentare Generală Obiective*", "━━━━━━━━━━━━━━━━━━━━"]
 
     cats = overview.get("categories", [])
     if not cats:

@@ -3,13 +3,13 @@ import os
 
 paths = [
     "/Users/robudarius/.gemini/antigravity/brain/98164cb0-732d-426a-8bff-2fa176824dd6/.system_generated/logs/transcript.jsonl",
-    "/Users/robudarius/.gemini/antigravity/brain/320b78fe-6d25-4ad5-b232-9a33749f4fa2/.system_generated/logs/transcript.jsonl"
+    "/Users/robudarius/.gemini/antigravity/brain/320b78fe-6d25-4ad5-b232-9a33749f4fa2/.system_generated/logs/transcript.jsonl",
 ]
 
 for path in paths:
-    print(f"\n==========================================")
+    print("\n==========================================")
     print(f"PATH: {path}")
-    print(f"==========================================")
+    print("==========================================")
     if not os.path.exists(path):
         print("Not found.")
         continue

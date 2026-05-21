@@ -13,7 +13,7 @@ async def handle_news_intent(
         reply = await fetch_tech_news(limit)
         return reply, None, None
 
-    return "Modulul news este pregătit!", None, None
+    return "❌ Eroare: Modulul news nu recunoaște acest intent.", None, None
 
 
 RSS_FEEDS = {
@@ -55,10 +55,12 @@ async def fetch_tech_news(limit: int = 3) -> str:
     news_items = [item for sublist in results for item in sublist]
 
     if not news_items:
-        return "Nu am putut găsi știri tech în acest moment."
+        return "⚠️ Atenție: Nu am putut găsi știri tech în acest moment."
 
-    return "Știri Tech de ultimă oră:\n" + "\n".join(news_items[: limit * 2])
+    return "📰 *Știri Tech de ultimă oră:*\n━━━━━━━━━━━━━━━━━━━━\n" + "\n".join(
+        news_items[: limit * 2]
+    )
+
 
 async def undo_last_action(pool, intent: str, item_id: int) -> Tuple[bool, str]:
-    return False, "Anularea nu este disponibilă pentru modulul de știri."
-
+    return False, "❌ Eroare: Anularea nu este disponibilă pentru modulul de știri."
