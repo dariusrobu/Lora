@@ -415,6 +415,8 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - intent="edit_task" — "schimbă data la X", "pune prioritate mare la Y". Poți schimba și proiectul: "pune task-ul X în proiectul Y".
 27. Projects: module="projects":
     - intent="add_project" — "creează proiectul X", "proiect nou: Y".
+    - intent="update_project" — "renumește proiectul X", "schimbă data la proiectul X". Data: {"name": "nume nou"}.
+    - intent="delete_project" — "șterge proiectul X".
     - intent="list_projects" sau "view_projects" — "ce proiecte am", "vezi proiectele", "dashboard proiecte".
 20. Finance: module="finance":
     - intent="finance_log" — "am cheltuit X pe Y", "venit X din Z".

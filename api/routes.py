@@ -35,6 +35,29 @@ async def get_projects(request):
 
 
 @require_auth
+async def patch_project(request):
+    try:
+        pool = request.app["pool"]
+        project_id = int(request.match_info["project_id"])
+        data = await request.json()
+        await project_queries.update_project(pool, project_id, **data)
+        return web.json_response({"status": "success"})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@require_auth
+async def delete_project(request):
+    try:
+        pool = request.app["pool"]
+        project_id = int(request.match_info["project_id"])
+        await project_queries.delete_project(pool, project_id)
+        return web.json_response({"status": "success"})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@require_auth
 async def get_project_by_id(request):
     try:
         pool = request.app["pool"]
@@ -122,12 +145,24 @@ async def get_finance_summary(request):
                     }
                 )
 
+        async with pool.acquire() as conn:
+            total_row = await conn.fetchrow(
+                """
+                SELECT 
+                    COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as total_income,
+                    COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as total_expense
+                FROM finances
+                """
+            )
+            total_balance = float(total_row["total_income"]) - float(total_row["total_expense"])
+
         return web.json_response(
             {
                 "month": f"{year}-{month:02d}",
                 "total_income": summary["income"],
                 "total_expenses": summary["expense"],
-                "balance": summary["income"] - summary["expense"],
+                "balance": total_balance,
+                "monthly_balance": summary["income"] - summary["expense"],
                 "top_categories": top_categories,
                 "budget_alerts": budget_alerts,
             }
@@ -787,6 +822,8 @@ async def get_ping(request):
 def setup_api_routes(app):
     app.router.add_get("/api/projects", get_projects)
     app.router.add_get("/api/projects/{project_id}", get_project_by_id)
+    app.router.add_patch("/api/projects/{project_id}", patch_project)
+    app.router.add_delete("/api/projects/{project_id}", delete_project)
     app.router.add_get("/api/tasks", get_tasks)
     app.router.add_get("/api/profile", get_profile)
     app.router.add_post("/api/tasks", post_task)
