@@ -13,7 +13,6 @@ from core.config import (
     MORNING_BRIEFING_TIME,
     EOD_REFLECTION_TIME,
     HABIT_REMINDER_TIME,
-    COUNCIL_GROUP_CHAT_ID,
 )
 from bot.formatter import escape_md, safe_markdown
 from telegram.constants import ParseMode
@@ -139,76 +138,9 @@ async def _build_eod_payload(pool) -> dict:
         "streaks_active": streaks_active or [],
         "date": today.isoformat(),
     }
-
-
 async def send_daily_report(application, pool) -> bool:
-    """Collects and sends daily report to Council API."""
-    try:
-        from core.council import send_report_to_council
-        from core.config import TELEGRAM_USER_ID as TG_ID
-        from db.queries.log import log_execution
-
-        payload = await _build_eod_payload(pool)
-        project_id = str(TG_ID)
-        today = date.today()
-
-        # Send report
-        result = await send_report_to_council(project_id=project_id, payload=payload)
-
-        # Log to execution_log
-        payload_size = len(json.dumps(payload, default=str))
-        await log_execution(
-            pool=pool,
-            intent="council_report",
-            module="jobs",
-            success=result,
-            error_type=None,
-            error_message=f"Payload size: {payload_size} bytes"
-            if result
-            else f"Failed to send report. Payload size: {payload_size} bytes",
-        )
-
-        if result:
-            print(f"Report sent to Council for {today}.", flush=True)
-
-        if COUNCIL_GROUP_CHAT_ID and COUNCIL_GROUP_CHAT_ID != "":
-            completed = payload.get("tasks_completed", [])
-            task_titles = [t.get("title") for t in completed if t.get("title")]
-            report_text = (
-                f"[REPORT] {today.strftime('%Y-%m-%d')}\n"
-                f"Tasks completed: {len(task_titles)}\n"
-                + "\n".join(f"• {t}" for t in task_titles[:5])
-            )
-            if len(task_titles) > 5:
-                report_text += f"\n... and {len(task_titles) - 5} more"
-
-            await application.bot.send_message(
-                chat_id=COUNCIL_GROUP_CHAT_ID,
-                text=report_text,
-            )
-            print("Report posted to Council group.", flush=True)
-
-        return result
-
-    except Exception as e:
-        import traceback
-
-        print(f"CRITICAL error in send_daily_report: {e}", flush=True)
-        traceback.print_exc()
-        try:
-            from db.queries.log import log_execution
-
-            await log_execution(
-                pool=pool,
-                intent="council_report",
-                module="jobs",
-                success=False,
-                error_type=e.__class__.__name__,
-                error_message=str(e),
-            )
-        except Exception:
-            pass
-        return False
+    """Collects and sends daily report to Council API (disabled)."""
+    return False
 
 
 # NOTE: This bot uses long polling and should NOT be run in multiple instances simultaneously.
@@ -613,6 +545,91 @@ async def check_contextual_nudges(application, pool):
         print(f"Error in check_contextual_nudges: {e}", flush=True)
 
 
+async def proactive_check(application, pool) -> None:
+    """Hourly proactive check for overdue pending tasks and missed habit windows."""
+    try:
+        from datetime import date, timedelta
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        from telegram.constants import ParseMode
+        from bot.formatter import escape_md
+
+        today_val = date.today()
+        yesterday_date = today_val - timedelta(days=1)
+        yesterday_weekday = yesterday_date.weekday()
+
+        async with pool.acquire() as conn:
+            # 1. Query pending overdue tasks (due date is in the past, status is pending, not deleted)
+            overdue_tasks = await conn.fetch(
+                """
+                SELECT id, title 
+                FROM tasks 
+                WHERE status = 'pending' 
+                  AND due_date < CURRENT_DATE 
+                  AND deleted_at IS NULL
+                """
+            )
+
+            # 2. Query yesterday's active habits that were not completed
+            missed_habits = await conn.fetch(
+                """
+                SELECT h.id, h.name 
+                FROM habits h
+                WHERE h.is_active = TRUE
+                  AND $1 = ANY(h.target_days)
+                  AND NOT EXISTS (
+                    SELECT 1 FROM habit_logs hl
+                    WHERE hl.habit_id = h.id AND hl.log_date = $2
+                  )
+                """,
+                yesterday_weekday,
+                yesterday_date,
+            )
+
+        # Process overdue tasks
+        for t in overdue_tasks:
+            nudge_type = f"task_overdue_{t['id']}"
+            if await _should_send_nudge(pool, nudge_type):
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📅 Reprogramează (mâine)", callback_data=f"task:reschedule:{t['id']}:tomorrow"),
+                        InlineKeyboardButton("❌ Lasă așa", callback_data=f"task:ignore:{t['id']}")
+                    ]
+                ])
+                # Escape MarkdownV2 characters properly
+                msg = f"Darius, observ că task\\-ul *'{escape_md(t['title'])}'* este depășit\\. Vrei să îl reprogramăm?"
+                await application.bot.send_message(
+                    chat_id=TELEGRAM_USER_ID,
+                    text=msg,
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                    reply_markup=keyboard
+                )
+                await _mark_nudge_sent(pool, nudge_type)
+
+        # Process missed habits
+        for h in missed_habits:
+            nudge_type = f"habit_missed_{h['id']}_{yesterday_date}"
+            if await _should_send_nudge(pool, nudge_type):
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("✅ Log ca făcut", callback_data=f"habit:log_yesterday:{h['id']}"),
+                        InlineKeyboardButton("❌ Ignoră", callback_data=f"habit:ignore:{h['id']}")
+                    ]
+                ])
+                msg = f"Darius, observ că ai ratat habit\\-ul *'{escape_md(h['name'])}'* ieri\\. Vrei să îl loghezi?"
+                await application.bot.send_message(
+                    chat_id=TELEGRAM_USER_ID,
+                    text=msg,
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                    reply_markup=keyboard
+                )
+                await _mark_nudge_sent(pool, nudge_type)
+
+    except Exception as e:
+        print(f"Error in proactive_check: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+
+
 async def _should_send_nudge(pool, nudge_type: str) -> bool:
     async with pool.acquire() as conn:
         exists = await conn.fetchval(
@@ -655,26 +672,16 @@ async def send_eod_reflection(application, pool, force=False):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        report_status = await send_daily_report(application, pool)
-        report_text = ""
-        import os
-        if report_status:
-            report_text = "\n\n_Raport trimis la Council ✓_"
-        elif os.getenv("COUNCIL_API_URL"):
-            report_text = "\n\n_Raport Council: eșuat ✗_"
-
         tone = profile.get("tone", "warm")
         if tone == "direct":
             message = (
                 f"🌙 *Raportează, {escape_md(name)}\\!* \n\n"
                 "Ziua s-a terminat. Sper că n-ai irosit-o degeaba. *Cum a fost ziua ta (dacă ai curajul să raportezi)?*"
-                + report_text
             )
         else:
             message = (
                 f"🌙 *Bună seara, {escape_md(name)}\\!* \n\n"
                 "E timpul pentru o scurtă reflexie\\. *Cum a fost ziua ta azi?*"
-                + report_text
             )
 
         await application.bot.send_message(
@@ -1973,6 +1980,15 @@ def setup_scheduler(application, pool):
         "cron",
         hour="10-20",
         minute=0,
+        misfire_grace_time=3600,
+        args=[application, pool],
+    )
+
+    # Proactive Check - Hourly
+    scheduler.add_job(
+        proactive_check,
+        "interval",
+        hours=1,
         misfire_grace_time=3600,
         args=[application, pool],
     )

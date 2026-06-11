@@ -25,12 +25,7 @@ from db.queries.workout import get_recent_workouts
 from db.queries.skills import get_all_skills
 from db.queries.memory import semantic_search_memories, save_memory_fact
 from db.queries.insights import get_insight_data
-from core.council import (
-    send_report_to_council,
-    get_projects,
-    get_summary,
-    get_recent_decisions,
-)
+
 from core.config import TIMEZONE, TELEGRAM_USER_ID
 
 # Tools definition for Gemini
@@ -242,33 +237,7 @@ agent_tools = types.Tool(
             name="tool_get_insights",
             description="Returns a timeline of mood, productivity, and habits for the last 30 days to identify patterns.",
         ),
-        types.FunctionDeclaration(
-            name="tool_get_council_status",
-            description="Fetches strategic updates from the Business Council: active projects, recent decisions, and executive summary.",
-        ),
-        types.FunctionDeclaration(
-            name="tool_send_council_report",
-            description="Sends a formal report to the Business Council about your progress.",
-            parameters=types.Schema(
-                type=types.Type.OBJECT,
-                properties={
-                    "project_id": types.Schema(
-                        type=types.Type.STRING,
-                        description="The project ID to report on (e.g. 'P1', 'LORA_V2')",
-                    ),
-                    "summary": types.Schema(
-                        type=types.Type.STRING,
-                        description="A brief executive summary of the progress or blockers.",
-                    ),
-                    "completed_task_titles": types.Schema(
-                        type=types.Type.ARRAY,
-                        items=types.Schema(type=types.Type.STRING),
-                        description="List of task titles completed since the last report.",
-                    ),
-                },
-                required=["project_id", "summary"],
-            ),
-        ),
+
         types.FunctionDeclaration(
             name="tool_get_apple_calendar",
             description="Fetches real-time events directly from all Apple Calendar (iCloud) calendars. Use this for the most up-to-date schedule.",
@@ -374,29 +343,6 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
             timeline = await get_insight_data(pool, days=30)
             return json.dumps(timeline, default=str)
 
-        elif normalized_name == "get_council_status":
-            projects = await get_projects()
-            summary = await get_summary()
-            decisions = await get_recent_decisions(limit=5)
-            return json.dumps(
-                {
-                    "projects": projects,
-                    "summary": summary,
-                    "recent_decisions": decisions,
-                },
-                default=str,
-            )
-
-        elif normalized_name == "send_council_report":
-            project_id = args.get("project_id")
-            summary = args.get("summary")
-            task_titles = args.get("completed_task_titles", [])
-
-            # Map titles to mock dicts for the existing send_report_to_council
-            tasks_data = [{"title": t} for t in task_titles]
-
-            success = await send_report_to_council(project_id, tasks_data, summary)
-            return json.dumps({"status": "sent" if success else "failed"})
 
         elif normalized_name == "get_finance_summary":
             period = args.get("period", "today")

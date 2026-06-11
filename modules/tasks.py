@@ -6,7 +6,7 @@ import re
 import asyncio
 import db.queries.tasks as task_queries
 from bot.formatter import escape_md
-from core.council import get_decisions, send_feedback_to_cto
+
 
 
 def parse_add_task_text(text: str) -> Dict[str, Any] | None:
@@ -194,6 +194,18 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
                 f"🗑️ Task-ul *{escape_md(task_title)}* a fost șters.",
                 parse_mode="MarkdownV2",
                 reply_markup=tasks_undo_delete_keyboard(task_id),
+            )
+
+        elif action == "delete_all_confirmed":
+            await task_queries.delete_all_tasks(pool)
+            await query.answer("🗑️ Toate task-urile au fost șterse.")
+            await clear_state(pool)
+            
+            text, markup = await get_tasks_dashboard(pool)
+            await query.edit_message_text(
+                f"🗑️ *Toate task-urile au fost șterse.*\n\n{text}",
+                parse_mode="MarkdownV2",
+                reply_markup=markup,
             )
 
         elif action == "undo_delete":
@@ -547,47 +559,9 @@ async def handle_task_intent(
         task = await task_queries.get_task(pool, task_id)
         task_title = task["title"] if task else "Task necunoscut"
 
-        if task and task.get("project_id"):
-            decisions = await get_decisions(task["project_id"])
-            if decisions:
-                linked_decision = decisions[0]
-                decision_text = linked_decision.get("title", "")[:50]
-                context_msg = f"\n\n💡 Aliniat cu decizia Council: *{decision_text}*"
-            else:
-                context_msg = ""
-        else:
-            context_msg = ""
+        return f"✅ *{escape_md(task_title)}* completat\!", None, task_id
 
-        feedback_msg = (
-            f"✅ *{escape_md(task_title)}* completat\!{context_msg}\n\n"
-            "Pe o scară de la 1 la 10, cât de greu a fost? "
-            "(Răspunde cu un număr)"
-        )
-        return feedback_msg, None, task_id
 
-    elif intent == "submit_task_feedback":
-        difficulty = data.get("difficulty") or data.get("rating")
-        task_id = data.get("task_id")
-        task_title = data.get("task_title", "Completed task")
-        context = data.get("context", "")
-
-        if not difficulty:
-            return "Ce dificultate? (1-10)", None, None
-
-        try:
-            difficulty = int(difficulty)
-            difficulty = max(1, min(10, difficulty))
-        except (ValueError, TypeError):
-            return "Te rog un număr între 1-10.", None, None
-
-        sent = await send_feedback_to_cto(difficulty, task_title, context)
-        if sent:
-            return (
-                f"Feedback salvat! 📊 Difficultate: *{difficulty}/10*\nMulțumesc! 💙",
-                None,
-                None,
-            )
-        return "⚠️ Nu am putut trimite feedback la CTO.", None, None
 
     elif intent == "edit_task":
         task_id = data.get("id")
@@ -713,10 +687,19 @@ async def handle_task_intent(
             or data.get("name")
             or data.get("text")
             or data.get("query")
+            or data.get("_user_message")
             or ""
         )
 
+        user_msg_lower = str(data.get("_user_message", "")).lower()
+        if "toate task" in user_msg_lower or "toate" in str(data.get("title", "")).lower() or "all" in str(data.get("title", "")).lower() or "everything" in str(data.get("title", "")).lower():
+            from bot.keyboards import tasks_confirm_delete_all_keyboard
+            from core.state import set_state
+            await set_state(pool, "awaiting_confirmation", "tasks", "delete_all", 0)
+            return "⚠️ Ești sigur că vrei să ștergi TOATE task-urile active? Această acțiune nu poate fi anulată.", tasks_confirm_delete_all_keyboard(), None
+
         if not task_id and title:
+
             if title.isdigit():
                 task_id = int(title)
             else:
@@ -743,11 +726,11 @@ async def handle_task_intent(
         from core.state import set_state
 
         await set_state(pool, "awaiting_confirmation", "tasks", "delete", task_id)
-        from bot.keyboards import confirmation_keyboard
+        from bot.keyboards import tasks_confirm_delete_keyboard
 
         return (
             f"Sigur vrei să ștergi task-ul *{escape_md(task['title'])}*?",
-            confirmation_keyboard("tasks", "delete", task_id),
+            tasks_confirm_delete_keyboard(task_id),
             task_id,
         )
 

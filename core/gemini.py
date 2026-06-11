@@ -1,38 +1,44 @@
-from google import genai
-from google.genai import types
 from typing import Dict, Any, List
-from core.config import GEMINI_API_KEY, TIMEZONE
+from core.config import TIMEZONE
 from datetime import datetime, timedelta
 import pytz
 import asyncio
 import json
 import logging
+import os
 import re
 from pydantic import BaseModel, Field, model_validator
 from core.context import build_temporal_context
-import google.api_core.exceptions
+from cerebras.cloud.sdk import Cerebras
+from google import genai as google_genai
+from google.genai import types
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+# Cerebras client (ultra-fast inference)
+_cerebras_client = Cerebras(api_key=os.environ.get("CEREBRAS_API_KEY", ""))
+
+# Google Generative AI client for embeddings
+_google_genai_client = google_genai.Client(api_key=os.environ.get("GEMINI_API_KEY", ""))
 
 # Resilience state
 _api_available = True
 _failure_count = 0
+CEREBRAS_MODEL = "gpt-oss-120b"
 
 
 async def get_embedding(text: str) -> List[float]:
     """
-    Generates a 768-dimensional embedding for the given text using text-embedding-004.
+    Generates an embedding for the given text using Google text-embedding-004.
     """
     if not text:
         return []
 
     try:
-        response = client.models.embed_content(
+        result = await asyncio.to_thread(
+            _google_genai_client.models.embed_content,
             model="text-embedding-004",
             contents=text,
-            config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
         )
-        return response.embeddings[0].values
+        return result.embeddings[0].values
     except Exception as e:
         logging.error(f"Error generating embedding: {e}")
         return []
@@ -69,6 +75,128 @@ def preprocess_text(text: str) -> str:
     return processed
 
 
+class IntentData(BaseModel):
+    # Task / Project fields
+    title: str | None = Field(
+        default=None, description="Title of task, event, reminder, skill, note, etc."
+    )
+    priority: str | None = Field(
+        default=None, description="Priority level: high, medium, low"
+    )
+    due_date: str | None = Field(
+        default=None, description="Due date or target date, e.g. YYYY-MM-DD"
+    )
+    project: str | None = Field(
+        default=None, description="Project name or category association"
+    )
+    status: str | None = Field(
+        default=None, description="Status level or state of item"
+    )
+    task_id: int | None = Field(default=None, description="Task ID")
+    name: str | None = Field(
+        default=None, description="Name of project, skill, habit, etc."
+    )
+    description: str | None = Field(
+        default=None, description="Detailed description or body content"
+    )
+    deadline: str | None = Field(default=None, description="Deadline of project, etc.")
+    category: str | None = Field(default=None, description="Category name")
+    project_id: int | None = Field(default=None, description="Project ID")
+    progress_pct: float | None = Field(
+        default=None, description="Project progress percentage"
+    )
+
+    # Finance fields
+    amount: float | None = Field(
+        default=None, description="Financial transaction amount"
+    )
+    type: str | None = Field(
+        default=None, description="Type of transaction: expense, income, etc."
+    )
+    limit: float | None = Field(default=None, description="Finance budget limit")
+    monthly_limit: float | None = Field(default=None, description="Monthly limit")
+
+    # Skills / Habits fields
+    is_active: bool | None = Field(default=None, description="Is skill/habit active")
+    target_days: List[int] | None = Field(
+        default=None, description="Days of week for habit target"
+    )
+    habit_id: int | None = Field(default=None, description="Habit ID")
+    skill_name: str | None = Field(default=None, description="Skill name")
+    value: float | None = Field(
+        default=None, description="Log value for skill progress"
+    )
+
+    # Health fields
+    mood: int | None = Field(default=None, description="Mood rating")
+    energy: int | None = Field(default=None, description="Energy rating")
+    cigarettes: int | None = Field(default=None, description="Number of cigarettes")
+    sleep_hours: float | None = Field(default=None, description="Hours of sleep")
+    water_ml: int | None = Field(default=None, description="Water intake in ml")
+    log_date: str | None = Field(default=None, description="Health log date")
+
+    # Workout fields
+    sport_name: str | None = Field(default=None, description="Sport name")
+    duration_min: int | None = Field(default=None, description="Duration in minutes")
+    exercises: List[str] | None = Field(
+        default=None, description="List of exercises in workout"
+    )
+    pr_id: int | None = Field(default=None, description="Personal record ID")
+    sport_id: int | None = Field(default=None, description="Sport ID")
+
+    # Event / Calendar fields
+    event_time: str | None = Field(default=None, description="Event time")
+    date: str | None = Field(default=None, description="Event date")
+    event_date: str | None = Field(default=None, description="Specific event date")
+    summary: str | None = Field(default=None, description="Calendar summary")
+    start: str | None = Field(default=None, description="Start date/time")
+    end: str | None = Field(default=None, description="End date/time")
+    location: str | None = Field(default=None, description="Location name")
+
+    # Note / Focus / Integration fields
+    body: str | None = Field(default=None, description="Body content of note/email")
+    task_description: str | None = Field(
+        default=None, description="Focus task description"
+    )
+    hour: int | None = Field(default=None, description="Hour of alarm")
+    minute: int | None = Field(default=None, description="Minute of alarm")
+    label: str | None = Field(default=None, description="Alarm label")
+    to: str | None = Field(default=None, description="Recipient of email")
+    subject: str | None = Field(default=None, description="Subject of email")
+    service: str | None = Field(default=None, description="Integration service")
+
+    # General / Other fields
+    confirmed: bool | None = Field(default=None, description="Confirmation status")
+    id: int | None = Field(default=None, description="Item ID")
+    item_id: int | None = Field(default=None, description="Target item ID")
+
+
+class MemoryExtract(BaseModel):
+    fact: str = Field(description="The fact to memorize")
+    category: str = Field(default="general", description="Category of the fact")
+    confidence: float = Field(default=1.0, description="Confidence score")
+
+
+class SecondaryIntent(BaseModel):
+    intent: str = Field(
+        description="Identified action, e.g. add_task, chat, log_expense"
+    )
+    module: str | None = Field(
+        description="The target module, e.g. tasks, projects, finance."
+    )
+    data: IntentData = Field(
+        description="Module-specific structured data extracted from the user message"
+    )
+    reply: str = Field(description="Assistant reply formatted in MarkdownV2")
+    needs_confirmation: bool = Field(
+        description="True if the action requires confirmation"
+    )
+    needs_agent: bool = Field(
+        description="True if the query is complex and needs multi-step agent reasoning"
+    )
+    confidence: float = Field(default=1.0, description="Certitude score")
+
+
 class IntentResponse(BaseModel):
     intent: str = Field(
         description="Identified action, e.g. add_task, chat, log_expense"
@@ -76,7 +204,7 @@ class IntentResponse(BaseModel):
     module: str | None = Field(
         description="The target module, e.g. tasks, projects, finance. Use null/None for general chat or intent='chat'."
     )
-    data: Dict[str, Any] = Field(
+    data: IntentData = Field(
         description="Module-specific structured data extracted from the user message"
     )
     reply: str = Field(description="Assistant reply formatted in MarkdownV2")
@@ -106,11 +234,11 @@ class IntentResponse(BaseModel):
         default=None,
         description="Întrebarea de clarificare dacă clarification_needed e True",
     )
-    memory_extracts: List[Dict[str, Any]] | None = Field(
+    memory_extracts: List[MemoryExtract] | None = Field(
         default=None,
         description="Fapte importante de memorat extrase din mesaj: {fact, category, confidence, expires_at?}",
     )
-    additional_intents: List["IntentResponse"] | None = Field(
+    additional_intents: List[SecondaryIntent] | None = Field(
         default=None,
         description="Lista de intenții secundare dacă mesajul conține mai multe acțiuni simultane",
     )
@@ -144,8 +272,13 @@ class IntentResponse(BaseModel):
             "exam_date",
         ]
 
+        data_dict = (
+            self.data.model_dump()
+            if hasattr(self.data, "model_dump")
+            else (self.data or {})
+        )
         for key in date_keys:
-            val = self.data.get(key)
+            val = data_dict.get(key)
             if not val or not isinstance(val, str):
                 continue
 
@@ -167,10 +300,6 @@ class IntentResponse(BaseModel):
         return self
 
 
-# Resolve forward reference (additional_intents references IntentResponse itself)
-IntentResponse.model_rebuild()
-
-
 async def _log_api_downtime(pool, error_type: str, user_id: int = None):
     """Logs API downtime to execution_log."""
     if not pool:
@@ -186,8 +315,8 @@ async def _log_api_downtime(pool, error_type: str, user_id: int = None):
         print(f"Failed to log downtime: {e}")
 
 
-async def _call_gemini_with_retry(pool, user_id, api_func, *args, **kwargs):
-    """Wrapper for Gemini API calls with retry logic and state tracking."""
+async def _call_cerebras_with_retry(pool, user_id, api_func, *args, **kwargs):
+    """Wrapper for Cerebras API calls with retry logic and state tracking."""
     global _api_available, _failure_count
 
     delays = [2, 4]
@@ -195,32 +324,25 @@ async def _call_gemini_with_retry(pool, user_id, api_func, *args, **kwargs):
 
     for i in range(len(delays) + 1):
         try:
-            # Execute the actual call
             response = await api_func(*args, **kwargs)
 
             recovery_prefix = ""
             if not _api_available:
                 recovery_prefix = "Sunt din nou online\\! 🚀\\n\n"
-                print("Gemini API recovered! 🚀")
+                print("Cerebras API recovered! 🚀")
 
             _api_available = True
             _failure_count = 0
             return response, recovery_prefix
 
-        except (
-            google.api_core.exceptions.ServiceUnavailable,
-            google.api_core.exceptions.DeadlineExceeded,
-            asyncio.TimeoutError,
-        ) as e:
+        except asyncio.TimeoutError as e:
             last_err = e
-            error_msg = str(e)
-            print(f"Gemini API attempt {i + 1} failed (transient): {error_msg}")
+            print(f"Cerebras API attempt {i + 1} failed (timeout): {e}")
 
             if i < len(delays):
                 await asyncio.sleep(delays[i])
                 continue
 
-            # If we are here, all retries failed
             _failure_count += 1
             if _failure_count >= 3:
                 _api_available = False
@@ -229,8 +351,168 @@ async def _call_gemini_with_retry(pool, user_id, api_func, *args, **kwargs):
                 await _log_api_downtime(pool, "api_unavailable", user_id)
             raise last_err
         except Exception as e:
-            print(f"Gemini API attempt {i + 1} failed (non-transient): {e}")
+            print(f"Cerebras API attempt {i + 1} failed (non-transient): {e}")
             raise e
+
+
+def dereference_schema(schema: dict) -> dict:
+    """Recursively inlines $defs references and forces additionalProperties=False for Cerebras."""
+    defs = schema.get("$defs", {})
+
+    def resolve(val):
+        if isinstance(val, dict):
+            if "$ref" in val:
+                ref_path = val["$ref"]
+                if ref_path.startswith("#/$defs/"):
+                    def_name = ref_path.split("/")[-1]
+                    resolved = resolve(defs[def_name])
+                    merged = {k: resolve(v) for k, v in val.items() if k != "$ref"}
+                    resolved_dict = {**resolved, **merged}
+                else:
+                    resolved_dict = {k: resolve(v) for k, v in val.items()}
+            else:
+                resolved_dict = {k: resolve(v) for k, v in val.items()}
+
+            if resolved_dict.get("type") == "object":
+                resolved_dict["additionalProperties"] = False
+            if "pattern" in resolved_dict:
+                del resolved_dict["pattern"]
+            return resolved_dict
+        elif isinstance(val, list):
+            return [resolve(x) for x in val]
+        return val
+
+    dereferenced = resolve(schema)
+    if "$defs" in dereferenced:
+        del dereferenced["$defs"]
+    return dereferenced
+
+
+async def generate_structured_response(messages: list, schema: BaseModel) -> str:
+    """
+    Attempts to generate a structured JSON response using the configured provider,
+    with automatic fallback from Cerebras to Gemini if errors occur.
+    """
+    provider = os.environ.get("LLM_PROVIDER", "gemini").lower()
+
+    # 1. Attempt Cerebras if provider is cerebras
+    if provider == "cerebras":
+        try:
+            print("Trying Cerebras completions...", flush=True)
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    _cerebras_client.chat.completions.create,
+                    model=CEREBRAS_MODEL,
+                    messages=messages,
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": schema.__name__,
+                            "strict": True,
+                            "schema": dereference_schema(schema.model_json_schema()),
+                        },
+                    },
+                    temperature=0.3,
+                    max_tokens=2048,
+                ),
+                timeout=20.0,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"Cerebras call failed: {e}. Falling back to Gemini...", flush=True)
+
+    # 2. Call Gemini
+    gemini_messages = []
+    system_instruction = ""
+
+    for msg in messages:
+        role = msg["role"]
+        content = msg["content"]
+        if role == "system":
+            system_instruction += content + "\n"
+        else:
+            gemini_role = "user" if role == "user" else "model"
+            gemini_messages.append(
+                types.Content(
+                    role=gemini_role, parts=[types.Part.from_text(text=content)]
+                )
+            )
+
+    config = types.GenerateContentConfig(
+        response_mime_type="application/json",
+        response_schema=schema,
+        temperature=0.3,
+        system_instruction=system_instruction.strip() if system_instruction else None,
+    )
+
+    response = await asyncio.wait_for(
+        asyncio.to_thread(
+            _google_genai_client.models.generate_content,
+            model="gemini-2.5-flash",
+            contents=gemini_messages,
+            config=config,
+        ),
+        timeout=60.0,
+    )
+    return response.text
+
+
+async def generate_text_response(messages: list) -> str:
+    """
+    Attempts to generate a plain text response using the configured provider,
+    with automatic fallback from Cerebras to Gemini.
+    """
+    provider = os.environ.get("LLM_PROVIDER", "gemini").lower()
+
+    if provider == "cerebras":
+        try:
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    _cerebras_client.chat.completions.create,
+                    model=CEREBRAS_MODEL,
+                    messages=messages,
+                    temperature=0.3,
+                    max_tokens=1024,
+                ),
+                timeout=20.0,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            print(
+                f"Cerebras text call failed: {e}. Falling back to Gemini...", flush=True
+            )
+
+    # Gemini fallback
+    gemini_messages = []
+    system_instruction = ""
+    for msg in messages:
+        role = msg["role"]
+        content = msg["content"]
+        if role == "system":
+            system_instruction += content + "\n"
+        else:
+            gemini_role = "user" if role == "user" else "model"
+            gemini_messages.append(
+                types.Content(
+                    role=gemini_role, parts=[types.Part.from_text(text=content)]
+                )
+            )
+
+    config = types.GenerateContentConfig(
+        temperature=0.3,
+        system_instruction=system_instruction.strip() if system_instruction else None,
+    )
+
+    response = await asyncio.wait_for(
+        asyncio.to_thread(
+            _google_genai_client.models.generate_content,
+            model="gemini-2.5-flash",
+            contents=gemini_messages,
+            config=config,
+        ),
+        timeout=60.0,
+    )
+    return response.text.strip()
 
 
 async def get_gemini_response(
@@ -286,24 +568,45 @@ TONE: {tone}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONVERSAȚIE RECENTĂ (Context):
 {_format_history_for_prompt(history)}
-ââââââââââââââââââââââââââââââââââââââââââââââââââââ
-MESAJ UTILIZATOR CURENT â ANALIZEAZÄ ACESTA:
-{f"(HINT: {system_hint})" if system_hint else ""}
-ââââââââââââââââââââââââââââââââââââââââââââââââââââ
-â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” 
-{user_message}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODE DETECTION (CRITIC — PRIMA REGULA):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Există DOUĂ moduri de funcționare. ALEGE-L PE CEL CORECT:
 
-â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” 
+🗣️ CHAT MODE (module=null, intent="chat"):
+- Utilizatorul discută, întreabă, dezbate, glumește, cere sfat, sau pur și simplu vorbește
+- NU forța module, NU crea intents artificiale
+- Răspunde empatic, inteligent, detaliat — ca un companion AI de top
+- Dacă detectezi o INTENȚIE ASCUNSĂ de acțiune, SUGEREAZĂ-O conversațional:
+  "Sună bine! Vrei să adaug un task pentru asta?" (dar NU executa)
+- Setează: module=null, intent="chat", needs_confirmation=false
+
+⚡ ACTION MODE (module=X, intent=Y):
+- Utilizatorul vrea EXPLICIT o acțiune: adaugă, șterge, loghează, editează, completează
+- Extrage datele și setează intent-ul corect
+- REGULA CRITICĂ: Dacă acțiunea MODIFICĂ baza de date (add, edit, delete, complete, log, update etc.),
+  setează needs_confirmation=true. Lora va prezenta acțiunea în reply, userul va confirma.
+- Excepții (needs_confirmation=false): list, view, summary, chart, stats, search — orice
+  operațiune READ-ONLY se execută imediat.
+
+PROACTIVE SUGGESTION (CRITIC):
+- Dacă userul vorbește despre ceva tangibil (ex: "ar trebui să termin proiectul"),
+  Lora trebuie să sugereze acțiunea în reply:
+  "Sună ca un plan! Vrei să adaug un task «termin proiectul»?"
+  Dar cu module=null, intent="chat" (sugerează, nu executa).
+- Dacă userul confirmă sugestia (ex: "da, adaugă"), ATUNCI setează module+intent corect.
+
+────────────────────────────────────────────────────
 REGULI STRICTE:
-â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” â” 
+────────────────────────────────────────────────────
 1. LUNGIMEA RĂSPUNSULUI:
    - Acțiuni simple (add_task, finance_log, etc) -> Dacă TONE este 'direct', fii oricât de lungă e nevoie pentru a te asigura că utilizatorul înțelege gravitatea amânării sau a lipsei de disciplină. Folosește sarcasm și autoritate. Pentru alte tonuri, MAX 1 propoziție + emoji.
    - Conversație liberă -> Răspunde DETALIAT și natural.
-   - ÃŽntrebÄƒri despre date (list_tasks) â†’ RÄƒspuns structurat È™i clar.
+   - Întrebări despre date (list_tasks) → Răspuns structurat și clar.
 2. LIMBAJ NATURAL & ROMGLISH: Răspunde în română, dar acceptă și folosește natural termeni tech/pro (task, meeting, gym, feedback, update, sync, call).
 3. ZERO FILLER LA ACȚIUNI: Nu folosi "Sigur!", "Gata!" la confirmări. Dar în chat, fii empatic și prietenos.
 4. CONTEXTUAL REFERENCE RESOLUTION (CRITICAL): Dacă utilizatorul folosește pronume (el, ea, îl, o, ăsta) sau referințe implicite ("fă-l", "șterge-o"), rezolvă referința folosind ISTORICUL CONVERSAȚIEI de mai sus.
-5. PROACTIVE CLARIFICATION: Dacă userul menționează un plan vag (ex: "ar trebui să merg la X"), întreabă-l dacă vrea să adaugi un task sau un reminder.
+5. PROACTIVE CLARIFICATION: (Bypassat - vezi secțiunea MODE DETECTION & PROACTIVE SUGGESTION de mai sus).
 6. MULTI-INTENT (CRITIC): Dacă un mesaj conține MAI MULTE acțiuni distincte, TREBUIE să le returnezi pe TOATE.
    - Intent-ul PRINCIPAL (primul menționat) → câmpul `intent`, `module`, `data`.
    - Restul intenților → câmpul `additional_intents` (listă de obiecte IntentResponse).
@@ -315,9 +618,9 @@ REGULI STRICTE:
    * "pune reminder la 18 și adaugă task să trimit mailul" → primary=add_reminder, additional=[add_task]
    * "am terminat task-ul X și loghează 1h coding" → primary=complete_task, additional=[log_skill]
    * "bifează task X, Y și Z" → primary=complete_task(X), additional=[complete_task(Y), complete_task(Z)]
-7. TYPO TOLERANCE: IgnorÄ diacriticele lipsÄ sau greÈelile de scriere.
-8. MEMORY USAGE: FoloseÈte activ secÈiunea MEMORIE de mai jos. DacÄ gÄseÈti ceva relevant, integreazÄ-l natural: "Apropo, pentru cÄ ai menÈionat Ã®n trecut cÄ [fapt]..."
-9. CHAT MODE: Dacă mesajul nu e o acțiune, comportă-te ca un AI general de top (precum ChatGPT). Răspunde empatic, creativ și extrem de informativ. Poți oferi sfaturi, poți dezbate idei sau poți pur și simplu să ții companie. Nu încerca să forțelezi modulele dacă utilizatorul vrea doar să discute.
+7. TYPO TOLERANCE: Ignoră diacriticele lipsă sau greșelile de scriere.
+8. MEMORY USAGE: Folosește activ secțiunea MEMORIE de mai jos. Dacă găsești ceva relevant, integrează-l natural: "Apropo, pentru că ai menționat în trecut că [fapt]..."
+9. CHAT MODE: Respectă regulile din secțiunea MODE DETECTION. Dacă utilizatorul vorbește liber sau dorește o conversație, răspunde ca un companion inteligent, empatic și de top (fără a executa module în mod artificial). Setează module=null, intent="chat".
 10. ACTION HARVESTING & STRATEGIC ADVISOR: Identifică proactiv acțiunile relevante. Extrage doar ceea ce are impact real (exclude zgomotul trivial). Dacă userul menționează o problemă, caută o soluție în module (task, goal, finance).
 11. INTELLIGENCE CORRELATION: Caută tipare între module. Dacă utilizatorul vorbește despre sănătate, corelează cu finanțele sau productivitatea (ex: fumatul costă X bani/lună, somnul afectează task-urile). Menționează aceste corelații natural.
 12. CONFIDENCE: Setează confidence < 0.7 dacă lipsește un element cheie (ex: titlul taskului, suma).
@@ -415,7 +718,7 @@ Skills: add, log, list, delete (tracked ca skills cu streak). Habits vechi → s
     - intent="edit_task" — "schimbă data la X", "pune prioritate mare la Y". Poți schimba și proiectul: "pune task-ul X în proiectul Y".
 27. Projects: module="projects":
     - intent="add_project" — "creează proiectul X", "proiect nou: Y".
-    - intent="update_project" — "renumește proiectul X", "schimbă data la proiectul X". Data: {"name": "nume nou"}.
+    - intent="update_project" — "renumește proiectul X", "schimbă data la proiectul X". Data: {{"name": "nume nou"}}.
     - intent="delete_project" — "șterge proiectul X".
     - intent="list_projects" sau "view_projects" — "ce proiecte am", "vezi proiectele", "dashboard proiecte".
 20. Finance: module="finance":
@@ -656,84 +959,25 @@ U: "am luat laptopul"
 A: intent="travel_packed", module="travel", data={{ "item": "laptop", "list_name": "Cluj" }}, reply="Bifat! 💻"
 """
 
-    contents = []
-    last_role = None
-    for m in history:
-        role = "user" if m["role"] == "user" else "model"
-        # Strictly enforce alternating roles for Gemini API
-        if role == last_role:
-            if role == "user":
-                # Merge consecutive user messages
-                if contents:
-                    contents[-1].parts[0].text += f"\n\n{m['content']}"
-                else:
-                    contents.append(
-                        types.Content(role=role, parts=[types.Part(text=m["content"])])
-                    )
-            else:
-                # Merge consecutive model messages
-                if contents:
-                    contents[-1].parts[0].text += f"\n\n{m['content']}"
-                else:
-                    contents.append(
-                        types.Content(role=role, parts=[types.Part(text=m["content"])])
-                    )
-            continue
+    messages = [{"role": "system", "content": system_prompt}]
 
-        contents.append(types.Content(role=role, parts=[types.Part(text=m["content"])]))
-        last_role = role
+    for m in history:
+        role = "user" if m["role"] == "user" else "assistant"
+        messages.append({"role": role, "content": m["content"]})
 
     # Add current user message
-    parts = []
-    if voice_uri:
-        parts.append(types.Part.from_uri(file_uri=voice_uri, mime_type="audio/ogg"))
-    parts.append(types.Part(text=user_message))
-
-    if last_role == "user":
-        # Merge if last was also user
-        if contents:
-            if voice_uri:
-                # If there's a voice URI, we probably want a fresh user content block or append to last
-                contents.append(types.Content(role="user", parts=parts))
-            else:
-                contents[-1].parts[0].text += f"\n\n{user_message}"
-        else:
-            contents.append(types.Content(role="user", parts=parts))
-    else:
-        contents.append(types.Content(role="user", parts=parts))
+    # Note: Ollama python doesn't officially support passing multiple parts with audio
+    # like Gemini yet, so we just pass the text. Voice transcription already happened.
+    messages.append({"role": "user", "content": user_message})
 
     print(
-        f"🚀 GEMINI CALL: contents count={len(contents)} | last turn: {repr(user_message)}",
+        f"🚀 CEREBRAS CALL: messages count={len(messages)} | last turn: {repr(user_message)}",
         flush=True,
     )
-    if len(contents) > 1:
-        print(
-            f"📜 HISTORY SAMPLE: {repr(contents[-2].parts[0].text[:50])}...", flush=True
-        )
 
     try:
-
-        async def call_gen():
-
-            return await asyncio.wait_for(
-                asyncio.to_thread(
-                    client.models.generate_content,
-                    model="gemini-2.5-flash",
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_prompt,
-                        response_mime_type="application/json",
-                        temperature=0.3,
-                        max_output_tokens=8000,
-                    ),
-                ),
-                timeout=30.0,
-            )
-
-        response, recovery_prefix = await _call_gemini_with_retry(
-            pool, user_id, call_gen
-        )
-        raw_text = response.text
+        raw_text = await generate_structured_response(messages, IntentResponse)
+        recovery_prefix = ""
         print(f"DEBUG RAW TEXT: {repr(raw_text[:300])}", flush=True)
 
         # Robust JSON parsing with multiple fallback strategies
@@ -878,33 +1122,17 @@ FORMATARE:
 """
     full_instruction = system_instruction + tone_rules
     try:
-
-        async def call_gen():
-            return await asyncio.wait_for(
-                asyncio.to_thread(
-                    client.models.generate_content,
-                    model="gemini-2.5-flash",
-                    contents=[
-                        types.Content(
-                            role="user", parts=[types.Part(text=data_summary)]
-                        )
-                    ],
-                    config=types.GenerateContentConfig(
-                        system_instruction=full_instruction,
-                        temperature=0.3,
-                        max_output_tokens=4000,
-                    ),
-                ),
-                timeout=45.0,
-            )
-
-        response, recovery_prefix = await _call_gemini_with_retry(None, None, call_gen)
-        text = response.text.strip()
-        if recovery_prefix:
-            return recovery_prefix + text
+        messages = [
+            {"role": "system", "content": full_instruction},
+            {"role": "user", "content": data_summary},
+        ]
+        text = await generate_text_response(messages)
         return text
     except Exception as e:
-        print(f"Gemini proactive error: {e}", flush=True)
+        import traceback
+
+        print(f"Gemini proactive error: {type(e).__name__} - {e}", flush=True)
+        traceback.print_exc()
         return ""
 
 
@@ -925,29 +1153,8 @@ async def normalize_voice_text(raw: str) -> str:
         f"Transcriere: {raw}"
     )
     try:
-
-        async def call_gen():
-            return await asyncio.wait_for(
-                asyncio.to_thread(
-                    client.models.generate_content,
-                    model="gemini-2.5-flash",
-                    contents=[
-                        types.Content(role="user", parts=[types.Part(text=prompt)])
-                    ],
-                    config=types.GenerateContentConfig(
-                        temperature=0.2,
-                        max_output_tokens=256,
-                    ),
-                ),
-                timeout=10.0,
-            )
-
-        response, recovery_prefix = await _call_gemini_with_retry(None, None, call_gen)
-        normalized = response.text.strip()
-
-        # Prepend recovery message if applicable
-        if recovery_prefix:
-            normalized = recovery_prefix + normalized
+        messages = [{"role": "user", "content": prompt}]
+        normalized = await generate_text_response(messages)
 
         _voice_logger.info(
             "VOICE NORMALIZE | original=%r | normalized=%r", raw, normalized

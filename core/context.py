@@ -342,7 +342,7 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
     from db.queries.health import get_health_log
     from db.queries.profile import get_user_profile
     from db.queries.university import get_upcoming_exams
-    from core.council import get_summary as get_council_summary
+
     from core.icloud import fetch_all_calendars_events
     from db.queries.memory import get_random_memory_lane
     import os
@@ -375,7 +375,6 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
         get_health_log(pool, today),
         get_current_week_type(pool),
         get_upcoming_exams(pool, days=7),
-        get_council_summary(),
         db.queries.goals.check_goal_alignment(pool, TELEGRAM_USER_ID),
         get_random_memory_lane(pool),
     )
@@ -391,7 +390,6 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
         health,
         week_type,
         exams,
-        council_summary,
         goal_alignment,
         memory_lane,
     ) = results
@@ -497,7 +495,7 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
             }
             for e in exams
         ],
-        "council_updates": council_summary,
+
         "goal_alignment_nudge": goal_alignment,
         "memory_lane": memory_lane,
         "icloud_events": icloud_events,

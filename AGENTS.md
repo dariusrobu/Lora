@@ -13,7 +13,7 @@
 
 ## Core Architecture
 
-`message → core/gemini.py → core/router.py → modules/{module}.py → db/queries/{module}.py`
+`message → core/gemini.py → core/router.py (Confirmation Interception) → bot/handler.py (Action Keyboard/Buttons) → modules/{module}.py → db/queries/{module}.py`
 
 **Never call Telegram directly from modules** — return `(reply_text, keyboard_or_none)` and let `handler.py` send.
 
@@ -71,11 +71,9 @@ psql $DATABASE_URL -f db/migrations/004_finance_categories.sql
 
 Additional (optional): `ICLOUD_USERNAME`, `ICLOUD_APP_PASSWORD`, `OPENWEATHER_API_KEY`
 
-## Council Integration
+## Council Integration (Deprecated / Isolated)
 
-Functions in `core/council.py`: `get_projects()`, `get_summary()`, `get_decisions(id)`, `send_feedback_to_cto()`, `send_report_to_council()`
-
-Council-powered features: Task linking on completion, Executive Summary in morning briefing, Difficulty feedback loop, Daily EOD report, Group chat posting.
+All automatic Council integration and reporting have been disabled/isolated to prevent Lora from leaking data or triggering EOD reports to Council. The `core/council.py` module remains present but is not invoked automatically by tasks or scheduler jobs.
 
 ## Modules (23 total)
 
@@ -118,11 +116,14 @@ User errors in Romanian, system comments in English.
 ## State Machine
 
 ```python
-await set_state(pool, "awaiting_confirmation", module, action, entity_id)
+# To request confirmation for an action
+await set_state(pool, "awaiting_action_confirm", module, action, None, payload)
+
+# To check state
 state = await get_state(pool)
 await clear_state(pool)
 ```
-States: `awaiting_confirmation`, `awaiting_edit_field`, `null`
+States: `awaiting_action_confirm` (write intent confirmation), `awaiting_confirmation` (delete confirmations), `awaiting_edit_field`, `null`
 
 ## Language
 

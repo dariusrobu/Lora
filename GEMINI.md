@@ -8,10 +8,28 @@
 
 The system prompt in `core/gemini.py` defines:
 - Lora's personality (Romglish, warm but direct)
+- Mode Detection: Chat Mode vs Action Mode
 - Supported intents and their data schemas
 - Tone modes: warm, direct, brief
 - Special instructions for data extraction
 - Module-specific capabilities
+
+---
+
+## Mode Detection (Chat vs Action Mode)
+
+Lora operates in two distinct modes based on user input:
+
+### 🗣️ Chat Mode (`module=null`, `intent="chat"`)
+- Handled when the user is simply talking, asking a question, joking, or seeking strategic life advice.
+- No modules are executed.
+- Lora responds naturally and empatic as a top-tier companion.
+- Proactive Suggestion: If the user talks about something actionable, Lora suggests adding it (e.g. "Vrei să adaug un task pentru asta?") but does NOT execute it directly.
+
+### ⚡ Action Mode (`module=X`, `intent=Y`)
+- Handled when the user explicitly requests an action (create, edit, delete, log, complete).
+- If the action is a **write intent** (modifying the database), Lora sets `needs_confirmation=true`. This triggers a Telegram inline confirmation menu.
+- Read-only actions (list, view, charts, stats, summary) skip confirmation (`needs_confirmation=false`) and execute immediately.
 
 ---
 
@@ -88,13 +106,9 @@ The system prompt in `core/gemini.py` defines:
 
 ---
 
-## Council Integration Intents
+## Council Integration Intents (Deprecated / Isolated)
 
-When connected to the Business Council system:
-
-- **Task completion** triggers feedback loop asking difficulty (1-10)
-- **Morning briefing** includes executive summary from Council
-- **Jargon translation** available for Council bot messages
+All automatic council integration has been disabled. Task completion no longer triggers the difficulty feedback prompt, and council summaries are no longer fetched during morning briefings.
 
 ---
 
@@ -110,11 +124,13 @@ When connected to the Business Council system:
     "due_date": "YYYY-MM-DD",
     "project": "string"
   },
-  "reply": "Lora's response in MarkdownV2",
-  "needs_confirmation": false,
+  "reply": "Lora's response in MarkdownV2 (shows action preview)",
+  "needs_confirmation": true,
   "needs_agent": false
 }
 ```
+
+*Note: `needs_confirmation` is set to `true` for all DB-modifying intents (adds, logs, deletes, completions).*
 
 ---
 

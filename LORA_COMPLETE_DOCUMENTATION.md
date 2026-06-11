@@ -6,12 +6,12 @@ Welcome to the ultimate technical specification and architectural blueprint for 
 
 ## 1. High-Level System Overview & Tech Stack
 
-Lora is a personalized, single-user Telegram assistant designed to function as an external "second brain". It provides comprehensive productivity, health, academic, financial, and strategic tracking, integrated tightly with the **Business Council** multi-agent group chat system.
+Lora is a personalized, single-user Telegram assistant designed to function as an external "second brain". It provides comprehensive productivity, health, academic, financial, and strategic tracking. Lora operates in a **Hybrid Conversational Agent** mode, distinguishing between general chat and explicit module tasks, with human-in-the-loop confirmations for all database-modifying actions.
 
 ### The Stack
 * **Runtime**: Python 3.11+
 * **Language Convention**: **Romglish** (Romanian base text, English tech terms). Romanian for user messages ("A apărut o eroare"), English for code symbols and developer comments.
-* **LLM Engine**: `gemini-2.5-flash` accessed via the modern `google-genai` SDK (`from google import genai`) with JSON-schema output boundaries.
+* **LLM Engine**: **Cerebras Cloud API (Llama 3.3 70B)** for ultra-fast primary text inference with JSON-schema output boundaries, and **Google GenAI (`text-embedding-004`)** for embeddings.
 * **Telegram Interface**: `python-telegram-bot==22.6` running via high-performance long polling.
 * **Database Layer**: Neon PostgreSQL accessed asynchronously via `asyncpg` with raw SQL queries (strictly no ORM).
 * **Scheduling Engine**: `apscheduler==3.10.4` (`AsyncIOScheduler`) running locally in timezone `'Europe/Bucharest'`.
@@ -28,7 +28,7 @@ Lora/
 ├── main.py                     # Primary entry point, database migration init, aiohttp server, bot startup
 ├── requirements.txt            # Runtime dependencies (python-telegram-bot, asyncpg, google-genai, etc.)
 ├── AGENTS.md                   # Developer rules & quickgotchas list
-├── GEMINI.md                   # Gemini prompt reference and supported intents
+├── GEMINI.md                   # System prompt reference and supported intents
 ├── REMINDERS_NOTIFICATIONS.md  # Detailed reminders manual & keep-alive configurations
 ├── LORA_COMPLETE_DOCUMENTATION.md # This complete reference manual
 │
@@ -43,8 +43,8 @@ Lora/
 │
 ├── core/
 │   ├── config.py               # Ingests environment variables and defaults
-│   ├── gemini.py               # Large system instruction (~450 lines) and IntentResponse contracts
-│   ├── router.py               # Decodes LLM IntentResponse and maps to modules
+│   ├── gemini.py               # Primary LLM interface (Cerebras for text, GenAI for embeddings) & IntentResponse contracts
+│   ├── router.py               # Decodes LLM IntentResponse and maps to modules using a strict whitelist
 │   ├── agent.py                # Agentic loop for complex, multi-tool instructions
 │   ├── context.py              # Compiles raw DB context snapshots for Gemini ingestion
 │   ├── state.py                # Database-backed conversation state machine
@@ -85,10 +85,16 @@ All inputs to Lora flow through a single sequential pipeline:
   [core/state.py]  ──────────►  [Active State Check] (If state exists, bypasses LLM and routes directly)
          │
          ▼
-  [core/gemini.py] ──────────►  [Cognitive Parser] (gemini-2.5-flash evaluates input with context snapshot)
+  [core/gemini.py] ──────────►  [Cognitive Parser] (Cerebras evaluates input with context snapshot)
          │
          ▼
-  [core/router.py] ──────────►  [Dispatcher] (Unpacks IntentResponse JSON, routes to matching module)
+  [core/router.py] ──────────►  [Confirmation Interceptor] (Intercepts write intents, requests confirm,
+         │                       sets state 'awaiting_action_confirm')
+         ▼
+  [bot/handler.py]  ──────────►  [Confirmation Menu] (User clicks [✅ Confirmă] or replies "da")
+         │
+         ▼
+  [core/router.py] ──────────►  [Dispatcher] (Bypasses check, executes module intent)
          │
          ▼
  [modules/{module}.py] ──────►  [Business Logic] (Executes checks and parameters validation)
@@ -100,8 +106,8 @@ All inputs to Lora flow through a single sequential pipeline:
 [bot/handler.py]  ──────────►  [Outbox Dispatcher] (Sends MarkdownV2 text and Inline Keyboards)
 ```
 
-### The Gemini Contract (`IntentResponse`)
-Gemini must return valid, non-escaped JSON structured under this strict schema:
+### The LLM Contract (`IntentResponse`)
+The LLM must return valid, non-escaped JSON structured under this strict schema:
 ```json
 {
   "intent": "add_task | chat | clarify | ...",
@@ -237,7 +243,9 @@ erDiagram
 
 ## 5. The 23 Modules & Core Intent Layout
 
-Lora handles **23 distinct module boundaries**. Intent responses flowing from Gemini mapped inside [core/router.py](file:///Users/robudarius/Lora/core/router.py) invoke the operational modules:
+Lora handles **23 distinct module boundaries**. Intent responses flowing from the LLM mapped inside [core/router.py](file:///Users/robudarius/Lora/core/router.py) invoke the operational modules. The router uses a strict **whitelist** to fallback to conversational chat if the LLM hallucinates an unknown module name. 
+
+Additionally, **database-modifying write intents** (add, edit, delete, log, complete) will not execute immediately; they trigger a generic confirmation keyboard and are queued in state. Read-only intents (list, view, summary, chart, stats) bypass this step and are executed immediately.
 
 1. **`tasks`**: Standard task organizers (`add_task`, `list_tasks`, `complete_task`, `edit_task`, `delete_task`).
 2. **`skills`**: Streaking habit logs and skill trackers (`log_skill`, `view_skills`, `add_habit`, `log_habit`, `list_habits`, `delete_habit`).
@@ -271,8 +279,8 @@ Lora relies on scheduled triggers matched with dynamic conversation state machin
 
 ### Workflow A: Dynamic Morning Briefing & Podcast Pipeline
 * **Trigger (05:00 cron)**: `check_wake_time_and_schedule` checks today's `day_plans` for a custom `wake_time` (e.g. `"07:30"`). If set, it schedules the briefing for `07:30`. If not set, it defaults to the profile's `MORNING_BRIEFING_TIME` (default `08:00`).
-* **Generation Engine**: [build_morning_briefing_context](file:///Users/robudarius/Lora/core/context.py) extracts weather, classes today, priority tasks, events, and habit streaks. It feeds this context to Gemini to render a highly structured Romglish MarkdownV2 layout.
-* **Audio Podcast TTS Generation**: Lora asks Gemini to summarize the briefing into a conversational Romanian monologue (max 200 words). The script is generated into an `.ogg` voice note using `edge-tts` (configured under `podcast_mode=True`), and dispatched to Telegram with a customized audio caption.
+* **Generation Engine**: [build_morning_briefing_context](file:///Users/robudarius/Lora/core/context.py) extracts weather, classes today, priority tasks, events, and habit streaks. It feeds this context to the LLM to render a highly structured Romglish MarkdownV2 layout.
+* **Audio Podcast TTS Generation**: Lora asks the LLM to summarize the briefing into a conversational Romanian monologue (max 200 words). The script is generated into an `.ogg` voice note using `edge-tts` (configured under `podcast_mode=True`), and dispatched to Telegram with a customized audio caption.
 * **Idempotency Guard**: Writes `last_briefing_date = today` inside `user_profile` to prevent double delivery on restart catch-ups.
 
 ### Workflow B: Multi-Phase EOD Journaling & Planning Sequence
@@ -302,6 +310,14 @@ Sets state: 'awaiting_evening_response' ──► Saves journal details & Sends 
          └─► Saves Tomorrow day_plan & wake_time (used by next morning's scheduler!)
 ```
 
+### Workflow C: Human-in-the-Loop Action Confirmation
+* **Trigger**: A write intent is intercepted in `core/router.py`.
+* **State Transition**: State is set to `awaiting_action_confirm` with the pending `IntentResponse` serialized in the `extra` payload database column.
+* **Confirmation Buttons**: Lora displays the action preview along with `[✅ Confirmă]` and `[❌ Anulează]` inline buttons.
+* **Resolution**:
+  * If the user taps `✅ Confirmă` or replies "da" / "confirm", the state is cleared, the `_confirmed_bypass` flag is set on the payload, and `route_intent` is executed.
+  * If the user taps `❌ Anulează` or replies "nu" / "anulează", the state is cleared and the action is cancelled with no database modifications.
+
 ---
 
 ## 7. Web Server, REST API & Keep-Alive Subsystem
@@ -320,15 +336,14 @@ To prevent **Render Free Tier** from sleeping (which spins down containers after
 
 ---
 
-## 8. Business Council Strategic Integration
+## 8. Business Council Strategic Integration (Deprecated & Isolated)
 
-Lora acts as the executive interface for the user's **Business Council** group chat bot system. Integrations configured in [core/council.py](file:///Users/robudarius/Lora/core/council.py) connect via:
+Lora's strategic integration with the Business Council multi-agent system has been disabled and isolated:
 
-* **CTO Decision Linking**: When completing tasks in Lora, the system queries active council decisions using `GET /decisions/{id}` and links them directly (e.g. *"Aligned with Council decision: Faza 8 — Intelligence layer"*).
-* **CTO Feedback Loop**: On task completion, Lora prompts the user to rate difficulty (1-10) and reports this metric to the Council's CTO bot via `POST /feedback` to train future work estimates.
-* **Morning Briefing Council Section**: Morning summaries pull raw strategic goals from the Council's executive endpoint (`GET /summary/me`), outputting a dedicated `🏛️ Consiliu — Strategic` layout.
-* **EOD Strategic Report**: At EOD time, Lora compiles all completed items and sends an automated task execution ledger to the Council database using `POST /report/{id}`.
-* **Jargon Translators**: [core/translator.py](file:///Users/robudarius/Lora/core/translator.py) intercepts complex business jargon sent by council bots (burn rate, LTV, CAC, Runway, Tech debt) and translates it to plain, understandable Romanian for the user.
+* **CTO Decision Linking & Feedback Loop**: Disabled. Task completion no longer links to council decisions or prompts the user for difficulty rating.
+* **Morning Briefing Council Section**: Disabled. Council updates are no longer compiled or presented during morning briefings.
+* **EOD Strategic Report**: Disabled. No EOD strategic reports are sent to the Council API, preventing automatic data leaks.
+* **Translators & core/council.py**: The raw connector code remains in place inside `core/council.py` but is not active during automated pipelines.
 
 ---
 
@@ -339,7 +354,8 @@ Ensure these keys are configured correctly inside your hosting configurations:
 ### Core Configuration
 * `TELEGRAM_BOT_TOKEN`: Telegram API bot token.
 * `TELEGRAM_USER_ID`: Numeric user ID (security check boundary).
-* `GEMINI_API_KEY`: Google Gemini AI developer API token.
+* `CEREBRAS_API_KEY`: Cerebras Cloud API token (for high-speed Llama 3.3 70B inference).
+* `GEMINI_API_KEY`: Google Gemini API token (used for text embeddings).
 * `DATABASE_URL`: Connection string for the Neon PostgreSQL database.
 * `TIMEZONE`: User local timezone (default `'Europe/Bucharest'`).
 * `MORNING_BRIEFING_TIME`: Fallback briefing time if no wake time is scheduled (default `'08:00'`).

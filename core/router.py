@@ -88,6 +88,7 @@ async def _route_single_intent(
     user_message = intent_response.get(
         "_user_message", ""
     )  # Injected by handler usually
+    data["_user_message"] = user_message
 
     # Agentic Diversion Check
     if intent_response.get("needs_agent") or intent == "agent":
@@ -164,9 +165,110 @@ async def _route_single_intent(
         new_intent = await analyze_intent(pool, correction_text, context=context)
         return await _route_single_intent(pool, new_intent, user_id, bot)
 
-    # No module or 'chat' intent -> Just Chat
-    if not module or module == "chat":
+    # Whitelist of valid modules — anything else is treated as free chat.
+    # This prevents hallucinated module names (e.g. "greeting", "chatbot",
+    # "general") from crashing the dispatcher.
+    VALID_MODULES = {
+        "tasks",
+        "projects",
+        "notes",
+        "finance",
+        "events",
+        "shopping",
+        "goals",
+        "skills",
+        "mood",
+        "insights",
+        "health",
+        "nutrition",
+        "workout",
+        "university",
+        "schedule",
+        "reading",
+        "focus",
+        "planner",
+        "memory",
+        "weather",
+        "calendar",
+        "calendar_module",
+        "integrations",
+        "travel",
+        "wishlist",
+    }
+
+    if not module or module.lower() not in VALID_MODULES:
+        if module:
+            print(
+                f"⚠️ ROUTER: Unknown module '{module}' — falling back to chat.",
+                flush=True,
+            )
         return reply, None, None
+
+    # Interception for Human-in-the-loop Confirmation
+    READ_ONLY_INTENTS = {
+        "list_tasks",
+        "list_events",
+        "list_reminders",
+        "list_items",
+        "list_wish",
+        "list_habits",
+        "view_skills",
+        "view_goals",
+        "view_projects",
+        "list_projects",
+        "finance_summary",
+        "finance_chart",
+        "health_summary",
+        "health_chart",
+        "health_status_today",
+        "nutrition_summary",
+        "nutrition_target",
+        "workout_list",
+        "workout_stats",
+        "workout_prs",
+        "workout_week",
+        "uni_list",
+        "uni_exams",
+        "uni_attendance_warning",
+        "uni_restante",
+        "schedule_today",
+        "schedule_week",
+        "reading_list",
+        "reading_stats",
+        "focus_list",
+        "get_weather",
+        "get_weather_alerts",
+        "get_tech_news",
+        "get_insights",
+        "ask_insights",
+        "mood_chart",
+        "get_mood_chart",
+        "memory_view",
+        "memory_recall",
+        "memory_search",
+        "calendar_today",
+        "calendar_week",
+        "calendar_sync",
+        "travel_list",
+        "travel_check",
+        "chat",
+        "trigger_morning_briefing",
+        "correct_last",
+    }
+
+    is_write_intent = intent not in READ_ONLY_INTENTS
+    if (
+        intent_response.get("needs_confirmation") or is_write_intent
+    ) and not intent_response.get("_confirmed_bypass"):
+        # Mark needs_confirmation as True in the response object
+        intent_response["needs_confirmation"] = True
+
+        # Save the pending action in state under pending_action
+        from core.state import set_pending_action
+
+        await set_pending_action(pool, intent, module, data)
+
+        return "__CONFIRMATION_REQUIRED__", None, None
 
     # Execute via Dispatcher
     from core.dispatcher import execute_module_intent

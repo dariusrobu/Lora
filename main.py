@@ -476,8 +476,7 @@ async def start_bot():
     await application.initialize()
 
     # Set the Main Menu Button to open the Dashboard (served by Bot)
-    bot_domain = os.getenv("WEB_DOMAIN", "lora-bot-tgbi.onrender.com")
-    dashboard_url = f"https://{bot_domain}/"
+    dashboard_url = os.getenv("DASHBOARD_URL", "https://lora-bot-tgbi.onrender.com")
 
     try:
         from telegram import MenuButtonWebApp, WebAppInfo

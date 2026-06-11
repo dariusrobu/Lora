@@ -167,6 +167,47 @@ def tasks_confirm_delete_keyboard(task_id: int) -> InlineKeyboardMarkup:
     )
 
 
+def tasks_confirm_delete_all_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "✅ Da, șterge TOATE",
+                    callback_data=make_callback_data("tasks", "delete_all_confirmed"),
+                ),
+                InlineKeyboardButton(
+                    "❌ Anulează", callback_data=make_callback_data("tasks", "cancel")
+                ),
+            ]
+        ]
+    )
+
+
+def tasks_confirm_bulk_complete_keyboard(
+    project_id: str = "0", target_date: str = "0"
+) -> InlineKeyboardMarkup:
+    # Encodes state into callback data. Max limit is 64 bytes for whole string.
+    # Ex: tasks:bulk_comp:1234|2024-05-10
+    pid = project_id if project_id else "0"
+    dt = target_date if target_date else "0"
+
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "✅ Da, bifează tot",
+                    callback_data=make_callback_data(
+                        "tasks", "bulk_comp", f"{pid}|{dt}"
+                    ),
+                ),
+                InlineKeyboardButton(
+                    "❌ Anulează", callback_data=make_callback_data("tasks", "cancel")
+                ),
+            ]
+        ]
+    )
+
+
 def tasks_undo_delete_keyboard(task_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
@@ -1083,3 +1124,15 @@ def travel_list_keyboard(items: list, list_name: str) -> InlineKeyboardMarkup:
         ]
     )
     return InlineKeyboardMarkup(keyboard)
+
+
+def action_confirm_keyboard() -> InlineKeyboardMarkup:
+    """Generic confirmation keyboard for write actions."""
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("Confirmă ✅", callback_data="conf_yes"),
+                InlineKeyboardButton("Anulează ❌", callback_data="conf_no"),
+            ]
+        ]
+    )

@@ -317,8 +317,10 @@ async def list_locations_command(
         return
 
     lines = ["📍 *Locațiile tale salvate:*\n"]
-    for l in locs:
-        lines.append(f"• *{l['name']}* — `{l['latitude']:.4f}, {l['longitude']:.4f}`")
+    for loc in locs:
+        lines.append(
+            f"• *{loc['name']}* — `{loc['latitude']:.4f}, {loc['longitude']:.4f}`"
+        )
 
     await update.message.reply_text("\n".join(lines), parse_mode="MarkdownV2")
 
@@ -693,21 +695,31 @@ async def message_handler(
 
         state = await get_state(pool)
 
+        # Check for pending action in state (HITL Lock)
+        from core.state import get_pending_action
+
+        pending_act = await get_pending_action(pool)
+        if pending_act:
+            await update.message.reply_text(
+                "Te rog să confirmi sau să anulezi acțiunea curentă mai întâi."
+            )
+            return
+
         # Skills State Handling
-        if state and state["state_type"].startswith("skills_"):
+        if state and state.get("state_type") and state["state_type"].startswith("skills_"):
             from modules.skills import handle_skills_message
 
             if await handle_skills_message(update, context, pool, state):
                 return
 
         # Reading State Handling
-        if state and state["state_type"].startswith("reading_"):
+        if state and state.get("state_type") and state["state_type"].startswith("reading_"):
             from modules.reading import handle_reading_message
 
             if await handle_reading_message(update, pool, state):
                 return
 
-        if state:
+        if state and state.get("state_type"):
             print(
                 f"🔄 STATE ACTIVE: {state['state_type']} for {state['module']}:{state['action']}",
                 flush=True,
@@ -742,7 +754,62 @@ async def message_handler(
                     await update.message.reply_text("Cancelled\\.")
                     return
                 else:
+                    await update.message.reply_text(
+                        "⚠️ Te rog să confirmi sau să anulezi acțiunea curentă mai întâi (folosind butoanele sau trimițând 'da'/'nu')."
+                    )
+                    return
+
+            elif state["state_type"] == "awaiting_action_confirm":
+                low_text = text.lower()
+                if any(
+                    word in low_text
+                    for word in [
+                        "da",
+                        "yes",
+                        "confirm",
+                        "do it",
+                        "sure",
+                        "ok",
+                        "yap",
+                        "yep",
+                        "yeah",
+                    ]
+                ):
+                    extra = state.get("extra") or {}
+                    pending = extra.get("pending_intent", {})
                     await clear_state(pool)
+                    if pending:
+                        pending["needs_confirmation"] = False
+                        pending["_confirmed_bypass"] = True
+                        final_reply, reply_markup, _ = await route_intent(
+                            pool, pending, user_id=telegram_id, bot=context.bot
+                        )
+                        await update.message.reply_text(
+                            final_reply,
+                            parse_mode="MarkdownV2",
+                            reply_markup=reply_markup,
+                        )
+                    return
+                elif any(
+                    word in low_text
+                    for word in [
+                        "nu",
+                        "no",
+                        "cancel",
+                        "stop",
+                        "anulează",
+                        "anuleaza",
+                        "anulat",
+                    ]
+                ):
+                    await clear_state(pool)
+                    await update.message.reply_text("Anulat. 👌")
+                    return
+                else:
+                    await update.message.reply_text(
+                        "⚠️ Te rog să confirmi sau să anulezi acțiunea curentă mai întâi (folosind butoanele sau trimițând 'da'/'nu')."
+                    )
+                    return
 
             elif state["state_type"] == "awaiting_profile_hours":
                 try:
@@ -1335,6 +1402,14 @@ Returnează EXCLUSIV JSON valid:
                 final_reply, reply_markup, _ = await route_intent(
                     pool, intent_response, user_id=telegram_id, bot=context.bot
                 )
+                if final_reply == "__CONFIRMATION_REQUIRED__":
+                    await send_confirmation_request(
+                        intent_response.get("intent"),
+                        intent_response.get("data") or {},
+                        update,
+                        context,
+                    )
+                    return
                 await update.message.reply_text(
                     final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup
                 )
@@ -1361,6 +1436,14 @@ Returnează EXCLUSIV JSON valid:
                 final_reply, reply_markup, _ = await route_intent(
                     pool, intent_response, user_id=telegram_id, bot=context.bot
                 )
+                if final_reply == "__CONFIRMATION_REQUIRED__":
+                    await send_confirmation_request(
+                        intent_response.get("intent"),
+                        intent_response.get("data") or {},
+                        update,
+                        context,
+                    )
+                    return
                 await update.message.reply_text(
                     final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup
                 )
@@ -1806,19 +1889,27 @@ Reguli:
         final_reply, reply_markup, _ = await route_intent(
             pool, intent_response, user_id=telegram_id, bot=context.bot
         )
+        if final_reply == "__CONFIRMATION_REQUIRED__":
+            await send_confirmation_request(
+                intent_response.get("intent"),
+                intent_response.get("data") or {},
+                update,
+                context,
+            )
+            return
         print(f"📡 ROUTER: Reply length={len(final_reply) if final_reply else 0}")
 
-        if final_reply is None:
-            return
-
-        # 6. Save assistant reply to history
+        if not final_reply or str(final_reply).strip() == "":
+            print(
+                "⚠️ Router returned empty reply, sending generic fallback...", flush=True
+            )
+            final_reply = "Scuze, nu am înțeles. (Răspuns gol de la LLM)"
         await save_message(pool, telegram_id, "assistant", final_reply)
 
         # 7. Send to user
         chunks = split_message(final_reply)
 
         # If input was voice, send a voice reply first (or along with text)
-        voice_sent = False
         if (
             source == "voice" and final_reply and len(final_reply) < 1000
         ):  # Don't TTS very long messages
@@ -1831,7 +1922,6 @@ Reguli:
                     with open(voice_path, "rb") as f:
                         await update.message.reply_voice(voice=f, caption="Lora 🎙️")
                     os.remove(voice_path)
-                    voice_sent = True
             except Exception as tts_err:
                 print(f"❌ TTS ERROR: {tts_err}")
 
@@ -1874,6 +1964,78 @@ Reguli:
             pass
 
 
+async def handle_confirmation_callback(query, pool, action_type: str) -> None:
+    """Helper function to handle confirmation callbacks (HITL Gate)."""
+    from core.state import get_state, clear_state
+
+    telegram_id = query.from_user.id
+
+    if action_type == "confirm":
+        state = await get_state(pool)
+        if state and state["state_type"] == "awaiting_action_confirm":
+            extra = state.get("extra") or {}
+            pending = extra.get("pending_intent", {})
+            await clear_state(pool)
+            if pending:
+                pending["needs_confirmation"] = False
+                pending["_confirmed_bypass"] = True
+                from core.router import route_intent
+
+                final_reply, reply_markup, _ = await route_intent(
+                    pool, pending, user_id=telegram_id, bot=query.bot
+                )
+                await query.edit_message_text(
+                    final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup
+                )
+    elif action_type == "cancel":
+        await clear_state(pool)
+        await query.edit_message_text("Anulat. 👌")
+
+
+async def handle_new_confirmation_callback(query, pool, callback_data: str) -> None:
+    """Handles new style confirmation callbacks (conf_yes / conf_no)."""
+    from core.state import get_pending_action, clear_pending_action
+
+    telegram_id = query.from_user.id
+
+    if callback_data == "conf_yes":
+        pending = await get_pending_action(pool)
+        if pending:
+            intent = pending.get("intent")
+            module = pending.get("module")
+            payload = pending.get("payload") or {}
+
+            # Construct intent response for routing with bypass
+            intent_response = {
+                "intent": intent,
+                "module": module,
+                "data": payload,
+                "needs_confirmation": False,
+                "_confirmed_bypass": True,
+            }
+
+            # Clear state first
+            await clear_pending_action(pool)
+
+            from core.router import route_intent
+
+            final_reply, reply_markup, _ = await route_intent(
+                pool, intent_response, user_id=telegram_id, bot=query.bot
+            )
+
+            # Send message
+            success_msg = f"*Acțiune executată cu succes\\!* ✨\n\n{final_reply}"
+            await query.edit_message_text(
+                success_msg, parse_mode="MarkdownV2", reply_markup=reply_markup
+            )
+        else:
+            await query.edit_message_text("Nu am găsit nicio acțiune în așteptare. ❌")
+
+    elif callback_data == "conf_no":
+        await clear_pending_action(pool)
+        await query.edit_message_text("Acțiune anulată.")
+
+
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
     query = update.callback_query
     await query.answer()
@@ -1883,6 +2045,10 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
 
     try:
         data = query.data
+        if data in ("conf_yes", "conf_no"):
+            await handle_new_confirmation_callback(query, pool, data)
+            return
+
         from bot.callback_utils import parse_callback_data
 
         action, params = parse_callback_data(data)
@@ -1891,6 +2057,56 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             f"DEBUG: CALLBACK RECEIVED: action={action} params={params} from user={update.effective_user.id}",
             flush=True,
         )
+
+        if action == "action":
+            action_type = params[0] if params else ""
+            await handle_confirmation_callback(query, pool, action_type)
+            return
+
+        if action == "task":
+            task_action = params[0] if params else ""
+            if task_action == "reschedule":
+                task_id = int(params[1])
+                await pool.execute(
+                    "UPDATE tasks SET due_date = CURRENT_DATE + INTERVAL '1 day', updated_at = NOW() WHERE id = $1",
+                    task_id,
+                )
+                await query.answer("Task reprogramat!")
+                await query.edit_message_text("Am reprogramat task-ul pentru mâine. 📅")
+                return
+            elif task_action == "ignore":
+                await query.answer("Ignorat.")
+                await query.edit_message_text("Ignorat. 👌")
+                return
+
+        if action == "habit":
+            habit_action = params[0] if params else ""
+            if habit_action == "log_yesterday":
+                from datetime import date, timedelta
+
+                habit_id = int(params[1])
+                yesterday = date.today() - timedelta(days=1)
+                async with pool.acquire() as conn:
+                    exists = await conn.fetchval(
+                        "SELECT EXISTS(SELECT 1 FROM habit_logs WHERE habit_id = $1 AND log_date = $2)",
+                        habit_id,
+                        yesterday,
+                    )
+                    if not exists:
+                        await conn.execute(
+                            "INSERT INTO habit_logs (habit_id, log_date, status) VALUES ($1, $2, 'done')",
+                            habit_id,
+                            yesterday,
+                        )
+                await query.answer("Habit logat!")
+                await query.edit_message_text(
+                    "Habit-ul de ieri a fost logat ca completat. ✅"
+                )
+                return
+            elif habit_action == "ignore":
+                await query.answer("Ignorat.")
+                await query.edit_message_text("Ignorat. 👌")
+                return
 
         if data.startswith("onboard:"):
             from bot.onboarding import handle_onboarding_callback
@@ -3131,3 +3347,167 @@ Fără bullet points, doar un text cursiv scurt."""
         instruction, json.dumps(context, default=str)
     )
     return summary or "O zi plină și productivă! Odihnă plăcută."
+
+
+async def send_confirmation_request(
+    intent: str,
+    data: dict,
+    update: Update = None,
+    context: ContextTypes.DEFAULT_TYPE = None,
+) -> None:
+    """Generates a summary of the action and sends the confirmation inline keyboard."""
+    summary = generate_action_summary(intent, data)
+
+    from bot.keyboards import action_confirm_keyboard
+
+    reply_markup = action_confirm_keyboard()
+
+    if update and update.message:
+        await update.message.reply_text(
+            summary, parse_mode="MarkdownV2", reply_markup=reply_markup
+        )
+    else:
+        from core.config import TELEGRAM_USER_ID
+
+        bot = context.bot if context else None
+        if bot:
+            await bot.send_message(
+                chat_id=TELEGRAM_USER_ID,
+                text=summary,
+                parse_mode="MarkdownV2",
+                reply_markup=reply_markup,
+            )
+
+
+def generate_action_summary(intent: str, data: dict) -> str:
+    """Generates a user-friendly Romanian action summary, properly escaped for MarkdownV2."""
+    from bot.formatter import escape_md
+
+    # Simple Romanian summaries for each write intent
+    if intent == "add_task":
+        title = escape_md(data.get("title", ""))
+        priority = escape_md(data.get("priority", "medium"))
+        return f"Ești pe cale să adaugi task\-ul *'{title}'* cu prioritate *'{priority}'*\\. Confirmă?"
+
+    elif intent == "complete_task":
+        task_id = escape_md(str(data.get("id") or data.get("task_id") or ""))
+        return f"Ești pe cale să finalizezi task\-ul cu ID\-ul *{task_id}*\\. Confirmă?"
+
+    elif intent == "delete_task":
+        task_id = escape_md(str(data.get("id") or data.get("task_id") or ""))
+        return f"Ești pe cale să ștergi task\-ul cu ID\-ul *{task_id}*\\. Confirmă?"
+
+    elif intent == "edit_task":
+        task_id = escape_md(str(data.get("id") or data.get("task_id") or ""))
+        return f"Ești pe cale să modifici task\-ul cu ID\-ul *{task_id}*\\. Confirmă?"
+
+    elif intent == "add_project":
+        name = escape_md(data.get("name", ""))
+        return f"Ești pe cale să creezi proiectul *'{name}'*\\. Confirmă?"
+
+    elif intent == "delete_project":
+        proj_id = escape_md(str(data.get("id") or ""))
+        return f"Ești pe cale să ștergi proiectul cu ID\-ul *{proj_id}*\\. Confirmă?"
+
+    elif intent == "finance_log":
+        t_type = "venit" if data.get("type") == "income" else "cheltuială"
+        amount = escape_md(str(data.get("amount", "")))
+        cat = escape_md(data.get("category", "altele"))
+        return f"Ești pe cale să înregistrezi o *{t_type}* de *{amount} lei* la categoria *'{cat}'*\\. Confirmă?"
+
+    elif intent == "add_category":
+        cat = escape_md(data.get("category") or data.get("name") or "")
+        return f"Ești pe cale să adaugi categoria financiară *'{cat}'*\\. Confirmă?"
+
+    elif intent == "delete_category":
+        cat = escape_md(data.get("category") or data.get("id") or "")
+        return f"Ești pe cale să ștergi categoria financiară *'{cat}'*\\. Confirmă?"
+
+    elif intent == "set_budget":
+        cat = escape_md(data.get("category", ""))
+        amount = escape_md(str(data.get("amount") or data.get("limit") or ""))
+        return f"Ești pe cale să setezi bugetul pentru *'{cat}'* la *{amount} lei*\\. Confirmă?"
+
+    elif intent == "log_skill":
+        name = escape_md(data.get("name") or data.get("skill") or "")
+        dur = escape_md(str(data.get("duration", "")))
+        return f"Ești pe cale să înregistrezi progres la skill\-ul *'{name}'* \(*{dur} min*\)\\. Confirmă?"
+
+    elif intent == "add_habit":
+        name = escape_md(data.get("name", ""))
+        return f"Ești pe cale să adaugi habit\-ul *'{name}'*\\. Confirmă?"
+
+    elif intent == "log_habit":
+        name = escape_md(str(data.get("name") or data.get("id") or ""))
+        return f"Ești pe cale să bifezi habit\-ul *{name}*\\. Confirmă?"
+
+    elif intent == "delete_habit":
+        name = escape_md(str(data.get("name") or data.get("id") or ""))
+        return f"Ești pe cale să ștergi habit\-ul *{name}*\\. Confirmă?"
+
+    elif intent == "uni_add_subject":
+        name = escape_md(data.get("name", ""))
+        return f"Ești pe cale să adaugi materia *'{name}'*\\. Confirmă?"
+
+    elif intent == "uni_log_attendance":
+        sub_id = escape_md(str(data.get("subject_id") or ""))
+        return f"Ești pe cale să înregistrezi prezența/absența pentru materia cu ID\-ul *{sub_id}*\\. Confirmă?"
+
+    elif intent == "uni_add_grade":
+        val = escape_md(str(data.get("grade_value", "")))
+        sub_id = escape_md(str(data.get("subject_id") or ""))
+        return f"Ești pe cale să adaugi nota *{val}* la materia cu ID\-ul *{sub_id}*\\. Confirmă?"
+
+    elif intent == "uni_add_exam":
+        sub_id = escape_md(str(data.get("subject_id") or ""))
+        dt = escape_md(str(data.get("exam_date") or ""))
+        return f"Ești pe cale să adaugi examenul la materia cu ID\-ul *{sub_id}* pe data de *{dt}*\\. Confirmă?"
+
+    elif intent == "health_log":
+        sleep = escape_md(str(data.get("sleep_hours") or ""))
+        water = escape_md(str(data.get("water_ml") or ""))
+        cigarettes = escape_md(str(data.get("cigarettes") or ""))
+        parts = []
+        if sleep:
+            parts.append(f"*{sleep} ore de somn*")
+        if water:
+            parts.append(f"*{water} ml apă*")
+        if cigarettes:
+            parts.append(f"*{cigarettes} țigări*")
+        parts_str = ", ".join(parts)
+        return f"Ești pe cale să înregistrezi în log\-ul de sănătate: {parts_str}\\. Confirmă?"
+
+    elif intent == "log_water":
+        amount = escape_md(str(data.get("amount") or data.get("water_ml") or ""))
+        return f"Ești pe cale să înregistrezi *{amount} ml* de apă\\. Confirmă?"
+
+    elif intent == "workout_log":
+        sport = escape_md(data.get("sport") or data.get("workout_type") or "")
+        return f"Ești pe cale să înregistrezi antrenamentul de *'{sport}'*\\. Confirmă?"
+
+    elif intent == "workout_add_sport":
+        name = escape_md(data.get("name", ""))
+        return f"Ești pe cale să adaugi sportul *'{name}'*\\. Confirmă?"
+
+    elif intent == "workout_add_exercise":
+        name = escape_md(data.get("name", ""))
+        return f"Ești pe cale să adaugi exercițiul *'{name}'*\\. Confirmă?"
+
+    elif intent == "add_note":
+        title = escape_md(data.get("title", ""))
+        return f"Ești pe cale să adaugi o notă *'{title}'*\\. Confirmă?"
+
+    elif intent == "add_event":
+        title = escape_md(data.get("title", ""))
+        return f"Ești pe cale să adaugi evenimentul *'{title}'*\\. Confirmă?"
+
+    elif intent == "add_shopping_item":
+        item = escape_md(data.get("item") or data.get("name") or "")
+        return f"Ești pe cale să adaugi *'{item}'* pe lista de cumpărături\\. Confirmă?"
+
+    elif intent == "add_goal":
+        title = escape_md(data.get("title", ""))
+        return f"Ești pe cale să adaugi obiectivul *'{title}'*\\. Confirmă?"
+
+    else:
+        return f"Ești pe cale să efectuezi acțiunea de tip *'{escape_md(intent)}'*\\. Confirmă?"

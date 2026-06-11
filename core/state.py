@@ -107,3 +107,29 @@ async def clear_state(pool):
             WHERE state_key = 'current'
             """
         )
+
+
+async def set_pending_action(pool, intent: str, module: str, payload: dict):
+    """Stores the pending write action in the conversation state under pending_action."""
+    extra = {
+        "pending_action": {
+            "intent": intent,
+            "module": module,
+            "payload": payload,
+        }
+    }
+    await set_state(pool, "awaiting_action_confirm", module, intent, None, extra)
+
+
+async def get_pending_action(pool) -> Optional[dict]:
+    """Retrieves the pending write action if the state is awaiting_action_confirm."""
+    state = await get_state(pool)
+    if state and state.get("state_type") == "awaiting_action_confirm":
+        extra = state.get("extra") or {}
+        return extra.get("pending_action")
+    return None
+
+
+async def clear_pending_action(pool):
+    """Clears the pending action and resets conversation state."""
+    await clear_state(pool)

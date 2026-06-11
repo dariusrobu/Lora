@@ -73,6 +73,12 @@ async def delete_task(pool, task_id: int):
 
 
 @with_retry(max_attempts=3, base_delay=1.0)
+async def delete_all_tasks(pool):
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE tasks SET deleted_at = NOW() WHERE status = 'pending' AND deleted_at IS NULL")
+
+
+@with_retry(max_attempts=3, base_delay=1.0)
 async def restore_task(pool, task_id: int):
     async with pool.acquire() as conn:
         await conn.execute("UPDATE tasks SET deleted_at = NULL WHERE id = $1", task_id)
@@ -270,3 +276,46 @@ async def find_similar_tasks(pool, title: str, user_id: int) -> List[Dict[str, A
             keyword,
         )
         return [dict(r) for r in rows]
+
+async def complete_bulk_tasks(pool, project_id: Optional[int] = None, target_date: Optional[date] = None) -> int:
+    """Marks all matching pending tasks as done."""
+    if not project_id and not target_date:
+        return 0
+
+    query = "UPDATE tasks SET status = 'done', completed_at = NOW(), updated_at = NOW() WHERE status = 'pending' AND deleted_at IS NULL"
+    args = []
+    
+    if project_id:
+        args.append(project_id)
+        query += f" AND project_id = ${len(args)}"
+        
+    if target_date:
+        args.append(target_date)
+        query += f" AND due_date <= ${len(args)}"
+
+    async with pool.acquire() as conn:
+        result = await conn.execute(query, *args)
+        # e.g. result string is "UPDATE 5"
+        parts = result.split()
+        return int(parts[1]) if len(parts) > 1 else 0
+
+async def reschedule_bulk_tasks(pool, new_date: date, project_id: Optional[int] = None, target_date: Optional[date] = None) -> int:
+    """Reschedules all matching pending tasks to new_date."""
+    if not project_id and not target_date:
+        return 0
+        
+    query = "UPDATE tasks SET due_date = $1, updated_at = NOW() WHERE status = 'pending' AND deleted_at IS NULL"
+    args = [new_date]
+    
+    if project_id:
+        args.append(project_id)
+        query += f" AND project_id = ${len(args)}"
+        
+    if target_date:
+        args.append(target_date)
+        query += f" AND due_date <= ${len(args)}"
+
+    async with pool.acquire() as conn:
+        result = await conn.execute(query, *args)
+        parts = result.split()
+        return int(parts[1]) if len(parts) > 1 else 0
