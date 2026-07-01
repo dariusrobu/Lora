@@ -26,7 +26,7 @@ _failure_count = 0
 
 async def get_embedding(text: str) -> List[float]:
     """
-    Generates an embedding for the given text using Google text-embedding-004.
+    Generates an embedding for the given text using Google text-embedding-005.
     """
     if not text:
         return []
@@ -34,7 +34,7 @@ async def get_embedding(text: str) -> List[float]:
     try:
         result = await asyncio.to_thread(
             _google_genai_client.models.embed_content,
-            model="text-embedding-004",
+            model="text-embedding-005",
             contents=text,
         )
         return result.embeddings[0].values
