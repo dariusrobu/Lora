@@ -28,7 +28,7 @@ export const TiltCard: React.FC<TiltCardProps> = ({ children, className = "", on
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onClick={onClick}
-      className={`liquid-panel tilt-card p-8 rounded-[32px] cursor-pointer group relative overflow-hidden ${className}`}
+      className={`p-8 rounded-[32px] cursor-pointer group relative overflow-hidden backdrop-blur-2xl bg-surface border border-border shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${className}`}
     >
       <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       <div className="relative z-10">{children}</div>

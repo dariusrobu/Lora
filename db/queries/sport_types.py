@@ -62,6 +62,14 @@ async def update_sport(pool, sport_id: int, **kwargs) -> dict:
     return dict(row) if row else {}
 
 
+async def get_sport_by_name(pool, name: str) -> dict | None:
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM sport_types WHERE LOWER(name) = LOWER($1)", name
+        )
+    return dict(row) if row else None
+
+
 async def delete_sport(pool, sport_id: int) -> bool:
     async with pool.acquire() as conn:
         # Verifica daca are workouts

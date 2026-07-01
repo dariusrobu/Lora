@@ -257,9 +257,9 @@ async def _route_single_intent(
     }
 
     is_write_intent = intent not in READ_ONLY_INTENTS
-    if (
-        intent_response.get("needs_confirmation") or is_write_intent
-    ) and not intent_response.get("_confirmed_bypass"):
+    # By default, confirmation is disabled per user request to auto-execute all actions.
+    # To re-enable, change the condition below to look at needs_confirmation and is_write_intent.
+    if False:
         # Mark needs_confirmation as True in the response object
         intent_response["needs_confirmation"] = True
 

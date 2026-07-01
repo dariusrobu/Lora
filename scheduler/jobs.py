@@ -631,18 +631,22 @@ async def proactive_check(application, pool) -> None:
 
 
 async def _should_send_nudge(pool, nudge_type: str) -> bool:
+    from core.config import TELEGRAM_USER_ID
     async with pool.acquire() as conn:
         exists = await conn.fetchval(
-            "SELECT EXISTS(SELECT 1 FROM sent_nudges WHERE nudge_type = $1 AND nudge_date = CURRENT_DATE)",
+            "SELECT EXISTS(SELECT 1 FROM sent_nudges WHERE user_id = $1 AND nudge_type = $2 AND nudge_date = CURRENT_DATE)",
+            TELEGRAM_USER_ID,
             nudge_type,
         )
         return not exists
 
 
 async def _mark_nudge_sent(pool, nudge_type: str):
+    from core.config import TELEGRAM_USER_ID
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO sent_nudges (nudge_type) VALUES ($1) ON CONFLICT DO NOTHING",
+            "INSERT INTO sent_nudges (user_id, nudge_type) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            TELEGRAM_USER_ID,
             nudge_type,
         )
 

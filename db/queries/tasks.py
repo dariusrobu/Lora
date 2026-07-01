@@ -15,10 +15,11 @@ async def add_task(
     recurrence: Optional[str] = None,
 ) -> int:
     async with pool.acquire() as conn:
+        max_order = await conn.fetchval("SELECT COALESCE(MAX(sort_order), 0) FROM tasks WHERE deleted_at IS NULL")
         row = await conn.fetchrow(
             """
-            INSERT INTO tasks (title, notes, priority, due_date, project_id, is_recurring, recurrence)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO tasks (title, notes, priority, due_date, project_id, is_recurring, recurrence, sort_order)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING id
             """,
             title,
@@ -28,6 +29,7 @@ async def add_task(
             project_id,
             is_recurring,
             recurrence,
+            max_order + 1,
         )
         return row["id"]
 
@@ -64,6 +66,32 @@ async def update_task(pool, task_id: int, **kwargs):
 
     async with pool.acquire() as conn:
         await conn.execute(query, task_id, *values)
+
+
+@with_retry(max_attempts=3, base_delay=1.0)
+async def move_task(pool, task_id: int, direction: str) -> bool:
+    async with pool.acquire() as conn:
+        task = await conn.fetchrow("SELECT id, sort_order FROM tasks WHERE id = $1 AND deleted_at IS NULL", task_id)
+        if not task:
+            return False
+        current = task["sort_order"]
+        if direction == "up":
+            neighbor = await conn.fetchrow(
+                "SELECT id, sort_order FROM tasks WHERE sort_order < $1 AND deleted_at IS NULL ORDER BY sort_order DESC LIMIT 1",
+                current,
+            )
+        elif direction == "down":
+            neighbor = await conn.fetchrow(
+                "SELECT id, sort_order FROM tasks WHERE sort_order > $1 AND deleted_at IS NULL ORDER BY sort_order ASC LIMIT 1",
+                current,
+            )
+        else:
+            return False
+        if not neighbor:
+            return False
+        await conn.execute("UPDATE tasks SET sort_order = $1, updated_at = NOW() WHERE id = $2", neighbor["sort_order"], task_id)
+        await conn.execute("UPDATE tasks SET sort_order = $1, updated_at = NOW() WHERE id = $2", current, neighbor["id"])
+        return True
 
 
 @with_retry(max_attempts=3, base_delay=1.0)
@@ -107,9 +135,7 @@ async def list_tasks(
             args.append(project_id)
             param_idx += 1
 
-        query += """ ORDER BY p.name ASC NULLS LAST,
-            CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END,
-            t.due_date ASC NULLS LAST"""
+        query += " ORDER BY t.sort_order ASC NULLS LAST, t.created_at ASC"
 
         rows = await conn.fetch(query, *args)
         return [dict(r) for r in rows]

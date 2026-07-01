@@ -6,19 +6,19 @@
     <string>com.lora.bot</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/robudarius/Lora/venv/bin/python3</string>
-        <string>/Users/robudarius/Lora/main.py</string>
+        <string>/Users/robu/Lora/.venv/bin/python3</string>
+        <string>/Users/robu/Lora/main.py</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/Users/robudarius/Lora</string>
+    <string>/Users/robu/Lora</string>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/Users/robudarius/Lora/bot_stdout.log</string>
+    <string>/Users/robu/Lora/bot_stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/robudarius/Lora/bot_stderr.log</string>
+    <string>/Users/robu/Lora/bot_stderr.log</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>

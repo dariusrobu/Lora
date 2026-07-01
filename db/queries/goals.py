@@ -47,7 +47,7 @@ async def add_goal(
     category: str,
     time_horizon: str = "month",
     linked_keywords: list = None,
-) -> Dict[str, Any]:
+) -> int:
     import json
 
     kw_json = json.dumps(linked_keywords) if linked_keywords else "[]"
@@ -56,7 +56,7 @@ async def add_goal(
             """
             INSERT INTO goals (title, description, category, status, progress, time_horizon, linked_keywords)
             VALUES ($1, $2, $3, 'active', 0, $4, $5::jsonb)
-            RETURNING *
+            RETURNING id
             """,
             title,
             description,
@@ -64,24 +64,23 @@ async def add_goal(
             time_horizon,
             kw_json,
         )
-        return dict(row)
+        return row["id"]
 
 
 async def update_goal(
-    pool, goal_id: int, title: str, description: Optional[str], category: str
+    pool, goal_id: int, **kwargs
 ) -> Optional[Dict[str, Any]]:
+    allowed = {"title", "description", "category", "status", "progress", "time_horizon", "linked_keywords"}
+    updates = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
+    if not updates:
+        return None
+    set_clauses = ", ".join(f"{k} = ${i+1}" for i, k in enumerate(updates))
+    values = list(updates.values())
+    values.append(goal_id)
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            """
-            UPDATE goals 
-            SET title = $1, description = $2, category = $3, updated_at = NOW()
-            WHERE id = $4
-            RETURNING *
-            """,
-            title,
-            description,
-            category,
-            goal_id,
+            f"UPDATE goals SET {set_clauses}, updated_at = NOW() WHERE id = ${len(values)} RETURNING *",
+            *values,
         )
         return dict(row) if row else None
 
@@ -128,19 +127,19 @@ async def delete_goal(pool, goal_id: int) -> bool:
         return res.endswith("1")
 
 
-async def add_subtask(pool, goal_id: int, title: str) -> Dict[str, Any]:
+async def add_subtask(pool, goal_id: int, title: str) -> int:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             INSERT INTO goal_tasks (goal_id, title, is_completed)
             VALUES ($1, $2, FALSE)
-            RETURNING *
+            RETURNING id
             """,
             goal_id,
             title,
         )
     await update_goal_progress(pool, goal_id)
-    return dict(row)
+    return row["id"]
 
 
 async def complete_subtask(pool, subtask_id: int) -> bool:

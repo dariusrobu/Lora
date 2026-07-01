@@ -74,6 +74,16 @@ async def handle_finance_intent(
 async def _handle_log_expense(
     pool, data: Dict[str, Any]
 ) -> Tuple[str, Any, Optional[int]]:
+    async def resolve_category(cat: str, desc: str) -> str:
+        db_categories = await finance_queries.list_categories(pool)
+        cat_names = {c["name"].lower(): c["name"] for c in db_categories}
+        if cat.lower() in cat_names:
+            return cat_names[cat.lower()]
+        detected = await finance_queries.detect_category_from_text(pool, f"{cat} {desc}")
+        if detected and detected.lower() in cat_names:
+            return cat_names[detected.lower()]
+        return "altele"
+
     # 1. Handle Bulk Entries (Agentic)
     entries = data.get("entries")
     if entries and isinstance(entries, list):
@@ -81,8 +91,9 @@ async def _handle_log_expense(
         last_id = None
         for entry in entries:
             amount = entry.get("amount")
-            category = entry.get("category", "altele")
+            raw_cat = entry.get("category", "altele")
             description = entry.get("description", "")
+            category = await resolve_category(raw_cat, description)
             tx_type = entry.get("type", "expense")
 
             if amount is not None:
@@ -106,8 +117,9 @@ async def _handle_log_expense(
 
     # 2. Handle Single Entry (Legacy/Simple)
     amount = data.get("amount")
-    category = data.get("category", "altele")
+    raw_cat = data.get("category", "altele")
     description = data.get("description", "")
+    category = await resolve_category(raw_cat, description)
     tx_type = data.get("type", "expense")
 
     if amount is None:
@@ -363,27 +375,7 @@ async def handle_finance_message(update, pool, state: dict, text: str) -> None:
         if amount_match:
             data["amount"] = float(amount_match.group(1).replace(",", "."))
 
-        low = text.lower()
-        category = "altele"
-        if any(
-            w in low
-            for w in ["mancare", "mâncare", "restaurant", "pizza", "shaorma", "burger"]
-        ):
-            category = "mâncare"
-        elif any(
-            w in low for w in ["uber", "taxi", "benzin", "metrou", "bus", "transport"]
-        ):
-            category = "transport"
-        elif any(w in low for w in ["chirie", "internet", "curent", "gaz", "utilitat"]):
-            category = "utilități"
-        elif any(w in low for w in ["medicament", "doctor", "farmacie", "sanatate"]):
-            category = "sănătate"
-        elif any(w in low for w in ["haine", "magazin", "amazon", "shopping"]):
-            category = "shopping"
-        elif any(w in low for w in ["cinema", "bar", "concert", "iesire"]):
-            category = "distracție"
-        elif any(w in low for w in ["carti", "carte", "amazon"]):
-            category = "educație"
+        category = await finance_queries.detect_category_from_text(pool, text)
 
         data["category"] = category
         data["description"] = text

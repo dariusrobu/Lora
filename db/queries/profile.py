@@ -35,6 +35,16 @@ _PROFILE_UPDATABLE_COLUMNS = frozenset(
         "home_longitude",
         "is_at_home",
         "current_location_name",
+        "llm_provider",
+        "llm_host",
+        "llm_model",
+        "gemini_api_key",
+        "units",
+        "language",
+        "week_start_day",
+        "currency",
+        "dietary_preferences",
+        "notification_config",
     }
 )
 

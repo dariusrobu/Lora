@@ -6,6 +6,7 @@ import logging
 import os
 from datetime import date
 from functools import partial
+import aiohttp
 from aiohttp import web
 from telegram.ext import (
     ApplicationBuilder,
@@ -50,7 +51,6 @@ from bot.handler import (
     location_status_command,
 )
 from modules.skills import skills_command
-from api.routes import setup_api_routes
 from core.stats import get_uptime, LAST_MESSAGE_AT
 
 # 2. Setup Logging — rotating file (2 MB × 3) + stdout stream
@@ -389,8 +389,49 @@ async def start_bot():
         response.headers["Access-Control-Allow-Credentials"] = "true"
         return response
 
-    # API Routes
-    routes = web.RouteTableDef()
+    # API Proxy — forward /api/* to FastAPI server on port 8090
+    _proxy_session = None
+
+    async def get_proxy_session():
+        nonlocal _proxy_session
+        if _proxy_session is None:
+            _proxy_session = aiohttp.ClientSession()
+        return _proxy_session
+
+    async def api_proxy(request):
+        session = await get_proxy_session()
+        target_path = request.path
+        target_url = f"http://127.0.0.1:8090{target_path}"
+        if request.query_string:
+            target_url += "?" + request.query_string
+
+        body = await request.read()
+        headers = {k: v for k, v in request.headers.items()
+                   if k.lower() not in ('host', 'content-length', 'transfer-encoding')}
+
+        try:
+            resp = await session.request(
+                method=request.method,
+                url=target_url,
+                headers=headers,
+                data=body,
+                timeout=aiohttp.ClientTimeout(total=30),
+            )
+            resp_headers = {k: v for k, v in resp.headers.items()
+                            if k.lower() not in ('transfer-encoding', 'content-encoding')}
+            text = await resp.text()
+            return web.Response(
+                status=resp.status,
+                body=text.encode(),
+                headers=resp_headers,
+            )
+        except Exception as e:
+            print(f"⚠️ API proxy error: {e}", flush=True)
+            return web.json_response({"error": f"Proxy error: {e}"}, status=502)
+
+    # Health check — keep local
+    async def local_health(request):
+        return web.json_response({"status": "ok", "proxy": True})
 
     @web.middleware
     async def log_middleware(request, handler):
@@ -433,10 +474,23 @@ async def start_bot():
 
     app = web.Application(middlewares=[cors_middleware, log_middleware])
     app["pool"] = pool
-    app.router.add_get("/health", health_check)
-    app.router.add_get("/api/health", handle_health_check)
-    app.router.add_get("/api/debug", handle_debug)
-    setup_api_routes(app)
+    app.router.add_get("/health", local_health)
+    app.router.add_get("/api/health", local_health)
+    # All /api/* routes are proxied to FastAPI
+    app.router.add_route("*", "/api/{tail:.*}", api_proxy)
+
+    # SPA fallback — all non-API paths serve index.html for client-side routing
+    async def spa_fallback(request):
+        index_file = os.path.join(dist_path, "index.html")
+        if os.path.exists(index_file):
+            return web.FileResponse(index_file)
+        return web.Response(text="Dashboard not found", status=404)
+
+    async def serve_assets(request):
+        filepath = os.path.join(dist_path, request.path.lstrip("/"))
+        if os.path.exists(filepath):
+            return web.FileResponse(filepath)
+        return await spa_fallback(request)
 
     async def serve_welcome(request):
         return web.Response(
@@ -454,6 +508,8 @@ async def start_bot():
                 app.router.add_get(
                     f"/{f}", lambda r, f=f: web.FileResponse(os.path.join(dist_path, f))
                 )
+        # SPA fallback — all other paths serve index.html (React Router)
+        app.router.add_get("/{tail:.*}", spa_fallback)
     else:
         # Fallback if dashboard files are not in this service
         app.router.add_get("/", serve_welcome)

@@ -18,29 +18,29 @@ export const AcademicCard: React.FC<AcademicCardProps> = ({ schedule, onClick })
   return (
     <GlassCard className="space-y-6" onClick={onClick}>
       <div className="flex justify-between items-center">
-        <h3 className="label-ethereal">Program Azi</h3>
-        <GraduationCap className="w-4 h-4 text-amber-400 opacity-30" />
+        <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-widest">Program Azi</h3>
+        <GraduationCap className="w-4 h-4 text-text-muted" />
       </div>
 
       <div className="space-y-3">
         {schedule?.length > 0 ? (
           schedule.map((s) => (
-            <div key={s.id} className="liquid-panel p-4 flex gap-4 items-center hover:bg-white/[0.04] transition-all rounded-xl border-none">
+            <div key={s.id} className="p-4 flex gap-4 items-center hover:bg-white/[0.04] transition-all rounded-xl bg-white/[0.02]">
               <div className="w-12 text-center">
-                <p className="text-[10px] font-black text-amber-400 tabular-nums">{s.start_time.slice(0, 5)}</p>
-                <Clock className="w-2 h-2 text-amber-400/20 mx-auto mt-1" />
+                <p className="text-[10px] font-black text-text-primary tabular-nums">{s.start_time.slice(0, 5)}</p>
+                <Clock className="w-2 h-2 text-text-muted mx-auto mt-1" />
               </div>
               <div className="flex-1">
                 <p className="font-bold text-xs tracking-tight">{s.subject_name}</p>
                 <p className="text-[8px] opacity-40 uppercase tracking-widest">{s.room}</p>
               </div>
-              <Navigation className="w-3 h-3 text-gray-700" />
+              <Navigation className="w-3 h-3 text-text-muted" />
             </div>
           ))
         ) : (
-          <div className="py-8 text-center liquid-panel border-dashed border-white/5 rounded-2xl bg-transparent">
-            <p className="label-ethereal text-[8px] opacity-40">Liber azi</p>
-            <p className="text-[8px] text-gray-600 font-bold mt-2 uppercase">Niciun curs detectat</p>
+          <div className="py-8 text-center border border-dashed border-border rounded-2xl bg-transparent">
+            <p className="text-xs text-text-muted">Liber azi</p>
+            <p className="text-[8px] text-text-muted font-bold mt-2 uppercase">Niciun curs detectat</p>
           </div>
         )}
       </div>

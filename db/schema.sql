@@ -2,6 +2,7 @@
 -- Run once: psql $DATABASE_URL -f db/schema.sql
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS unaccent;
 
 -- ── User profile ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS user_profile (
@@ -142,11 +143,13 @@ CREATE TABLE IF NOT EXISTS tasks (
     is_recurring  BOOLEAN DEFAULT FALSE,
     recurrence    TEXT CHECK (recurrence IN ('daily', 'weekly', 'monthly', NULL)),
     completed_at  TIMESTAMPTZ,
+    sort_order    INT DEFAULT 0,
     created_at    TIMESTAMPTZ DEFAULT NOW(),
     updated_at    TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX idx_tasks_status   ON tasks(status);
-CREATE INDEX idx_tasks_due_date ON tasks(due_date);
+CREATE INDEX idx_tasks_status     ON tasks(status);
+CREATE INDEX idx_tasks_due_date   ON tasks(due_date);
+CREATE INDEX idx_tasks_sort_order ON tasks(sort_order);
 
 -- ── Notes & Journal ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS notes (
@@ -253,6 +256,7 @@ CREATE TABLE IF NOT EXISTS day_plans (
     plan_date        DATE NOT NULL UNIQUE,
     user_input       TEXT,          -- what the user said
     itinerary        TEXT NOT NULL,  -- generated itinerary
+    wake_time        VARCHAR(20),   -- wake up time
     created_at       TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX idx_day_plans_date ON day_plans(plan_date DESC);

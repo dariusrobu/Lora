@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import date
 
 MOOD_MAP = {
@@ -75,3 +75,25 @@ async def get_weekly_mood_summary(
             end_date,
         )
         return {r["mood"]: r["count"] for r in rows}
+
+
+async def log_mood(pool, mood: str, notes: Optional[str] = None, log_date: Optional[str] = None) -> None:
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO journal_entries (entry_date, mood, reflection_text)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (entry_date) DO UPDATE SET mood = EXCLUDED.mood, reflection_text = COALESCE(EXCLUDED.reflection_text, journal_entries.reflection_text)
+            """,
+            log_date or date.today().isoformat(),
+            mood,
+            notes,
+        )
+
+
+async def delete_mood(pool, log_date: str) -> None:
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM journal_entries WHERE entry_date = $1",
+            log_date,
+        )

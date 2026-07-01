@@ -3,16 +3,35 @@ import traceback
 import json
 import logging
 from datetime import date
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, Message
 import os
 from telegram.ext import ContextTypes
 from core.config import TELEGRAM_USER_ID
-from bot.onboarding import (
-    start_onboarding,
-    handle_onboarding,
-)
-from db.queries.profile import is_onboarding_complete, get_user_profile
+from db.queries.profile import get_user_profile
 from bot.formatter import escape_md, safe_markdown, split_message
+
+# Global monkey-patching of CallbackQuery and Message class methods to safely edit messages with MarkdownV2 format without crashing on unescaped symbols.
+_orig_callback_edit = CallbackQuery.edit_message_text
+async def _safe_callback_edit(self, *args, **kwargs):
+    if kwargs.get("parse_mode") == "MarkdownV2":
+        if len(args) > 0 and isinstance(args[0], str):
+            args = list(args)
+            args[0] = safe_markdown(args[0])
+        elif "text" in kwargs and isinstance(kwargs["text"], str):
+            kwargs["text"] = safe_markdown(kwargs["text"])
+    return await _orig_callback_edit(self, *args, **kwargs)
+CallbackQuery.edit_message_text = _safe_callback_edit
+
+_orig_message_edit = Message.edit_text
+async def _safe_message_edit(self, *args, **kwargs):
+    if kwargs.get("parse_mode") == "MarkdownV2":
+        if len(args) > 0 and isinstance(args[0], str):
+            args = list(args)
+            args[0] = safe_markdown(args[0])
+        elif "text" in kwargs and isinstance(kwargs["text"], str):
+            kwargs["text"] = safe_markdown(kwargs["text"])
+    return await _orig_message_edit(self, *args, **kwargs)
+Message.edit_text = _safe_message_edit
 
 from core.context import build_context
 from core.gemini import get_gemini_response
@@ -672,15 +691,10 @@ async def message_handler(
                 )
             return
 
-        # Check onboarding status
-        onboarding_done = await is_onboarding_complete(pool, telegram_id)
-        onboarding_step = context.user_data.get("onboarding_step")
-
-        if not onboarding_done or onboarding_step:
-            if text == "/start":
-                await start_onboarding(update, context, pool)
-            else:
-                await handle_onboarding(update, context, pool)
+        # Handle /start command — triggers onboarding
+        if text == "/start":
+            from bot.onboarding import start_onboarding
+            await start_onboarding(update, context, pool)
             return
 
         # Phase 3: Gemini Brain integration
@@ -885,6 +899,7 @@ async def message_handler(
                     history=history,
                     personal_notes=profile.get("personal_notes") or "",
                     system_hint=clarification_hint,
+                    model=profile.get("llm_model"),
                 )
                 if isinstance(intent_response, dict):
                     intent_response["source"] = source
@@ -1430,6 +1445,7 @@ Returnează EXCLUSIV JSON valid:
                     history=[],
                     personal_notes=f"ACTION: Extract the fields to change for item {state['item_id']} in module {state['module']}. Return intent='edit_{state['module'][:-1]}', data={{'id': {state['item_id']}, ...fields...}}",
                     system_hint=f"User is editing an item in {state['module']}.",
+                    model=profile.get("llm_model"),
                 )
 
                 await clear_state(pool)
@@ -1795,6 +1811,7 @@ Reguli:
                 personal_notes=profile.get("personal_notes") or "",
                 system_hint=system_hint,
                 voice_uri=voice_uri,
+                model=profile.get("llm_model"),
             )
             # Stamp the source so the router can pass it through
             if isinstance(intent_response, dict):
@@ -1964,7 +1981,7 @@ Reguli:
             pass
 
 
-async def handle_confirmation_callback(query, pool, action_type: str) -> None:
+async def handle_confirmation_callback(query, pool, action_type: str, bot) -> None:
     """Helper function to handle confirmation callbacks (HITL Gate)."""
     from core.state import get_state, clear_state
 
@@ -1982,7 +1999,7 @@ async def handle_confirmation_callback(query, pool, action_type: str) -> None:
                 from core.router import route_intent
 
                 final_reply, reply_markup, _ = await route_intent(
-                    pool, pending, user_id=telegram_id, bot=query.bot
+                    pool, pending, user_id=telegram_id, bot=bot
                 )
                 await query.edit_message_text(
                     final_reply, parse_mode="MarkdownV2", reply_markup=reply_markup
@@ -1992,7 +2009,7 @@ async def handle_confirmation_callback(query, pool, action_type: str) -> None:
         await query.edit_message_text("Anulat. 👌")
 
 
-async def handle_new_confirmation_callback(query, pool, callback_data: str) -> None:
+async def handle_new_confirmation_callback(query, pool, callback_data: str, bot) -> None:
     """Handles new style confirmation callbacks (conf_yes / conf_no)."""
     from core.state import get_pending_action, clear_pending_action
 
@@ -2020,7 +2037,7 @@ async def handle_new_confirmation_callback(query, pool, callback_data: str) -> N
             from core.router import route_intent
 
             final_reply, reply_markup, _ = await route_intent(
-                pool, intent_response, user_id=telegram_id, bot=query.bot
+                pool, intent_response, user_id=telegram_id, bot=bot
             )
 
             # Send message
@@ -2046,7 +2063,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     try:
         data = query.data
         if data in ("conf_yes", "conf_no"):
-            await handle_new_confirmation_callback(query, pool, data)
+            await handle_new_confirmation_callback(query, pool, data, context.bot)
             return
 
         from bot.callback_utils import parse_callback_data
@@ -2060,7 +2077,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
 
         if action == "action":
             action_type = params[0] if params else ""
-            await handle_confirmation_callback(query, pool, action_type)
+            await handle_confirmation_callback(query, pool, action_type, context.bot)
             return
 
         if action == "task":
@@ -2107,12 +2124,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 await query.answer("Ignorat.")
                 await query.edit_message_text("Ignorat. 👌")
                 return
-
-        if data.startswith("onboard:"):
-            from bot.onboarding import handle_onboarding_callback
-
-            await handle_onboarding_callback(update, context, pool)
-            return
 
         if data.startswith("profile_"):
             if data == "profile_edit_tone":
