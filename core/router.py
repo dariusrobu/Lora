@@ -1,11 +1,35 @@
 from typing import Dict, Any, Tuple, Optional
 import logging
 import json
+import re
 from db.queries.log import log_execution
 from core.state import set_state
 from core.config import REQUIRE_CONFIRMATION
 
 logger = logging.getLogger("core.router")
+
+_SENSITIVE_MEMORY = re.compile(
+    r"(?:password|parol[aă]|token|api[_ -]?key|secret|jwt|card(?:ul)?|cvv|pin|iban|diagnos|tratament|medicament)",
+    re.IGNORECASE,
+)
+
+
+async def _save_safe_memory_extracts(pool, user_id: int, extracts: Any) -> None:
+    """Persist only stable, non-sensitive facts extracted by the local model."""
+    if not extracts:
+        return
+    from db.queries.memory import save_auto_memory
+
+    for item in extracts:
+        fact = str(item.get("fact", "")).strip() if isinstance(item, dict) else ""
+        confidence = float(item.get("confidence", 0.0)) if isinstance(item, dict) else 0.0
+        if not fact or confidence < 0.75 or len(fact) > 500 or _SENSITIVE_MEMORY.search(fact):
+            continue
+        category = str(item.get("category", "general"))[:40] if isinstance(item, dict) else "general"
+        try:
+            await save_auto_memory(pool, user_id, fact, category, confidence)
+        except Exception as exc:
+            logger.debug("Memory extract skipped: %s", type(exc).__name__)
 
 # Module-level constant: intents that only read data (no DB write)
 # Used for confirmation gate and routing logic.
@@ -163,6 +187,11 @@ async def _route_single_intent(
     )  # Injected by handler usually
     data["_user_message"] = user_message
 
+    # Memory extraction also applies to free conversation, not only module
+    # actions. The filter prevents secrets and sensitive medical/financial
+    # details from becoming long-term memory.
+    await _save_safe_memory_extracts(pool, user_id, intent_response.get("memory_extracts"))
+
     # Agentic Diversion Check
     if intent_response.get("needs_agent") or intent == "agent":
         from core.gemini import client
@@ -314,24 +343,6 @@ async def _route_single_intent(
         from core.state import save_last_action
 
         await save_last_action(pool, intent_response, item_id)
-
-        # Auto-memory extraction (if present in intent_response)
-        memory_extracts = intent_response.get("memory_extracts")
-        if memory_extracts:
-            from db.queries.memory import save_auto_memory
-            from core.config import TELEGRAM_USER_ID
-
-            for fact_data in memory_extracts:
-                try:
-                    await save_auto_memory(
-                        pool,
-                        TELEGRAM_USER_ID,
-                        fact_data.get("fact"),
-                        fact_data.get("category", "general"),
-                        fact_data.get("confidence", 0.0),
-                    )
-                except Exception:
-                    pass
 
         # Handle nested additional_intents (if any)
         additional = intent_response.get("additional_intents")
