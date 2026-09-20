@@ -1,4 +1,5 @@
 from bot.callback_utils import make_callback_data
+import asyncio
 import json
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from core.icloud import (
@@ -17,12 +18,31 @@ from core.config import (
 )
 from bot.formatter import escape_md, safe_markdown
 from telegram.constants import ParseMode
+from telegram.error import NetworkError, TimedOut
 import db.queries.profile as profile_queries
 import db.queries.tasks as task_queries
 import db.queries.skills as skill_queries
 import db.queries.events as event_queries
 import db.queries.finance as finance_queries
 import db.queries.health as health_queries
+
+
+async def _send_telegram_with_retry(bot, **kwargs):
+    """Send a scheduled Telegram message without noisy traceback storms."""
+    delay = 2.0
+    for attempt in range(3):
+        try:
+            return await bot.send_message(**kwargs)
+        except (NetworkError, TimedOut) as exc:
+            if attempt == 2:
+                print(f"Telegram unavailable after 3 attempts: {type(exc).__name__}", flush=True)
+                return None
+            print(
+                f"Telegram network error ({type(exc).__name__}); retrying in {delay:.0f}s",
+                flush=True,
+            )
+            await asyncio.sleep(delay)
+            delay *= 2
 
 
 async def _build_eod_payload(pool) -> dict:
@@ -683,7 +703,8 @@ async def send_eod_reflection(application, pool, force=False):
                 "E timpul pentru o scurtă reflexie\\. *Cum a fost ziua ta azi?*"
             )
 
-        await application.bot.send_message(
+        await _send_telegram_with_retry(
+            application.bot,
             chat_id=TELEGRAM_USER_ID,
             text=message,
             reply_markup=reply_markup,
@@ -695,10 +716,7 @@ async def send_eod_reflection(application, pool, force=False):
         await set_state(pool, "awaiting_eod_mood", "eod", "mood", None)
 
     except Exception as e:
-        import traceback
-
-        print(f"CRITICAL error in send_eod_reflection: {e}", flush=True)
-        traceback.print_exc()
+        print(f"EOD reflection skipped: {type(e).__name__}: {e}", flush=True)
 
 
 async def check_eod_timeout(application, pool):
