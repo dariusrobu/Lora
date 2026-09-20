@@ -1,5 +1,6 @@
 # core/agent.py
 import json
+import re
 from datetime import date, datetime, timedelta
 from typing import Dict, Any, Tuple, Optional
 import pytz
@@ -28,6 +29,11 @@ from core.config import TIMEZONE, TELEGRAM_USER_ID
 import logging
 
 logger = logging.getLogger("core.agent")
+
+_BLOCKED_MEMORY = re.compile(
+    r"(?:password|parol[aă]|token|api[_ -]?key|secret|jwt|cvv|pin|iban|diagnos|tratament|medicament)",
+    re.IGNORECASE,
+)
 
 
 class _DisabledCloudType:
@@ -380,6 +386,8 @@ async def _execute_tool(pool, call_name: str, args: Dict[str, Any], bot=None) ->
         elif normalized_name == "add_memory":
             fact = args.get("fact")
             cat = args.get("category", "general")
+            if not fact or len(str(fact)) > 500 or _BLOCKED_MEMORY.search(str(fact)):
+                return json.dumps({"status": "rejected", "reason": "sensitive_or_invalid_memory"})
             fact_id = await save_memory_fact(pool, TELEGRAM_USER_ID, cat, fact, "agent")
             return json.dumps({"status": "saved", "id": fact_id})
 
@@ -768,7 +776,7 @@ EXAMPLE — User says "ce imi poti zice despre atv uri":
             for i, r in enumerate(results_log, 1):
                 prev_results += f"\n  Step {i}: {r['tool']} → {r['result'][:300]}"
 
-        history_str = _format_history_for_prompt(history[-4:]) if history else "None"
+        history_str = _format_history_for_prompt(history[-8:]) if history else "None"
 
         agent_prompt = f"""You are Lora's agent. Loop: think → tool → observe → repeat → final.
 
@@ -778,6 +786,12 @@ RULES:
 - IMPORTANT: Once the tool has run and the results show the action succeeded, do NOT run the tool again. Instead, use action_type="final" to summarize the result for the user.
 - For chat, greetings, or general knowledge questions (e.g. asking about ATVs, tech, advice), use action_type="final" directly with your response in final_reply. DO NOT call "list_tasks" or any tool unless the user explicitly mentions their personal tasks, notes, goals, or database items.
 - Extract all needed fields into data from the user message.
+- Speak naturally in Romanian, as a consistent personal partner: acknowledge
+  context, explain briefly, and suggest one practical next step when useful.
+- Use the recent conversation to resolve "asta", "cel de mai devreme", and
+  relative dates before asking a question.
+- Be proactive for planning and blocked goals, but never perform a write without
+  the confirmation gate enforced by the application.
 - After tool executes, observe the result and decide: more tools or final.
 
 Current step: {step}/{max_steps}
