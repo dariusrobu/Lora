@@ -6,7 +6,7 @@ import subprocess
 import uuid
 from typing import Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from lora_api.auth import get_current_user
 from lora_api.database import get_pool
@@ -201,6 +201,44 @@ async def get_models(
 class PullRequest(BaseModel):
     model: str
     host: Optional[str] = None
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=4000)
+
+
+@router.post("/chat")
+async def chat(body: ChatRequest, user=Depends(get_current_user)):
+    """Conversational local Ollama endpoint for the dashboard."""
+    from bot.formatter import safe_markdown
+    from core.agent import agent_loop
+    from core.context import build_context
+    from db.queries.history import get_recent_history, save_message
+    import db.queries.profile as profile_queries
+
+    pool = await get_pool()
+    user_id = int(user)
+    profile = await profile_queries.get_user_profile(pool, user_id) or {}
+    history = await get_recent_history(pool, user_id, limit=12)
+    context_snapshot = await build_context(pool, current_message=body.message)
+    await save_message(pool, user_id, "user", body.message)
+
+    reply, _keyboard, _item_id = await agent_loop(
+        pool,
+        user_id,
+        body.message.strip(),
+        profile.get("name", "User"),
+        profile.get("preferred_tone") or profile.get("tone", "direct"),
+        context_snapshot,
+        history,
+        profile.get("personal_notes", ""),
+    )
+    if reply != "__CONFIRMATION_REQUIRED__":
+        await save_message(pool, user_id, "assistant", reply)
+    return {
+        "reply": safe_markdown(reply) if reply != "__CONFIRMATION_REQUIRED__" else reply,
+        "requires_confirmation": reply == "__CONFIRMATION_REQUIRED__",
+    }
 
 
 @router.post("/pull")

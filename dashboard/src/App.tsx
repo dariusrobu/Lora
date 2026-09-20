@@ -31,6 +31,7 @@ import News from "./pages/News"
 import Login from "./pages/Login"
 import KioskPage from "./pages/Kiosk"
 import SpacePage from "./pages/Space"
+import Chat from "./pages/Chat"
 
 const qc = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -82,6 +83,7 @@ export default function App() {
               <Route path="travel" element={<Travel />} />
               <Route path="news" element={<News />} />
               <Route path="space" element={<SpacePage />} />
+              <Route path="chat" element={<Chat />} />
               <Route path="*" element={<Dashboard />} />
             </Route>
           </Routes>

@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom"
 import { twMerge } from "tailwind-merge"
 import {
-  LayoutDashboard, ClipboardList, Heart, Brain, Compass, GraduationCap, Settings2,
+  LayoutDashboard, ClipboardList, Heart, Brain, Compass, GraduationCap, Settings2, MessageCircle,
 } from "lucide-react"
 
 const navItems = [
@@ -12,6 +12,7 @@ const navItems = [
   { to: "/life", label: "Life", icon: Compass },
   { to: "/university", label: "University", icon: GraduationCap },
   { to: "/space", label: "Space", icon: Settings2 },
+  { to: "/chat", label: "Vorbește cu Lora", icon: MessageCircle },
 ]
 
 interface SidebarProps {
