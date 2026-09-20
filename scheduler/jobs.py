@@ -244,19 +244,29 @@ async def sync_calendar_job(pool):
     )
 
     print("⏳ Starting periodic Apple Sync (Calendar & Reminders)...", flush=True)
-    try:
-        await asyncio.gather(
-            cleanup_calendar_orphans(pool),
-            sync_university_schedule_to_calendar(pool),
-            sync_events_table_to_calendar(pool),
-            sync_tasks_with_deadlines(pool),
-            sync_exams_to_calendar(pool),
-            sync_tasks_to_reminders(pool),
-            sync_from_icloud_to_lora(pool),
-        )
-        print("✅ Periodic Apple Sync completed.", flush=True)
-    except Exception as e:
-        print(f"❌ Periodic Apple Sync failed: {e}", flush=True)
+    for attempt in range(3):
+        try:
+            await asyncio.gather(
+                cleanup_calendar_orphans(pool),
+                sync_university_schedule_to_calendar(pool),
+                sync_events_table_to_calendar(pool),
+                sync_tasks_with_deadlines(pool),
+                sync_exams_to_calendar(pool),
+                sync_tasks_to_reminders(pool),
+                sync_from_icloud_to_lora(pool),
+            )
+            print("✅ Periodic Apple Sync completed.", flush=True)
+            return
+        except Exception as exc:
+            if attempt == 2:
+                print(f"Apple Sync unavailable after 3 attempts: {type(exc).__name__}", flush=True)
+                return
+            delay = 2 ** (attempt + 1)
+            print(
+                f"Apple Sync network error ({type(exc).__name__}); retrying in {delay}s",
+                flush=True,
+            )
+            await asyncio.sleep(delay)
 
 
 async def cleanup_history_job(pool):
