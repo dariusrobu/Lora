@@ -1,25 +1,31 @@
-import asyncio
 import logging
-import os
 from typing import List
-from google import genai
 
-_genai_client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", ""))
 
 async def get_embedding(text: str) -> List[float]:
     """
-    Generates an embedding for the given text using Google text-embedding-004.
+    Generates an embedding locally through the dedicated Ollama embedding model.
+
+    An unavailable model returns an empty vector.  Returning a fabricated
+    all-zero vector would make unrelated memories appear semantically equal.
     """
     if not text:
         return []
 
+    # Try Ollama.
+    from core.config import OLLAMA_EMBED_MODEL, OLLAMA_HOST
+    import asyncio
     try:
-        result = await asyncio.to_thread(
-            _genai_client.models.embed_content,
-            model="text-embedding-004",
-            contents=text
+        from ollama import AsyncClient
+        ollama_client = AsyncClient(host=OLLAMA_HOST)
+        response = await asyncio.wait_for(
+            ollama_client.embeddings(model=OLLAMA_EMBED_MODEL, prompt=text),
+            timeout=10.0,
         )
-        return result.embeddings[0].values
+        if "embedding" in response:
+            return response["embedding"]
     except Exception as e:
-        logging.error(f"Error generating embedding: {e}")
-        return []
+        logging.warning("Ollama embedding failed: %s", e)
+
+    logging.warning("Embedding unavailable; semantic memory is temporarily disabled")
+    return []

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom"
+import { useEffect } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ErrorBoundary } from "./components/ErrorBoundary"
 import { Layout } from "./components/layout/Layout"
@@ -26,6 +27,7 @@ import Workout from "./pages/Workout"
 import Nutrition from "./pages/Nutrition"
 import Places from "./pages/Places"
 import Travel from "./pages/Travel"
+import News from "./pages/News"
 import Login from "./pages/Login"
 import KioskPage from "./pages/Kiosk"
 import SpacePage from "./pages/Space"
@@ -35,6 +37,17 @@ const qc = new QueryClient({
 })
 
 export default function App() {
+  useEffect(() => {
+    // Older kiosk links put the JWT in the URL. Remove it immediately so it
+    // cannot leak through browser history or HTTP Referer headers.
+    const params = new URLSearchParams(window.location.search)
+    if (params.has("token")) {
+      params.delete("token")
+      const query = params.toString()
+      window.history.replaceState({}, document.title, `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`)
+    }
+  }, [])
+
   return (
     <QueryClientProvider client={qc}>
       <BrowserRouter>
@@ -67,6 +80,7 @@ export default function App() {
               <Route path="nutrition" element={<Nutrition />} />
               <Route path="places" element={<Places />} />
               <Route path="travel" element={<Travel />} />
+              <Route path="news" element={<News />} />
               <Route path="space" element={<SpacePage />} />
               <Route path="*" element={<Dashboard />} />
             </Route>

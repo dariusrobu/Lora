@@ -116,53 +116,72 @@ async def delete_event_by_title(pool, title: str, event_type: str = "event") -> 
         return int(result.split()[-1]) if result else 0
 
 
-async def get_events_needing_reminder(
-    pool, minutes_before: int = 30
+async def get_events_needing_pre_reminder(
+    pool,
 ) -> List[Dict[str, Any]]:
-    """Get events and reminders that need notification."""
+    """Get events and reminders that need early warning notification (e.g. 30 min before)."""
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT e.* FROM events e
-            WHERE (
-                -- 1. Events with time-based reminders (standard window)
-                (e.event_type = 'event' AND e.event_time IS NOT NULL
-                  AND e.reminded_at IS NULL
-                  AND e.event_date = CURRENT_DATE
-                  AND e.remind_before_minutes > 0
-                  AND (e.event_time - INTERVAL '1 minute' * e.remind_before_minutes)
-                      BETWEEN (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time - INTERVAL '15 minutes'
-                              AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time + INTERVAL '15 minutes')
-                OR
-                -- 2. Reminders with specific time (standard window)
-                (e.event_type = 'reminder' AND e.event_time IS NOT NULL
-                  AND e.reminded_at IS NULL
-                  AND e.event_date = CURRENT_DATE
-                  AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time
-                      BETWEEN e.event_time - INTERVAL '15 minutes' AND e.event_time + INTERVAL '15 minutes')
-                OR
-                -- 3. CATCH-UP: Reminders/Events from last 2 hours that were MISSED (bot was down)
-                (e.reminded_at IS NULL
-                  AND e.event_date = CURRENT_DATE
-                  AND e.event_time IS NOT NULL
-                  AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time > e.event_time
-                  AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time < e.event_time + INTERVAL '2 hours')
-                OR
-                -- 4. Reminders without specific time (morning slot)
-                (e.event_type = 'reminder' AND e.event_time IS NULL
-                  AND e.reminded_at IS NULL
-                  AND e.event_date = CURRENT_DATE
-                  AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time
-                      BETWEEN '08:55'::time AND '09:15'::time)
-            )
-            ORDER BY e.event_time NULLS LAST
+            WHERE e.event_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::date
+              AND e.event_time IS NOT NULL
+              AND e.remind_before_minutes > 0
+              AND e.pre_reminded_at IS NULL
+              AND e.reminded_at IS NULL
+              AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time >= (e.event_time - INTERVAL '1 minute' * e.remind_before_minutes)
+              AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time < (e.event_time - INTERVAL '1 minute' * e.remind_before_minutes + INTERVAL '3 minutes')
+              AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time < e.event_time
+            ORDER BY e.event_time ASC
             """
         )
         return [dict(r) for r in rows]
 
 
+async def get_events_needing_exact_reminder(
+    pool,
+) -> List[Dict[str, Any]]:
+    """Get events and reminders that need exact-time notification."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT e.* FROM events e
+            WHERE e.event_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::date
+              AND e.reminded_at IS NULL
+              AND (
+                -- 1. Timed events that reached event_time (checked every minute, with catch-up up to 2 hours)
+                (e.event_time IS NOT NULL
+                 AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time >= e.event_time
+                 AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time < e.event_time + INTERVAL '2 hours')
+                OR
+                -- 2. Untimed reminders in morning slot (09:00)
+                (e.event_type = 'reminder' AND e.event_time IS NULL
+                 AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time >= '09:00'::time
+                 AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time < '09:05'::time)
+              )
+            ORDER BY e.event_time ASC NULLS LAST
+            """
+        )
+        return [dict(r) for r in rows]
+
+
+async def get_events_needing_reminder(
+    pool, minutes_before: int = 30
+) -> List[Dict[str, Any]]:
+    """Backwards compatibility wrapper returning exact reminders."""
+    return await get_events_needing_exact_reminder(pool)
+
+
+async def mark_event_pre_reminded(pool, event_id: int) -> None:
+    """Mark that pre-reminder (early warning) was sent."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE events SET pre_reminded_at = NOW() WHERE id = $1", event_id
+        )
+
+
 async def mark_event_reminded(pool, event_id: int) -> None:
-    """Mark that time-based reminder was sent."""
+    """Mark that exact-time reminder was sent."""
     async with pool.acquire() as conn:
         await conn.execute(
             "UPDATE events SET reminded_at = NOW() WHERE id = $1", event_id

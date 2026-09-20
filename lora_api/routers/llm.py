@@ -3,7 +3,6 @@ import os
 import platform
 import re
 import subprocess
-import time
 import uuid
 from typing import Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -211,10 +210,13 @@ async def pull_model(body: PullRequest, user=Depends(get_current_user)):
 
     async def _run_pull(tid: str, model: str):
         try:
+            env = os.environ.copy()
+            env["OLLAMA_HOST"] = host
             proc = await asyncio.create_subprocess_exec(
                 "ollama", "pull", model,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
+                env=env,
             )
             output_lines = []
             while True:

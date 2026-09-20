@@ -31,27 +31,30 @@ export function WidgetCard({
   children, className,
 }: WidgetCardProps) {
   return (
-    <div className={twMerge("glass-strong rounded-2xl p-4 shadow-apple-heavy", className)}>
-      <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-text-muted shrink-0">{icon}</span>
-            <h3 className="text-apple-footnote font-semibold text-text-secondary uppercase tracking-widest">{label}</h3>
+    <div className={twMerge("relative group py-4 transition-all duration-300", className)}>
+      <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/[0.06]">
+        <div className="flex items-center gap-2.5">
+          <div className="text-indigo-400 flex items-center justify-center shrink-0">
+            {icon}
           </div>
-          <div className="flex items-center gap-0.5">
-            {onExpand && (
-              <motion.button
-                onClick={onExpand}
-                whileTap={{ scale: 0.9 }}
-                className="p-1.5 rounded-full text-text-muted hover:text-text-primary hover:bg-white/10 dark:hover:bg-white/[0.08] transition-colors"
-              >
-                <Maximize2 className="w-3.5 h-3.5" />
-              </motion.button>
-            )}
-            <Link to={linkTo} className="p-1.5 rounded-full text-text-muted hover:text-text-primary hover:bg-white/10 dark:hover:bg-white/[0.08] transition-colors">
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
+          <h3 className="text-[11px] font-bold text-white uppercase tracking-wider">{label}</h3>
         </div>
+        <div className="flex items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
+          {onExpand && (
+            <motion.button
+              onClick={onExpand}
+              whileTap={{ scale: 0.9 }}
+              className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/[0.06] transition-colors"
+              title="Extinde"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </motion.button>
+          )}
+          <Link to={linkTo} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/[0.06] transition-colors" title="Deschide">
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      </div>
         {isLoading ? (
           <SkeletonWidget />
         ) : isError ? (

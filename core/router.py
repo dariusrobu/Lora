@@ -3,8 +3,81 @@ import logging
 import json
 from db.queries.log import log_execution
 from core.state import set_state
+from core.config import REQUIRE_CONFIRMATION
 
 logger = logging.getLogger("core.router")
+
+# Module-level constant: intents that only read data (no DB write)
+# Used for confirmation gate and routing logic.
+READ_ONLY_INTENTS: frozenset = frozenset({
+    "list_tasks",
+    "list_events",
+    "list_reminders",
+    "list_items",
+    "list_wish",
+    "list_habits",
+    "view_skills",
+    "view_goals",
+    "view_projects",
+    "list_projects",
+    "finance_summary",
+    "finance_chart",
+    "health_summary",
+    "health_chart",
+    "health_status_today",
+    "nutrition_summary",
+    "nutrition_target",
+    "workout_list",
+    "workout_stats",
+    "workout_prs",
+    "workout_week",
+    "uni_list",
+    "uni_exams",
+    "uni_attendance_warning",
+    "uni_restante",
+    "schedule_today",
+    "schedule_week",
+    "reading_list",
+    "reading_stats",
+    "focus_list",
+    "get_weather",
+    "get_weather_alerts",
+    "get_news",
+    "fetch_news",
+    "get_tech_news",
+    "get_insights",
+    "ask_insights",
+    "mood_chart",
+    "get_mood_chart",
+    "memory_view",
+    "memory_recall",
+    "memory_search",
+    "calendar_today",
+    "calendar_week",
+    "calendar_sync",
+    "travel_list",
+    "travel_check",
+    "chat",
+    "trigger_morning_briefing",
+    "correct_last",
+})
+
+
+def requires_write_confirmation(intent_response: Dict[str, Any]) -> bool:
+    """Return whether an intent must be explicitly approved before execution.
+
+    This is deliberately a deterministic policy.  The LLM may describe an
+    action, but it must never decide whether a database write is safe to run.
+    ``_confirmed_bypass`` is set only by the Telegram confirmation handlers
+    after the user explicitly approves the pending action.
+    """
+    intent = intent_response.get("intent")
+    return bool(
+        REQUIRE_CONFIRMATION
+        and intent
+        and intent not in READ_ONLY_INTENTS
+        and not intent_response.get("_confirmed_bypass", False)
+    )
 
 
 async def check_module_health() -> Dict[str, str]:
@@ -92,13 +165,22 @@ async def _route_single_intent(
 
     # Agentic Diversion Check
     if intent_response.get("needs_agent") or intent == "agent":
-        from core.agent import run_agent
         from core.gemini import client
 
         msg = user_message or reply
         print(f"🤖 AGENTIC MODE: Diverting -> {msg}", flush=True)
-        agent_reply = await run_agent(pool, client, msg, bot=bot)
-        return agent_reply, None, None
+        if client:
+            from core.agent import run_agent
+            agent_reply = await run_agent(pool, client, msg, bot=bot)
+            return agent_reply, None, None
+        else:
+            # Fallback to local / NVIDIA agent_loop when Gemini API key is missing
+            from core.agent import agent_loop
+            from core.config import TELEGRAM_USER_ID
+            agent_reply, kb, item_id = await agent_loop(
+                pool, TELEGRAM_USER_ID, msg, "User", "direct", "", [], "", "", bot=bot
+            )
+            return agent_reply, kb, item_id
 
     # Clarification Check
     confidence = intent_response.get("confidence", 1.0)
@@ -194,6 +276,7 @@ async def _route_single_intent(
         "integrations",
         "travel",
         "wishlist",
+        "news",
     }
 
     if not module or module.lower() not in VALID_MODULES:
@@ -204,63 +287,9 @@ async def _route_single_intent(
             )
         return reply, None, None
 
-    # Interception for Human-in-the-loop Confirmation
-    READ_ONLY_INTENTS = {
-        "list_tasks",
-        "list_events",
-        "list_reminders",
-        "list_items",
-        "list_wish",
-        "list_habits",
-        "view_skills",
-        "view_goals",
-        "view_projects",
-        "list_projects",
-        "finance_summary",
-        "finance_chart",
-        "health_summary",
-        "health_chart",
-        "health_status_today",
-        "nutrition_summary",
-        "nutrition_target",
-        "workout_list",
-        "workout_stats",
-        "workout_prs",
-        "workout_week",
-        "uni_list",
-        "uni_exams",
-        "uni_attendance_warning",
-        "uni_restante",
-        "schedule_today",
-        "schedule_week",
-        "reading_list",
-        "reading_stats",
-        "focus_list",
-        "get_weather",
-        "get_weather_alerts",
-        "get_tech_news",
-        "get_insights",
-        "ask_insights",
-        "mood_chart",
-        "get_mood_chart",
-        "memory_view",
-        "memory_recall",
-        "memory_search",
-        "calendar_today",
-        "calendar_week",
-        "calendar_sync",
-        "travel_list",
-        "travel_check",
-        "chat",
-        "trigger_morning_briefing",
-        "correct_last",
-    }
-
-    is_write_intent = intent not in READ_ONLY_INTENTS
-    # By default, confirmation is disabled per user request to auto-execute all actions.
-    # To re-enable, change the condition below to look at needs_confirmation and is_write_intent.
-    if False:
-        # Mark needs_confirmation as True in the response object
+    if requires_write_confirmation(intent_response):
+        # The policy is code-owned: never trust an LLM-provided
+        # ``needs_confirmation`` value for data-changing actions.
         intent_response["needs_confirmation"] = True
 
         # Save the pending action in state under pending_action

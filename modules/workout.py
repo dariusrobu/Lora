@@ -272,6 +272,7 @@ async def get_exercises_manager(pool) -> Tuple[str, Any]:
 
 
 async def handle_workout_callback(query, pool, data: str):
+    data = data.replace(":", "_")
     parts = data.split("_")
     action = (
         "_".join(parts[1:3]) if len(parts) >= 3 else parts[1] if len(parts) >= 2 else ""

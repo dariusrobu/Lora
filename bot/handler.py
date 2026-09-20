@@ -1,3 +1,4 @@
+import asyncio
 from bot.callback_utils import make_callback_data
 import traceback
 import json
@@ -9,6 +10,14 @@ from telegram.ext import ContextTypes
 from core.config import TELEGRAM_USER_ID
 from db.queries.profile import get_user_profile
 from bot.formatter import escape_md, safe_markdown, split_message
+from core.context import build_context
+from core.gemini import get_gemini_response
+from core.agent import agent_loop
+from core.router import route_intent
+from db.queries.history import save_message, get_recent_history
+from core.stats import update_last_message
+
+logger = logging.getLogger(__name__)
 
 # Global monkey-patching of CallbackQuery and Message class methods to safely edit messages with MarkdownV2 format without crashing on unescaped symbols.
 _orig_callback_edit = CallbackQuery.edit_message_text
@@ -33,11 +42,6 @@ async def _safe_message_edit(self, *args, **kwargs):
     return await _orig_message_edit(self, *args, **kwargs)
 Message.edit_text = _safe_message_edit
 
-from core.context import build_context
-from core.gemini import get_gemini_response
-from core.router import route_intent
-from db.queries.history import save_message, get_recent_history
-from core.stats import update_last_message
 
 
 async def security_check(update: Update) -> bool:
@@ -47,11 +51,9 @@ async def security_check(update: Update) -> bool:
 
     is_authorized = update.effective_user.id == TELEGRAM_USER_ID
     if not is_authorized:
-        print(
-            f"❌ UNAUTHORIZED: Access attempt by ID {update.effective_user.id} (Expected {TELEGRAM_USER_ID})"
-        )
+        logger.warning(f"❌ UNAUTHORIZED: Access attempt by ID {update.effective_user.id} (Expected {TELEGRAM_USER_ID})")
     else:
-        print(f"✅ AUTHORIZED: User ID {update.effective_user.id}")
+        logger.info(f"✅ AUTHORIZED: User ID {update.effective_user.id}")
     return is_authorized
 
 
@@ -73,14 +75,14 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
             await update.message.reply_text(str(e))
             return
         except Exception as e:
-            print(f"Transcription error: {e}")
+            logger.error(f"Transcription error: {e}")
             await update.message.reply_text(
                 "Nu am putut înțelege mesajul vocal — încearcă din nou 🎙"
             )
             return
 
         # Normalize raw STT text before intent analysis
-        print(f"🎙 VOICE TRANSCRIBED (raw): {repr(text)}", flush=True)
+        logger.info(f"🎙 VOICE TRANSCRIBED (raw): {repr(text)}")
         # normalize_voice_text is still useful for cleaning up, but we also have the URI now
         text = await normalize_voice_text(text)
 
@@ -89,11 +91,13 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
         )
 
     except Exception as e:
-        print(f"ERROR in voice_handler: {e}")
+        logger.error(f"ERROR in voice_handler: {e}")
         traceback.print_exc()
 
 
 async def focus_command(update, context):
+    if not await security_check(update):
+        return
     pool = context.bot_data.get("pool")
     text = update.message.text
 
@@ -111,6 +115,8 @@ async def focus_command(update, context):
 
 
 async def stopfocus_command(update, context):
+    if not await security_check(update):
+        return
     pool = context.bot_data.get("pool")
     from modules.focus import handle_focus_intent
 
@@ -119,6 +125,8 @@ async def stopfocus_command(update, context):
 
 
 async def timeblock_command(update, context):
+    if not await security_check(update):
+        return
     pool = context.bot_data.get("pool")
     await update.message.reply_text("🗓 Generez time block-ul tău... un moment!")
     from modules.planner import generate_time_block
@@ -129,6 +137,8 @@ async def timeblock_command(update, context):
 
 async def uni_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles /uni command — opens academic dashboard."""
+    if not await security_check(update):
+        return
     pool = context.bot_data.get("pool")
     if not pool:
         await update.message.reply_text("Database pool error.")
@@ -138,6 +148,8 @@ async def uni_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def workout_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles /workout command — opens workout dashboard."""
+    if not await security_check(update):
+        return
     pool = context.bot_data.get("pool")
     if not pool:
         await update.message.reply_text("Database pool error.")
@@ -155,19 +167,24 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
 
     try:
         from core.vision import analyze_image, process_vision_result
-        from core.gemini import client
 
         # Send loading message
         loading_msg = await update.message.reply_text("Analizând imaginea... 👁️")
 
-        # Get highest resolution photo
-        photo_file = await update.message.photo[-1].get_file()
-        photo_bytes = await photo_file.download_to_memory()
+        # Get highest resolution photo or uncompressed image document
+        if update.message.photo:
+            photo_file = await update.message.photo[-1].get_file()
+        elif update.message.document:
+            photo_file = await update.message.document.get_file()
+        else:
+            await loading_msg.edit_text("Nu am găsit o imagine validă.")
+            return
 
+        photo_bytes = bytes(await photo_file.download_as_bytearray())
         caption = update.message.caption
 
-        # Analyze using Vision Module
-        result = await analyze_image(client, bytes(photo_bytes), caption)
+        # Analyze using Local Vision & OCR Module
+        result = await analyze_image(None, bytes(photo_bytes), caption)
 
         if result.get("type") == "error":
             await loading_msg.edit_text(
@@ -179,7 +196,7 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
 
         # Process result and get formatting
         reply_text, keyboard = await process_vision_result(
-            pool, result, profile, client
+            pool, result, profile, None
         )
 
         # Edit loading message with real reply
@@ -188,13 +205,13 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
                 reply_text, parse_mode="MarkdownV2", reply_markup=keyboard
             )
         except Exception as edit_err:
-            print(f"Error editing loading msg with MarkdownV2: {edit_err}")
+            logger.warning(f"Error editing loading msg with MarkdownV2: {edit_err}")
             await loading_msg.edit_text(reply_text, reply_markup=keyboard)
 
     except Exception as e:
         pass
 
-        print(f"Error handling photo: {e}")
+        logger.error(f"Error handling photo: {e}")
         traceback.print_exc()
         try:
             await update.message.reply_text("A apărut o eroare la procesarea pozei.")
@@ -228,7 +245,7 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                     if res.status_code == 200:
                         city_name = res.json().get("name", city_name)
             except Exception as e:
-                print(f"Reverse geocoding error: {e}")
+                logger.warning(f"Reverse geocoding error: {e}")
 
         # 2. Persist coordinates and city
         await update_user_profile(
@@ -246,7 +263,7 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             pool, update.effective_user.id, lat, lon, context.application
         )
 
-        print(f"📍 LOCATION SYNCED: {lat}, {lon} ({city_name})")
+        logger.info(f"📍 LOCATION SYNCED: {lat}, {lon} ({city_name})")
 
         # Only reply if it's a NEW message (not a Live Location update)
         if not update.edited_message:
@@ -254,7 +271,7 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             await update.message.reply_text(msg, parse_mode="MarkdownV2")
 
     except Exception as e:
-        print(f"ERROR in location_handler: {e}")
+        logger.error(f"ERROR in location_handler: {e}")
         traceback.print_exc()
         await update.message.reply_text("Nu am putut procesa locația.")
 
@@ -393,10 +410,7 @@ async def message_handler(
     try:
         update_last_message()
         user_id = update.effective_user.id if update.effective_user else "Unknown"
-        print(
-            f"📥 INCOMING: Update ID {update.update_id} from user_id {user_id}",
-            flush=True,
-        )
+        logger.info(f"📥 INCOMING: Update ID {update.update_id} from user_id {user_id}")
 
         # Use provided text or fallback to message text
         if text is None and update.message:
@@ -406,9 +420,7 @@ async def message_handler(
         if text:
             text = text.strip()
 
-        print(
-            f"📥 RECEIVED: Update ID {update.update_id} from user_id {user_id} - Text: {repr(text)}"
-        )
+        logger.info(f"📥 RECEIVED: Update ID {update.update_id} from user_id {user_id} - Text: {repr(text)}")
 
         if not await security_check(update):
             return
@@ -475,9 +487,7 @@ async def message_handler(
                 not is_mentioned
                 and f"@{bot_username.lower()}" not in (text or "").lower()
             ):
-                print(
-                    f"🔇 LORA SILENT: Message in group {update.effective_chat.id} doesn't mention @{bot_username}"
-                )
+                logger.info(f"🔇 LORA SILENT: Message in group {update.effective_chat.id} doesn't mention @{bot_username}")
                 return
 
         telegram_id = update.effective_user.id
@@ -535,7 +545,7 @@ async def message_handler(
             try:
                 await send_morning_briefing(context.application, pool, force=True)
             except Exception as e:
-                print(f"Podcast manual trigger error: {e}", flush=True)
+                logger.error(f"Podcast manual trigger error: {e}")
                 await update.message.reply_text(
                     f"❌ Scuze, a apărut o eroare la generarea podcast-ului: {e}"
                 )
@@ -552,7 +562,7 @@ async def message_handler(
             try:
                 await send_weekly_review(context.application, pool)
             except Exception as e:
-                print(f"Weekly review manual trigger error: {e}", flush=True)
+                logger.error(f"Weekly review manual trigger error: {e}")
                 await update.message.reply_text(
                     f"❌ Eroare la generarea review-ului: {e}"
                 )
@@ -565,7 +575,7 @@ async def message_handler(
             try:
                 await send_eod_reflection(context.application, pool, force=True)
             except Exception as e:
-                print(f"EOD manual trigger error: {e}", flush=True)
+                logger.error(f"EOD manual trigger error: {e}")
                 await update.message.reply_text(f"❌ Eroare la EOD: {e}")
             return
 
@@ -606,7 +616,7 @@ async def message_handler(
                 )
                 await send_monthly_review(context.bot, pool)
             except Exception as e:
-                print(f"Monthly review manual trigger error: {e}", flush=True)
+                logger.error(f"Monthly review manual trigger error: {e}")
                 await update.message.reply_text(
                     f"❌ Eroare la generarea review-ului lunar: {e}"
                 )
@@ -624,7 +634,7 @@ async def message_handler(
                 await update_user_profile(pool, TG_UID, last_journal_date=None)
                 await send_journal_night(context.application, pool)
             except Exception as e:
-                print(f"Journal night manual trigger error: {e}", flush=True)
+                logger.error(f"Journal night manual trigger error: {e}")
                 await update.message.reply_text(
                     f"❌ Eroare la inițierea journal-ului: {e}"
                 )
@@ -639,13 +649,14 @@ async def message_handler(
                 await update_user_profile(pool, TG_UID, last_eod_date=None)
                 await send_eod_reflection(context.application, pool)
             except Exception as e:
-                print(f"EOD reflection manual trigger error: {e}", flush=True)
+                logger.error(f"EOD reflection manual trigger error: {e}")
                 await update.message.reply_text(
                     f"❌ Eroare la inițierea EOD reflection: {e}"
                 )
             return
         # Handle /plan command
         if text == "/plan":
+            from datetime import datetime as _dt, timedelta as _td
             from db.queries.profile import update_user_profile
             from core.config import TELEGRAM_USER_ID as TG_UID
             from core.state import set_state
@@ -654,12 +665,38 @@ async def message_handler(
             try:
                 await update_user_profile(pool, TG_UID, last_plan_date=None)
                 preview = await get_day_preview(pool)
-                await update.message.reply_text(preview, parse_mode="MarkdownV2")
+                keyboard = InlineKeyboardMarkup(
+                    [
+                        [
+                            InlineKeyboardButton(
+                                "⏭️ Închide planul",
+                                callback_data=make_callback_data("plan", "skip"),
+                            )
+                        ]
+                    ]
+                )
+                await update.message.reply_text(
+                    preview, parse_mode="MarkdownV2", reply_markup=keyboard
+                )
                 await set_state(
                     pool, "awaiting_day_plan_input", "day_plans", "generate", None
                 )
+                try:
+                    from scheduler.jobs import _global_scheduler, clear_day_plan_timeout
+
+                    if _global_scheduler:
+                        _global_scheduler.add_job(
+                            clear_day_plan_timeout,
+                            "date",
+                            run_date=_dt.now() + _td(minutes=2),
+                            id="day_plan_timeout",
+                            replace_existing=True,
+                            args=[context.application, pool],
+                        )
+                except Exception as sched_err:
+                    logger.error(f"Error scheduling day plan timeout: {sched_err}")
             except Exception as e:
-                print(f"Plan manual trigger error: {e}", flush=True)
+                logger.error(f"Plan manual trigger error: {e}")
                 await update.message.reply_text(f"❌ Eroare la inițierea planului: {e}")
             return
 
@@ -714,10 +751,21 @@ async def message_handler(
 
         pending_act = await get_pending_action(pool)
         if pending_act:
+            # Keep the confirmation controls visible whenever a pending write
+            # blocks a new message.  Text confirmation remains supported below
+            # for clients that do not render inline keyboards.
+            from bot.keyboards import action_confirm_keyboard
+
             await update.message.reply_text(
-                "Te rog să confirmi sau să anulezi acțiunea curentă mai întâi."
+                "Te rog să confirmi sau să anulezi acțiunea curentă mai întâi.",
+                reply_markup=action_confirm_keyboard(),
             )
-            return
+            low_pending_text = text.lower().strip()
+            if low_pending_text not in {
+                "da", "yes", "confirm", "confirmă", "confirma", "ok", "nu", "no",
+                "anulează", "anuleaza", "cancel", "stop",
+            }:
+                return
 
         # Skills State Handling
         if state and state.get("state_type") and state["state_type"].startswith("skills_"):
@@ -734,10 +782,7 @@ async def message_handler(
                 return
 
         if state and state.get("state_type"):
-            print(
-                f"🔄 STATE ACTIVE: {state['state_type']} for {state['module']}:{state['action']}",
-                flush=True,
-            )
+            logger.info(f"🔄 STATE ACTIVE: {state['state_type']} for {state['module']}:{state['action']}")
             if state["state_type"] == "awaiting_confirmation":
                 low_text = text.lower()
                 if any(
@@ -825,6 +870,112 @@ async def message_handler(
                     )
                     return
 
+            elif state["state_type"] == "awaiting_vision_confirmation":
+                low_text = text.lower().strip()
+                confirm_words = [
+                    "da",
+                    "yes",
+                    "confirm",
+                    "confirma",
+                    "confirmă",
+                    "salveaza",
+                    "salvează",
+                    "ok",
+                    "yep",
+                    "sure",
+                    "do it",
+                    "înregistrează",
+                    "inregistreaza",
+                ]
+                cancel_words = [
+                    "nu",
+                    "no",
+                    "cancel",
+                    "stop",
+                    "anulează",
+                    "anuleaza",
+                    "renunță",
+                    "renunta",
+                ]
+
+                if any(
+                    low_text == w or low_text.startswith(w + " ") or low_text.endswith(" " + w)
+                    for w in confirm_words
+                ):
+                    from core.vision import confirm_vision_action
+
+                    reply_msg = await confirm_vision_action(pool, state)
+                    await update.message.reply_text(reply_msg, parse_mode="MarkdownV2")
+                    return
+                elif any(
+                    low_text == w or low_text.startswith(w + " ") or low_text.endswith(" " + w)
+                    for w in cancel_words
+                ):
+                    from core.vision import cancel_vision_action
+
+                    reply_msg = await cancel_vision_action(pool)
+                    await update.message.reply_text(reply_msg)
+                    return
+                else:
+                    action = state.get("action")
+                    if action == "log_expense":
+                        from core.vision import modify_pending_receipt, render_receipt_preview
+
+                        extra = state.get("extra") or {}
+                        try:
+                            updated_extra = await modify_pending_receipt(extra, text)
+                            await set_state(
+                                pool,
+                                "awaiting_vision_confirmation",
+                                state.get("module", "finance"),
+                                action,
+                                None,
+                                extra=updated_extra,
+                            )
+                            reply_msg, keyboard = render_receipt_preview(updated_extra)
+                            await update.message.reply_text(
+                                f"✏️ Am actualizat datele bonului:\n\n{reply_msg}",
+                                parse_mode="MarkdownV2",
+                                reply_markup=keyboard,
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to modify receipt: {e}", exc_info=True)
+                            await update.message.reply_text(
+                                "⚠️ Nu am putut aplica modificarea cerută. Te rog să reîncerci sau să apeși pe butoanele de confirmare/anulare."
+                            )
+                        return
+                    elif action == "meal_log":
+                        from core.vision import modify_pending_meal, render_meal_preview
+
+                        extra = state.get("extra") or {}
+                        try:
+                            updated_extra = await modify_pending_meal(extra, text)
+                            await set_state(
+                                pool,
+                                "awaiting_vision_confirmation",
+                                state.get("module", "nutrition"),
+                                action,
+                                None,
+                                extra=updated_extra,
+                            )
+                            reply_msg, keyboard = render_meal_preview(updated_extra)
+                            await update.message.reply_text(
+                                f"✏️ Am actualizat datele mesei:\n\n{reply_msg}",
+                                parse_mode="MarkdownV2",
+                                reply_markup=keyboard,
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to modify meal: {e}", exc_info=True)
+                            await update.message.reply_text(
+                                "⚠️ Nu am putut aplica modificarea cerută. Te rog să reîncerci sau să apeși pe butoanele de confirmare/anulare."
+                            )
+                        return
+                    else:
+                        await update.message.reply_text(
+                            "⚠️ Te rog să confirmi sau să anulezi acțiunea (folosind butoanele sau trimițând 'da'/'nu')."
+                        )
+                        return
+
             elif state["state_type"] == "awaiting_profile_hours":
                 try:
                     # Handle different dash types (hyphen, en-dash, em-dash)
@@ -859,8 +1010,7 @@ async def message_handler(
                     )
                 except Exception as e:
                     pass
-                    print(f"ERROR updating profile hours: {e}")
-                    traceback.print_exc()
+                    logger.error(f"ERROR updating profile hours: {e}")
                     await clear_state(pool)
                     await update.message.reply_text(
                         "❌ Format invalid. Încearcă `09:00-21:00`."
@@ -874,10 +1024,7 @@ async def message_handler(
                 partial_intent = extra.get("partial_intent", "")
                 partial_data = extra.get("partial_data", {})
 
-                print(
-                    f"🔍 CLARIFICATION RECEIVED: '{text}' for partial_intent='{partial_intent}'",
-                    flush=True,
-                )
+                logger.info(f"🔍 CLARIFICATION RECEIVED: '{text}' for partial_intent='{partial_intent}'")
 
                 context_snapshot = await build_context(pool, text)
                 profile = await get_user_profile(pool, telegram_id)
@@ -1184,14 +1331,11 @@ async def message_handler(
                             await file.download_to_drive(tmp.name)
                             tmp_path = tmp.name
 
-                        import base64
-
                         with open(tmp_path, "rb") as f:
-                            image_data = base64.b64encode(f.read()).decode()
+                            image_data = f.read()
                         os.unlink(tmp_path)
 
-                        from google.genai import types
-                        from core.gemini import client
+                        from core.vision import _call_local_llm_json, describe_image_with_vision
 
                         prompt = """
 Analizează această imagine cu un orar universitar.
@@ -1212,32 +1356,14 @@ Returnează EXCLUSIV JSON valid, fără markdown:
 }
 week_type: "odd" dacă e marcat SI, "even" dacă SP, "both" dacă apare în ambele sau nu e marcat.
 """
-                        response = client.models.generate_content(
-                            model="gemini-2.5-flash",
-                            contents=[
-                                types.Content(
-                                    parts=[
-                                        types.Part(
-                                            inline_data=types.Blob(
-                                                mime_type="image/jpeg", data=image_data
-                                            )
-                                        ),
-                                        types.Part(text=prompt),
-                                    ]
-                                )
-                            ],
+                        description = await describe_image_with_vision(image_data, prompt)
+                        if not description:
+                            raise RuntimeError("Modelul local de vision nu a putut citi imaginea.")
+                        data_parsed = await _call_local_llm_json(
+                            f"{prompt}\n\nDESCRIERE EXTRASĂ LOCAL DIN IMAGINE:\n{description}"
                         )
 
-                        pass
-
-                        raw = response.text.strip()
-                        if "```" in raw:
-                            raw = (
-                                raw.split("```")[1].lstrip("json").strip().rstrip("```")
-                            )
-
                         try:
-                            data_parsed = json.loads(raw)
                             classes = data_parsed.get("classes", [])
 
                             from db.queries.university_schedules import (
@@ -1298,20 +1424,23 @@ week_type: "odd" dacă e marcat SI, "even" dacă SP, "both" dacă apare în ambe
 
                         import tempfile
                         import os
-                        import base64
-
                         with tempfile.NamedTemporaryFile(
                             suffix=".pdf", delete=False
                         ) as tmp:
                             await file.download_to_drive(tmp.name)
                             tmp_path = tmp.name
 
-                        with open(tmp_path, "rb") as f:
-                            pdf_data = base64.b64encode(f.read()).decode()
-                        os.unlink(tmp_path)
+                        try:
+                            from pypdf import PdfReader
 
-                        from google.genai import types
-                        from core.gemini import client
+                            reader = PdfReader(tmp_path)
+                            pdf_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+                        finally:
+                            os.unlink(tmp_path)
+                        if not pdf_text.strip():
+                            raise RuntimeError("PDF-ul nu conține text selectabil pentru analiza locală.")
+
+                        from core.vision import _call_local_llm_json
 
                         prompt = """
 Analizează acest document cu structura anului universitar.
@@ -1334,34 +1463,11 @@ Returnează EXCLUSIV JSON valid:
   ]
 }
 """
-                        response = client.models.generate_content(
-                            model="gemini-2.5-flash",
-                            contents=[
-                                types.Content(
-                                    parts=[
-                                        types.Part(
-                                            inline_data=types.Blob(
-                                                mime_type="application/pdf",
-                                                data=pdf_data,
-                                            )
-                                        ),
-                                        types.Part(text=prompt),
-                                    ]
-                                )
-                            ],
+                        data_parsed = await _call_local_llm_json(
+                            f"{prompt}\n\nTEXT EXTRAS LOCAL DIN PDF:\n{pdf_text}"
                         )
 
-                        pass
-
-                        raw = response.text.strip()
-                        if "```" in raw:
-                            raw = (
-                                raw.split("```")[1].lstrip("json").strip().rstrip("```")
-                            )
-
                         try:
-                            data_parsed = json.loads(raw)
-
                             from db.queries.university_schedules import (
                                 insert_academic_period,
                             )
@@ -1467,10 +1573,37 @@ Returnează EXCLUSIV JSON valid:
 
             elif state["state_type"] == "awaiting_day_plan_input":
                 # If command, clear state and proceed
+                low_input = text.lower()
                 if text.startswith("/"):
                     await clear_state(pool)
+                elif low_input.strip() in {
+                    "nu",
+                    "nu.",
+                    "anulează",
+                    "anuleaza",
+                    "renunță",
+                    "renunta",
+                    "stop",
+                    "skip",
+                    "închide",
+                    "inchide",
+                    "anulează planul",
+                    "anuleaza planul",
+                }:
+                    await clear_state(pool)
+                    try:
+                        from scheduler.jobs import _global_scheduler
+
+                        if _global_scheduler:
+                            existing = _global_scheduler.get_job("day_plan_timeout")
+                            if existing:
+                                existing.remove()
+                    except Exception as sched_err:
+                        logger.error(f"Error cancelling day plan timeout: {sched_err}")
+                    await update.message.reply_text("Planul de zi a fost închis. 👌")
+                    return
                 elif any(
-                    w in text.lower()
+                    w in low_input
                     for w in [
                         "remintește-mi",
                         "uită-mă",
@@ -1480,6 +1613,14 @@ Returnează EXCLUSIV JSON valid:
                         "adu-mi aminte",
                         "adumă aminte",
                         "aminteste-mi",
+                        "adău-mi minte",
+                        "adau-mi minte",
+                        "adu-mi",
+                        "adau-mi",
+                        "adău-mi",
+                        "amintește",
+                        "aminteste",
+                        "reminder",
                     ]
                 ):
                     # It's a reminder intent - clear state and let normal flow handle it
@@ -1520,16 +1661,23 @@ Reguli:
 
                         if itinerary:
                             await save_day_plan(pool, today, text, itinerary)
-                            await update.message.reply_text(
-                                safe_markdown(itinerary), parse_mode="MarkdownV2"
-                            )
+                            try:
+                                await update.message.reply_text(
+                                    safe_markdown(itinerary), parse_mode="MarkdownV2"
+                                )
+                            except Exception as md_err:
+                                logger.warning(f"MarkdownV2 render failed for day plan, sending plain text: {md_err}")
+                                await update.message.reply_text(itinerary)
+                            await save_message(pool, telegram_id, "assistant", itinerary)
                             await clear_state(pool)
-                            # Mark plan as done for today
-                            from db.queries.profile import update_user_profile
-
-                            await update_user_profile(
-                                pool, telegram_id, last_plan_date=today
-                            )
+                            # Mark plan as done for today (best-effort, don't block reply)
+                            try:
+                                from db.queries.profile import update_user_profile
+                                await update_user_profile(
+                                    pool, telegram_id, last_plan_date=today
+                                )
+                            except Exception as prof_err:
+                                logger.warning(f"Could not update last_plan_date: {prof_err}")
                             return
                         else:
                             await update.message.reply_text(
@@ -1539,10 +1687,11 @@ Reguli:
                             return
 
                     except Exception as e:
-                        print(f"Error handling day plan input: {e}")
-                        traceback.print_exc()
-                        err_msg = "Eroare la generarea planului"
-                        await update.message.reply_text(err_msg)
+                        logger.error(f"Error handling day plan input: {e}", exc_info=True)
+                        try:
+                            await update.message.reply_text("Eroare la generarea planului")
+                        except Exception:
+                            pass
                         await clear_state(pool)
                         return
 
@@ -1682,9 +1831,7 @@ Reguli:
                 ]
                 if any(kw in lower_text for kw in other_module_keywords):
                     await clear_state(pool)
-                    print(
-                        f"🔄 STATE CLEARED: detected other module keyword in '{text}'"
-                    )
+                    logger.info(f"🔄 STATE CLEARED: detected other module keyword in '{text}'")
                     # Fall through to Gemini
                 else:
                     # Simple parsing: first line name, rest description
@@ -1773,9 +1920,18 @@ Reguli:
 
         # 5. Fall back to Gemini if regex didn't match
         if not intent_response:
-            print("⏳ BUILDING CONTEXT (Lazy Load)...", flush=True)
-            context_snapshot = await build_context(pool, text)
-            profile = await get_user_profile(pool, telegram_id)
+            logger.info("⏳ BUILDING CONTEXT (Lazy Load)...")
+            try:
+                context_snapshot = await asyncio.wait_for(build_context(pool, text), timeout=10.0)
+            except Exception as ctx_err:
+                logger.warning(f"Error or timeout building context: {ctx_err}")
+                context_snapshot = ""
+
+            try:
+                profile = await asyncio.wait_for(get_user_profile(pool, telegram_id), timeout=5.0)
+            except Exception as prof_err:
+                logger.warning(f"Error fetching profile: {prof_err}")
+                profile = {}
 
             # Generate hint based on state
             system_hint = ""
@@ -1800,33 +1956,37 @@ Reguli:
                         "User is providing university data (exam, grade, or subject)."
                     )
 
-            intent_response = await get_gemini_response(
-                pool,
-                telegram_id,
-                user_message=text,
-                user_name=profile.get("name", "User"),
-                tone=profile.get("tone", "warm"),
-                context_snapshot=context_snapshot,
-                history=history,
-                personal_notes=profile.get("personal_notes") or "",
-                system_hint=system_hint,
-                voice_uri=voice_uri,
-                model=profile.get("llm_model"),
-            )
-            # Stamp the source so the router can pass it through
-            if isinstance(intent_response, dict):
-                intent_response["source"] = source
+            try:
+                final_reply, reply_markup, _ = await asyncio.wait_for(
+                    agent_loop(
+                        pool, telegram_id, text,
+                        user_name=profile.get("name", "User"),
+                        tone=profile.get("tone", "warm"),
+                        context_snapshot=context_snapshot,
+                        history=history,
+                        personal_notes=profile.get("personal_notes") or "",
+                        system_hint=system_hint,
+                        bot=context.bot,
+                    ),
+                    timeout=45.0,
+                )
+            except asyncio.TimeoutError:
+                logger.error("agent_loop timed out after 45s")
+                final_reply = "Procesarea a durat prea mult. Te rog să reîncerci."
+                reply_markup = None
+            except Exception as loop_err:
+                logger.exception("Error in agent_loop: %s", loop_err)
+                final_reply = "A apărut o eroare la procesarea mesajului."
+                reply_markup = None
         else:
             # For regex matches, we might still need the profile for trigger_morning_briefing
             # but we can load it only if that specific intent is found later.
             # For now, let's keep it minimal.
             pass
-        print(
-            f"🧠 GEMINI: Intent={intent_response.get('intent')}, Module={intent_response.get('module')}, Data={intent_response.get('data')}"
-        )
 
-        # Special handling for morning briefing - call directly with application
-        if intent_response.get("intent") == "trigger_morning_briefing":
+        # Special handling for morning briefing (text-based)
+        low_text = text.lower().strip()
+        if low_text in ["bună dimineața", "buna dimineata", "morning", "bună dimineaţa"]:
             from scheduler.jobs import send_morning_briefing
             from core.config import TELEGRAM_USER_ID as TG_UID
             import db.queries.profile as profile_queries
@@ -1836,9 +1996,7 @@ Reguli:
             profile = await profile_queries.get_user_profile(pool, TG_UID)
             if profile.get("last_briefing_date") == today:
                 await update.message.reply_text(
-                    safe_markdown(
-                        "Deja ți-am trimis briefing-ul de dimineață. O zi productivă! ☀️"
-                    ),
+                    safe_markdown("Deja ți-am trimis briefing-ul de dimineață. O zi productivă! ☀️"),
                     parse_mode="MarkdownV2",
                 )
                 return
@@ -1850,9 +2008,7 @@ Reguli:
             try:
                 await send_morning_briefing(context.application, pool, force=True)
             except Exception as e:
-                pass
-
-                print(f"ERROR in morning briefing: {e}", flush=True)
+                logger.error(f"ERROR in morning briefing: {e}")
                 traceback.print_exc()
                 await update.message.reply_text(
                     safe_markdown(f"❌ Eroare la briefing: {str(e)[:200]}"),
@@ -1860,66 +2016,33 @@ Reguli:
                 )
             return
 
-        # 5. Merge state context into Gemini results
+        # Agent tools use the same confirmation gate as routed intents.  The
+        # pending action is already in conversation_state; show its summary
+        # instead of sending the internal sentinel text to Telegram.
+        if final_reply == "__CONFIRMATION_REQUIRED__":
+            from core.state import get_pending_action
+
+            pending = await get_pending_action(pool)
+            if pending:
+                await send_confirmation_request(
+                    pending.get("intent", ""),
+                    pending.get("payload") or {},
+                    update,
+                    context,
+                )
+                return
+            logger.error("Confirmation requested but no pending action was stored")
+            final_reply = "A apărut o eroare la pregătirea confirmării."
+
+        # Clear any state now that the agent loop ran
         if state:
-            state_type = state.get("state_type")
-            if state_type == "awaiting_task_input":
-                # If Gemini somehow failed to catch add_task despite hint, force it here
-                if intent_response.get("intent") != "add_task":
-                    intent_response["intent"] = "add_task"
-                    intent_response["module"] = "tasks"
-                    if not intent_response.get("data"):
-                        intent_response["data"] = {}
-                    if not intent_response["data"].get("title"):
-                        intent_response["data"]["title"] = text
-
-                # Ensure project_id is preserved if it came from state
-                project_id = state.get("extra")
-                if project_id:
-                    if not intent_response.get("data"):
-                        intent_response["data"] = {}
-                    intent_response["data"]["project_id"] = project_id
-
-            elif state_type == "awaiting_project_input":
-                if intent_response.get("intent") != "add_project":
-                    intent_response["intent"] = "add_project"
-                    intent_response["module"] = "projects"
-                    if not intent_response.get("data"):
-                        intent_response["data"] = {}
-                    if not intent_response["data"].get("name"):
-                        intent_response["data"]["name"] = text
-
-        # 6. Clear state before routing if we processed a state-based intent
-        if state and intent_response.get("intent") in [
-            "add_task",
-            "add_project",
-            "health_log",
-            "log_skill",
-            "finance_log",
-        ]:
             from core.state import clear_state
-
             await clear_state(pool)
 
-        # 7. Route intent and get final reply + keyboard
-        intent_response["_user_message"] = text
-        final_reply, reply_markup, _ = await route_intent(
-            pool, intent_response, user_id=telegram_id, bot=context.bot
-        )
-        if final_reply == "__CONFIRMATION_REQUIRED__":
-            await send_confirmation_request(
-                intent_response.get("intent"),
-                intent_response.get("data") or {},
-                update,
-                context,
-            )
-            return
-        print(f"📡 ROUTER: Reply length={len(final_reply) if final_reply else 0}")
+        logger.info(f"📡 AGENT: Reply length={len(final_reply) if final_reply else 0}")
 
         if not final_reply or str(final_reply).strip() == "":
-            print(
-                "⚠️ Router returned empty reply, sending generic fallback...", flush=True
-            )
+            logger.warning("⚠️ Agent returned empty reply, sending generic fallback...")
             final_reply = "Scuze, nu am înțeles. (Răspuns gol de la LLM)"
         await save_message(pool, telegram_id, "assistant", final_reply)
 
@@ -1933,22 +2056,19 @@ Reguli:
             try:
                 from bot.tts import text_to_speech
 
-                print(f"🎙️ Generating voice reply for {telegram_id}...", flush=True)
+                logger.info(f"🎙️ Generating voice reply for {telegram_id}...")
                 voice_path = await text_to_speech(final_reply)
                 if voice_path and os.path.exists(voice_path):
                     with open(voice_path, "rb") as f:
                         await update.message.reply_voice(voice=f, caption="Lora 🎙️")
                     os.remove(voice_path)
             except Exception as tts_err:
-                print(f"❌ TTS ERROR: {tts_err}")
+                logger.error(f"❌ TTS ERROR: {tts_err}")
 
         for i, chunk in enumerate(chunks):
             current_markup = reply_markup if i == len(chunks) - 1 else None
             try:
-                print(
-                    f"📤 SENDING chunk {i + 1}/{len(chunks)}: {repr(chunk[:50])}...",
-                    flush=True,
-                )
+                logger.info(f"📤 SENDING chunk {i + 1}/{len(chunks)}: {repr(chunk[:50])}...")
                 await update.message.reply_text(
                     safe_markdown(chunk),
                     parse_mode="MarkdownV2",
@@ -1956,21 +2076,14 @@ Reguli:
                 )
 
             except Exception as e:
-                print(
-                    f"⚠️ MarkdownV2 FAILED for chunk {i + 1}, falling back to plain text: {e}",
-                    flush=True,
-                )
+                logger.warning(f"⚠️ MarkdownV2 FAILED for chunk {i + 1}, falling back to plain text: {e}")
                 try:
                     await update.message.reply_text(chunk, reply_markup=current_markup)
                 except Exception as e2:
-                    print(f"🚨 Plain text fallback ALSO FAILED: {e2}", flush=True)
+                    logger.error(f"🚨 Plain text fallback ALSO FAILED: {e2}")
                     raise e2
 
     except Exception as e:
-        pass
-        pass
-
-        logger = logging.getLogger(__name__)
         logger.error(f"ERROR in message_handler: {e}\n{traceback.format_exc()}")
         try:
             await context.bot.send_message(
@@ -2070,15 +2183,36 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
 
         action, params = parse_callback_data(data)
 
-        print(
-            f"DEBUG: CALLBACK RECEIVED: action={action} params={params} from user={update.effective_user.id}",
-            flush=True,
-        )
+        logger.info(f"DEBUG: CALLBACK RECEIVED: action={action} params={params} from user={update.effective_user.id}")
 
         if action == "action":
             action_type = params[0] if params else ""
             await handle_confirmation_callback(query, pool, action_type, context.bot)
             return
+
+        if action == "work_lunch":
+            sub_action = params[0] if params else ""
+            if sub_action == "done":
+                await query.answer("Excelent!")
+                await query.edit_message_text("✅ Bravo! Ai luat meniul cu pui, bonul fiscal și desertul. Poftă bună! 🍗🍰")
+                return
+            elif sub_action == "snooze":
+                await query.answer("Amânat 10 minute!")
+                await query.edit_message_text("⏰ Am amânat reminder-ul cu 10 minute. Îți aduc aminte la 11:40! 🔔")
+                try:
+                    from scheduler.jobs import _global_scheduler, send_work_lunch_reminder
+                    if _global_scheduler:
+                        from datetime import datetime, timedelta
+                        run_time = datetime.now() + timedelta(minutes=10)
+                        _global_scheduler.add_job(
+                            send_work_lunch_reminder,
+                            "date",
+                            run_date=run_time,
+                            args=[context.application, pool],
+                        )
+                except Exception as ex:
+                    logger.error(f"Error scheduling snooze for work_lunch: {ex}")
+                return
 
         if action == "task":
             task_action = params[0] if params else ""
@@ -2123,6 +2257,25 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             elif habit_action == "ignore":
                 await query.answer("Ignorat.")
                 await query.edit_message_text("Ignorat. 👌")
+                return
+
+        if action == "plan":
+            plan_action = params[0] if params else ""
+            if plan_action == "skip":
+                from core.state import clear_state
+
+                await clear_state(pool)
+                try:
+                    from scheduler.jobs import _global_scheduler
+
+                    if _global_scheduler:
+                        existing = _global_scheduler.get_job("day_plan_timeout")
+                        if existing:
+                            existing.remove()
+                except Exception as sched_err:
+                    logger.error(f"Error cancelling day plan timeout: {sched_err}")
+                await query.answer("Plan închis.")
+                await query.edit_message_text("Planul de zi a fost închis. 👌")
                 return
 
         if data.startswith("profile_"):
@@ -2192,25 +2345,25 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         if data.startswith("eod:"):
             await handle_eod_callback(query, pool, data)
             return
-        if data.startswith("goals_"):
+        if data.startswith(("goals_", "goals:")):
             from modules.goals import handle_goals_callback
 
             await handle_goals_callback(query, pool, data)
             return
 
-        if data.startswith("skills_"):
+        if data.startswith(("skills_", "skills:")):
             from modules.skills import handle_skills_callback
 
             await handle_skills_callback(update, context, pool)
             return
 
-        if data.startswith("reading_"):
+        if data.startswith(("reading_", "reading:")):
             from modules.reading import handle_reading_callback
 
             await handle_reading_callback(query, pool, data)
             return
 
-        if data.startswith("workout_"):
+        if data.startswith(("workout_", "workout:")):
             from modules.workout import handle_workout_callback
 
             await handle_workout_callback(query, pool, data)
@@ -2259,7 +2412,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             import io
             from modules.finance import handle_finance_intent
 
-            if data == "finance_chart" or action == "finance_chart":
+            if data == "finance:chart" or action == "finance_chart":
                 result, _, _ = await handle_finance_intent(pool, "finance_chart", {})
                 if isinstance(result, (bytes, io.BytesIO)):
                     await context.bot.send_photo(
@@ -2271,7 +2424,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                     await query.message.reply_text(result)
                 return
 
-            elif data == "finance_summary" or action == "finance_summary":
+            elif data == "finance:summary" or action == "finance_summary":
                 text, markup, _ = await handle_finance_intent(
                     pool, "finance_summary", {}
                 )
@@ -2280,7 +2433,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 )
                 return
 
-            elif data == "finance_add_expense":
+            elif data == "finance:add:expense":
                 from core.state import set_state
 
                 await set_state(
@@ -2296,7 +2449,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 await _save_prompt_to_conversation(pool, prompt)
                 return
 
-            elif data == "finance_add_income":
+            elif data == "finance:add:income":
                 from core.state import set_state
 
                 await set_state(
@@ -2312,13 +2465,13 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 await _save_prompt_to_conversation(pool, prompt)
                 return
 
-            elif data == "finance_stats":
+            elif data == "finance:stats":
                 await query.answer(
                     "Statisticile detaliate sunt în curs de implementare... 🚧"
                 )
                 return
 
-            elif data == "finance_categories":
+            elif data == "finance:categories":
                 text, markup, _ = await handle_finance_intent(
                     pool, "list_categories", {}
                 )
@@ -2327,7 +2480,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 )
                 return
 
-            elif data == "finance_add_category":
+            elif data == "finance:add:category":
                 from core.state import set_state
 
                 await set_state(
@@ -2398,9 +2551,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             return
 
         # Generic fallback for unknown callbacks
-        import logging
-
-        logger = logging.getLogger(__name__)
         logger.warning(
             f"Unknown callback data received: action={action} params={params} (raw: {data})"
         )
@@ -2409,8 +2559,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         )
 
     except Exception as e:
-        print(f"ERROR in callback_handler: {e}")
-        traceback.print_exc()
+        logger.error(f"ERROR in callback_handler: {e}")
 
 
 async def show_uni_dashboard(message_or_query, pool, send_new: bool = False):
@@ -2492,7 +2641,6 @@ async def show_uni_dashboard(message_or_query, pool, send_new: bool = False):
 async def handle_uni_callback(query, pool, data: str):
     """Routes all uni: callback queries."""
     from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-    import traceback
     from bot.formatter import safe_markdown
 
     try:
@@ -3038,8 +3186,7 @@ Dacă nu sunt suficiente date: spune direct.
                 )
 
     except Exception as e:
-        print(f"❌ ERROR in handle_uni_callback: {e}")
-        traceback.print_exc()
+        logger.error(f"❌ ERROR in handle_uni_callback: {e}")
         try:
             await query.message.reply_text(
                 safe_markdown(f"A apărut o eroare internă: {str(e)[:100]}"),
@@ -3061,7 +3208,7 @@ async def goals_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg, parse_mode="MarkdownV2", reply_markup=markup
         )
     except Exception as e:
-        print(f"Error in goals_command: {e}")
+        logger.error(f"Error in goals_command: {e}")
         await update.message.reply_text("❌ Eroare la încărcarea dashboard-ului Goals.")
 
 
@@ -3176,7 +3323,6 @@ async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
         await update.message.reply_text("Nu am găsit profilul tău.")
         return
 
-    name = profile.get("name", "Utilizator")
     tone = profile.get("tone", "warm")
     start = profile.get("active_hours_start", "08:00")
     end = profile.get("active_hours_end", "22:00")
@@ -3196,7 +3342,7 @@ async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, po
         )
 
     text = (
-        f"👤 *Profilul lui {escape_md(name)}*\n\n"
+        "👤 *Profil Utilizator*\n\n"
         f"🎭 *Tone:* `{tone}`\n"
         f"⏰ *Ore active:* `{escape_md(str(start)[:5])}` \\- `{escape_md(str(end)[:5])}`\n"
         f"🌍 *Timezone:* `{escape_md(profile.get('timezone', 'UTC'))}`"
@@ -3398,81 +3544,81 @@ def generate_action_summary(intent: str, data: dict) -> str:
     if intent == "add_task":
         title = escape_md(data.get("title", ""))
         priority = escape_md(data.get("priority", "medium"))
-        return f"Ești pe cale să adaugi task\-ul *'{title}'* cu prioritate *'{priority}'*\\. Confirmă?"
+        return rf"Ești pe cale să adaugi task\-ul *'{title}'* cu prioritate *'{priority}'*\\. Confirmă?"
 
     elif intent == "complete_task":
         task_id = escape_md(str(data.get("id") or data.get("task_id") or ""))
-        return f"Ești pe cale să finalizezi task\-ul cu ID\-ul *{task_id}*\\. Confirmă?"
+        return rf"Ești pe cale să finalizezi task\-ul cu ID\-ul *{task_id}*\\. Confirmă?"
 
     elif intent == "delete_task":
         task_id = escape_md(str(data.get("id") or data.get("task_id") or ""))
-        return f"Ești pe cale să ștergi task\-ul cu ID\-ul *{task_id}*\\. Confirmă?"
+        return rf"Ești pe cale să ștergi task\-ul cu ID\-ul *{task_id}*\\. Confirmă?"
 
     elif intent == "edit_task":
         task_id = escape_md(str(data.get("id") or data.get("task_id") or ""))
-        return f"Ești pe cale să modifici task\-ul cu ID\-ul *{task_id}*\\. Confirmă?"
+        return rf"Ești pe cale să modifici task\-ul cu ID\-ul *{task_id}*\\. Confirmă?"
 
     elif intent == "add_project":
         name = escape_md(data.get("name", ""))
-        return f"Ești pe cale să creezi proiectul *'{name}'*\\. Confirmă?"
+        return rf"Ești pe cale să creezi proiectul *'{name}'*\\. Confirmă?"
 
     elif intent == "delete_project":
         proj_id = escape_md(str(data.get("id") or ""))
-        return f"Ești pe cale să ștergi proiectul cu ID\-ul *{proj_id}*\\. Confirmă?"
+        return rf"Ești pe cale să ștergi proiectul cu ID\-ul *{proj_id}*\\. Confirmă?"
 
     elif intent == "finance_log":
-        t_type = "venit" if data.get("type") == "income" else "cheltuială"
+        t_type = "un venit" if data.get("type") == "income" else "o cheltuială"
         amount = escape_md(str(data.get("amount", "")))
         cat = escape_md(data.get("category", "altele"))
-        return f"Ești pe cale să înregistrezi o *{t_type}* de *{amount} lei* la categoria *'{cat}'*\\. Confirmă?"
+        return rf"Ești pe cale să înregistrezi *{t_type}* de *{amount} lei* la categoria *'{cat}'*\. Confirmă?"
 
     elif intent == "add_category":
         cat = escape_md(data.get("category") or data.get("name") or "")
-        return f"Ești pe cale să adaugi categoria financiară *'{cat}'*\\. Confirmă?"
+        return rf"Ești pe cale să adaugi categoria financiară *'{cat}'*\\. Confirmă?"
 
     elif intent == "delete_category":
         cat = escape_md(data.get("category") or data.get("id") or "")
-        return f"Ești pe cale să ștergi categoria financiară *'{cat}'*\\. Confirmă?"
+        return rf"Ești pe cale să ștergi categoria financiară *'{cat}'*\\. Confirmă?"
 
     elif intent == "set_budget":
         cat = escape_md(data.get("category", ""))
         amount = escape_md(str(data.get("amount") or data.get("limit") or ""))
-        return f"Ești pe cale să setezi bugetul pentru *'{cat}'* la *{amount} lei*\\. Confirmă?"
+        return rf"Ești pe cale să setezi bugetul pentru *'{cat}'* la *{amount} lei*\\. Confirmă?"
 
     elif intent == "log_skill":
         name = escape_md(data.get("name") or data.get("skill") or "")
         dur = escape_md(str(data.get("duration", "")))
-        return f"Ești pe cale să înregistrezi progres la skill\-ul *'{name}'* \(*{dur} min*\)\\. Confirmă?"
+        return rf"Ești pe cale să înregistrezi progres la skill\-ul *'{name}'* \(*{dur} min*\)\\. Confirmă?"
 
     elif intent == "add_habit":
         name = escape_md(data.get("name", ""))
-        return f"Ești pe cale să adaugi habit\-ul *'{name}'*\\. Confirmă?"
+        return rf"Ești pe cale să adaugi habit\-ul *'{name}'*\\. Confirmă?"
 
     elif intent == "log_habit":
         name = escape_md(str(data.get("name") or data.get("id") or ""))
-        return f"Ești pe cale să bifezi habit\-ul *{name}*\\. Confirmă?"
+        return rf"Ești pe cale să bifezi habit\-ul *{name}*\\. Confirmă?"
 
     elif intent == "delete_habit":
         name = escape_md(str(data.get("name") or data.get("id") or ""))
-        return f"Ești pe cale să ștergi habit\-ul *{name}*\\. Confirmă?"
+        return rf"Ești pe cale să ștergi habit\-ul *{name}*\\. Confirmă?"
 
     elif intent == "uni_add_subject":
         name = escape_md(data.get("name", ""))
-        return f"Ești pe cale să adaugi materia *'{name}'*\\. Confirmă?"
+        return rf"Ești pe cale să adaugi materia *'{name}'*\\. Confirmă?"
 
     elif intent == "uni_log_attendance":
         sub_id = escape_md(str(data.get("subject_id") or ""))
-        return f"Ești pe cale să înregistrezi prezența/absența pentru materia cu ID\-ul *{sub_id}*\\. Confirmă?"
+        return rf"Ești pe cale să înregistrezi prezența/absența pentru materia cu ID\-ul *{sub_id}*\\. Confirmă?"
 
     elif intent == "uni_add_grade":
         val = escape_md(str(data.get("grade_value", "")))
         sub_id = escape_md(str(data.get("subject_id") or ""))
-        return f"Ești pe cale să adaugi nota *{val}* la materia cu ID\-ul *{sub_id}*\\. Confirmă?"
+        return rf"Ești pe cale să adaugi nota *{val}* la materia cu ID\-ul *{sub_id}*\\. Confirmă?"
 
     elif intent == "uni_add_exam":
         sub_id = escape_md(str(data.get("subject_id") or ""))
         dt = escape_md(str(data.get("exam_date") or ""))
-        return f"Ești pe cale să adaugi examenul la materia cu ID\-ul *{sub_id}* pe data de *{dt}*\\. Confirmă?"
+        return rf"Ești pe cale să adaugi examenul la materia cu ID\-ul *{sub_id}* pe data de *{dt}*\\. Confirmă?"
 
     elif intent == "health_log":
         sleep = escape_md(str(data.get("sleep_hours") or ""))
@@ -3486,7 +3632,7 @@ def generate_action_summary(intent: str, data: dict) -> str:
         if cigarettes:
             parts.append(f"*{cigarettes} țigări*")
         parts_str = ", ".join(parts)
-        return f"Ești pe cale să înregistrezi în log\-ul de sănătate: {parts_str}\\. Confirmă?"
+        return rf"Ești pe cale să înregistrezi în log\-ul de sănătate: {parts_str}\\. Confirmă?"
 
     elif intent == "log_water":
         amount = escape_md(str(data.get("amount") or data.get("water_ml") or ""))

@@ -56,6 +56,8 @@ export interface FinanceSummary {
   income: number
   expense: number
   balance: number
+  total_balance?: number
+  monthly_balance?: number
 }
 
 export interface ShoppingItem {
@@ -75,11 +77,15 @@ export interface MemoryFact {
 
 export interface Note {
   id: number
-  title: string
-  body: string
+  content: string
+  title?: string
+  body?: string
   tags?: string[]
-  is_pinned: boolean
-  created_at: string
+  mood?: string
+  project_id?: number
+  is_pinned?: boolean
+  created_at?: string
+  updated_at?: string
 }
 
 export interface Skill {
@@ -88,6 +94,11 @@ export interface Skill {
   level: number
   xp: number
   streak: number
+  category?: string
+  unit?: string
+  last_value?: number
+  last_metric?: string
+  last_log_date?: string
 }
 
 export interface GoalTask {
@@ -120,6 +131,15 @@ export interface Book {
   rating?: number
 }
 
+export interface MealItem {
+  name: string
+  grams?: number
+  calories?: number
+  protein?: number
+  carbs?: number
+  fat?: number
+}
+
 export interface Meal {
   id: number
   meal_type: string
@@ -128,6 +148,39 @@ export interface Meal {
   protein: number
   carbs: number
   fat: number
+  items?: MealItem[]
+  created_at?: string
+}
+
+export interface ProductMemory {
+  id: number
+  raw_pattern: string
+  clean_name: string
+  category: string
+  merchant?: string
+  frequency: number
+  last_price?: number
+  updated_at?: string
+}
+
+export interface MerchantMemory {
+  id: number
+  raw_pattern: string
+  clean_name: string
+  frequency: number
+  updated_at?: string
+}
+
+export interface NewsArticle {
+  id: string
+  title: string
+  source: string
+  url: string
+  category: string
+  category_title: string
+  category_icon: string
+  relative_time: string
+  published_at?: string
 }
 
 export interface NutritionTargets {
@@ -220,17 +273,14 @@ export interface Profile {
   study_group?: string
   water_target_ml?: number
   personal_notes?: string
-  llm_provider?: string
   llm_host?: string
   llm_model?: string
-  gemini_api_key?: string
   city_name?: string
   latitude?: number
   longitude?: number
   is_at_home?: boolean
   home_latitude?: number
   home_longitude?: number
-  preferred_tone?: string
   units?: string
   language?: string
   week_start_day?: string

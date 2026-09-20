@@ -13,6 +13,7 @@ from core.config import (
     MORNING_BRIEFING_TIME,
     EOD_REFLECTION_TIME,
     HABIT_REMINDER_TIME,
+    TASK_CLEANUP_DAYS,
 )
 from bot.formatter import escape_md, safe_markdown
 from telegram.constants import ParseMode
@@ -312,16 +313,17 @@ async def send_morning_briefing(application, pool, force=False):
         tone = profile.get("tone", "warm")
         city = profile.get("city_name", "Locația ta")
 
-        instruction = f"""Ești Lora, asistenta inteligentă a lui {name}.
+        instruction = f"""Ești Lora, asistentul inteligent și proactiv în Telegram.
 Generezi un Morning Briefing COMPLET, PRIORITIZAT și ELEGANT pentru Telegram.
 
 STIL: Modern Assistant (Structurat dar minimalist). 
+- ADRESARE: NICIODATĂ nu folosi numele utilizatorului (NU spune 'Darius', 'Robu' sau orice alt nume).
 - Între fiecare secțiune, afișează strict această linie separatoare:
 ━━━━━━━━━━━━━━━━━━━━
 - Antet cu data și locația (Locația ta actuală: {city}).
 - Secțiuni clare cu titluri boldate și emoji-uri (ex: 🎯 *PRIORITĂȚI*).
 - Ton: {tone}, Romglish natural, concentrat pe acțiune.
-{"- PERSONALITATE: Ești EXTREM de autoritară, critică și exigentă. Ceartă-l pentru task-uri overdue." if tone == "direct" else ""}
+{"- PERSONALITATE: Ești EXTREM de autoritară, critică și exigentă. Ceartă pentru task-uri overdue." if tone == "direct" else ""}
 
 CUPRINS (Păstrează toate secțiunile, ignoră doar dacă e complet gol):
 1. ANTET: Vremea și locația: {briefing_data.get("weather")}
@@ -369,7 +371,7 @@ REGULI STRICTE DE FORMAT:
 
         header = [
             "━━━━━━━━━━━━━━━",
-            f"☀️ *Bună dimineața, {escape_md(name)}\\!*",
+            "☀️ *Bună dimineața\\!*",
             f"_{date_str}_",
             "━━━━━━━━━━━━━━━\n",
         ]
@@ -427,15 +429,9 @@ Salută-l pe {name}, prezintă prioritățile și încheie motivant. Fără list
         )
         print(f"Prioritized morning briefing sent and logged for {today}.", flush=True)
 
-        # 8. Interactive Day Plan Flow
-        from core.state import set_state
+        # Interactive day plan flow disabled to avoid persistent awaiting_day_plan_input state.
+        # This block was removed per user request.
 
-        await application.bot.send_message(
-            chat_id=TELEGRAM_USER_ID,
-            text="Cum vrei să-ți arate ziua azi? Spune-mi vocal sau în scris 🗓",
-        )
-        await set_state(pool, "awaiting_day_plan_input", "day_plans", "generate", None)
-        print("Awaiting day plan input state set.", flush=True)
 
     except Exception as e:
         import traceback
@@ -596,7 +592,7 @@ async def proactive_check(application, pool) -> None:
                     ]
                 ])
                 # Escape MarkdownV2 characters properly
-                msg = f"Darius, observ că task\\-ul *'{escape_md(t['title'])}'* este depășit\\. Vrei să îl reprogramăm?"
+                msg = f"Observ că task\\-ul *'{escape_md(t['title'])}'* este depășit\\. Vrei să îl reprogramăm?"
                 await application.bot.send_message(
                     chat_id=TELEGRAM_USER_ID,
                     text=msg,
@@ -615,7 +611,7 @@ async def proactive_check(application, pool) -> None:
                         InlineKeyboardButton("❌ Ignoră", callback_data=f"habit:ignore:{h['id']}")
                     ]
                 ])
-                msg = f"Darius, observ că ai ratat habit\\-ul *'{escape_md(h['name'])}'* ieri\\. Vrei să îl loghezi?"
+                msg = f"Observ că ai ratat habit\\-ul *'{escape_md(h['name'])}'* ieri\\. Vrei să îl loghezi?"
                 await application.bot.send_message(
                     chat_id=TELEGRAM_USER_ID,
                     text=msg,
@@ -662,7 +658,6 @@ async def send_eod_reflection(application, pool, force=False):
         if not force and profile.get("last_eod_date") == today:
             return
 
-        name = profile.get("name", "User")
         print(f"Starting interactive EOD reflection for {today}...", flush=True)
 
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -679,12 +674,12 @@ async def send_eod_reflection(application, pool, force=False):
         tone = profile.get("tone", "warm")
         if tone == "direct":
             message = (
-                f"🌙 *Raportează, {escape_md(name)}\\!* \n\n"
+                "🌙 *Reflecția de seară* \n\n"
                 "Ziua s-a terminat. Sper că n-ai irosit-o degeaba. *Cum a fost ziua ta (dacă ai curajul să raportezi)?*"
             )
         else:
             message = (
-                f"🌙 *Bună seara, {escape_md(name)}\\!* \n\n"
+                "🌙 *Bună seara\\!* \n\n"
                 "E timpul pentru o scurtă reflexie\\. *Cum a fost ziua ta azi?*"
             )
 
@@ -757,6 +752,25 @@ async def check_eod_timeout(application, pool):
         traceback.print_exc()
 
 
+async def clear_day_plan_timeout(application, pool):
+    """Auto-closes the waiting day plan state if the user never responded."""
+    try:
+        from core.state import get_state, clear_state
+
+        state = await get_state(pool)
+
+        if state and state.get("state_type") == "awaiting_day_plan_input":
+            await clear_state(pool)
+            print("Day plan input timed out. State cleared.", flush=True)
+            await application.bot.send_message(
+                chat_id=TELEGRAM_USER_ID,
+                text="Am închis planul de zi\\. ⏳",
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+    except Exception as e:
+        print(f"Error in clear_day_plan_timeout: {e}", flush=True)
+
+
 async def send_journal_night(application, pool):
     """Journal Night: 3 reflection questions + mood + tomorrow planning."""
     try:
@@ -813,7 +827,7 @@ După acest Reality Check, adaugă cele 3 întrebări standard:
                 "📌 *La ce oră te trezești mâine?*"
             )
 
-        message = f"🌙 *Bună seara, {escape_md(name)}.*\n\n" + safe_markdown(
+        message = "🌙 *Bună seara.*\n\n" + safe_markdown(
             reality_check_text
         )
 
@@ -1435,31 +1449,24 @@ async def reset_budget_alerts(application, pool) -> None:
 
 
 async def check_event_reminders(application, pool):
-    """Checks for upcoming events and sends reminders ~30 min before."""
+    """Checks for upcoming events and sends both early (e.g. 30 min before) and exact-time reminders."""
     try:
         from telegram.constants import ParseMode
         from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 
-        events = await event_queries.get_events_needing_reminder(
-            pool, minutes_before=30
-        )
-
-        for e in events:
-            event_type = e.get("event_type", "event")
-            is_reminder = event_type == "reminder"
-
-            if is_reminder:
-                msg = f"🔔 *Reminder:* {escape_md(e['title'])}"
-            else:
-                remind_min = e.get("remind_before_minutes", 30)
-                time_str = (
-                    e["event_time"].strftime("%H:%M")
-                    if e.get("event_time")
-                    else "toată ziua"
-                )
-                msg = f"🔔 *{escape_md(e['title'])}* în {remind_min} minute\n⏰ {time_str}"
-                if e.get("description"):
-                    msg += f"\n📝 {escape_md(e['description'])}"
+        # 1. Early warnings (e.g. 30 min before)
+        pre_events = await event_queries.get_events_needing_pre_reminder(pool)
+        for e in pre_events:
+            remind_min = e.get("remind_before_minutes", 30)
+            time_str = (
+                e["event_time"].strftime("%H:%M")
+                if e.get("event_time")
+                else ""
+            )
+            time_suffix = f"\n⏰ {time_str}" if time_str else ""
+            msg = f"🔔 *Reminder în {remind_min} minute:* {escape_md(e['title'])}{time_suffix}"
+            if e.get("description") and e["description"] != e["title"]:
+                msg += f"\n📝 {escape_md(e['description'])}"
 
             keyboard = InlineKeyboardMarkup(
                 [
@@ -1485,10 +1492,56 @@ async def check_event_reminders(application, pool):
                     parse_mode=ParseMode.MARKDOWN_V2,
                     reply_markup=keyboard,
                 )
-            except Exception as e:
-                print(
-                    f"Event reminder MarkdownV2 failed, falling back: {e}", flush=True
+            except Exception as err:
+                print(f"Pre-reminder MarkdownV2 failed, falling back: {err}", flush=True)
+                await application.bot.send_message(
+                    chat_id=TELEGRAM_USER_ID,
+                    text=msg,
+                    reply_markup=keyboard,
                 )
+
+            await event_queries.mark_event_pre_reminded(pool, e["id"])
+            print(f"Pre-reminder sent for: {e['title']}", flush=True)
+
+        # 2. Exact-time reminders
+        exact_events = await event_queries.get_events_needing_exact_reminder(pool)
+        for e in exact_events:
+            time_str = (
+                e["event_time"].strftime("%H:%M")
+                if e.get("event_time")
+                else ""
+            )
+            time_suffix = f"\n⏰ {time_str}" if time_str else ""
+            msg = f"⏰ *Reminder:* {escape_md(e['title'])}{time_suffix}"
+            if e.get("description") and e["description"] != e["title"]:
+                msg += f"\n📝 {escape_md(e['description'])}"
+
+            keyboard = InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "👍 Ok",
+                            callback_data=make_callback_data(
+                                "event", "reminder", "ack", e["id"]
+                            ),
+                        ),
+                        InlineKeyboardButton(
+                            "📝 Note",
+                            callback_data=make_callback_data("event", "note", e["id"]),
+                        ),
+                    ]
+                ]
+            )
+
+            try:
+                await application.bot.send_message(
+                    chat_id=TELEGRAM_USER_ID,
+                    text=msg,
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                    reply_markup=keyboard,
+                )
+            except Exception as err:
+                print(f"Exact reminder MarkdownV2 failed, falling back: {err}", flush=True)
                 await application.bot.send_message(
                     chat_id=TELEGRAM_USER_ID,
                     text=msg,
@@ -1496,7 +1549,7 @@ async def check_event_reminders(application, pool):
                 )
 
             await event_queries.mark_event_reminded(pool, e["id"])
-            print(f"Event reminder sent for: {e['title']}", flush=True)
+            print(f"Exact reminder sent for: {e['title']}", flush=True)
 
     except Exception as e:
         print(f"Error in check_event_reminders: {e}", flush=True)
@@ -1770,11 +1823,74 @@ async def check_proactive_insights(application, pool) -> None:
         traceback.print_exc()
 
 
+async def cleanup_done_tasks_job(pool):
+    """Delete completed tasks older than TASK_CLEANUP_DAYS."""
+    try:
+        deleted = await task_queries.cleanup_done_tasks(pool, TASK_CLEANUP_DAYS)
+        if deleted:
+            print(f"🧹 Cleaned {deleted} done tasks older than {TASK_CLEANUP_DAYS} days.", flush=True)
+    except Exception as e:
+        print(f"Error in cleanup_done_tasks_job: {e}", flush=True)
+
+
+async def send_work_lunch_reminder(application, pool):
+    """Sends 11:30 interactive reminder for work lunch, receipt, and dessert (Mon-Fri)."""
+    try:
+        from core.config import TELEGRAM_USER_ID
+        from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+        from telegram.constants import ParseMode
+        from bot.callback_utils import make_callback_data
+
+        msg = (
+            "🍱 *REMINDER SERVICIU (11:30)*\n\n"
+            "Nu uita să iei:\n"
+            "1️⃣ Meniul de la service cu pui 🍗\n"
+            "2️⃣ Bonul fiscal 🧾\n"
+            "3️⃣ Desertul 🍰"
+        )
+
+        keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "✅ Am luat tot",
+                        callback_data=make_callback_data("work_lunch", "done", "ok"),
+                    ),
+                    InlineKeyboardButton(
+                        "⏰ Amână 10 min",
+                        callback_data=make_callback_data("work_lunch", "snooze", "10m"),
+                    ),
+                ]
+            ]
+        )
+
+        await application.bot.send_message(
+            chat_id=TELEGRAM_USER_ID,
+            text=msg,
+            parse_mode=ParseMode.MARKDOWN_V2,
+            reply_markup=keyboard,
+        )
+        print("🍱 Work lunch reminder sent successfully.", flush=True)
+    except Exception as e:
+        print(f"Error in send_work_lunch_reminder: {e}", flush=True)
+
+
 def setup_scheduler(application, pool):
     scheduler = AsyncIOScheduler(timezone=TIMEZONE)
 
     global _global_scheduler
     _global_scheduler = scheduler
+
+    # Work Lunch & Receipt Reminder - Monday to Friday at 11:30
+    scheduler.add_job(
+        send_work_lunch_reminder,
+        "cron",
+        day_of_week="mon-fri",
+        hour=11,
+        minute=30,
+        misfire_grace_time=600,
+        args=[application, pool],
+    )
 
     m_h, m_m = map(int, MORNING_BRIEFING_TIME.split(":"))
     e_h, e_m = map(int, EOD_REFLECTION_TIME.split(":"))
@@ -1795,6 +1911,16 @@ def setup_scheduler(application, pool):
         "cron",
         hour=4,
         minute=0,
+        misfire_grace_time=3600,
+        args=[pool],
+    )
+
+    # 1b2. Daily done-task cleanup at 04:30
+    scheduler.add_job(
+        cleanup_done_tasks_job,
+        "cron",
+        hour=4,
+        minute=30,
         misfire_grace_time=3600,
         args=[pool],
     )
@@ -1910,7 +2036,7 @@ def setup_scheduler(application, pool):
     )
 
     scheduler.add_job(
-        check_event_reminders, "interval", minutes=5, args=[application, pool]
+        check_event_reminders, "interval", minutes=1, args=[application, pool]
     )
 
     # Day reminder - Every day at 20:00

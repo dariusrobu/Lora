@@ -11,7 +11,7 @@ async def get_insights(user=Depends(get_current_user)):
     import db.queries.finance as fq
     import db.queries.tasks as tq
     import db.queries.insights as iq
-    from datetime import date, timedelta
+    from datetime import date
     pool = await get_pool()
     today = date.today()
     budget = await fq.get_budget_status(pool)

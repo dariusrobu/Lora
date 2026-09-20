@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Depends
 from lora_api.auth import get_current_user
 from lora_api.database import get_pool
@@ -12,6 +13,15 @@ MEAL_TYPE_MAP = {
 
 
 def _map_meal(r: dict) -> dict:
+    raw_items = r.get("items")
+    if isinstance(raw_items, str):
+        try:
+            raw_items = json.loads(raw_items)
+        except Exception:
+            raw_items = []
+    elif not isinstance(raw_items, list):
+        raw_items = []
+
     return {
         "id": r["id"],
         "meal_type": r["meal_type"],
@@ -21,6 +31,7 @@ def _map_meal(r: dict) -> dict:
         "carbs": r.get("total_carbs", 0),
         "fat": r.get("total_fat", 0),
         "created_at": r.get("created_at", ""),
+        "items": raw_items,
     }
 
 

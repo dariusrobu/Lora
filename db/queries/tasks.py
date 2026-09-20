@@ -227,7 +227,7 @@ async def get_weekly_task_stats(
             end_date,
         )
 
-        daily_stats = {row["date"]: row["completed_count"] for row in rows}
+        daily_stats = {str(row["date"]): row["completed_count"] for row in rows}
 
         # Return composite dict to satisfy both the user's per-day request
         # and the existing weekly review's need for 'added'/'completed' keys.
@@ -272,6 +272,17 @@ async def get_monthly_task_stats(pool, start_date, end_date) -> dict:
             end_date,
         )
         return {"completed": row["completed"], "created": row["created"]}
+
+
+async def cleanup_done_tasks(pool, days: int = 30) -> int:
+    """Hard-deletes tasks with status='done' older than `days` days."""
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM tasks WHERE status = 'done' AND completed_at < NOW() - make_interval(days => $1)",
+            days,
+        )
+        parts = result.split()
+        return int(parts[1]) if len(parts) > 1 else 0
 
 
 async def find_similar_tasks(pool, title: str, user_id: int) -> List[Dict[str, Any]]:

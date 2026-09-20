@@ -1,7 +1,7 @@
-import asyncio
-import json
 import traceback
-from google.genai import types
+from typing import Any
+
+from pydantic import BaseModel, Field
 from db.queries.memory import (
     save_memory_fact,
     update_fact_seen,
@@ -10,10 +10,40 @@ from db.queries.memory import (
 from core.embeddings import get_embedding
 
 
+class ExtractedMemoryFact(BaseModel):
+    """One durable fact extracted by the local structured model."""
+
+    category: str = "personal"
+    fact: str
+    source: str = "user_stated"
+    confidence: float = 1.0
+
+
+class MemoryFactBatch(BaseModel):
+    facts: list[ExtractedMemoryFact] = Field(default_factory=list)
+
+
+class MemoryUpdate(BaseModel):
+    id: int
+    fact: str
+    category: str
+
+
+class MemoryAdd(BaseModel):
+    fact: str
+    category: str
+
+
+class MemoryOptimizationPlan(BaseModel):
+    to_delete: list[int] = Field(default_factory=list)
+    to_update: list[MemoryUpdate] = Field(default_factory=list)
+    to_add: list[MemoryAdd] = Field(default_factory=list)
+
+
 async def extract_and_save_facts(
-    pool, client, user_id: int, user_message: str, assistant_reply: str
+    pool: Any, user_id: int, user_message: str, assistant_reply: str
 ) -> None:
-    """Analyzes the message exchange and extracts new facts to store in long-term memory."""
+    """Extracts durable facts with the local Ollama structured model."""
     try:
         # Get some context to avoid duplicates
         existing_facts_text = await get_context_memory(pool, user_id, user_message)
@@ -52,40 +82,31 @@ RULES:
 6. If the user shares an OPINION during chat, capture it as category "opinion".
 7. If the user mentions FUTURE PLANS, capture as category "goal".
 
-RETURN ONLY a JSON list (no markdown fences):
-[
-  {{
+RETURN ONLY this JSON object (no markdown fences):
+{{
+  "facts": [
+    {{
     "category": "...",
     "fact": "...",
-    "is_update": boolean,
+    "source": "user_stated",
     "confidence": 0.0 - 1.0
-  }}
-]
-If no new facts → return []
+    }}
+  ]
+}}
+If no new facts → {{"facts": []}}
 """
-        response = await asyncio.to_thread(
-            client.models.generate_content,
-            model="gemini-2.5-flash",
-            contents=[types.Content(role="user", parts=[types.Part(text=prompt)])],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.1,
-            ),
+        from core.gemini import generate_structured_response
+
+        raw_text = await generate_structured_response(
+            [{"role": "user", "content": prompt}], MemoryFactBatch
         )
-
-        raw_text = response.text.strip()
-        if not raw_text:
-            return
-
-        facts = json.loads(raw_text)
-        if not isinstance(facts, list):
-            return
+        facts = MemoryFactBatch.model_validate_json(raw_text).facts
 
         for fact_data in facts:
-            category = fact_data.get("category", "personal")
-            fact = fact_data.get("fact")
-            source = fact_data.get("source", "user_stated")
-            confidence = fact_data.get("confidence", 1.0)
+            category = fact_data.category
+            fact = fact_data.fact
+            source = fact_data.source
+            confidence = fact_data.confidence
 
             if not fact or confidence < 0.6:
                 continue
@@ -179,8 +200,8 @@ async def get_context_memory(
         return "Eroare la recuperarea memoriei."
 
 
-async def optimize_user_memory(pool, client, user_id: int) -> str:
-    """Uses Gemini to deduplicate and clean up all memories for a user."""
+async def optimize_user_memory(pool: Any, user_id: int) -> str:
+    """Uses local Ollama to propose and apply a memory cleanup plan."""
     from db.queries.memory import list_all_memories
 
     try:
@@ -217,44 +238,39 @@ RETURN ONLY a JSON object (no markdown):
   ]
 }}
 """
-        response = await asyncio.to_thread(
-            client.models.generate_content,
-            model="gemini-2.5-flash",
-            contents=[types.Content(role="user", parts=[types.Part(text=prompt)])],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.1,
-            ),
-        )
+        from core.gemini import generate_structured_response
 
-        plan = json.loads(response.text.strip())
+        raw_text = await generate_structured_response(
+            [{"role": "user", "content": prompt}], MemoryOptimizationPlan
+        )
+        plan = MemoryOptimizationPlan.model_validate_json(raw_text)
 
         async with pool.acquire() as conn:
             # 1. Delete
-            for fid in plan.get("to_delete", []):
+            for fid in plan.to_delete:
                 await conn.execute("DELETE FROM memory_facts WHERE id = $1", fid)
 
             # 2. Update
-            for item in plan.get("to_update", []):
+            for item in plan.to_update:
                 await conn.execute(
                     "UPDATE memory_facts SET fact = $1, category = $2 WHERE id = $3",
-                    item["fact"],
-                    item["category"],
-                    item["id"],
+                    item.fact,
+                    item.category,
+                    item.id,
                 )
 
             # 3. Add
-            for item in plan.get("to_add", []):
+            for item in plan.to_add:
                 await conn.execute(
                     "INSERT INTO memory_facts (user_id, fact, category, source) VALUES ($1, $2, $3, 'optimization')",
                     user_id,
-                    item["fact"],
-                    item["category"],
+                    item.fact,
+                    item.category,
                 )
 
-        total_deleted = len(plan.get("to_delete", []))
-        total_updated = len(plan.get("to_update", []))
-        total_added = len(plan.get("to_add", []))
+        total_deleted = len(plan.to_delete)
+        total_updated = len(plan.to_update)
+        total_added = len(plan.to_add)
 
         return f"Optimizare completă! 🧠✨\nAm eliminat {total_deleted} duplicate și am consolidat {total_updated + total_added} amintiri."
 

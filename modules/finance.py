@@ -2,8 +2,7 @@ from bot.callback_utils import make_callback_data
 from typing import Dict, Any, Tuple, Optional
 from datetime import date
 import io
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
+
 from bot.formatter import escape_md, safe_markdown
 import db.queries.finance as finance_queries
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -56,7 +55,10 @@ async def handle_finance_intent(
             data.get("item_id") or data.get("id") or await get_last_transaction_id(pool)
         )
         if last_id:
-            return await undo_last_action(pool, "finance_log", int(last_id))
+            ok, msg = await undo_last_action(pool, "finance_log", int(last_id))
+            if ok:
+                return f"✅ Am anulat {msg}.", None, None
+            return f"❌ Nu am putut anula: {msg}", None, None
         return "Nu am găsit nicio tranzacție recentă de anulat.", None, None
 
     elif intent == "delete_finance" or intent == "delete_transaction":
@@ -138,9 +140,9 @@ async def _handle_log_expense(
                 spent = float(b["current_spent"])
                 limit = float(b["monthly_limit"])
                 if limit > 0 and spent > limit:
-                    budget_warning = f"\n\n🚨 *AUDIT DE URGENȚĂ\!* Ai depășit bugetul pentru *{escape_md(category)}* cu {spent - limit:.2f} RON\. Te oprești acum sau vrei să terminăm luna pe minus? 🛑"
+                    budget_warning = f"\n\n🚨 *AUDIT DE URGENȚĂ\\!* Ai depășit bugetul pentru *{escape_md(category)}* cu {spent - limit:.2f} RON\\. Te oprești acum sau vrei să terminăm luna pe minus? 🛑"
                 elif limit > 0 and spent > limit * 0.8:
-                    budget_warning = f"\n\n⚠️ *ATENȚIE\!* Ești la {spent / limit * 100:.1f}\\% din bugetul pentru {escape_md(category)}\. Începe să tai din cheltuieli\!"
+                    budget_warning = f"\n\n⚠️ *ATENȚIE\\!* Ești la {spent / limit * 100:.1f}\\% din bugetul pentru {escape_md(category)}\\. Începe să tai din cheltuieli\\!"
 
     msg = f"💰 Cheltuială logată: *{amount} RON* (Categoria: *{escape_md(category)}*).{budget_warning}"
     if description:
@@ -311,6 +313,12 @@ async def _generate_finance_summary_text(
 
 
 async def _generate_finance_chart(pool) -> Tuple[str, Any]:
+    try:
+        import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates  # noqa: F401
+    except ImportError:
+        return "⚠️ Modulul de grafice nu este disponibil \\(matplotlib lipsă\\)\\.", None
+
     history = await finance_queries.get_finance_history(pool, 30)
     if len(history) < 2:
         return (
@@ -381,7 +389,7 @@ async def handle_finance_message(update, pool, state: dict, text: str) -> None:
         data["description"] = text
         data["type"] = (
             "income"
-            if any(w in low for w in ["venit", "salariu", "am primit", "incasat"])
+            if any(w in text.lower() for w in ["venit", "salariu", "am primit", "incasat"])
             else "expense"
         )
 

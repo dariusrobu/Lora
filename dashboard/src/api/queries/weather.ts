@@ -14,6 +14,11 @@ export interface WeatherCurrent {
   country: string
   sunrise: number
   sunset: number
+  // Compatibility aliases used by the kiosk/legacy weather page.
+  name?: string
+  temperature?: number
+  description?: string
+  weather?: string
 }
 
 export interface WeatherForecastDay {
@@ -32,7 +37,7 @@ export interface WeatherResponse {
 }
 
 export async function fetchWeather(lat: number, lon: number): Promise<WeatherResponse> {
-  const res = await fetch(`/api/weather?lat=${lat}&lon=${lon}`)
-  if (!res.ok) throw new Error("Failed to fetch weather")
-  return res.json()
+  const res = await api.get<WeatherResponse>("/api/weather", { params: { lat, lon } })
+  return res.data
 }
+import { api } from "../client"

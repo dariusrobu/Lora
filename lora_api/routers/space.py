@@ -1,6 +1,6 @@
 import asyncio
 from fastapi import APIRouter, Depends, Query, HTTPException
-from typing import Optional, List
+from typing import Optional
 from lora_api.auth import get_current_user
 from lora_api.database import get_pool
 from lora_api.serializers import clean_dict
@@ -326,7 +326,9 @@ async def list_backups(user=Depends(get_current_user)):
 @router.post("/backups")
 async def trigger_backup(user=Depends(get_current_user)):
     import db.queries.backup as q
-    import subprocess, os, datetime
+    import subprocess
+    import os
+    import datetime
     pool = await get_pool()
     log_id = await q.create_backup_log(pool, "running")
     try:

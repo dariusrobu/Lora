@@ -6,6 +6,7 @@ import { fetchFinanceHistory, fetchFinanceSummary, createTransaction } from "../
 import { WidgetCard } from "./WidgetCard"
 import { Spinner } from "../ui/Spinner"
 import { Wallet, Plus, TrendingUp, TrendingDown } from "lucide-react"
+import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip } from "recharts"
 
 interface Props { onExpand?: () => void }
 
@@ -62,7 +63,7 @@ export function FinanceWidget({ onExpand }: Props) {
   const bal = summary?.summary?.balance ?? 0
   const inc = summary?.summary?.income ?? 0
   const exp = summary?.summary?.expense ?? 0
-  const hasData = (history?.length ?? 0) > 0 || bal > 0
+  const hasData = (history?.length ?? 0) > 0 || bal !== 0 || inc > 0 || exp > 0
 
   // Budget bar
   const dailyMap = new Map<string, { income: number; expense: number }>()
@@ -112,6 +113,23 @@ export function FinanceWidget({ onExpand }: Props) {
       .map(([cat, amt]) => ({ category: cat, amount: amt, pct: total > 0 ? Math.round((amt / total) * 100) : 0 }))
   }, [history])
 
+  const chartData = useMemo(() => {
+    if (!history || history.length === 0) return []
+    const dailyMap = new Map<string, number>()
+    for (const tx of history) {
+      if (tx.type === "expense") {
+        dailyMap.set(tx.transaction_date, (dailyMap.get(tx.transaction_date) ?? 0) + tx.amount)
+      }
+    }
+    return Array.from(dailyMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-10)
+      .map(([date, amount]) => ({
+        date: new Date(date + "T00:00:00").toLocaleDateString("ro-RO", { day: "numeric", month: "short" }),
+        amount,
+      }))
+  }, [history])
+
   const handleLogExpense = () => {
     if (!expAmount.trim() || addExpMut.isPending) return
     addExpMut.mutate({
@@ -142,45 +160,101 @@ export function FinanceWidget({ onExpand }: Props) {
         </motion.div>
       }
     >
-      {/* Hero — animated balance + trend */}
-      <div className="flex items-end justify-between mb-3">
+      {/* Hero — animated balance + prominent numbers */}
+      <div className="flex items-start justify-between mb-4">
         <div>
-          <p className="text-apple-caption2 text-text-muted">Balance</p>
-          <div className="flex items-center gap-2">
+          <p className={`text-xs uppercase font-bold tracking-wider mb-1 ${
+            bal < 0 ? "text-rose-400" : "text-text-muted"
+          }`}>
+            {bal < 0 ? "Deficit Curent (Pe minus)" : "Balanță Lună"}
+          </p>
+          <div className="flex items-baseline gap-3">
             <motion.p key={bal} initial={{ y: -8, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-              className="text-2xl font-bold text-text-primary tabular-nums">{fmtCurrency(bal)}</motion.p>
-            {trend !== null && (
+              className={`text-3xl sm:text-4xl font-black tabular-nums tracking-tight ${
+                bal < 0 
+                  ? "bg-gradient-to-r from-rose-400 via-rose-300 to-red-500 bg-clip-text text-transparent" 
+                  : "bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent"
+              }`}>
+              {fmtCurrency(bal)}
+            </motion.p>
+            {bal < 0 ? (
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/15 text-rose-400 border border-rose-500/25">
+                Pe minus
+              </span>
+            ) : trend !== null ? (
               <motion.div key={trend} initial={{ scale: 0 }} animate={{ scale: 1 }}
-                className={`flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
-                  trend <= 0 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-500"
+                className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  trend <= 0 ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
                 }`}>
-                {trend <= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
+                {trend <= 0 ? <TrendingDown className="w-3.5 h-3.5" /> : <TrendingUp className="w-3.5 h-3.5" />}
                 {Math.abs(trend)}%
               </motion.div>
-            )}
+            ) : null}
           </div>
         </div>
         <motion.button
           onClick={() => setShowQuickExpense((p) => !p)}
           whileTap={{ scale: 0.9 }}
-          className="w-9 h-9 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-lg"
+          className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-accent text-white flex items-center justify-center shadow-[0_4px_16px_rgba(99,102,241,0.3)] transition-transform hover:scale-105 shrink-0"
         >
           <Plus className="w-4 h-4" />
         </motion.button>
       </div>
 
+      {/* Prominent Spline Chart */}
+      {chartData.length > 1 && (
+        <div className="h-44 sm:h-52 w-full my-3">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
+              <defs>
+                <linearGradient id="widgetFinanceGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={bal < 0 ? "#F43F5E" : "#6366F1"} stopOpacity={0.35} />
+                  <stop offset="95%" stopColor={bal < 0 ? "#F43F5E" : "#6366F1"} stopOpacity={0.0} />
+                </linearGradient>
+              </defs>
+              <XAxis
+                dataKey="date"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: 500 }}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "rgba(12, 12, 20, 0.94)",
+                  backdropFilter: "blur(16px)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "12px",
+                  fontSize: "11px",
+                  color: "#fff",
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+                }}
+                formatter={(val: any) => [`${val ?? 0} lei`, "Cheltuială"]}
+              />
+              <Area
+                type="monotone"
+                dataKey="amount"
+                stroke={bal < 0 ? "#F43F5E" : "#6366F1"}
+                fillOpacity={1}
+                fill="url(#widgetFinanceGrad)"
+                strokeWidth={2}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       {/* Budget bar */}
       <div className="mb-3">
         <div className="flex items-center justify-between text-xs mb-1">
-          <span className="text-text-muted">Spent of income</span>
-          <span className="text-text-primary font-medium tabular-nums">{fmtCurrency(expTotal)} / {fmtCurrency(incTotal)}</span>
+          <span className="text-text-muted text-[11px]">Cheltuit din venituri</span>
+          <span className="text-text-primary font-medium tabular-nums text-[11px]">{fmtCurrency(expTotal)} / {fmtCurrency(incTotal)}</span>
         </div>
         <motion.div className="h-1.5 bg-white/40 dark:bg-white/[0.06] rounded-full overflow-hidden">
           <motion.div className="h-full rounded-full"
             initial={{ width: 0 }}
             animate={{ width: `${budgetPct}%` }}
             transition={{ duration: 0.8, ease: [0.34, 1.56, 0.64, 1] }}
-            style={{ background: budgetPct > 80 ? "#FF3B30" : "linear-gradient(90deg, #7c3aed, #a78bfa)" }} />
+            style={{ background: budgetPct > 80 ? "#F43F5E" : "linear-gradient(90deg, #6366F1, #8B5CF6)" }} />
         </motion.div>
       </div>
 

@@ -28,6 +28,22 @@ async def get_state(pool) -> Optional[Dict[str, Any]]:
                     data[field] = json.loads(data[field])
                 except json.JSONDecodeError:
                     pass
+
+        # TTL check: invalidate state older than 30 minutes based on created_at
+        from datetime import datetime, timezone, timedelta
+        created_at = data.get("created_at")
+        if created_at:
+            if isinstance(created_at, str):
+                try:
+                    created_at = datetime.fromisoformat(created_at)
+                except ValueError:
+                    created_at = None
+            if isinstance(created_at, datetime):
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) - created_at > timedelta(minutes=30):
+                    return None
+
         return data
 
 

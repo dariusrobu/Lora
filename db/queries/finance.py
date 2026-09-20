@@ -173,7 +173,9 @@ async def get_monthly_summary(pool, month: int, year: int) -> Dict[str, float]:
             month,
             year,
         )
-        return {"income": float(row["income"]), "expense": float(row["expense"])}
+        inc = float(row["income"])
+        exp = float(row["expense"])
+        return {"income": inc, "expense": exp, "balance": inc - exp}
 
 
 async def get_finance_history(pool, days: int = 30) -> List[Dict[str, Any]]:
@@ -236,3 +238,23 @@ async def delete_transaction(pool, tx_id: int) -> bool:
     async with pool.acquire() as conn:
         result = await conn.execute("DELETE FROM finances WHERE id = $1", tx_id)
         return result != "DELETE 0"
+
+
+async def get_weekly_finance_summary(pool, start_date: date, end_date: date) -> Dict[str, float]:
+    """Gets total expenses and income for a specific date range."""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT 
+                COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense,
+                COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income
+            FROM finances
+            WHERE tx_date BETWEEN $1 AND $2
+            """,
+            start_date,
+            end_date,
+        )
+        exp = float(row["expense"])
+        inc = float(row["income"])
+        return {"total": exp, "expense": exp, "income": inc, "balance": inc - exp}
+

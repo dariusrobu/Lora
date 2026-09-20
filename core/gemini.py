@@ -5,19 +5,20 @@ import pytz
 import asyncio
 import json
 import logging
-import os
 import re
 from pydantic import BaseModel, Field, model_validator
 from core.context import build_temporal_context
 from ollama import AsyncClient
-from google import genai as google_genai
 from core.config import OLLAMA_HOST, OLLAMA_MODEL
 
-# Ollama client (local LLM)
+logger = logging.getLogger(__name__)
+
+# Ollama is Lora's only LLM runtime.
 _ollama_client = AsyncClient(host=OLLAMA_HOST)
 
-# Google Generative AI client — used ONLY for embeddings
-_google_genai_client = google_genai.Client(api_key=os.environ.get("GEMINI_API_KEY", ""))
+# Compatibility alias for legacy agentic code.  Cloud Gemini execution is
+# intentionally disabled; router.py falls back to the local agent loop.
+client = None
 
 # Resilience state
 _api_available = True
@@ -26,21 +27,10 @@ _failure_count = 0
 
 async def get_embedding(text: str) -> List[float]:
     """
-    Generates an embedding for the given text using Google text-embedding-005.
+    Generates an embedding for the given text. Delegates to core.embeddings.
     """
-    if not text:
-        return []
-
-    try:
-        result = await asyncio.to_thread(
-            _google_genai_client.models.embed_content,
-            model="text-embedding-005",
-            contents=text,
-        )
-        return result.embeddings[0].values
-    except Exception as e:
-        logging.error(f"Error generating embedding: {e}")
-        return []
+    from core.embeddings import get_embedding as _embed
+    return await _embed(text)
 
 
 def preprocess_text(text: str) -> str:
@@ -276,43 +266,59 @@ class IntentResponse(BaseModel):
         now_naive = now.replace(tzinfo=None)
 
         one_year_ago = now_naive - timedelta(days=365)
-        two_years_ahead = now_naive + timedelta(days=365 * 2)
+        two_years_future = now_naive + timedelta(days=730)
 
-        # Common date keys in Lora's schema
-        date_keys = [
-            "due_date",
-            "date",
-            "event_date",
-            "start_date",
-            "end_date",
-            "exam_date",
-        ]
+        data_dict = self.data.model_dump() if hasattr(self.data, 'model_dump') else self.data
+        date_fields = ["due_date", "event_date", "date", "start_date", "end_date", "exam_date"]
 
-        data_dict = (
-            self.data.model_dump()
-            if hasattr(self.data, "model_dump")
-            else (self.data or {})
-        )
-        for key in date_keys:
-            val = data_dict.get(key)
-            if not val or not isinstance(val, str):
+        for field_name in date_fields:
+            raw_date = data_dict.get(field_name)
+            if not raw_date:
+                continue
+            try:
+                parsed_date = datetime.fromisoformat(raw_date) if isinstance(raw_date, str) else raw_date
+                if isinstance(parsed_date, datetime):
+                    parsed_date_naive = parsed_date.replace(tzinfo=None)
+                    if parsed_date_naive < one_year_ago or parsed_date_naive > two_years_future:
+                        self.confidence = min(self.confidence, 0.5)
+                        break
+            except (ValueError, TypeError):
                 continue
 
-            try:
-                # Try parsing ISO format YYYY-MM-DD
-                parsed_date = datetime.strptime(val[:10], "%Y-%m-%d")
+        return self
 
-                if parsed_date < one_year_ago or parsed_date > two_years_ahead:
-                    print(
-                        f"⚠️ Temporal Out-of-Bounds: {key}={val}. Lowering confidence."
-                    )
-                    self.confidence = min(self.confidence, 0.5)
-                    self.clarification_needed = True
-                    if not self.clarification_question:
-                        self.clarification_question = f"Sigur data {val} este corectă?"
-            except ValueError:
-                continue  # Not a date or wrong format
 
+class AgentAction(BaseModel):
+    action_type: str = Field(
+        description="'tool' to execute a tool, 'final' to give final answer to user"
+    )
+    thought: str = Field(
+        description="Brief reasoning about the current step"
+    )
+    intent: str | None = Field(
+        default=None,
+        description="The intent/tool name to execute (only when action_type='tool')",
+    )
+    module: str | None = Field(
+        default=None,
+        description="The module for the tool (only when action_type='tool')",
+    )
+    data: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Parameters for the tool (only when action_type='tool')",
+    )
+    final_reply: str | None = Field(
+        default=None,
+        description="Final answer to user in Romanian (only when action_type='final')",
+    )
+
+
+    @model_validator(mode="after")
+    def validate_action(self) -> "AgentAction":
+        if self.action_type == "tool" and not self.intent:
+            raise ValueError("action_type='tool' requires a non-null intent")
+        if self.action_type == "final" and not self.final_reply:
+            raise ValueError("action_type='final' requires a non-null final_reply")
         return self
 
 
@@ -328,11 +334,11 @@ async def _log_api_downtime(pool, error_type: str, user_id: int = None):
                 error_type,
             )
     except Exception as e:
-        print(f"Failed to log downtime: {e}")
+        logger.error(f"Failed to log downtime: {e}")
 
 
-async def _call_cerebras_with_retry(pool, user_id, api_func, *args, **kwargs):
-    """Wrapper for Cerebras API calls with retry logic and state tracking."""
+async def _call_with_retry(pool, user_id, api_func, *args, **kwargs):
+    """Generic retry wrapper retained for local runtime compatibility."""
     global _api_available, _failure_count
 
     delays = [2, 4]
@@ -345,7 +351,7 @@ async def _call_cerebras_with_retry(pool, user_id, api_func, *args, **kwargs):
             recovery_prefix = ""
             if not _api_available:
                 recovery_prefix = "Sunt din nou online\\! 🚀\\n\n"
-                print("Cerebras API recovered! 🚀")
+                logger.info("Local LLM recovered! 🚀")
 
             _api_available = True
             _failure_count = 0
@@ -353,7 +359,7 @@ async def _call_cerebras_with_retry(pool, user_id, api_func, *args, **kwargs):
 
         except asyncio.TimeoutError as e:
             last_err = e
-            print(f"Cerebras API attempt {i + 1} failed (timeout): {e}")
+            logger.warning(f"Local LLM attempt {i + 1} failed (timeout): {e}")
 
             if i < len(delays):
                 await asyncio.sleep(delays[i])
@@ -367,12 +373,12 @@ async def _call_cerebras_with_retry(pool, user_id, api_func, *args, **kwargs):
                 await _log_api_downtime(pool, "api_unavailable", user_id)
             raise last_err
         except Exception as e:
-            print(f"Cerebras API attempt {i + 1} failed (non-transient): {e}")
+            logger.error(f"Local LLM attempt {i + 1} failed (non-transient): {e}")
             raise e
 
 
 def dereference_schema(schema: dict) -> dict:
-    """Recursively inlines $defs references and forces additionalProperties=False for Groq JSON schema."""
+    """Recursively inline schema references for local structured output."""
     defs = schema.get("$defs", {})
 
     def resolve(val):
@@ -415,61 +421,45 @@ def _get_retry_delay(err_str: str, default_delay: float) -> float:
 
 
 async def generate_structured_response(messages: list, schema: BaseModel, model: str | None = None) -> str:
-    """Generates a structured JSON response using Ollama. Falls back to OLLAMA_MODEL env."""
-    effective_model = model or OLLAMA_MODEL
-    print(f"🚀 OLLAMA STRUCTURED CALL: {len(messages)} messages | model={effective_model}", flush=True)
-
-    max_retries = 3
-    delay = 2.0
-
-    for attempt in range(max_retries):
+    """Generates structured JSON locally through Ollama."""
+    fallback_model = model or OLLAMA_MODEL
+    logger.info("Ollama structured call: %s messages | model=%s", len(messages), fallback_model)
+    for attempt in range(3):
         try:
             response = await _ollama_client.chat(
-                model=effective_model,
+                model=fallback_model,
                 messages=messages,
                 format="json",
                 options={"temperature": 0.3, "num_predict": 4096},
             )
             return response["message"]["content"]
-        except Exception as e:
-            err_str = str(e)
-            is_transient = "timeout" in err_str.lower() or "connection" in err_str.lower()
-            if is_transient and attempt < max_retries - 1:
-                print(f"⚠️ Ollama structured warning (attempt {attempt+1}/{max_retries}): {e}. Retrying in {delay}s...", flush=True)
-                await asyncio.sleep(delay)
-                delay = min(delay * 2, 30.0)
-            else:
-                raise e
+        except Exception:
+            if attempt < 2:
+                await asyncio.sleep(2)
+                continue
+            raise
 
 
 async def generate_text_response(messages: list, model: str | None = None) -> str:
-    """Generates a plain text response using Ollama. Falls back to OLLAMA_MODEL env."""
-    effective_model = model or OLLAMA_MODEL
-    print(f"🚀 OLLAMA TEXT CALL: {len(messages)} messages | model={effective_model}", flush=True)
-
-    max_retries = 3
-    delay = 2.0
-
-    for attempt in range(max_retries):
+    """Generates text locally through Ollama."""
+    fallback_model = model or OLLAMA_MODEL
+    logger.info(f"🔄 FALLBACK: Ollama {fallback_model} for text")
+    for attempt in range(3):
         try:
             response = await _ollama_client.chat(
-                model=effective_model,
+                model=fallback_model,
                 messages=messages,
                 options={"temperature": 0.3, "num_predict": 2048},
             )
             return response["message"]["content"].strip()
-        except Exception as e:
-            err_str = str(e)
-            is_transient = "timeout" in err_str.lower() or "connection" in err_str.lower()
-            if is_transient and attempt < max_retries - 1:
-                print(f"⚠️ Ollama text warning (attempt {attempt+1}/{max_retries}): {e}. Retrying in {delay}s...", flush=True)
-                await asyncio.sleep(delay)
-                delay = min(delay * 2, 30.0)
-            else:
-                raise e
+        except Exception:
+            if attempt < 2:
+                await asyncio.sleep(2)
+                continue
+            raise
 
 
-async def get_gemini_response(
+async def get_llm_response(
     pool,
     user_id: int,
     user_message: str,
@@ -482,30 +472,82 @@ async def get_gemini_response(
     voice_uri: str | None = None,
     model: str | None = None,
 ) -> Dict[str, Any]:
-    """Calls LLM and returns the parsed IntentResponse JSON. `model` overrides OLLAMA_MODEL env."""
+    """Calls the local Ollama LLM and returns parsed IntentResponse JSON."""
 
     temporal_context = build_temporal_context(TIMEZONE)
 
     # Pre-process user message for typo tolerance
     user_message = preprocess_text(user_message)
 
-    user_tz = pytz.timezone(TIMEZONE)
-    now = datetime.now(user_tz)
-    tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+    # --- Structured output prompt (short, focused on intent schema) ---
+    recent_ctx = _format_history_for_prompt(history[-2:] if len(history) > 2 else history)
+    hint = f"\nHINT: {system_hint}" if system_hint else ""
+    structured_prompt = f"""You are an intent classifier. Respond ONLY with valid JSON matching this exact schema:
 
-    system_prompt = f"""## IDENTITATE
-Tu ești Lora — asistentul personal al lui [NUMELE_USER], în Telegram.
-Vorbești Romglish (română + termeni tehnici englezi).
-Ton: {{tone}}. NICIODATĂ: "Sigur!", "Cu plăcere!", "Bineînțeles!"."""
-    system_prompt = system_prompt.replace("[NUMELE_USER]", user_name)
-    system_prompt = system_prompt.replace("{{tone}}", tone)
+{{
+  "intent": "<intent_name>",
+  "module": "<module_name>",
+  "data": {{}},
+  "reply": "<your response in Romanian>",
+  "needs_confirmation": false,
+  "needs_agent": false,
+  "confidence": 0.0-1.0,
+  "clarification_needed": false,
+  "memory_extracts": null
+}}
 
-    system_prompt += f"""
+INTENTS BY MODULE:
+chat → general conversation (module=null)
+tasks → add_task, list_tasks, complete_task, delete_task, edit_task
+projects → add_project, list_projects, update_project, delete_project
+events → add_event, list_events, delete_event, edit_event_reminder
+finance → finance_log, finance_summary, delete_finance, finance_undo
+health → health_log, health_summary
+nutrition → meal_log, nutrition_summary
+workout → workout_log, workout_list, workout_stats
+mood → log_mood
+goals → add_goal, view_goals, complete_goal, delete_goal
+skills → log_skill, view_skills, add_habit, log_habit
+shopping → add_item, list_items, delete_item
+reading → reading_add, reading_update, reading_list
+travel → travel_add, travel_list
+focus → focus_start, focus_stop
+weather → get_weather
+memory → memory_view, memory_search
+schedule → schedule_today, schedule_week
+university → uni_add_subject, uni_list, uni_add_grade, uni_add_exam
+integrations → mac_note_create, mac_alarm_set
+news → get_news (data: {"topic": "politica"|"economie"|"tech"|"general"|"all"|"<custom>"}), get_tech_news
+
+RULES:
+- CHAT mode (module=null): user is chatting freely, just reply naturally
+- ACTION mode (module=X): user wants something done, extract data
+- If unclear → clarification_needed=true
+- reply must be in Romanian (Romglish OK)
+- keep reply concise (1-2 sentences)
+- ADRESARE STRICTĂ: NICIODATĂ nu folosi numele utilizatorului (NU spune 'Darius', 'Robu' sau niciun alt nume). Adresează-te direct, natural, la persoana a II-a singular.
+- FĂRĂ FORMULE DE UMPLUTURĂ: NICIODATĂ nu începe cu "Sigur!", "Cu plăcere!", "Bineînțeles!", "Salut Darius", "Desigur!". Treci direct la subiect.
+
+Recent conversation:
+{recent_ctx}
+
+User message: {user_message}{hint}"""
+
+    # --- Full prompt for text generation (rich, contextual replies) ---
+    system_prompt = f"""## IDENTITATE & VOCABULAR
+Tu ești Lora — asistentul personal inteligent, autonom și direct în Telegram.
+Vorbești Romglish natural (bază română fluidă + termeni tehnici uzuali precum task, meeting, deadline, sprint, review, gym, focus, bug).
+
+## REGULI STRICTE DE ADRESARE & VOCABULAR:
+1. INTERZIS NUMELE: NICIODATĂ nu folosi numele utilizatorului (NU spune 'Darius', 'Robu' sau orice alt nume propriu). Adresează-te direct, la persoana a II-a singular (ex: "Am adăugat task-ul", "Ai 3 cursuri azi", "Uite lista").
+2. FĂRĂ FORMULE DE UMPLUTURĂ: NICIODATĂ nu începe cu "Sigur!", "Cu plăcere!", "Bineînțeles!", "Salut!", "Desigur!".
+3. Ton: {tone}. Fii concisă, empatică dar orientată pe eficiență, claritate și acțiune.
+4. Răspunsuri concise: 1-2 propoziții pentru acțiuni, fără poliloghie inutilă.
 
 {temporal_context}
 
 CONVERSAȚIE RECENTĂ:
-{{_format_history_for_prompt(history)}}
+{_format_history_for_prompt(history)}
 
 ## MODE
 - CHAT (module=null, intent="chat"): userul discută liber, nu forța module. Sugerează acțiuni, nu executa.
@@ -519,10 +561,10 @@ CONVERSAȚIE RECENTĂ:
 5. Dacă voice_uri e prezent, adaptează reply-ul la tonul vocal al userului
 
 ## CONTEXT
-Azi: {{now.strftime("%Y-%m-%d")}}, {{now.strftime("%A")}}
-{{context_snapshot}}
-Despre {{user_name}}:
-{{personal_notes}}
+Azi: {datetime.now().strftime("%Y-%m-%d")}, {datetime.now().strftime("%A")}
+{context_snapshot}
+Despre utilizator:
+{personal_notes}
 
 ## MODULE ȘI INTENT-URI
 tasks:    add_task, list_tasks, complete_task, delete_task, edit_task
@@ -560,31 +602,28 @@ weather:  get_weather (city)
 calendar_module: calendar_today, calendar_week, calendar_add (summary,start,end,location), calendar_sync
 insights: get_insights, ask_insights
 integrations: mac_note_create, mac_alarm_set (hour,minute,label), email_send (to,subject,body), email_check
-news:     get_tech_news (topic)
+news:     get_news (topic: "all"|"politica"|"economie"|"tech"|"general"|custom), get_tech_news
 correct_last: "undo", "am greșit" (Data: correction_text)
 trigger_morning_briefing: când userul se trezește
 """
 
-    messages = [{"role": "system", "content": system_prompt}]
+    # Messages for structured output — short prompt
+    structured_messages = [{"role": "system", "content": structured_prompt}]
+    structured_messages.append({"role": "user", "content": user_message})
 
+    # Messages for text generation — full context-rich prompt (reserved for future use)
+    text_messages = [{"role": "system", "content": system_prompt}]
     for m in history:
         role = "user" if m["role"] == "user" else "assistant"
-        messages.append({"role": role, "content": m["content"]})
+        text_messages.append({"role": role, "content": m["content"]})
+    text_messages.append({"role": "user", "content": user_message})
 
-    # Add current user message
-    # Note: Ollama python doesn't officially support passing multiple parts with audio
-    # like Gemini yet, so we just pass the text. Voice transcription already happened.
-    messages.append({"role": "user", "content": user_message})
-
-    print(
-        f"🚀 OLLAMA CALL: messages count={len(messages)} | last turn: {repr(user_message)} | model={OLLAMA_MODEL}",
-        flush=True,
-    )
+    logger.info(f"Ollama call: structured_messages={len(structured_messages)}, full_messages={len(text_messages)} | model={model or OLLAMA_MODEL}")
 
     try:
-        raw_text = await generate_structured_response(messages, IntentResponse, model=model)
+        raw_text = await generate_structured_response(structured_messages, IntentResponse, model=model)
         recovery_prefix = ""
-        print(f"DEBUG RAW TEXT: {repr(raw_text[:300])}", flush=True)
+        logger.info(f"DEBUG RAW TEXT: {repr(raw_text[:600])}")
 
         # Robust JSON parsing with multiple fallback strategies
         parsed = None
@@ -641,12 +680,9 @@ trigger_morning_briefing: când userul se trezește
                     "needs_agent": agent_m.group(1) == "true" if agent_m else False,
                     "confidence": 1.0,
                 }
-                print(
-                    f"⚠️ JSON FALLBACK: Used regex extraction for intent={parsed['intent']}",
-                    flush=True,
-                )
+                logger.warning(f"⚠️ JSON FALLBACK: Used regex extraction for intent={parsed['intent']}")
             except Exception as fallback_err:
-                print(f"Gemini JSON fallback also failed: {fallback_err}", flush=True)
+                logger.error(f"Gemini JSON fallback also failed: {fallback_err}")
                 parsed = {
                     "intent": "chat",
                     "module": None,
@@ -660,24 +696,26 @@ trigger_morning_briefing: când userul se trezește
         if isinstance(parsed, list) and len(parsed) > 0:
             parsed = parsed[0]
 
+        # Validate that the response has required fields
+        if not isinstance(parsed, dict) or not parsed.get("intent"):
+            logger.warning(f"⚠️ JSON missing or null intent, using fallback. Got: {repr(raw_text[:200])}")
+            parsed = {
+                "intent": "chat",
+                "module": None,
+                "data": {},
+                "reply": "Scuze, nu am înțeles.",
+                "needs_confirmation": False,
+                "needs_agent": False,
+                "confidence": 1.0,
+            }
+
         # Add recovery message if needed
         if recovery_prefix:
             parsed["reply"] = recovery_prefix + parsed.get("reply", "")
 
-        # Fire-and-forget: extract personal facts in background without blocking
-        # (DISABLED: now handled via memory_extracts in IntentResponse for efficiency)
-        # asyncio.create_task(
-        #     extract_and_save_facts(
-        #         pool, client, user_id, user_message, parsed.get("reply", "")
-        #     )
-        # )
-
         return parsed
     except Exception as e:
-        print(f"Gemini error: {e}", flush=True)
-        import traceback
-
-        traceback.print_exc()
+        logger.error(f"Gemini error: {e}", exc_info=True)
         return {
             "intent": "api_unavailable",
             "module": None,
@@ -707,22 +745,22 @@ async def analyze_intent(pool, text: str, context: str = "", model: str | None =
 async def get_proactive_response(system_instruction: str, data_summary: str, model: str | None = None) -> str:
     """Calls LLM for a natural language proactive message (briefing/reflection). `model` overrides OLLAMA_MODEL."""
     tone_rules = """
-REGULI GLOBALE DE TON (oricând ești proactivă):
+REGULI GLOBALE DE TON & VOCABULAR:
+
+ADRESARE:
+- INTERZIS NUMELE: NICIODATĂ nu folosi numele utilizatorului (NU folosi 'Darius', 'Robu' sau orice alt nume).
+- Vorbește direct, la persoana a II-a singular ("Ai 3 task-uri", "Uite programul tău azi", "Bună dimineața!").
 
 STIL VOCAL & CONȚINUT:
-- Scrie ca și cum vorbești (natural), nu ca un document.
-- Propoziții scurte. TRANZIȚII fluide, nu bullet-uri.
-- TEXT BRIEFING: Fii detaliată, organizată și COMPLETĂ. MAXIM 500 cuvinte.
-- PODCAST/VOCE: MAXIM 150 cuvinte. Fii concisă, zero comentarii inutile.
-
-CORECȚIE VOCABULAR:
-- EXCLUSIV ROMÂNĂ. Excepții permise: task, habit, meeting, gym, chess, focus.
-- Ton cald dar DIRECT. Fără hype, fără superlative exagerate.
+- Scrie ca și cum vorbești (natural, fluid), nu ca un document corporatist.
+- Fără formule de umplutură sau clișee (fără "Sigur!", "Cu drag!", "Desigur!").
+- Romglish natural: română ca bază + termeni tehnici în engleză (task, habit, meeting, gym, chess, focus, review).
+- TEXT BRIEFING: Detaliat, organizat și COMPLET. MAXIM 500 cuvinte.
+- PODCAST/VOCE: MAXIM 150 cuvinte. Fluid, direct la fapte.
 
 FORMATARE:
-- Telegram MarkdownV2: bold cu *text*, code cu `text`, italic cu _text_.
-- Dacă un task sau proiect conține caractere speciale (-, _, *), asigură-te că închizi corect formatarea bold/italic sau nu o folosi.
-- NU folosi JSON, nu pune ghilimele la început/sfârșit, răspunde cu textul RAW.
+- Telegram MarkdownV2: bold cu *text*, code cu `text`.
+- NU folosi JSON, răspunde direct cu textul mesajului.
 """
     full_instruction = system_instruction + tone_rules
     try:
@@ -733,10 +771,7 @@ FORMATARE:
         text = await generate_text_response(messages, model=model)
         return text
     except Exception as e:
-        import traceback
-
-        print(f"Gemini proactive error: {type(e).__name__} - {e}", flush=True)
-        traceback.print_exc()
+        logger.error(f"Gemini proactive error: {type(e).__name__} - {e}", exc_info=True)
         return ""
 
 
@@ -763,16 +798,13 @@ async def normalize_voice_text(raw: str, model: str | None = None) -> str:
         _voice_logger.info(
             "VOICE NORMALIZE | original=%r | normalized=%r", raw, normalized
         )
-        print(
-            f"🎙 VOICE NORMALIZE | original: {repr(raw)} → normalized: {repr(normalized)}",
-            flush=True,
-        )
+        _voice_logger.info(f"🎙 VOICE NORMALIZE | original: {repr(raw)} → normalized: {repr(normalized)}")
         return normalized
     except Exception as e:
         _voice_logger.warning(
             "VOICE NORMALIZE FAILED (%s) — using raw text: %r", e, raw
         )
-        print(f"⚠️ VOICE NORMALIZE FAILED ({e}) — using raw: {repr(raw)}", flush=True)
+        _voice_logger.warning(f"⚠️ VOICE NORMALIZE FAILED ({e}) — using raw: {repr(raw)}")
         return raw
 
 
@@ -786,3 +818,8 @@ def _format_history_for_prompt(history: List[Dict[str, str]]) -> str:
         role = "U" if m["role"] == "user" else "A"
         lines.append(f"{role}: {m['content']}")
     return "\n".join(lines)
+
+
+# Backward-compat alias — legacy name used across imports
+# TODO: Migrate all callers to `get_llm_response` over time
+get_gemini_response = get_llm_response

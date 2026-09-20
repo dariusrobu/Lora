@@ -1,10 +1,15 @@
 import hashlib
-import secrets
+import hmac
 from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError
-from fastapi import HTTPException, Depends
+from typing import Optional
+from fastapi import HTTPException, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from lora_api.config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRY_HOURS, TELEGRAM_USER_ID
+from lora_api.config import (
+    JWT_SECRET,
+    JWT_ALGORITHM,
+    JWT_EXPIRY_HOURS,
+)
 
 security = HTTPBearer(auto_error=False)
 _SALT = None
@@ -23,7 +28,7 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return hash_password(plain) == hashed
+    return hmac.compare_digest(hash_password(plain), hashed)
 
 
 def create_token(user_id: int) -> str:
@@ -43,8 +48,11 @@ def decode_token(token: str) -> dict:
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> dict:
-    if credentials is None:
-        return {"sub": str(TELEGRAM_USER_ID)}
-    return decode_token(credentials.credentials)
+    # 1. Check Bearer credentials
+    if credentials and credentials.credentials:
+        return decode_token(credentials.credentials)
+
+    raise HTTPException(status_code=401, detail="Not authenticated")

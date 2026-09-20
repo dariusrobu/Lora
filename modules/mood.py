@@ -1,7 +1,6 @@
 from typing import Dict, Any, Tuple, Optional
 import calendar
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
+
 from io import BytesIO
 import db.queries.mood as mood_queries
 from bot.formatter import escape_md
@@ -9,6 +8,12 @@ from bot.formatter import escape_md
 
 async def generate_mood_chart(pool, year: int, month: int) -> bytes:
     """Generates a mood line chart using matplotlib and returns PNG bytes."""
+    try:
+        import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates  # noqa: F401
+    except ImportError:
+        raise RuntimeError("matplotlib n\u0103 este instalat")
+
     data = await mood_queries.get_monthly_mood_data(pool, year, month)
 
     if not data or len(data) < 3:

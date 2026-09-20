@@ -4,6 +4,7 @@ import { motion } from "framer-motion"
 import { CloudSun, Thermometer, Droplets, Wind } from "lucide-react"
 import { Card } from "../components/ui/Card"
 import { Spinner } from "../components/ui/Spinner"
+import { fetchWeather } from "../api/queries/weather"
 
 export default function WeatherPage() {
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null)
@@ -19,7 +20,7 @@ export default function WeatherPage() {
     queryKey: ["weather", coords],
     queryFn: () => {
       if (!coords) return Promise.reject("No location")
-      return fetch(`/api/weather?lat=${coords.lat}&lon=${coords.lon}`).then((r) => r.json())
+      return fetchWeather(coords.lat, coords.lon)
     },
     refetchInterval: 600_000,
     enabled: !!coords,

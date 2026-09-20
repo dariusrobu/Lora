@@ -149,11 +149,12 @@ async def handle_tasks_callback(query, pool, data: str) -> None:
             task_title = task["title"] if task else "Task"
             await query.answer("✅ Task completat")
 
-            # Immediate sync to Reminders
+            # Immediate sync to Calendar & Reminders
             try:
-                from core.icloud import sync_tasks_to_reminders
+                from core.icloud import sync_tasks_to_reminders, sync_tasks_with_deadlines
 
                 asyncio.create_task(sync_tasks_to_reminders(pool))
+                asyncio.create_task(sync_tasks_with_deadlines(pool))
             except Exception as e:
                 print(f"Error triggering task sync: {e}")
 
@@ -398,11 +399,12 @@ async def handle_task_intent(
             recurrence=data.get("recurrence"),
         )
 
-        # Immediate sync to Reminders
+        # Immediate sync to Calendar & Reminders
         try:
-            from core.icloud import sync_tasks_to_reminders
+            from core.icloud import sync_tasks_to_reminders, sync_tasks_with_deadlines
 
             asyncio.create_task(sync_tasks_to_reminders(pool))
+            asyncio.create_task(sync_tasks_with_deadlines(pool))
         except Exception as e:
             print(f"Error triggering task sync: {e}")
 
@@ -463,9 +465,7 @@ async def handle_task_intent(
 
         # Group tasks by project_name (query already sorted by project_name NULLS LAST)
         from collections import OrderedDict
-        from datetime import date as _date
 
-        today: _date = _date.today()
         groups: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
         no_project_key: str = "Fără proiect"
 
@@ -548,11 +548,12 @@ async def handle_task_intent(
 
         await task_queries.complete_task(pool, task_id)
 
-        # Immediate sync to Reminders
+        # Immediate sync to Calendar & Reminders
         try:
-            from core.icloud import sync_tasks_to_reminders
+            from core.icloud import sync_tasks_to_reminders, sync_tasks_with_deadlines
 
             asyncio.create_task(sync_tasks_to_reminders(pool))
+            asyncio.create_task(sync_tasks_with_deadlines(pool))
         except Exception as e:
             print(f"Error triggering task sync: {e}")
 
@@ -641,11 +642,12 @@ async def handle_task_intent(
 
         await task_queries.update_task(pool, task_id, **upd)
 
-        # Immediate sync to Reminders
+        # Immediate sync to Calendar & Reminders
         try:
-            from core.icloud import sync_tasks_to_reminders
+            from core.icloud import sync_tasks_to_reminders, sync_tasks_with_deadlines
 
             asyncio.create_task(sync_tasks_to_reminders(pool))
+            asyncio.create_task(sync_tasks_with_deadlines(pool))
         except Exception as e:
             print(f"Error triggering task sync: {e}")
 

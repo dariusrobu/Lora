@@ -10,15 +10,21 @@ export function Header({ onMenu, sidebarOpen }: HeaderProps) {
   const { mode, cycleMode } = useTheme()
 
   return (
-    <header className="sticky top-0 z-20 h-14 border-b border-border bg-bg/90 backdrop-blur-md px-4 flex items-center justify-between transition-colors duration-300 ease-apple">
-      <button onClick={onMenu} className="p-2 hover:bg-surface rounded-lg transition-colors">
-        {sidebarOpen ? <PanelLeftClose className="w-5 h-5 text-text-primary" /> : <PanelLeft className="w-5 h-5 text-text-primary" />}
-      </button>
-      <div className="hidden lg:block" />
+    <header className="sticky top-0 z-20 h-14 border-b border-border/40 bg-bg/75 backdrop-blur-2xl px-4 flex items-center justify-between transition-colors duration-300 ease-apple">
+      <div className="flex items-center gap-3">
+        <button onClick={onMenu} className="p-2 hover:bg-white/[0.05] rounded-xl transition-colors text-text-secondary hover:text-white">
+          {sidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
+        </button>
+        <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>Lora AI Online</span>
+        </div>
+      </div>
+
       <div className="flex items-center gap-2">
         <button
           onClick={cycleMode}
-          className="p-2 hover:bg-surface rounded-lg transition-colors text-text-secondary hover:text-text-primary"
+          className="p-2 hover:bg-white/[0.05] border border-border/40 rounded-xl transition-colors text-text-secondary hover:text-white"
           title={`Theme: ${mode}${mode === "auto" ? " (follows system)" : ""}`}
         >
           {mode === "dark" ? <Moon className="w-4 h-4" /> : mode === "light" ? <Sun className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}

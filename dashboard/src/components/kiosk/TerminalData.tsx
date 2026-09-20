@@ -1,7 +1,12 @@
-import { useQuery } from "@tanstack/react-query"
-import { useState, useEffect } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { api } from "../../api/client"
 import type { Task, CalendarDay } from "../../types"
+import { useLoraLive } from "../../hooks/useLoraLive"
+import { fetchWeather } from "../../api/queries/weather"
+
+
+const priorityRank: Record<string, number> = { high: 0, medium: 1, low: 2, normal: 3 }
 
 function DateSection() {
   const [now, setNow] = useState(new Date())
@@ -25,7 +30,7 @@ function DateSection() {
 function WeatherSection() {
   const { data } = useQuery({
     queryKey: ["terminal-weather"],
-    queryFn: () => fetch("/api/weather?lat=44.43&lon=26.10").then(r => r.json()),
+    queryFn: () => fetchWeather(44.43, 26.10),
     refetchInterval: 60_000,
     retry: 1,
   })
@@ -56,16 +61,6 @@ function WeatherSection() {
   )
 }
 
-const TASKS_MOCK: Task[] = [
-  { id: 101, title: "Review AI course final project", priority: "high", status: "pending", created_at: "2026-07-01" },
-  { id: 102, title: "Buy groceries for weekend party", priority: "medium", status: "pending", created_at: "2026-07-01" },
-  { id: 103, title: "Prepare presentation slides for Monday", priority: "high", status: "pending", created_at: "2026-07-01" },
-  { id: 104, title: "Fix staircase light sensor", priority: "low", status: "pending", created_at: "2026-07-01" },
-  { id: 105, title: "Call dentist for appointment", priority: "medium", status: "pending", created_at: "2026-07-01" },
-  { id: 106, title: "Order replacement filter for vacuum", priority: "low", status: "pending", created_at: "2026-07-01" },
-  { id: 107, title: "Write weekly review report", priority: "medium", status: "pending", created_at: "2026-07-01" },
-]
-
 function TasksSection() {
   const { data: tasks } = useQuery({
     queryKey: ["terminal-tasks"],
@@ -77,21 +72,25 @@ function TasksSection() {
     refetchInterval: 60_000,
   })
   const pending = (tasks ?? []).filter(t => t.status === "pending")
-  const useMock = !tasks || pending.length === 0
-  const display = useMock ? TASKS_MOCK : pending
-  const top = display.slice(0, 5)
+  const sorted = [...pending].sort((a, b) => {
+    const ra = priorityRank[a.priority] ?? 3
+    const rb = priorityRank[b.priority] ?? 3
+    return ra - rb
+  })
+
+  if (sorted.length === 0) return <div className="opacity-40">—</div>
 
   return (
     <>
-      <div><span className="opacity-80">{display.length} pending</span></div>
-      {top.map((t) => (
+      <div><span className="opacity-80">{sorted.length} pending</span></div>
+      {sorted.map((t) => (
         <div key={t.id} className="flex items-center gap-1.5 opacity-70">
-          <span className="opacity-30">○</span>
+          <span className={`w-3 text-center shrink-0 ${t.priority === "high" ? "opacity-80 font-bold" : "opacity-30"}`}>
+            {t.priority === "high" ? "!" : "○"}
+          </span>
           <span className="truncate">{t.title}</span>
-          {t.priority === "high" && <span className="text-xs opacity-50 shrink-0">●</span>}
         </div>
       ))}
-      {display.length > 5 && <div className="opacity-40">+{display.length - 5} more</div>}
     </>
   )
 }
@@ -127,16 +126,6 @@ function ServerSection() {
   )
 }
 
-const EVENTS_MOCK = [
-  { time: "09:00", title: "Curs Inteligență Artificială" },
-  { time: "10:30", title: "Daily standup meeting" },
-  { time: "11:00", title: "Review PRs on GitHub" },
-  { time: "13:00", title: "Lunch with Maria" },
-  { time: "14:30", title: "Dentist appointment" },
-  { time: "17:00", title: "Gym - chest day" },
-  { time: "21:00", title: "Netflix & chill" },
-]
-
 function EventsSection() {
   const { data } = useQuery({
     queryKey: ["terminal-events"],
@@ -163,13 +152,15 @@ function EventsSection() {
         }
       }
       for (const s of day.schedule ?? []) {
-        if (s.time) {
-          const [h, m] = s.time.split(":").map(Number)
+        const sTime = (s as any).time || s.start_time
+        const sTitle = (s as any).title || (s as any).subject || s.subject_name || ""
+        if (sTime) {
+          const [h, m] = sTime.split(":").map(Number)
           if (!isNaN(h) && !isNaN(m)) {
             const dt = new Date(now)
             dt.setHours(h, m, 0)
             if (dt > now && day.date === now.toISOString().slice(0, 10)) {
-              upcoming.push({ title: s.title || s.subject || "", time: s.time })
+              upcoming.push({ title: sTitle, time: sTime })
             }
           }
         }
@@ -177,15 +168,13 @@ function EventsSection() {
     }
   }
 
-  const list = upcoming.length > 0 ? upcoming : EVENTS_MOCK
-  list.sort((a, b) => a.time.localeCompare(b.time))
-  const top = list
+  upcoming.sort((a, b) => a.time.localeCompare(b.time))
 
-  if (top.length === 0) return <div className="opacity-40">—</div>
+  if (upcoming.length === 0) return <div className="opacity-40">—</div>
 
   return (
     <>
-      {top.map((e, i) => (
+      {upcoming.map((e, i) => (
         <div key={i} className="opacity-70">
           <span className="opacity-50 tabular-nums">{e.time}</span>{"  "}{e.title}
         </div>
@@ -195,10 +184,102 @@ function EventsSection() {
 }
 
 export default function TerminalData() {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const pausedRef = useRef(false)
+  const queryClient = useQueryClient()
+  const [liveFlash, setLiveFlash] = useState(false)
+
+  // Real-time invalidation via WebSocket — replaces polling for most queries
+  const handleLiveEvent = useCallback(
+    (event: ReturnType<typeof useLoraLive extends (h: infer H) => void ? never : never> | any) => {
+      if (event.type !== "intent_executed") return
+
+      // Flash the LIVE indicator
+      setLiveFlash(true)
+      setTimeout(() => setLiveFlash(false), 800)
+
+      const { module } = event.payload ?? {}
+
+      // Invalidate query keys based on the module that changed
+      const moduleQueryMap: Record<string, string[][]> = {
+        tasks:    [["terminal-tasks"]],
+        events:   [["terminal-events"]],
+        calendar: [["terminal-events"]],
+        health:   [["terminal-health"]],
+        finance:  [["terminal-finance"]],
+        workout:  [["terminal-workout"]],
+        goals:    [["terminal-goals"]],
+        skills:   [["terminal-skills"]],
+      }
+      const keys = moduleQueryMap[module] ?? []
+      keys.forEach(queryKey => queryClient.invalidateQueries({ queryKey }))
+
+      // Always refresh tasks (cross-cutting concern for scheduling)
+      if (module !== "tasks") {
+        queryClient.invalidateQueries({ queryKey: ["terminal-tasks"] })
+      }
+    },
+    [queryClient]
+  )
+
+  useLoraLive(handleLiveEvent)
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    let id: ReturnType<typeof setTimeout>
+    let pos = 0
+    let dir = 1
+
+    const tick = () => {
+      if (pausedRef.current || el.scrollHeight <= el.clientHeight) {
+        id = setTimeout(tick, 200)
+        return
+      }
+      pos += dir * 0.8
+      if (dir === 1 && pos >= el.scrollHeight - el.clientHeight) {
+        pos = el.scrollHeight - el.clientHeight
+        dir = -1
+        id = setTimeout(tick, 6000)
+        el.scrollTop = pos
+        return
+      }
+      if (dir === -1 && pos <= 0) {
+        pos = 0
+        dir = 1
+        id = setTimeout(tick, 6000)
+        el.scrollTop = 0
+        return
+      }
+      el.scrollTop = pos
+      id = setTimeout(tick, 100)
+    }
+
+    id = setTimeout(tick, 3000)
+
+    const onEnter = () => { pausedRef.current = true }
+    const onLeave = () => { pausedRef.current = false }
+    el.addEventListener("mouseenter", onEnter)
+    el.addEventListener("mouseleave", onLeave)
+
+    return () => {
+      clearTimeout(id)
+      el.removeEventListener("mouseenter", onEnter)
+      el.removeEventListener("mouseleave", onLeave)
+    }
+  }, [])
+
   return (
-    <div className="px-8 py-8 text-sm leading-snug select-none font-mono w-full">
-      <div className="opacity-30 mb-3 text-base">$ lora dashboard</div>
-      <div className="opacity-10 mb-4 text-xs">{"─".repeat(36)}</div>
+    <div ref={scrollRef} className="px-6 py-6 text-sm leading-snug select-none font-mono w-full h-full">
+      <div className="flex items-center justify-between mb-3">
+        <div className="opacity-30 text-base">$ lora dashboard</div>
+        {/* Live indicator — pulses green when a WebSocket event arrives */}
+        <div className={`flex items-center gap-1 text-xs transition-all duration-300 ${liveFlash ? "opacity-100" : "opacity-20"}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${liveFlash ? "bg-green-400 shadow-[0_0_6px_#4ade80]" : "bg-white/40"}`} />
+          <span className={liveFlash ? "text-green-400" : ""}>LIVE</span>
+        </div>
+      </div>
+      <div className="opacity-10 mb-4 text-xs">{"─".repeat(30)}</div>
 
       <div className="mb-3">
         <div className="opacity-30 text-xs mb-1">$ date</div>

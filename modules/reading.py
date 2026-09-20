@@ -307,6 +307,7 @@ async def handle_reading_intent(
 
 async def handle_reading_callback(query, pool, data: str) -> None:
     """Routes reading callbacks."""
+    data = data.replace(":", "_")
     parts = data.split("_")
 
     if data == "reading_main":

@@ -16,7 +16,7 @@ export function Layout() {
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className={sidebarOpen ? "lg:ml-64" : "lg:ml-0"}>
           <Header onMenu={() => setSidebarOpen(!sidebarOpen)} sidebarOpen={sidebarOpen} />
-          <div className="max-w-5xl mx-auto p-4 md:p-6 pb-24 lg:pb-6">
+          <div className="max-w-5xl mx-auto p-4 md:p-6 pb-32 lg:pb-10">
             <main>
               <AnimatePresence mode="wait">
                 <motion.div

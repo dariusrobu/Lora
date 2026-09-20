@@ -26,3 +26,22 @@ export async function createTransaction(tx: {
 export async function deleteTransaction(id: number): Promise<void> {
   await api.delete(`/api/finances/${id}`)
 }
+
+export async function fetchProductMemories() {
+  const { data } = await api.get("/api/finances/product-memories")
+  return data
+}
+
+export async function deleteProductMemory(id: number): Promise<void> {
+  await api.delete(`/api/finances/product-memories/${id}`)
+}
+
+export async function fetchMerchantMemories() {
+  const { data } = await api.get("/api/finances/merchant-memories")
+  return data
+}
+
+export async function deleteMerchantMemory(id: number): Promise<void> {
+  await api.delete(`/api/finances/merchant-memories/${id}`)
+}
+

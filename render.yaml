@@ -15,8 +15,6 @@ services:
         sync: false
       - key: TELEGRAM_USER_ID
         sync: false
-      - key: GEMINI_API_KEY
-        sync: false
       - key: TIMEZONE
         value: Europe/Bucharest
       - key: MORNING_BRIEFING_TIME

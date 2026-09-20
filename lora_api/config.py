@@ -10,11 +10,16 @@ if DATABASE_URL.startswith("postgres://"):
 LORA_API_SECRET = os.getenv("LORA_API_SECRET", "")
 LORA_API_PASSWORD = os.getenv("LORA_API_PASSWORD", "")
 
-JWT_SECRET = os.getenv("JWT_SECRET", LORA_API_SECRET)
+JWT_SECRET = os.getenv("JWT_SECRET", "")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 72
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("LORA_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+    if origin.strip()
+]
 
-API_PORT = int(os.getenv("API_PORT", "8088"))
+API_PORT = int(os.getenv("API_PORT", "8090"))
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
 NUTRITIONIX_APP_ID = os.getenv("NUTRITIONIX_APP_ID")
 NUTRITIONIX_API_KEY = os.getenv("NUTRITIONIX_API_KEY")

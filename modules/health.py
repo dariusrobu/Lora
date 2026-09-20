@@ -2,8 +2,7 @@ from typing import Dict, Any, Tuple, Optional
 from datetime import date
 import io
 import traceback
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
+
 from bot.formatter import escape_md, safe_markdown
 import db.queries.health as health_queries
 import db.queries.profile as profile_queries
@@ -300,12 +299,12 @@ async def _get_cigarette_warning(
     warning = ""
     if total >= 10:
         if tone == "direct":
-            warning = "\n\n⚠️ *STOP\!* Deja ești la a 10\-a țigară\. Îți bați joc de sănătate și de bani\. Oprește\-te ACUM\!"
+            warning = "\n\n⚠️ *STOP\\!* Deja ești la a 10\\-a țigară\\. Îți bați joc de sănătate și de bani\\. Oprește\\-te ACUM\\!"
         else:
             warning = "\n\n⚠️ Atenție: Ai ajuns la 10 țigări azi. Poate e momentul să iei o pauză? 🚭"
     elif total >= 5:
         if tone == "direct":
-            warning = "\n\n⚠️ Deja a 5\-a? Ai grijă, disciplina începe să dispară\. Reconcentrează\-te\!"
+            warning = "\n\n⚠️ Deja a 5\\-a? Ai grijă, disciplina începe să dispară\\. Reconcentrează\\-te\\!"
         else:
             warning = "\n\n⚠️ Ai fumat deja 5 țigări. Încearcă să reduci ritmul."
     return warning
@@ -434,7 +433,7 @@ async def _generate_health_summary_text(pool) -> Tuple[str, Any]:
         f"😴 *Somn:* medie {avg_sleep:.1f}h · {common_quality}\n"
         f"💧 *Apă:* medie {int(avg_water)}ml · max {max_water}ml\n"
         f"⚖️ *Greutate:* {recent_weight}kg (trend: {trend_emoji})\n"
-        f"🚬 *Țigări:* medie {summary.get('avg_cigarettes', 0):.1f}/zi · total {int(summary.get('total_cigarettes', 0))}\n"
+        f"🚬 *Țigări:* medie {(summary.get('avg_cigarettes') or 0):.1f}/zi · total {int(summary.get('total_cigarettes') or 0)}\n"
         f"🍎 *Nutriție Azi:* {nutri_text}\n"
         "━━━━━━━━━━━━━━━━━━━━"
     )
@@ -444,6 +443,12 @@ async def _generate_health_summary_text(pool) -> Tuple[str, Any]:
 
 
 async def _generate_health_chart(pool) -> Tuple[str, Any]:
+    try:
+        import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates  # noqa: F401
+    except ImportError:
+        return "⚠️ Modulul de grafice nu este disponibil \\(matplotlib lipsă\\)\\.", None
+
     history = await health_queries.get_health_history(pool, 30)
     if len(history) < 3:
         return (

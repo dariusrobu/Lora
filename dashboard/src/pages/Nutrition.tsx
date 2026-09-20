@@ -103,10 +103,10 @@ export default function Nutrition() {
       {/* Macro progress bars */}
       <div className="glass-strong rounded-2xl p-4 shadow-apple-heavy">
         <p className="text-apple-footnote font-semibold text-text-secondary uppercase tracking-wider mb-3">Today's Progress</p>
-        <MacroBar label="Calories" current={totals.calories} target={t.calories} unit="kcal" color="bg-violet-500" />
-        <MacroBar label="Protein" current={totals.protein} target={t.protein_g} unit="g" color="bg-violet-500" />
-        <MacroBar label="Carbs" current={totals.carbs} target={t.carbs_g} unit="g" color="bg-violet-500" />
-        <MacroBar label="Fat" current={totals.fat} target={t.fat_g} unit="g" color="bg-yellow-500" />
+        <MacroBar label="Calories" current={totals.calories} target={t.calories} unit="kcal" color="bg-indigo-500" />
+        <MacroBar label="Protein" current={totals.protein} target={t.protein_g} unit="g" color="bg-emerald-500" />
+        <MacroBar label="Carbs" current={totals.carbs} target={t.carbs_g} unit="g" color="bg-cyan-500" />
+        <MacroBar label="Fat" current={totals.fat} target={t.fat_g} unit="g" color="bg-amber-500" />
       </div>
 
       {/* Meals */}
@@ -144,11 +144,49 @@ export default function Nutrition() {
                   </div>
                 </div>
                 {typeMeals.map((meal) => (
-                  <div key={meal.id} className="ml-10 pl-3 border-l border-border py-1.5 mb-0.5">
-                    <p className="text-xs text-text-primary">{meal.description}</p>
-                    <p className="text-[10px] text-text-muted">
-                      P{meal.protein}g · C{meal.carbs}g · F{meal.fat}g
-                    </p>
+                  <div key={meal.id} className="ml-10 pl-3 border-l border-border py-2 mb-2 pr-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-medium text-text-primary">{meal.description}</p>
+                      <span className="text-[11px] font-bold text-text-primary tabular-nums">{meal.calories} kcal</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-text-muted mt-0.5">
+                      <span className="text-emerald-400 font-medium">P: {meal.protein}g</span>
+                      <span>·</span>
+                      <span className="text-cyan-400 font-medium">C: {meal.carbs}g</span>
+                      <span>·</span>
+                      <span className="text-amber-400 font-medium">F: {meal.fat}g</span>
+                    </div>
+                    {/* Itemized ingredients from Vision OCR / Meal breakdown */}
+                    {meal.items && meal.items.length > 0 && (
+                      <div className="mt-2 space-y-1 pt-1.5 border-t border-border/30">
+                        <div className="text-[10px] uppercase tracking-wider text-text-secondary font-semibold">
+                          Ingrediente & Gramaj
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          {meal.items.map((item, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between text-[11px] bg-white/[0.03] border border-border/40 rounded-lg px-2 py-1"
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-medium text-text-primary truncate">{item.name}</span>
+                                {item.grams ? (
+                                  <span className="text-text-muted text-[10px] shrink-0 font-mono">
+                                    ({item.grams}g)
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[10px] text-text-secondary tabular-nums shrink-0 ml-2">
+                                {item.calories ? <span>{item.calories}cal</span> : null}
+                                <span className="text-emerald-400 font-medium">P{item.protein ?? 0}</span>
+                                <span className="text-cyan-400 font-medium">C{item.carbs ?? 0}</span>
+                                <span className="text-amber-400 font-medium">F{item.fat ?? 0}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

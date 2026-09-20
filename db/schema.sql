@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS conversations (
     content     TEXT NOT NULL,
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX idx_conversations_created ON conversations(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversations_created ON conversations(created_at DESC);
 
 -- ── Message History (Conversational Context) ──────────────────
 CREATE TABLE IF NOT EXISTS message_history (
@@ -59,8 +59,8 @@ CREATE TABLE IF NOT EXISTS message_history (
     content     TEXT NOT NULL,
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX idx_message_history_user_id ON message_history(user_id);
-CREATE INDEX idx_message_history_created_at ON message_history(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_message_history_user_id ON message_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_message_history_created_at ON message_history(created_at DESC);
 
 -- ── Conversation state ────────────────────────────────────────
 -- Stores ephemeral state between turns (confirmations, edit flows)
@@ -147,9 +147,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     created_at    TIMESTAMPTZ DEFAULT NOW(),
     updated_at    TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX idx_tasks_status     ON tasks(status);
-CREATE INDEX idx_tasks_due_date   ON tasks(due_date);
-CREATE INDEX idx_tasks_sort_order ON tasks(sort_order);
+CREATE INDEX IF NOT EXISTS idx_tasks_status     ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_tasks_due_date   ON tasks(due_date);
+CREATE INDEX IF NOT EXISTS idx_tasks_sort_order ON tasks(sort_order);
 
 -- ── Notes & Journal ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS notes (
@@ -163,9 +163,9 @@ CREATE TABLE IF NOT EXISTS notes (
     created_at  TIMESTAMPTZ DEFAULT NOW(),
     updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX idx_notes_type ON notes(type);
-CREATE INDEX idx_notes_tags  ON notes USING GIN(tags);
-CREATE INDEX idx_notes_search ON notes USING GIN(to_tsvector('english', content));
+CREATE INDEX IF NOT EXISTS idx_notes_type ON notes(type);
+CREATE INDEX IF NOT EXISTS idx_notes_tags  ON notes USING GIN(tags);
+CREATE INDEX IF NOT EXISTS idx_notes_search ON notes USING GIN(to_tsvector('english', content));
 
 -- ── Finance ───────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS finances (
@@ -179,8 +179,8 @@ CREATE TABLE IF NOT EXISTS finances (
     created_at  TIMESTAMPTZ DEFAULT NOW(),
     updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX idx_finances_date ON finances(tx_date DESC);
-CREATE INDEX idx_finances_type ON finances(type);
+CREATE INDEX IF NOT EXISTS idx_finances_date ON finances(tx_date DESC);
+CREATE INDEX IF NOT EXISTS idx_finances_type ON finances(type);
 
 -- ── Budget limits ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS budget_limits (
@@ -205,13 +205,14 @@ CREATE TABLE IF NOT EXISTS events (
     is_recurring           BOOLEAN DEFAULT FALSE,
     recurrence             TEXT CHECK (recurrence IN ('daily','weekly','monthly','yearly', NULL)),
     remind_before_minutes  INT DEFAULT 30,
+    pre_reminded_at        TIMESTAMPTZ,
     reminded_at            TIMESTAMPTZ,
     remind_1day            BOOLEAN DEFAULT FALSE,
     created_at             TIMESTAMPTZ DEFAULT NOW(),
     updated_at             TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX idx_events_date ON events(event_date);
-CREATE INDEX idx_events_type ON events(event_type);
+CREATE INDEX IF NOT EXISTS idx_events_date ON events(event_date);
+CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
 
 -- Migration: Ensure event_type is not null for existing rows
 UPDATE events SET event_type = 'event' WHERE event_type IS NULL;
@@ -224,7 +225,7 @@ CREATE TABLE IF NOT EXISTS event_day_reminders (
     sent        BOOLEAN DEFAULT FALSE,
     PRIMARY KEY (event_id, event_date)
 );
-CREATE INDEX idx_event_day_reminders ON event_day_reminders(event_date, sent);
+CREATE INDEX IF NOT EXISTS idx_event_day_reminders ON event_day_reminders(event_date, sent);
 -- ── Shopping List ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS shopping_list (
     id          SERIAL PRIMARY KEY,
@@ -234,7 +235,7 @@ CREATE TABLE IF NOT EXISTS shopping_list (
     created_at  TIMESTAMPTZ DEFAULT NOW(),
     updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX idx_shopping_bought ON shopping_list(is_bought);
+CREATE INDEX IF NOT EXISTS idx_shopping_bought ON shopping_list(is_bought);
 
 -- ── Journal Entries ───────────────────────────────────────────
 -- One entry per day; upserted via ON CONFLICT (entry_date)
@@ -248,7 +249,7 @@ CREATE TABLE IF NOT EXISTS journal_entries (
     tomorrow_focus   TEXT,
     created_at       TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX idx_journal_date ON journal_entries(entry_date DESC);
+CREATE INDEX IF NOT EXISTS idx_journal_date ON journal_entries(entry_date DESC);
 
 -- ── Day Plans ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS day_plans (
@@ -259,7 +260,7 @@ CREATE TABLE IF NOT EXISTS day_plans (
     wake_time        VARCHAR(20),   -- wake up time
     created_at       TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX idx_day_plans_date ON day_plans(plan_date DESC);
+CREATE INDEX IF NOT EXISTS idx_day_plans_date ON day_plans(plan_date DESC);
 
 -- ── Goals & Goal Tasks ──────────────────────────────────────
 CREATE TABLE IF NOT EXISTS goals (
@@ -306,7 +307,7 @@ CREATE TABLE IF NOT EXISTS health_logs (
     created_at     TIMESTAMPTZ DEFAULT NOW(),
     updated_at     TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX idx_health_date ON health_logs(log_date DESC);
+CREATE INDEX IF NOT EXISTS idx_health_date ON health_logs(log_date DESC);
 
 -- ── Insights Log ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS insight_log (
@@ -402,7 +403,7 @@ CREATE TABLE IF NOT EXISTS skill_logs (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_skill_logs_date ON skill_logs(log_date DESC);
+CREATE INDEX IF NOT EXISTS idx_skill_logs_date ON skill_logs(log_date DESC);
 
 -- ── Nutrition Tracking ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS meals (
@@ -416,7 +417,7 @@ CREATE TABLE IF NOT EXISTS meals (
     description     TEXT,
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX idx_meals_date ON meals(meal_date);
+CREATE INDEX IF NOT EXISTS idx_meals_date ON meals(meal_date);
 
 CREATE TABLE IF NOT EXISTS meal_items (
     id              SERIAL PRIMARY KEY,
@@ -570,8 +571,8 @@ CREATE TABLE IF NOT EXISTS memory_facts (
     times_referenced INTEGER DEFAULT 1,
     created_at       TIMESTAMP DEFAULT NOW()
 );
-CREATE INDEX idx_memory_category ON memory_facts(category);
-CREATE INDEX idx_memory_fact_search ON memory_facts USING GIN(to_tsvector('english', fact));
+CREATE INDEX IF NOT EXISTS idx_memory_category ON memory_facts(category);
+CREATE INDEX IF NOT EXISTS idx_memory_fact_search ON memory_facts USING GIN(to_tsvector('english', fact));
 
 -- --- CALENDAR SYNC ---
 CREATE TABLE IF NOT EXISTS calendar_sync (
@@ -583,8 +584,8 @@ CREATE TABLE IF NOT EXISTS calendar_sync (
     synced_at       TIMESTAMP DEFAULT NOW(),
     last_modified   TIMESTAMP DEFAULT NOW()
 );
-CREATE INDEX idx_calendar_sync_uid ON calendar_sync(ical_uid);
-CREATE INDEX idx_calendar_sync_lora ON calendar_sync(lora_type, lora_id);
+CREATE INDEX IF NOT EXISTS idx_calendar_sync_uid ON calendar_sync(ical_uid);
+CREATE INDEX IF NOT EXISTS idx_calendar_sync_lora ON calendar_sync(lora_type, lora_id);
 
 -- ── Execution Log ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS execution_log (
@@ -650,3 +651,12 @@ CREATE TABLE IF NOT EXISTS travel_items (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_travel_list_name ON travel_items(list_name);
+
+-- ── Feedback ─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS feedback (
+    id SERIAL PRIMARY KEY,
+    intent_used TEXT,
+    user_correction TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+

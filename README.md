@@ -18,18 +18,18 @@ Lora is a **private Telegram bot** that acts as a personal AI second brain for e
 |---|---|---|
 | Language | Python 3.11+ | Type hints required everywhere |
 | Telegram | `python-telegram-bot==22.6` | Async, long polling |
-| LLM | `google-genai` (latest) | **Model: `gemini-2.0-flash`** |
+| LLM | `ollama` | Local models only; no cloud LLM runtime |
 | Database | Neon (serverless PostgreSQL) | Cloud-hosted Postgres |
 | DB driver | `asyncpg` | Raw SQL — **no ORM** |
 | Scheduler | `apscheduler==3.10.4` | `AsyncIOScheduler` |
 | HTTP | `httpx` | External calls |
 | Config | `python-dotenv` | All secrets via `.env` |
 | Hosting | Railway | Always-on, deploy via GitHub |
-| TTS / Voice | `edge-tts` | Daily podcast voice messages |
+| Voice-to-text | `faster-whisper` | Local transcription before Ollama processing |
 | RSS | `feedparser` | News module |
 | Linting | `ruff` | Linter + formatter |
 
-> ⚠️ The code uses `from google import genai` / `from google.genai import types` — **not** the legacy `google-generativeai` package. The `LORA_AGENT_BRIEF_v2.md` spec is outdated on this point.
+> Lora processes text, structured responses, vision and memory through local Ollama models. Voice messages are transcribed locally with Faster-Whisper.
 
 ---
 
@@ -39,7 +39,11 @@ Lora is a **private Telegram bot** that acts as a personal AI second brain for e
 # .env (never commit)
 TELEGRAM_BOT_TOKEN=        # from @BotFather
 TELEGRAM_USER_ID=          # numeric Telegram user ID (int)
-GEMINI_API_KEY=            # from Google AI Studio
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=qwen2.5:7b
+OLLAMA_STRUCTURED_MODEL=qwen2.5:7b
+OLLAMA_VISION_MODEL=llava
+LOCAL_STT_MODEL=small       # Faster-Whisper model, stored locally after setup
 DATABASE_URL=              # postgres://user:pass@host/db?sslmode=require
 TIMEZONE=Europe/Bucharest  # pytz-compatible string
 MORNING_BRIEFING_TIME=08:00
@@ -67,7 +71,7 @@ lora/
 │   ├── keyboards.py          # Inline keyboard builders (task, habit, mood, confirmation)
 │   ├── formatter.py          # MarkdownV2 escaping — escape_md(), safe_markdown(), split_message()
 │   ├── onboarding.py         # First-run wizard (name → timezone → capabilities overview)
-│   ├── tts.py                # edge-tts wrapper → returns a temp .ogg file path
+│   ├── tts.py                # local KittenTTS wrapper → returns a temp audio file path
 │   └── voice.py              # STT via Telegram voice → transcribe_voice() → returns text
 │
 ├── core/
@@ -231,7 +235,7 @@ All jobs have `misfire_grace_time=3600` — if bot restarts late, it still fires
 
 - **Incoming voice → STT:** `bot/voice.py` → `transcribe_voice()` → plain text → rejoins normal pipeline
 - **Outgoing TTS → podcast:** `bot/tts.py` → `text_to_speech()` → temp `.ogg` file → sent as `send_voice`
-- TTS text is stripped of all MarkdownV2 markers before passing to `edge-tts`
+- TTS text is stripped of all MarkdownV2 markers before local synthesis
 - Both morning briefing and EOD reflection send a voice podcast in addition to the text message
 
 ---
@@ -451,7 +455,7 @@ Change needed: [DESCRIBE THE SCHEMA CHANGE AND WHY]
 
 ## Known Quirks & Gotchas
 
-- **`google-genai` vs `google-generativeai`:** The code uses the NEW `google-genai` SDK (`from google import genai`). The spec doc (`LORA_AGENT_BRIEF_v2.md`) references the old package. Do NOT mix them.
+- **AI local-only:** Ollama handles LLM tasks, Faster-Whisper transcribes voice, and KittenTTS synthesizes voice locally. Legacy cloud-provider documentation is outdated.
 - **MarkdownV2 escaping is tricky:** Use `escape_md()` for user-supplied strings, `safe_markdown()` for Gemini-generated text. Never send raw user text as MarkdownV2.
 - **`reply` in Gemini JSON:** The `reply` field comes back as raw MarkdownV2 — any backslashes in the JSON will double-escape. The system prompt says: *"RAW characters in the JSON. DO NOT use backslashes to escape characters."*
 - **Onboarding bypasses Gemini:** The onboarding wizard uses direct string matching + button callbacks. Don't route onboarding messages through the intent pipeline.

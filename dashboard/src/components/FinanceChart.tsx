@@ -1,7 +1,7 @@
 import React from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip, CartesianGrid } from 'recharts';
 import { GlassCard } from './GlassCard';
-import { Wallet, TrendingUp } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown } from 'lucide-react';
 import type { FinanceSummary } from '../types';
 
 interface FinanceHistoryItem {
@@ -15,7 +15,15 @@ interface FinanceChartProps {
   onClick?: () => void;
 }
 
+function fmtCurrency(n: number) {
+  return new Intl.NumberFormat("ro-RO", { style: "currency", currency: "RON", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
+}
+
 export const FinanceChart: React.FC<FinanceChartProps> = ({ summary, history, onClick }) => {
+  const isDeficit = (summary?.balance ?? 0) < 0;
+  const strokeColor = isDeficit ? "#F43F5E" : "#6366F1";
+  const glowColor = isDeficit ? "rgba(244, 63, 94, 0.3)" : "rgba(99, 102, 241, 0.3)";
+
   // Format history for recharts
   const chartData = history.slice(0, 7).reverse().map((h: FinanceHistoryItem) => ({
     date: new Date(h.date).toLocaleDateString('ro-RO', { weekday: 'short' }),
@@ -24,48 +32,76 @@ export const FinanceChart: React.FC<FinanceChartProps> = ({ summary, history, on
 
   return (
     <GlassCard className="group overflow-hidden relative" onClick={onClick}>
-      <div className="flex justify-between items-start relative z-10 mb-6">
+      <div className="flex justify-between items-start relative z-10 mb-5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-surface flex items-center justify-center">
-            <Wallet className="w-5 h-5 text-text-secondary" />
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+            isDeficit 
+              ? "bg-rose-500/15 text-rose-400 border border-rose-500/25 shadow-glow-rose" 
+              : "bg-primary/15 text-primary border border-primary/25 shadow-glow-indigo"
+          }`}>
+            <Wallet className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[8px] text-text-secondary uppercase tracking-widest font-semibold">Balanță Curentă</p>
-            <p className="text-2xl font-black tracking-tighter tabular-nums text-text-primary">
-              {summary?.balance ?? 0} <span className="text-[10px] font-bold opacity-30 uppercase">Lei</span>
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className={`text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.2 rounded-md ${
+                isDeficit 
+                  ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" 
+                  : "bg-primary/10 text-primary border border-primary/20"
+              }`}>
+                {isDeficit ? "Deficit (Pe Minus)" : "Balanță Curentă"}
+              </span>
+            </div>
+            <p className={`text-3xl sm:text-4xl font-black tracking-tight tabular-nums ${
+              isDeficit ? "text-rose-400" : "text-white"
+            }`}>
+              {summary ? fmtCurrency(summary.balance) : "—"}
             </p>
           </div>
         </div>
-        <TrendingUp className="w-4 h-4 text-text-muted" />
+        <div className={`p-2 rounded-xl border ${
+          isDeficit 
+            ? "bg-rose-500/10 text-rose-400 border-rose-500/20" 
+            : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+        }`}>
+          {isDeficit ? <TrendingDown className="w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
+        </div>
       </div>
 
-      <div className="h-32 w-full mt-4">
+      <div className="h-56 sm:h-64 w-full mt-3">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData}>
+          <AreaChart data={chartData} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
             <defs>
               <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#ffffff" stopOpacity={0.2}/>
-                <stop offset="95%" stopColor="#ffffff" stopOpacity={0}/>
+                <stop offset="5%" stopColor={strokeColor} stopOpacity={0.35} />
+                <stop offset="95%" stopColor={strokeColor} stopOpacity={0.0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
             <XAxis 
               dataKey="date" 
               axisLine={false} 
               tickLine={false} 
-              tick={{ fill: 'rgba(255,255,255,0.2)', fontSize: 10 }}
+              tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10, fontWeight: 500 }}
             />
             <Tooltip 
-              contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '10px' }}
-              itemStyle={{ color: '#fff' }}
+              contentStyle={{ 
+                backgroundColor: 'rgba(12, 12, 20, 0.94)', 
+                backdropFilter: 'blur(16px)',
+                border: '1px solid rgba(255,255,255,0.08)', 
+                borderRadius: '12px', 
+                fontSize: '11px',
+                color: '#fff',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              }}
+              formatter={(val: any) => [`${val ?? 0} lei`, 'Cheltuit']}
             />
             <Area 
               type="monotone" 
               dataKey="amount" 
-              stroke="rgba(255,255,255,0.4)" 
+              stroke={strokeColor} 
               fillOpacity={1} 
               fill="url(#colorAmount)" 
-              strokeWidth={2}
+              strokeWidth={1.8}
             />
           </AreaChart>
         </ResponsiveContainer>

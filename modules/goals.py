@@ -270,6 +270,7 @@ async def get_goals_overview(pool) -> Tuple[str, Any]:
 async def handle_goals_callback(query, pool, data: str):
     from core.state import set_state, clear_state
 
+    data = data.replace(":", "_")
     parts = data.split("_")
 
     try:

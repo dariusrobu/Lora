@@ -79,7 +79,7 @@ export function QuickActions() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 + i * 0.04 }}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-full glass-strong text-xs font-medium text-text-secondary hover:text-primary hover:bg-primary/10 transition-all"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] hover:border-indigo-400/30 text-xs font-medium text-text-secondary hover:text-white transition-all"
           >
             <Icon className="w-3.5 h-3.5" />
             {label}

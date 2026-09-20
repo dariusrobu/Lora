@@ -195,10 +195,13 @@ export default function Projects() {
 
   const handleCreate = () => {
     if (!formName.trim() || createMut.isPending) return
-    const payload: Record<string, string> = { name: formName.trim(), priority: formPriority }
-    if (formCategory.trim()) payload.category = formCategory.trim()
-    if (formHasDeadline && formDeadline) payload.deadline = formDeadline
-    if (formDescription.trim()) payload.description = formDescription.trim()
+    const payload = {
+      name: formName.trim(),
+      priority: formPriority,
+      ...(formCategory.trim() ? { category: formCategory.trim() } : {}),
+      ...(formHasDeadline && formDeadline ? { deadline: formDeadline } : {}),
+      ...(formDescription.trim() ? { description: formDescription.trim() } : {}),
+    }
     createMut.mutate(payload)
   }
 

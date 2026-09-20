@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional
 from lora_api.auth import get_current_user
 from lora_api.database import get_pool
 from lora_api.serializers import clean_dict
@@ -25,10 +25,8 @@ class ProfileUpdate(BaseModel):
     study_group: Optional[str] = None
     water_target_ml: Optional[int] = None
     personal_notes: Optional[str] = None
-    llm_provider: Optional[str] = None
     llm_host: Optional[str] = None
     llm_model: Optional[str] = None
-    gemini_api_key: Optional[str] = None
     city_name: Optional[str] = None
     home_latitude: Optional[float] = None
     home_longitude: Optional[float] = None
@@ -46,7 +44,10 @@ async def get_profile(user=Depends(get_current_user)):
     import db.queries.profile as q
     pool = await get_pool()
     row = await q.get_user_profile(pool, TELEGRAM_USER_ID)
-    return clean_dict(dict(row)) if row else {}
+    profile = clean_dict(dict(row)) if row else {}
+    profile.pop("gemini_api_key", None)
+    profile["llm_provider"] = "ollama"
+    return profile
 
 
 @router.put("/profile")
@@ -58,7 +59,10 @@ async def update_profile(body: ProfileUpdate, user=Depends(get_current_user)):
         raise HTTPException(status_code=400, detail="No fields to update")
     await q.update_user_profile(pool, TELEGRAM_USER_ID, **kwargs)
     row = await q.get_user_profile(pool, TELEGRAM_USER_ID)
-    return clean_dict(dict(row)) if row else {}
+    profile = clean_dict(dict(row)) if row else {}
+    profile.pop("gemini_api_key", None)
+    profile["llm_provider"] = "ollama"
+    return profile
 
 
 class TestOllamaRequest(BaseModel):
@@ -86,24 +90,6 @@ async def test_ollama(body: TestOllamaRequest, user=Depends(get_current_user)):
         if "ConnectError" in msg or "Connection refused" in msg or "Timeout" in msg or "Timeout" in exc_name:
             return {"ok": False, "message": msg or exc_name, "hint": "Pornește Ollama: ollama serve. Dacă e pe alt calculator, verifică host-ul."}
         return {"ok": False, "message": msg or exc_name, "hint": "Verifică host-ul și portul."}
-
-
-class TestGeminiRequest(BaseModel):
-    api_key: str
-
-
-@router.post("/integrations/test/gemini")
-async def test_gemini(body: TestGeminiRequest, user=Depends(get_current_user)):
-    try:
-        from google import genai
-        client = genai.Client(api_key=body.api_key)
-        resp = client.models.generate_content(model="gemini-2.0-flash", contents="ping")
-        return {"ok": True, "message": "Gemini API răspunde corect"}
-    except Exception as e:
-        msg = str(e)
-        if "API_KEY" in msg or "403" in msg or "PERMISSION_DENIED" in msg:
-            return {"ok": False, "message": msg, "hint": "Cheia API nu e validă. Generează una nouă la https://aistudio.google.com/app/apikey"}
-        return {"ok": False, "message": msg, "hint": "Verifică cheia API — fără spații, activă și corect copiată."}
 
 
 @router.post("/integrations/test/weather")

@@ -147,6 +147,8 @@ async def process_geofencing(
 
     # 3. Auto-set Home if not set and user is stationary for a long time?
     # (Optional future improvement)
+    home_lat = profile.get("home_latitude")
+    home_lon = profile.get("home_longitude")
     if not home_lat or not home_lon:
         # If user has been at this location for a while, we could suggest it as Home
         pass

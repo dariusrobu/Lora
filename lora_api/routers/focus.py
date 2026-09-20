@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends
 from lora_api.auth import get_current_user
 from lora_api.database import get_pool
-from lora_api.serializers import clean_dict
 
 router = APIRouter(prefix="/api", tags=["focus"])
 

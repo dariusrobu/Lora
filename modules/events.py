@@ -210,15 +210,6 @@ async def handle_event_intent(
         if time_str and not date_str:
             date_str = datetime.now().strftime("%Y-%m-%d")
 
-        remind_minutes = data.get("remind_before_minutes", 30) if not is_reminder else 0
-
-        if not title or not date_str:
-            return (
-                "⚠️ Atenție: Care este evenimentul/reminder-ul și când este?",
-                None,
-                None,
-            )
-
         try:
             event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
             event_time = None
@@ -237,6 +228,19 @@ async def handle_event_intent(
                 None,
                 None,
             )
+
+        remind_minutes = data.get("remind_before_minutes")
+        if remind_minutes is None:
+            remind_minutes = 30
+
+        # If event/reminder is scheduled today within remind_minutes from now (e.g. in 2 min, 5 min),
+        # disable the 30m pre-reminder so it only triggers at the exact time.
+        if event_date == datetime.now().date() and event_time and remind_minutes > 0:
+            now_dt = datetime.now()
+            event_dt = datetime.combine(event_date, event_time)
+            minutes_until = (event_dt - now_dt).total_seconds() / 60
+            if minutes_until <= remind_minutes:
+                remind_minutes = 0
 
         event_id = await event_queries.add_event(
             pool,

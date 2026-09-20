@@ -3,8 +3,7 @@
 import json
 import asyncio
 from typing import List, Dict, Any
-from google.genai import types
-from core.gemini import client
+from core.gemini import generate_text_response
 from db.queries.correlations import get_30day_snapshot, get_weekly_patterns
 from db.queries.memory import list_all_memories, save_memory_fact
 
@@ -68,16 +67,9 @@ SCHEMA JSON:
 """
 
     try:
-        response = await asyncio.to_thread(
-            client.models.generate_content,
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.2,  # Low temp for data analysis stability
-            ),
-        )
-        correlations = json.loads(response.text)
+        messages = [{"role": "user", "content": prompt}]
+        response_text = await generate_text_response(messages)
+        correlations = json.loads(response_text)
         return correlations
     except Exception as e:
         print(f"Correlation Engine Error: {e}", flush=True)

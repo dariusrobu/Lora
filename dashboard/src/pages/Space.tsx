@@ -167,11 +167,9 @@ function ProfileTab({ profile, onUpdate }: { profile: Profile; onUpdate: (data: 
 }
 
 function LLMTab({ profile, onUpdate }: { profile: Profile; onUpdate: (data: Partial<Profile>) => Promise<void> }) {
-  const [provider, setProvider] = useState(profile.llm_provider || "ollama")
+  const provider = "ollama"
   const [host, setHost] = useState(profile.llm_host || "http://localhost:11434")
   const [model, setModel] = useState(profile.llm_model || "llama3.2:3b")
-  const [apiKey, setApiKey] = useState(profile.gemini_api_key || "")
-  const [showKey, setShowKey] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string; hint?: string } | null>(null)
   const [testing, setTesting] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -215,7 +213,7 @@ function LLMTab({ profile, onUpdate }: { profile: Profile; onUpdate: (data: Part
     } else {
       setModels([])
     }
-  }, [sysSpecs, provider])
+  }, [sysSpecs])
 
   const handleDetect = async () => {
     setDetecting(true); setError(null)
@@ -241,9 +239,7 @@ function LLMTab({ profile, onUpdate }: { profile: Profile; onUpdate: (data: Part
   const handleTest = async () => {
     setTesting(true); setTestResult(null)
     try {
-      const ep = provider === "ollama" ? "/api/integrations/test/ollama" : "/api/integrations/test/gemini"
-      const body = provider === "ollama" ? { host, model } : { api_key: apiKey }
-      const { data } = await api.post(ep, body)
+      const { data } = await api.post("/api/integrations/test/ollama", { host, model })
       setTestResult(data)
     } catch (e: any) {
       const detail = e?.response?.data?.detail || e?.message || "Connection failed"
@@ -255,13 +251,13 @@ function LLMTab({ profile, onUpdate }: { profile: Profile; onUpdate: (data: Part
 
   const handleSave = async () => {
     setSaving(true)
-    try { await onUpdate({ llm_provider: provider, llm_host: host, llm_model: model, gemini_api_key: apiKey }) }
+    try { await onUpdate({ llm_host: host, llm_model: model }) }
     finally { setSaving(false) }
   }
 
   const handleSelectModel = async (name: string) => {
     setModel(name)
-    await onUpdate({ llm_provider: provider, llm_host: host, llm_model: name, gemini_api_key: apiKey })
+    await onUpdate({ llm_host: host, llm_model: name })
     setError(null)
     if (sysSpecs) {
       api.get(`/api/llm/models?ram_gb=${sysSpecs.total_ram_gb}&vram_gb=${sysSpecs.total_vram_gb}`)
@@ -493,20 +489,6 @@ function LLMTab({ profile, onUpdate }: { profile: Profile; onUpdate: (data: Part
         </div>
       )}
 
-      <div className="space-y-1.5">
-        <label className="text-sm text-text-secondary">Provider</label>
-        <div className="flex gap-3">
-          <button onClick={() => setProvider("ollama")}
-            className={`flex-1 h-11 rounded-xl border text-sm font-medium transition-all ${provider === "ollama" ? "bg-emerald-500/10 border-emerald-500 text-emerald-400" : "bg-surface border-border text-text-secondary hover:text-text-primary"}`}>
-            Local (Ollama)
-          </button>
-          <button onClick={() => setProvider("gemini")}
-            className={`flex-1 h-11 rounded-xl border text-sm font-medium transition-all ${provider === "gemini" ? "bg-emerald-500/10 border-emerald-500 text-emerald-400" : "bg-surface border-border text-text-secondary hover:text-text-primary"}`}>
-            Cloud (Gemini)
-          </button>
-        </div>
-      </div>
-
       {provider === "ollama" && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -577,21 +559,6 @@ function LLMTab({ profile, onUpdate }: { profile: Profile; onUpdate: (data: Part
         </>
       )}
 
-      {provider === "gemini" && (
-        <div className="space-y-1.5">
-          <label className="text-sm text-text-secondary">Gemini API Key</label>
-          <div className="flex gap-2">
-            <input type={showKey ? "text" : "password"}
-              className="flex-1 h-11 px-4 rounded-xl bg-surface border border-border text-text-primary focus:outline-none focus:border-primary/30"
-              value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="AIza..." />
-            <button onClick={() => setShowKey(!showKey)}
-              className="px-3 h-11 rounded-xl bg-surface border border-border text-text-secondary hover:text-text-primary text-xs">
-              {showKey ? "Ascunde" : "Arată"}
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="flex gap-3">
         <Button variant="secondary" onClick={handleTest} disabled={testing}>
           {testing ? <Spinner className="w-4 h-4" /> : null}{testing ? "Se testează..." : "Test connection"}
@@ -636,7 +603,7 @@ function IntegrationsTab() {
             <div>
               <div className="font-medium text-sm">{int.label}</div>
               <div className="text-xs text-text-muted mt-0.5">
-                {testResults[int.key]?.ok ? "Activat" : testResults[int.key] && !testResults[int.key]?.ok ? testResults[int.key].message : "Netestat"}
+                {testResults[int.key] ? (testResults[int.key]?.ok ? "Activat" : testResults[int.key]?.message ?? "Eroare") : "Netestat"}
               </div>
             </div>
             <Button variant="secondary" size="sm" onClick={() => handleTest(int.key, int.endpoint)} disabled={testing === int.key}>
@@ -1022,7 +989,7 @@ function LogsTab() {
               </div>
             ))}
           </div>
-          {logs.total > 50 && (
+          {logs && logs.total > 50 && (
             <div className="flex items-center justify-center gap-3 text-sm">
               <Button variant="secondary" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
                 ← Anterioară
@@ -1281,8 +1248,8 @@ export default function Space() {
             )
           })}
         </div>
-        {active === "profile" && <ProfileTab profile={profile} onUpdate={(d) => upd.mutateAsync(d)} />}
-        {active === "llm" && <LLMTab profile={profile} onUpdate={(d) => upd.mutateAsync(d)} />}
+        {active === "profile" && <ProfileTab profile={profile} onUpdate={async (d) => { await upd.mutateAsync(d) }} />}
+        {active === "llm" && <LLMTab profile={profile} onUpdate={async (d) => { await upd.mutateAsync(d) }} />}
         {active === "integrations" && <IntegrationsTab />}
         {active === "lore" && <LoreTab />}
         {active === "correlations" && <CorrelationsTab />}

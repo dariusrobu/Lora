@@ -44,7 +44,7 @@ async def handle_project_intent(
 
         meta_str = f" ({', '.join(meta_parts)})" if meta_parts else ""
         return (
-            f"✅ Proiectul *{escape_md(name)}* a fost adăugat cu succes.",
+            f"✅ Proiectul *{escape_md(name)}*{meta_str} a fost adăugat cu succes.",
             None,
             project_id,
         )

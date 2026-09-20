@@ -173,9 +173,12 @@ export default function Goals() {
 
   const handleCreate = () => {
     if (!formTitle.trim() || createMut.isPending) return
-    const payload: Record<string, string> = { title: formTitle.trim(), time_horizon: formHorizon }
-    if (formDeadline) payload.deadline = formDeadline
-    if (formCategory.trim()) payload.category = formCategory.trim()
+    const payload = {
+      title: formTitle.trim(),
+      time_horizon: formHorizon,
+      ...(formDeadline ? { deadline: formDeadline } : {}),
+      ...(formCategory.trim() ? { category: formCategory.trim() } : {}),
+    }
     createMut.mutate(payload)
   }
 

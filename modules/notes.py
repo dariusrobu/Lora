@@ -28,7 +28,6 @@ async def handle_note_intent(
             tags=data.get("tags", []),
             project_id=project_id,
         )
-        type_label = "Jurnalizat" if data.get("type") == "journal" else "Am salvat"
         project_msg = (
             f" pentru proiectul *{escape_md(project_name)}*" if project_name else ""
         )

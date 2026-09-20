@@ -17,7 +17,7 @@ export default function Skills() {
   })
 
   const logMutation = useMutation({
-    mutationFn: logSkill,
+    mutationFn: (skillName: string) => logSkill(skillName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["skills"] })
       setModalOpen(false)
@@ -50,7 +50,7 @@ export default function Skills() {
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h3 className="font-semibold">{skill.name}</h3>
-                  <Badge variant="secondary">Lv.{skill.level}</Badge>
+                  <Badge variant="highlight">Lv.{skill.level}</Badge>
                 </div>
                 {skill.streak > 0 && (
                   <div className="flex items-center gap-1 text-orange-500">
@@ -89,7 +89,7 @@ export default function Skills() {
             onChange={(e) => setName(e.target.value)}
           />
           <Button
-            onClick={() => logMutation.mutate({ name: name.trim() })}
+            onClick={() => logMutation.mutate(name.trim())}
             disabled={!name.trim() || logMutation.isPending}
           >
             Create

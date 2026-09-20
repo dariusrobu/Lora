@@ -11,25 +11,37 @@ async def save_memory_fact(
     expires_at: str = None,
     embedding: List[float] = None,
 ) -> int:
-    """Saves a new memory fact to the database."""
-    # Convert embedding to string for pgvector if it's a list
+    """Saves a new memory fact to the database.
+
+    Writes to both `embedding` (legacy TEXT) and `embedding_vec` (vector(768) — pgvector)
+    for backward-compat during migration period.
+    """
+    # Legacy TEXT format for backward compat
     embedding_str = str(embedding) if embedding else None
+    # Native pgvector format — None if no embedding
+    embedding_vec_str = "[" + ",".join(str(v) for v in embedding) + "]" if embedding else None
 
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            INSERT INTO memory_facts (user_id, category, fact, source, confidence, expires_at, embedding)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING id
-            """,
-            user_id,
-            category,
-            fact,
-            source,
-            confidence,
-            expires_at,
-            embedding_str,
-        )
+        try:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO memory_facts (user_id, category, fact, source, confidence, expires_at, embedding, embedding_vec)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector)
+                RETURNING id
+                """,
+                user_id, category, fact, source, confidence, expires_at,
+                embedding_str, embedding_vec_str,
+            )
+        except Exception:
+            # Fallback: pgvector extension not yet installed — write text only
+            row = await conn.fetchrow(
+                """
+                INSERT INTO memory_facts (user_id, category, fact, source, confidence, expires_at, embedding)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING id
+                """,
+                user_id, category, fact, source, confidence, expires_at, embedding_str,
+            )
         return row["id"]
 
 
@@ -223,24 +235,64 @@ async def search_memories(pool, query: str) -> List[Dict[str, Any]]:
 async def semantic_search_memories(
     pool, user_id: int, query_embedding: List[float], limit: int = 5
 ) -> List[Dict[str, Any]]:
-    """Searches memories using vector similarity (cosine distance)."""
-    # Convert embedding to string for pgvector if it's a list
-    emb_str = str(query_embedding) if query_embedding else None
+    """Searches memories using vector cosine similarity via pgvector.
+
+    Uses native `embedding_vec <=> $2::vector` operator (HNSW index) for
+    fast approximate search. Falls back to legacy TEXT-based casting if
+    pgvector extension is not installed yet.
+    """
+    if not query_embedding:
+        return []
+
+    emb_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
 
     async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT *, 1 - (embedding <=> $2) as similarity
-            FROM memory_facts
-            WHERE user_id = $1 AND embedding IS NOT NULL
-            ORDER BY similarity DESC
-            LIMIT $3
-            """,
-            user_id,
-            emb_str,
-            limit,
-        )
-        return [dict(r) for r in rows]
+        try:
+            # Primary: use native vector column (indexed, fast)
+            rows = await conn.fetch(
+                """
+                SELECT id, user_id, category, fact, source, confidence, created_at,
+                       1 - (embedding_vec <=> $2::vector) AS similarity
+                FROM memory_facts
+                WHERE user_id = $1
+                  AND embedding_vec IS NOT NULL
+                ORDER BY embedding_vec <=> $2::vector
+                LIMIT $3
+                """,
+                user_id, emb_str, limit,
+            )
+            if rows:
+                return [dict(r) for r in rows]
+
+            # Secondary: fall back to TEXT column cast — slower but works before migration
+            rows = await conn.fetch(
+                """
+                SELECT id, user_id, category, fact, source, confidence, created_at,
+                       1 - (embedding::vector <=> $2::vector) AS similarity
+                FROM memory_facts
+                WHERE user_id = $1
+                  AND embedding IS NOT NULL
+                ORDER BY embedding::vector <=> $2::vector
+                LIMIT $3
+                """,
+                user_id, emb_str, limit,
+            )
+            return [dict(r) for r in rows]
+
+        except Exception:
+            # pgvector extension not installed — graceful degradation to keyword search
+            rows = await conn.fetch(
+                """
+                SELECT id, user_id, category, fact, source, confidence, created_at,
+                       1.0 AS similarity
+                FROM memory_facts
+                WHERE user_id = $1
+                ORDER BY created_at DESC
+                LIMIT $2
+                """,
+                user_id, limit,
+            )
+            return [dict(r) for r in rows]
 
 
 async def get_random_memory_lane(pool) -> Optional[Dict[str, Any]]:

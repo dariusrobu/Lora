@@ -102,9 +102,29 @@ async def get_recent_meals(pool, limit: int = 5) -> List[Dict[str, Any]]:
 
 
 async def get_daily_meals(pool, log_date: date) -> List[Dict[str, Any]]:
-    """Gets all meals for a specific date."""
-    rows = await pool.fetch(
-        "SELECT id, total_calories, total_protein, total_carbs, total_fat, description, meal_type, created_at FROM meals WHERE meal_date = $1 ORDER BY created_at ASC",
-        log_date,
-    )
+    """Gets all meals for a specific date including itemized ingredients."""
+    query = """
+        SELECT 
+            m.id, m.total_calories, m.total_protein, m.total_carbs, m.total_fat, 
+            m.description, m.meal_type, m.created_at,
+            COALESCE(
+                json_agg(
+                    json_build_object(
+                        'name', mi.food_name,
+                        'grams', mi.quantity_g,
+                        'calories', mi.calories,
+                        'protein', mi.protein,
+                        'carbs', mi.carbs,
+                        'fat', mi.fat
+                    )
+                ) FILTER (WHERE mi.id IS NOT NULL),
+                '[]'::json
+            ) as items
+        FROM meals m
+        LEFT JOIN meal_items mi ON mi.meal_id = m.id
+        WHERE m.meal_date = $1
+        GROUP BY m.id
+        ORDER BY m.created_at ASC
+    """
+    rows = await pool.fetch(query, log_date)
     return [dict(r) for r in rows]

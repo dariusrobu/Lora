@@ -5,10 +5,12 @@ async def add_note(
     pool,
     content: str,
     type: str = "note",
-    tags: List[str] = [],
+    tags: Optional[List[str]] = None,
     mood: Optional[str] = None,
     project_id: Optional[int] = None,
 ) -> int:
+    if tags is None:
+        tags = []
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """

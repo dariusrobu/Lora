@@ -19,14 +19,19 @@ import { MoodWidget } from "../components/charts/MoodWidget"
 import { HealthWidget } from "../components/charts/HealthWidget"
 import { ShoppingWidget } from "../components/charts/ShoppingWidget"
 import { NutritionWidget } from "../components/charts/NutritionWidget"
+import { NewsWidget } from "../components/charts/NewsWidget"
+import { ReadingWidget } from "../components/charts/ReadingWidget"
+import News from "./News"
+import Reading from "./Reading"
 import { ViewContainer } from "../components/ViewContainer"
 import { Spinner } from "../components/ui/Spinner"
+import { fetchWeather } from "../api/queries/weather"
 import { QuickActions } from "../components/QuickActions"
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from "recharts"
 import { PieChart, Pie, Cell, ResponsiveContainer as PieResponsive } from "recharts"
 import { CheckCircle2, Circle, ListChecks, Wallet, CalendarDays as CalendarIcon, Sparkles, ShoppingCart, Heart, Apple, Smile } from "lucide-react"
 
-type ExpandedWidget = "calendar" | "finance" | "tasks" | "projects" | "weather" | "health" | "mood" | "shopping" | "nutrition" | null
+type ExpandedWidget = "calendar" | "finance" | "tasks" | "projects" | "weather" | "health" | "mood" | "shopping" | "nutrition" | "news" | "reading" | null
 
 const statusColor: Record<string, string> = {
   active: "bg-emerald-500",
@@ -50,7 +55,7 @@ function getGreeting() {
 
 function SubCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={twMerge("glass-strong rounded-2xl p-5 shadow-apple-heavy", className)}>
+    <div className={twMerge("rounded-2xl p-5 sm:p-6 bg-white/[0.02] border border-white/[0.04] transition-colors", className)}>
       {children}
     </div>
   )
@@ -138,9 +143,12 @@ function ExpandedFinance() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <SubCard><p className="text-apple-caption2 text-text-muted mb-0.5">Balance</p><p className="text-2xl font-bold text-text-primary">{fmtCurrency(bal)}</p></SubCard>
-        <SubCard><p className="text-apple-caption2 text-text-muted mb-0.5">Income</p><p className="text-2xl font-bold text-emerald-500">{fmtCurrency(inc)}</p></SubCard>
-        <SubCard><p className="text-apple-caption2 text-text-muted mb-0.5">Expenses</p><p className="text-2xl font-bold text-red-500">{fmtCurrency(exp)}</p></SubCard>
+        <SubCard className={bal < 0 ? "border-rose-500/30 bg-rose-500/[0.04]" : ""}>
+          <p className="text-apple-caption2 text-text-muted mb-0.5">{bal < 0 ? "Deficit (Pe Minus)" : "Balanță"}</p>
+          <p className={`text-2xl font-bold ${bal < 0 ? "text-rose-500" : bal > 0 ? "text-emerald-500" : "text-text-primary"}`}>{fmtCurrency(bal)}</p>
+        </SubCard>
+        <SubCard><p className="text-apple-caption2 text-text-muted mb-0.5">Venituri</p><p className="text-2xl font-bold text-emerald-500">{fmtCurrency(inc)}</p></SubCard>
+        <SubCard><p className="text-apple-caption2 text-text-muted mb-0.5">Cheltuieli</p><p className="text-2xl font-bold text-red-500">{fmtCurrency(exp)}</p></SubCard>
       </div>
       {chartData.length > 0 && (
         <SubCard className="h-64">
@@ -263,7 +271,7 @@ function ExpandedWeather() {
   useEffect(() => { navigator.geolocation.getCurrentPosition((pos) => setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude }), () => {}) }, [])
   const { data, isLoading } = useQuery({
     queryKey: ["weather", "expanded", coords?.lat, coords?.lon],
-    queryFn: () => fetch(`/api/weather?lat=${coords!.lat}&lon=${coords!.lon}`).then((r) => r.json()),
+    queryFn: () => fetchWeather(coords!.lat, coords!.lon),
     enabled: !!coords,
     refetchInterval: 300_000,
   })
@@ -390,63 +398,105 @@ function ExpandedNutrition() {
   )
 }
 
+type FilterCategory = "all" | "focus" | "finance" | "wellness"
+
 export default function Dashboard() {
   const [expanded, setExpanded] = useState<ExpandedWidget>(null)
+  const [activeTab, setActiveTab] = useState<FilterCategory>("all")
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: fetchProfile, refetchInterval: 60_000 })
   const { data: tasks } = useQuery({ queryKey: ["tasks"], queryFn: () => fetchTasks("all"), refetchInterval: 60_000 })
   const { data: summary } = useQuery({ queryKey: ["finance-summary"], queryFn: fetchFinanceSummary, refetchInterval: 60_000 })
   const { data: week } = useQuery({ queryKey: ["calendar", "dashboard"], queryFn: () => fetchWeek(new Date()), refetchInterval: 60_000 })
 
   const now = new Date()
-  const dateStr = now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" })
+  const dateStr = now.toLocaleDateString("ro-RO", { weekday: "long", month: "short", day: "numeric" })
   const greeting = getGreeting()
 
   const tasksDue = tasks?.filter((t) => t.status !== "done").length ?? 0
   const balance = summary?.summary?.balance ?? 0
+  const isNegative = balance < 0
   const todayStr = now.toISOString().slice(0, 10)
   const todayEvents = week?.find((d) => d.date === todayStr)
   const eventsCount = (todayEvents?.events.length ?? 0) + (todayEvents?.schedule.length ?? 0)
 
   const stats = [
-    { icon: ListChecks, label: "Tasks due", value: `${tasksDue}`, color: "text-primary" },
-    { icon: Wallet, label: "Balance", value: fmtCurrency(balance), color: "text-text-primary" },
-    { icon: CalendarIcon, label: "Today", value: `${eventsCount} events`, color: "text-accent" },
+    { 
+      icon: ListChecks, 
+      label: "Task-uri active", 
+      value: `${tasksDue}`, 
+      gradientText: "bg-gradient-to-r from-white via-indigo-200 to-indigo-400 bg-clip-text text-transparent",
+      color: "text-indigo-400" 
+    },
+    {
+      icon: Wallet,
+      label: isNegative ? "Pe minus" : "Balanță",
+      value: fmtCurrency(balance),
+      gradientText: isNegative 
+        ? "bg-gradient-to-r from-rose-400 via-rose-300 to-red-500 bg-clip-text text-transparent" 
+        : "bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-500 bg-clip-text text-transparent",
+      color: isNegative ? "text-rose-400" : "text-emerald-400",
+    },
+    { 
+      icon: CalendarIcon, 
+      label: "Azi în program", 
+      value: `${eventsCount} evenimente`, 
+      gradientText: "bg-gradient-to-r from-white via-purple-200 to-violet-400 bg-clip-text text-transparent",
+      color: "text-violet-400" 
+    },
   ]
 
   const nameInitial = profile?.name?.charAt(0).toUpperCase() ?? "L"
 
   const widgets = [
-    { key: "calendar" as const, Widget: CalendarWidget },
-    { key: "tasks" as const, Widget: TasksWidget },
-    { key: "finance" as const, Widget: FinanceWidget },
-    { key: "health" as const, Widget: HealthWidget },
-    { key: "projects" as const, Widget: ProjectsWidget },
-    { key: "shopping" as const, Widget: ShoppingWidget },
-    { key: "nutrition" as const, Widget: NutritionWidget },
-    { key: "mood" as const, Widget: MoodWidget },
-    { key: "weather" as const, Widget: WeatherWidget },
+    { key: "calendar" as const, Widget: CalendarWidget, category: "focus" },
+    { key: "tasks" as const, Widget: TasksWidget, category: "focus" },
+    { key: "finance" as const, Widget: FinanceWidget, category: "focus" },
+    { key: "projects" as const, Widget: ProjectsWidget, category: "finance" },
+    { key: "shopping" as const, Widget: ShoppingWidget, category: "finance" },
+    { key: "health" as const, Widget: HealthWidget, category: "wellness" },
+    { key: "nutrition" as const, Widget: NutritionWidget, category: "wellness" },
+    { key: "mood" as const, Widget: MoodWidget, category: "wellness" },
+    { key: "weather" as const, Widget: WeatherWidget, category: "wellness" },
+    { key: "reading" as const, Widget: ReadingWidget, category: "wellness" },
+    { key: "news" as const, Widget: NewsWidget, category: "wellness" },
   ]
 
+  const filteredWidgets = widgets.filter((w) => {
+    if (activeTab === "all") return true
+    if (activeTab === "focus") return w.category === "focus"
+    if (activeTab === "finance") return w.category === "finance" || w.key === "finance"
+    if (activeTab === "wellness") return w.category === "wellness"
+    return true
+  })
+
   return (
-    <div className="card-liquid-page">
-      <div className="card-liquid-page-content p-6">
-        <div className="space-y-6">
-          {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+    <div className="relative space-y-7 pb-12">
+      {/* Ambient Aurora Glow Spots behind canvas */}
+      <div className="pointer-events-none absolute -top-16 left-1/4 w-96 h-96 bg-indigo-600/[0.07] rounded-full blur-[128px]" />
+      <div className="pointer-events-none absolute top-44 right-4 w-80 h-80 bg-violet-600/[0.06] rounded-full blur-[128px]" />
+      <div className="pointer-events-none absolute top-[450px] left-8 w-72 h-72 bg-emerald-600/[0.04] rounded-full blur-[128px]" />
+
+      {/* Header */}
+      <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
         <div className="flex items-start justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-bold text-text-primary tracking-tight">{greeting}</h1>
-              <Sparkles className="w-5 h-5 text-primary/60" />
+              <h1 className="text-3xl sm:text-4xl font-black tracking-tight bg-gradient-to-r from-white via-zinc-100 to-indigo-200 bg-clip-text text-transparent">
+                {greeting}
+              </h1>
+              <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-apple-footnote text-text-secondary">{dateStr}</span>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full glass-strong text-apple-caption2 text-text-secondary font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{tasksDue} due
+            <div className="flex items-center gap-2 pt-0.5">
+              <span className="text-xs text-text-secondary font-medium capitalize">{dateStr}</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.06] text-[11px] text-zinc-300 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                {tasksDue} task-uri active
               </span>
             </div>
           </div>
-          <div className="avatar-circle">{nameInitial}</div>
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white font-bold shadow-[0_4px_20px_rgba(99,102,241,0.3)] text-sm shrink-0">
+            {nameInitial}
+          </div>
         </div>
       </motion.div>
 
@@ -455,33 +505,69 @@ export default function Dashboard() {
         <QuickActions />
       </motion.div>
 
-      {/* Stats row */}
-      <motion.div className="grid grid-cols-3 gap-3" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
-        {stats.map(({ icon: Icon, label, value, color }, i) => (
-          <motion.div key={label} whileTap={{ scale: 0.97 }} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + i * 0.04 }}
-              className="card-liquid shadow-apple-heavy">
-              <div className="card-liquid-content p-4 flex flex-col items-center justify-center text-center hover-lift">
-                <Icon className={`w-5 h-5 ${color} mb-1.5`} />
-                <span className="text-xl font-bold text-text-primary tabular-nums">{value}</span>
-                <span className="text-apple-caption2 text-text-muted mt-0.5">{label}</span>
+      {/* Borderless Floating Hero Metrics */}
+      <motion.div 
+        initial={{ opacity: 0, y: 8 }} 
+        animate={{ opacity: 1, y: 0 }} 
+        transition={{ delay: 0.08 }}
+        className="py-5 border-y border-white/[0.06]"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-2 sm:divide-x sm:divide-white/[0.06]">
+          {stats.map(({ icon: Icon, label, value, gradientText, color }) => (
+            <div key={label} className="flex flex-col items-center sm:items-start sm:px-6 first:pl-0 last:pr-0">
+              <div className="flex items-center gap-2 mb-2">
+                <Icon className={`w-4 h-4 ${color}`} />
+                <span className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">{label}</span>
               </div>
-            </motion.div>
-        ))}
+              <span className={twMerge("text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight tabular-nums", gradientText)}>
+                {value}
+              </span>
+            </div>
+          ))}
+        </div>
       </motion.div>
 
-      {/* Widget grid */}
-      <motion.div className="grid grid-cols-1 md:grid-cols-2 gap-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ staggerChildren: 0.06, delayChildren: 0.15 }}>
-        {/* Calendar — full width */}
-        <motion.div key="calendar" className="md:col-span-2" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: "easeOut" }}>
-          <CalendarWidget onExpand={() => setExpanded("calendar")} />
-        </motion.div>
+      {/* Category Navigation Pills */}
+      <div className="flex items-center justify-between gap-3 pt-1">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {[
+            { id: "all", label: "Toate" },
+            { id: "focus", label: "Focus de azi" },
+            { id: "finance", label: "Finanțe & Proiecte" },
+            { id: "wellness", label: "Sănătate & Stil" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as FilterCategory)}
+              className={twMerge(
+                "px-3.5 py-1.5 rounded-full text-xs font-medium transition-all",
+                activeTab === tab.id
+                  ? "bg-white/[0.08] text-white border border-white/[0.12] shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
+                  : "text-text-muted hover:text-white bg-transparent border border-transparent hover:bg-white/[0.03]"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-        {/* Rest */}
-        {widgets.slice(1).map(({ key, Widget }) => (
-          <motion.div key={key} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: "easeOut" }}>
-            <Widget onExpand={() => setExpanded(key)} />
-          </motion.div>
-        ))}
+      {/* Cardless Widget Grid */}
+      <motion.div 
+        key={activeTab}
+        className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6 pt-2" 
+        initial={{ opacity: 0, y: 6 }} 
+        animate={{ opacity: 1, y: 0 }} 
+        transition={{ duration: 0.25 }}
+      >
+        {filteredWidgets.map(({ key, Widget }) => {
+          const isFullWidth = key === "calendar" && activeTab === "all"
+          return (
+            <div key={key} className={isFullWidth ? "md:col-span-2" : ""}>
+              <Widget onExpand={() => setExpanded(key)} />
+            </div>
+          )
+        })}
       </motion.div>
 
       <AnimatePresence>
@@ -495,12 +581,12 @@ export default function Dashboard() {
             {expanded === "health" && <ExpandedHealth />}
             {expanded === "shopping" && <ExpandedShopping />}
             {expanded === "nutrition" && <ExpandedNutrition />}
+            {expanded === "news" && <News />}
+            {expanded === "reading" && <Reading />}
             {expanded === "mood" && <p className="text-apple-caption1 text-text-muted py-8 text-center">Mood detail view coming soon</p>}
           </ViewContainer>
         )}
       </AnimatePresence>
-        </div>
-      </div>
     </div>
   )
 }

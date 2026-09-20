@@ -6,6 +6,6 @@ export async function fetchSkills(): Promise<Skill[]> {
   return data
 }
 
-export async function logSkill(name: string): Promise<void> {
-  await api.post("/api/skills", { name })
+export async function logSkill(name: string, value: number = 1): Promise<void> {
+  await api.post("/api/skills/log", { skill_name: name, value })
 }

@@ -6,10 +6,10 @@ import { Card, Button, Input, Badge, Modal, Spinner } from "../components/ui"
 import type { Book } from "../types"
 import { fetchBooks, addBook, updateBook } from "../api/queries/reading"
 
-const statusColors: Record<string, "default" | "secondary" | "success"> = {
-  want_to_read: "default",
-  reading: "secondary",
-  done: "success",
+const statusColors: Record<string, "default" | "highlight" | "muted"> = {
+  want_to_read: "muted",
+  reading: "highlight",
+  done: "default",
 }
 
 export default function Reading() {
@@ -34,7 +34,7 @@ export default function Reading() {
   })
 
   const updateMutation = useMutation({
-    mutationFn: updateBook,
+    mutationFn: ({ id, updates }: { id: number; updates: Partial<Book> }) => updateBook(id, updates),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["books"] }),
   })
 
@@ -104,11 +104,11 @@ export default function Reading() {
                 {book.status !== "done" && (
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     onClick={() =>
                       updateMutation.mutate({
                         id: book.id,
-                        pages_read: (book.pages_read ?? 0) + 1,
+                        updates: { pages_read: (book.pages_read ?? 0) + 1 },
                       })
                     }
                   >
@@ -118,11 +118,11 @@ export default function Reading() {
                 {book.status === "reading" && (
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     onClick={() =>
                       updateMutation.mutate({
                         id: book.id,
-                        status: "done",
+                        updates: { status: "done" },
                       })
                     }
                   >
@@ -132,11 +132,11 @@ export default function Reading() {
                 {book.status === "want_to_read" && (
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     onClick={() =>
                       updateMutation.mutate({
                         id: book.id,
-                        status: "reading",
+                        updates: { status: "reading" },
                       })
                     }
                   >

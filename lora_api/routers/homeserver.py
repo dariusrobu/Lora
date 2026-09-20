@@ -1,6 +1,7 @@
 import asyncio
 import logging
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from lora_api.auth import get_current_user
 from lora_api.config import (
     SERVER_IP, SERVER_SSH_USER, SERVER_SSH_PASSWORD,
     QBIT_USERNAME, QBIT_PASSWORD, RADARR_API_KEY, SONARR_API_KEY,
@@ -156,7 +157,7 @@ async def _get_queue_count(service: str, api_key: str) -> int:
 
 
 @router.get("/homeserver/status")
-async def home_server_status():
+async def home_server_status(user=Depends(get_current_user)):
     from lora_api.config import SERVER_SSH_PASSWORD
 
     # If no SSH password configured, skip system stats

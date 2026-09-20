@@ -33,8 +33,9 @@ export default function Notes() {
   })
 
   const handleCreate = () => {
-    if (!title.trim()) return
-    createMutation.mutate({ title: title.trim(), body: body.trim() })
+    const fullContent = body.trim() ? `${title.trim()}\n\n${body.trim()}` : title.trim()
+    if (!fullContent) return
+    createMutation.mutate({ content: fullContent })
   }
 
   if (isLoading) return <Spinner />
@@ -59,18 +60,15 @@ export default function Notes() {
             animate={{ opacity: 1, y: 0 }}
           >
             <Card className="relative p-4 h-full">
-              {note.is_pinned && (
-                <Pin className="absolute top-2 right-2 h-4 w-4 text-yellow-500 fill-yellow-500" />
-              )}
-              <h3 className="font-semibold mb-1 pr-6">{note.title}</h3>
-              <p className="text-sm text-text-secondary mb-3 line-clamp-3">
-                {note.body}
+              <p className="text-sm text-text-primary mb-3 whitespace-pre-wrap line-clamp-4">
+                {note.content}
               </p>
               <div className="flex items-center justify-between">
                 <div className="flex gap-1 flex-wrap">
                   {note.tags?.map((tag) => (
                     <Badge key={tag}>{tag}</Badge>
                   ))}
+                  {note.mood && <Badge variant="muted">{note.mood}</Badge>}
                 </div>
                 <Button
                   variant="ghost"
@@ -97,7 +95,7 @@ export default function Notes() {
           />
           <textarea
             className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary/30 min-h-[120px]"
-            placeholder="Body"
+            placeholder="Content"
             value={body}
             onChange={(e) => setBody(e.target.value)}
           />

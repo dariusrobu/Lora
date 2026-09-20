@@ -22,23 +22,23 @@ export function MobileTabBar() {
       transition={{ type: "spring", stiffness: 300, damping: 28, delay: 0.2 }}
       className="fixed bottom-4 left-4 right-4 z-50 lg:hidden"
     >
-      <div className="glass-strong rounded-2xl shadow-apple-heavy backdrop-blur-3xl px-2 py-1.5 flex items-center justify-around border border-white/30 dark:border-white/[0.08]">
+      <div className="bg-[#08080e]/80 backdrop-blur-2xl rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.6)] px-3 py-2 flex items-center justify-around border border-white/[0.06]">
         {navItems.map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === "/"} className="flex-1">
             {({ isActive }) => (
               <motion.div
                 whileTap={{ scale: 0.9 }}
                 className={twMerge(
-                  "flex flex-col items-center gap-0.5 py-1.5 px-2 rounded-xl transition-colors",
+                  "flex flex-col items-center gap-1 py-1.5 px-2 rounded-xl transition-all",
                   isActive
-                    ? "text-primary"
-                    : "text-text-muted",
+                    ? "text-white bg-white/[0.06] border border-white/[0.08]"
+                    : "text-text-muted hover:text-white border border-transparent",
                 )}
               >
-                <Icon className={twMerge("w-5 h-5", isActive && "drop-shadow-sm")} />
+                <Icon className={twMerge("w-4 h-4 transition-colors", isActive ? "text-indigo-400" : "text-text-muted")} />
                 <span className={twMerge(
-                  "text-[9px] font-semibold uppercase tracking-wider",
-                  isActive ? "text-primary" : "text-text-muted",
+                  "text-[10px] font-medium tracking-wide transition-colors",
+                  isActive ? "text-white" : "text-text-muted",
                 )}>
                   {label}
                 </span>

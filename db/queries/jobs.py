@@ -20,7 +20,7 @@ async def update_job(pool, job_name: str, data: Dict[str, Any]) -> Optional[Dict
             idx += 1
     if not sets:
         return None
-    sets.append(f"updated_at = NOW()")
+    sets.append("updated_at = NOW()")
     params.append(job_name)
     async with pool.acquire() as conn:
         row = await conn.fetchrow(

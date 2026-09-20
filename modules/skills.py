@@ -9,6 +9,7 @@ from bot.keyboards import (
     skill_detail_keyboard,
     confirm_delete_skill_keyboard,
 )
+from core.config import TELEGRAM_USER_ID
 
 
 async def get_skills_dashboard(pool) -> Tuple[str, InlineKeyboardMarkup]:
@@ -217,7 +218,7 @@ async def handle_skill_intent(
 async def handle_skills_callback(update, context, pool) -> None:
     """Router for skills_ callbacks."""
     query = update.callback_query
-    data = query.data
+    data = query.data.replace(":", "_")
     from core.state import set_state, clear_state
 
     try:
@@ -436,6 +437,8 @@ async def handle_skills_message(update, context, pool, state: dict) -> bool:
 
 async def skills_command(update, context) -> None:
     """/skills command handler."""
+    if not update.effective_user or update.effective_user.id != TELEGRAM_USER_ID:
+        return
     pool = context.bot_data["pool"]
     try:
         text, markup = await get_skills_dashboard(pool)

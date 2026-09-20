@@ -176,49 +176,49 @@ async def create_event(
     rrule: str = None,
     alarms: List[int] = None,  # List of minutes before start
 ) -> str:
-    """Creates an event in the Lora calendar."""
-    client = get_caldav_client()
-    cal = get_lora_calendar(client)
+    """Creates an event in the Lora calendar.
 
-    if end is None:
-        end = start + timedelta(hours=1)
+    All caldav HTTP calls run in a thread executor to avoid blocking the asyncio event loop.
+    """
+    def _sync_create():
+        client = get_caldav_client()
+        cal = get_lora_calendar(client)
 
-    # Create iCal object
-    ical = iCal()
-    event = iEvent()
-    event.add("summary", summary)
+        _end = end if end is not None else start + timedelta(hours=1)
 
-    if all_day:
-        event.add("dtstart", start.date())
-        event.add("dtend", (end + timedelta(days=1)).date())
-    else:
-        event.add("dtstart", start)
-        event.add("dtend", end)
+        ical = iCal()
+        event = iEvent()
+        event.add("summary", summary)
 
-    if description:
-        event.add("description", description)
-    if location:
-        event.add("location", location)
+        if all_day:
+            event.add("dtstart", start.date())
+            event.add("dtend", (_end + timedelta(days=1)).date())
+        else:
+            event.add("dtstart", start)
+            event.add("dtend", _end)
 
-    if uid:
-        event.add("uid", uid)
-    if rrule:
-        # Example: "FREQ=WEEKLY;BYDAY=MO"
-        event["rrule"] = vRecur.from_ical(rrule)
+        if description:
+            event.add("description", description)
+        if location:
+            event.add("location", location)
+        if uid:
+            event.add("uid", uid)
+        if rrule:
+            event["rrule"] = vRecur.from_ical(rrule)
+        if alarms:
+            for minutes in alarms:
+                alarm = iAlarm()
+                alarm.add("action", "DISPLAY")
+                alarm.add("description", f"Reminder: {summary}")
+                alarm.add("trigger", timedelta(minutes=-minutes))
+                event.add_component(alarm)
 
-    if alarms:
-        for minutes in alarms:
-            alarm = iAlarm()
-            alarm.add("action", "DISPLAY")
-            alarm.add("description", f"Reminder: {summary}")
-            alarm.add("trigger", timedelta(minutes=-minutes))
-            event.add_component(alarm)
+        ical.add_component(event)
+        new_event = cal.add_event(ical.to_ical())
+        return str(iCal.from_ical(new_event.data).walk("vevent")[0].get("uid"))
 
-    ical.add_component(event)
+    return await asyncio.wait_for(asyncio.to_thread(_sync_create), timeout=15.0)
 
-    new_event = await asyncio.to_thread(cal.add_event, ical.to_ical())
-    # Return UID
-    return str(iCal.from_ical(new_event.data).walk("vevent")[0].get("uid"))
 
 
 async def create_reminder(
@@ -600,17 +600,17 @@ async def sync_exams_to_calendar(pool) -> dict:
 
 
 async def sync_tasks_with_deadlines(pool) -> dict:
-    """Syncs pending tasks with deadlines as all-day events."""
+    """Syncs all pending tasks as all-day events in Apple Calendar (Lora)."""
     stats = {"created": 0, "skipped": 0, "errors": 0}
     try:
         from db.queries.tasks import list_tasks
 
         all_tasks = await list_tasks(pool)
-        pending_with_date = [
-            t for t in all_tasks if t["status"] == "pending" and t["due_date"]
-        ]
+        pending_tasks = [t for t in all_tasks if t["status"] == "pending"]
 
-        for t in pending_with_date:
+        today_date = datetime.now(LOCAL_TZ).date()
+
+        for t in pending_tasks:
             lora_id = t["id"]
             lora_type = "task"
 
@@ -619,10 +619,12 @@ async def sync_tasks_with_deadlines(pool) -> dict:
                 stats["skipped"] += 1
                 continue
 
+            target_date = t.get("due_date") or today_date
             # All-day event
-            start_dt = LOCAL_TZ.localize(datetime.combine(t["due_date"], time.min))
+            start_dt = LOCAL_TZ.localize(datetime.combine(target_date, time.min))
             uid = f"lora-task-{lora_id}@lora"
-            summary = f"📋 Task: {t['title']} [{t.get('project_name') or 'Inbox'}]"
+            project_tag = f" [{t['project_name']}]" if t.get("project_name") else ""
+            summary = f"📋 Task: {t['title']}{project_tag}"
 
             try:
                 await create_event(
@@ -632,7 +634,8 @@ async def sync_tasks_with_deadlines(pool) -> dict:
                     pool, lora_type, lora_id, uid, summary
                 )
                 stats["created"] += 1
-            except Exception:
+            except Exception as ex:
+                print(f"Error syncing task {lora_id} to calendar: {ex}")
                 stats["errors"] += 1
         return stats
     except Exception as e:

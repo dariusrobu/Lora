@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime, timedelta, date
 from typing import Dict, Any
 import pytz
@@ -13,23 +14,50 @@ import db.queries.journal as journal_queries
 import db.queries.goals
 from core.memory import get_context_memory
 
+logger = logging.getLogger(__name__)
+
+
+def _unwrap_results(results: tuple, expected: int) -> list:
+    """Unwraps asyncio.gather results, logging exceptions and returning None for failed tasks."""
+    out = []
+    for i, r in enumerate(results):
+        if isinstance(r, Exception):
+            logger.warning(f"asyncio.gather task {i} failed: {r}")
+            out.append(None)
+        else:
+            out.append(r)
+    # Pad with None if fewer results than expected
+    while len(out) < expected:
+        out.append(None)
+    return out[:expected]
+
 
 async def build_context(pool, current_message: str = None) -> str:
     """
     Builds a text snapshot of the user's current status for Gemini.
-    OPTIMIZED: Uses asyncio.gather to fetch data in parallel.
+    OPTIMIZED: Uses asyncio.gather to fetch data in parallel with a strict timeout.
     """
     user_tz = pytz.timezone(TIMEZONE)
     now = datetime.now(user_tz)
+
+    try:
+        return await asyncio.wait_for(
+            _build_context_inner(pool, current_message, now),
+            timeout=8.0,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("build_context timed out after 8s — returning minimal context")
+        return f"--- STATUS CURENT ({now.strftime('%H:%M')}) ---"
+    except Exception as e:
+        logger.warning(f"build_context failed: {e} — returning minimal context")
+        return f"--- STATUS CURENT ({now.strftime('%H:%M')}) ---"
+
+
+async def _build_context_inner(pool, current_message: str, now: datetime) -> str:
     today = now.date()
 
     # 0. Fetch user profile
     from db.queries.profile import get_user_profile
-
-    profile = await get_user_profile(
-        pool, 12345
-    )  # We need to pass the actual user_id here eventually
-    # NOTE: TELEGRAM_USER_ID from config is a good fallback
     from core.config import TELEGRAM_USER_ID
 
     profile = await get_user_profile(pool, TELEGRAM_USER_ID)
@@ -122,6 +150,7 @@ async def build_context(pool, current_message: str = None) -> str:
         t_memory,
         t_projects,
         t_history,
+        return_exceptions=True,
     )
 
     (
@@ -136,7 +165,19 @@ async def build_context(pool, current_message: str = None) -> str:
         memory_facts,
         active_projects,
         recent_history,
-    ) = results
+    ) = _unwrap_results(results, 11)
+
+    tasks = tasks or []
+    events = events or []
+    reminders_all = reminders_all or []
+    skills = skills or []
+    health = health or {}
+    finance = finance or {}
+    notes = notes or []
+    journal = journal or []
+    memory_facts = memory_facts or ""
+    active_projects = active_projects or []
+    recent_history = recent_history or []
 
     # 3. Process mentions and projects
     conversation_texts = [h["content"] for h in recent_history if h.get("content")]
@@ -377,6 +418,7 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
         get_upcoming_exams(pool, days=7),
         db.queries.goals.check_goal_alignment(pool, TELEGRAM_USER_ID),
         get_random_memory_lane(pool),
+        return_exceptions=True,
     )
 
     (
@@ -392,7 +434,7 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
         exams,
         goal_alignment,
         memory_lane,
-    ) = results
+    ) = _unwrap_results(results, 12)
 
     # 2. Process tasks
     urgent_tasks = [t for t in tasks if t["due_date"] and t["due_date"] <= today]
@@ -524,9 +566,10 @@ async def build_weekly_review_context(
             start_date,
             end_date,
         ),
+        return_exceptions=True,
     )
 
-    task_stats, budget_status, finance_history, workouts, skills, notes = results
+    task_stats, budget_status, finance_history, workouts, skills, notes = _unwrap_results(results, 6)
 
     # Process streaks for skills
     skill_data = []

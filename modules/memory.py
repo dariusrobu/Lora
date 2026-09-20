@@ -83,12 +83,10 @@ async def handle_memory_callback(query, pool, data: str):
             # This might take a few seconds, so we show a loading message if possible
             # But for now we just call it
             from core.memory import optimize_user_memory
-            from core.gemini import get_gemini_client
 
-            client = get_gemini_client()
             user_id = query.from_user.id
 
-            reply = await optimize_user_memory(pool, client, user_id)
+            reply = await optimize_user_memory(pool, user_id)
             await query.message.reply_text(reply)
 
             # Refresh view
@@ -239,12 +237,10 @@ async def handle_memory_intent(
 
     elif intent == "memory_optimize":
         from core.memory import optimize_user_memory
-        from core.gemini import get_gemini_client
 
         user_id = data.get("user_id")
-        client = get_gemini_client()
 
-        reply = await optimize_user_memory(pool, client, user_id)
+        reply = await optimize_user_memory(pool, user_id)
         return safe_markdown(reply), None, None
 
     return (

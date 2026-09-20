@@ -12,13 +12,19 @@ async def execute_module_intent(pool, module, intent, data, reply, user_id, bot)
     Ensures a 3-tuple return: (reply_text, keyboard, item_id)
     """
     try:
-        # Load module dynamically
-        mod = importlib.import_module(f"modules.{module}")
+        # Map module aliases
+        target_mod = "calendar_module" if module == "calendar" else module
+        mod = importlib.import_module(f"modules.{target_mod}")
 
         # Get intent handler - convention: handle_{module}_intent
-        handlers_to_try = [f"handle_{module}_intent"]
+        handlers_to_try = [
+            f"handle_{module}_intent",
+            f"handle_{target_mod}_intent",
+        ]
         if module.endswith("s") and len(module) > 1:
             handlers_to_try.append(f"handle_{module[:-1]}_intent")
+        if target_mod.endswith("s") and len(target_mod) > 1:
+            handlers_to_try.append(f"handle_{target_mod[:-1]}_intent")
 
         handler = None
         for h_name in handlers_to_try:
@@ -62,6 +68,19 @@ async def execute_module_intent(pool, module, intent, data, reply, user_id, bot)
 
         await set_state(pool, "null", module, intent, item_id)
         await log_execution(pool, intent, module, True)
+
+        # --- Real-time WebSocket push to dashboard ---
+        # Lazy import: ws_manager only exists when lora_api is running.
+        # When running as bot-only (no API server), this is silently skipped.
+        try:
+            from lora_api.main import ws_manager  # type: ignore
+            await ws_manager.broadcast("intent_executed", {
+                "module": module,
+                "intent": intent,
+                "item_id": item_id,
+            })
+        except (ImportError, Exception):
+            pass  # API server not running or ws_manager unavailable
 
         return reply_text, markup, item_id
 

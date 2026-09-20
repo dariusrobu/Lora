@@ -4,11 +4,8 @@ Translates business jargon from Council bots into plain Romanian.
 """
 
 from typing import Optional
-from google import genai
-from google.genai import types
-from core.config import GEMINI_API_KEY
+from core.gemini import generate_text_response
 
-client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 JARGON_GLOSSARY = {
@@ -73,17 +70,11 @@ INSTRUCȚIUNI:
 - Ton: prietenos, ca un prieten care explică
 - Răspunde doar cu traducerea, fără introduceri"""
 
-        response = await client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[types.Content(role="user", parts=[types.Part(text=prompt)])],
-            config=types.GenerateContentConfig(
-                temperature=0.3,
-                max_output_tokens=500,
-            ),
-        )
+        messages = [{"role": "user", "content": prompt}]
+        response_text = await generate_text_response(messages)
 
-        if response.text:
-            return response.text.strip()
+        if response_text:
+            return response_text.strip()
 
     except Exception as e:
         print(f"Translator API error: {e}")

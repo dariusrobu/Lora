@@ -49,6 +49,7 @@ from bot.handler import (
     save_location_command,
     list_locations_command,
     location_status_command,
+    security_check,
 )
 from modules.skills import skills_command
 from core.stats import get_uptime, LAST_MESSAGE_AT
@@ -117,7 +118,7 @@ async def cors_middleware(request, handler):
         "GET, POST, PATCH, DELETE, OPTIONS"
     )
     response.headers["Access-Control-Allow-Headers"] = (
-        "Content-Type, Authorization, Lora-Api-Secret, X-Lora-Secret"
+        "Content-Type, Authorization"
     )
     response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
@@ -160,8 +161,16 @@ def check_pid_lock():
 # 10. Start the bot
 
 
+def get_dashboard_webapp_url() -> str:
+    """Returns the Dashboard Mini App URL without embedding credentials."""
+    base_url = os.getenv("DASHBOARD_URL", "https://lora-bot-tgbi.onrender.com")
+    return base_url
+
+
 async def cmd_hub(update, context):
     """Send a direct link to the Lora Hub."""
+    if not await security_check(update):
+        return
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
     dashboard_url = os.getenv("DASHBOARD_URL")
@@ -169,10 +178,11 @@ async def cmd_hub(update, context):
         await update.message.reply_text("❌ DASHBOARD_URL nu este setată în Render.")
         return
 
+    web_app_url = get_dashboard_webapp_url()
     keyboard = [
         [
             InlineKeyboardButton(
-                "📊 Deschide Lora Hub", web_app=WebAppInfo(url=dashboard_url)
+                "📊 Deschide Lora Hub", web_app=WebAppInfo(url=web_app_url)
             )
         ]
     ]
@@ -189,6 +199,11 @@ async def start_bot():
     pool = await get_pool()
     print("Connected to database pool.")
 
+    # Run pending SQL migrations (idempotent, safe on every startup)
+    from db.connection import apply_migrations
+    await apply_migrations(pool)
+
+
     # 2. Schema Integrity & Migrations
     async with pool.acquire() as conn:
         # Geofencing & Location Columns
@@ -201,6 +216,13 @@ async def start_bot():
             ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS city_name TEXT;
             ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS current_location_name TEXT;
             ALTER TABLE health_logs ADD COLUMN IF NOT EXISTS cigarettes INT DEFAULT 0;
+            ALTER TABLE events ADD COLUMN IF NOT EXISTS pre_reminded_at TIMESTAMPTZ;
+            CREATE TABLE IF NOT EXISTS feedback (
+                id SERIAL PRIMARY KEY,
+                intent_used TEXT,
+                user_correction TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
         """)
 
         # Saved Locations Table
@@ -234,6 +256,11 @@ async def start_bot():
             ALTER TABLE travel_items ADD COLUMN IF NOT EXISTS category TEXT;
             ALTER TABLE travel_items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
         """)
+
+        # Initialize persistent receipt memory (learned mappings for items & merchants)
+        from db.queries.product_memory import init_product_memory_table, seed_default_memories
+        await init_product_memory_table(pool)
+        await seed_default_memories(pool)
 
         # User Profile Init (Safe now that columns exist)
         await conn.execute(
@@ -357,7 +384,9 @@ async def start_bot():
         )
     )
     application.add_handler(MessageHandler(filters.VOICE, voice_handler_with_pool))
-    application.add_handler(MessageHandler(filters.PHOTO, photo_handler_with_pool))
+    application.add_handler(
+        MessageHandler(filters.PHOTO | filters.Document.IMAGE, photo_handler_with_pool)
+    )
     # Support both normal Share Location and Live Location updates (edited messages)
     application.add_handler(
         MessageHandler(filters.LOCATION, location_handler_with_pool)
@@ -378,15 +407,21 @@ async def start_bot():
         else:
             response = await handler(request)
 
-        origin = request.headers.get("Origin", "*")
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Methods"] = (
-            "GET, POST, PATCH, PUT, DELETE, OPTIONS"
-        )
-        response.headers["Access-Control-Allow-Headers"] = (
-            "Content-Type, Authorization, X-Internal-Secret, Bypass-Tunnel-Reminder, Lora-Api-Secret"
-        )
-        response.headers["Access-Control-Allow-Credentials"] = "true"
+        allowed_origins = {
+            origin.strip()
+            for origin in os.getenv("LORA_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+            if origin.strip()
+        }
+        origin = request.headers.get("Origin")
+        if origin in allowed_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Methods"] = (
+                "GET, POST, PATCH, PUT, DELETE, OPTIONS"
+            )
+            response.headers["Access-Control-Allow-Headers"] = (
+                "Content-Type, Authorization, Bypass-Tunnel-Reminder"
+            )
+            response.headers["Access-Control-Allow-Credentials"] = "true"
         return response
 
     # API Proxy — forward /api/* to FastAPI server on port 8090
@@ -521,6 +556,24 @@ async def start_bot():
     await site.start()
     print(f"Web server active on port {port}", flush=True)
 
+    # 6.5 Start FastAPI backend server on port 8090 in background
+    try:
+        import uvicorn
+        from lora_api.main import app as fastapi_app
+
+        uv_config = uvicorn.Config(
+            app=fastapi_app,
+            host="127.0.0.1",
+            port=8090,
+            log_level="warning",
+            access_log=False,
+        )
+        uv_server = uvicorn.Server(uv_config)
+        asyncio.create_task(uv_server.serve())
+        print("✅ FastAPI backend server started on port 8090", flush=True)
+    except Exception as api_err:
+        print(f"⚠️ Warning: Failed to start background FastAPI: {api_err}", flush=True)
+
     # 7. Start Telegram Bot
     # Remove any existing webhook and ensure clean state
     try:
@@ -532,7 +585,7 @@ async def start_bot():
     await application.initialize()
 
     # Set the Main Menu Button to open the Dashboard (served by Bot)
-    dashboard_url = os.getenv("DASHBOARD_URL", "https://lora-bot-tgbi.onrender.com")
+    web_app_url = get_dashboard_webapp_url()
 
     try:
         from telegram import MenuButtonWebApp, WebAppInfo
@@ -540,14 +593,28 @@ async def start_bot():
         await application.bot.set_chat_menu_button(
             chat_id=TELEGRAM_USER_ID,
             menu_button=MenuButtonWebApp(
-                text="Lora Hub", web_app=WebAppInfo(url=dashboard_url)
+                text="Lora Hub", web_app=WebAppInfo(url=web_app_url)
             ),
         )
-        print(f"✅ Main Menu Button set to: {dashboard_url}", flush=True)
+        print(f"✅ Main Menu Button set to: {web_app_url}", flush=True)
     except Exception as e:
         print(f"Error setting menu button: {e}", flush=True)
 
     await application.start()
+
+    # Background pre-download of KittenTTS model (non-blocking)
+    async def _preload_kitten():
+        try:
+            from bot.tts import _get_kitten
+            print("⏳ Pre-loading KittenTTS model...", flush=True)
+            result = await _get_kitten()
+            if result:
+                print("✅ KittenTTS pre-loaded successfully", flush=True)
+            else:
+                print("⚠️ KittenTTS pre-load failed; local TTS is unavailable", flush=True)
+        except Exception as e:
+            print(f"⚠️ KittenTTS pre-load error: {e}", flush=True)
+    asyncio.create_task(_preload_kitten())
 
     # Increased delay for Render to clear old instances
     print("⏳ Waiting 15s for old instances to clear (Anti-Conflict)...", flush=True)
