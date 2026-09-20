@@ -217,7 +217,7 @@ async def chat(body: ChatRequest, user=Depends(get_current_user)):
     import db.queries.profile as profile_queries
 
     pool = await get_pool()
-    user_id = int(user)
+    user_id = int(user.get("sub"))
     profile = await profile_queries.get_user_profile(pool, user_id) or {}
     history = await get_recent_history(pool, user_id, limit=12)
     context_snapshot = await build_context(pool, current_message=body.message)
