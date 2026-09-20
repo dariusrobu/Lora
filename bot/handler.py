@@ -3568,11 +3568,16 @@ def generate_action_summary(intent: str, data: dict) -> str:
         proj_id = escape_md(str(data.get("id") or ""))
         return rf"Ești pe cale să ștergi proiectul cu ID\-ul *{proj_id}*\\. Confirmă?"
 
-    elif intent == "finance_log":
+    elif intent in ("finance_log", "add_item") and (
+        data.get("amount") is not None or data.get("entries")
+    ):
         t_type = "un venit" if data.get("type") == "income" else "o cheltuială"
-        amount = escape_md(str(data.get("amount", "")))
-        cat = escape_md(data.get("category", "altele"))
-        return rf"Ești pe cale să înregistrezi *{t_type}* de *{amount} lei* la categoria *'{cat}'*\. Confirmă?"
+        entries = data.get("entries") or []
+        source = entries[0] if entries else data
+        amount = escape_md(str(source.get("amount", "")))
+        description = escape_md(str(source.get("description") or source.get("category") or "cheltuială"))
+        cat = escape_md(str(source.get("category") or "altele"))
+        return rf"Înregistrez {t_type} de *{amount} lei* pentru *{description}* la *{cat}*\. Confirmi?"
 
     elif intent == "add_category":
         cat = escape_md(data.get("category") or data.get("name") or "")
@@ -3669,4 +3674,4 @@ def generate_action_summary(intent: str, data: dict) -> str:
         return f"Ești pe cale să adaugi obiectivul *'{title}'*\\. Confirmă?"
 
     else:
-        return f"Ești pe cale să efectuezi acțiunea de tip *'{escape_md(intent)}'*\\. Confirmă?"
+        return "Vrei să fac această modificare? Confirmi?"
