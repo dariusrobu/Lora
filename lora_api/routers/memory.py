@@ -31,3 +31,12 @@ async def delete_memory(fact_id: int, user=Depends(get_current_user)):
     pool = await get_pool()
     await q.delete_fact(pool, fact_id)
     return {"status": "deleted"}
+
+
+@router.delete("/memory")
+async def clear_memories(user=Depends(get_current_user)):
+    """Forget all long-term memories for the authenticated local user."""
+    import db.queries.memory as q
+    pool = await get_pool()
+    await q.clear_all_memories(pool)
+    return {"status": "cleared"}

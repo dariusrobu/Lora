@@ -13,3 +13,7 @@ export async function saveMemory(fact: { fact: string; category?: string }): Pro
 export async function deleteMemory(id: number): Promise<void> {
   await api.delete(`/api/memory/${id}`)
 }
+
+export async function clearMemory(): Promise<void> {
+  await api.delete("/api/memory")
+}

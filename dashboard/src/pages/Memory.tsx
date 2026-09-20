@@ -1,10 +1,10 @@
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { motion } from "framer-motion"
-import { Brain, Plus, Trash2 } from "lucide-react"
+import { Brain, Plus, Trash2, Eraser } from "lucide-react"
 import { Card, Button, Badge, Modal, Input, Spinner } from "../components/ui"
 import type { MemoryFact } from "../types"
-import { fetchMemory, saveMemory, deleteMemory } from "../api/queries/memory"
+import { fetchMemory, saveMemory, deleteMemory, clearMemory } from "../api/queries/memory"
 
 export default function Memory() {
   const [modalOpen, setModalOpen] = useState(false)
@@ -32,6 +32,11 @@ export default function Memory() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["memory"] }),
   })
 
+  const clearMutation = useMutation({
+    mutationFn: clearMemory,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["memory"] }),
+  })
+
   const grouped = facts?.reduce<Record<string, MemoryFact[]>>((acc, f) => {
     const key = f.category || "uncategorized"
     ;(acc[key] ??= []).push(f)
@@ -47,9 +52,14 @@ export default function Memory() {
           <Brain className="h-6 w-6 text-text-secondary" />
           <h1 className="text-2xl font-bold">Memory</h1>
         </div>
+        <div className="flex gap-2">
+        <Button variant="ghost" onClick={() => { if (window.confirm("Ștergi toate amintirile salvate?")) clearMutation.mutate() }}>
+          <Eraser className="h-4 w-4 mr-1" /> Uită tot
+        </Button>
         <Button onClick={() => setModalOpen(true)}>
           <Plus className="h-4 w-4 mr-1" /> Save Fact
         </Button>
+        </div>
       </div>
 
       {grouped &&
