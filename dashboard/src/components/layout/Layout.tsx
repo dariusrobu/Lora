@@ -5,7 +5,6 @@ import { Sidebar } from "./Sidebar"
 import { Header } from "./Header"
 import { MobileTabBar } from "./MobileTabBar"
 import { NotificationProvider } from "../../context/NotificationContext"
-import { ChatDock } from "../ChatDock"
 
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -34,7 +33,6 @@ export function Layout() {
           </div>
         </div>
         <MobileTabBar />
-        <ChatDock />
       </div>
     </NotificationProvider>
   )
