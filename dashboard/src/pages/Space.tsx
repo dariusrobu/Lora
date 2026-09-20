@@ -51,12 +51,16 @@ function ProfileTab({ profile, onUpdate }: { profile: Profile; onUpdate: (data: 
     week_start_day: profile.week_start_day || "monday",
     currency: profile.currency || "RON",
     dietary_preferences: profile.dietary_preferences || "",
+    proactive: profile.notification_config?.proactive !== false,
   })
   const [saving, setSaving] = useState(false)
 
   const handleSave = async () => {
     setSaving(true)
-    try { await onUpdate(form) } finally { setSaving(false) }
+    try {
+      const { proactive, ...profileData } = form
+      await onUpdate({ ...profileData, notification_config: { ...(profile.notification_config || {}), proactive } })
+    } finally { setSaving(false) }
   }
 
   return (
@@ -90,6 +94,10 @@ function ProfileTab({ profile, onUpdate }: { profile: Profile; onUpdate: (data: 
           <Input label="Active hours start" type="time" value={form.active_hours_start} onChange={(e) => setForm({ ...form, active_hours_start: e.target.value })} />
           <Input label="Active hours end" type="time" value={form.active_hours_end} onChange={(e) => setForm({ ...form, active_hours_end: e.target.value })} />
         </div>
+      </div>
+      <div className="flex items-center justify-between rounded-xl border border-border p-4">
+        <div><p className="text-sm font-medium">Sugestii proactive</p><p className="text-xs text-text-secondary">Permite Lora să-ți trimită reminder-uri utile despre task-uri, obiective și rutine.</p></div>
+        <button type="button" onClick={() => setForm({ ...form, proactive: !form.proactive })} className={`w-11 h-6 rounded-full transition-colors ${form.proactive ? "bg-emerald-500" : "bg-border"}`} aria-label="Sugestii proactive"><span className={`block w-4 h-4 rounded-full bg-white transition-transform ${form.proactive ? "translate-x-6" : "translate-x-1"}`} /></button>
       </div>
       <div>
         <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider mb-3">Locație</h3>

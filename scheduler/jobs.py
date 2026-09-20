@@ -486,6 +486,10 @@ Salută-l pe {name}, prezintă prioritățile și încheie motivant. Fără list
 async def check_contextual_nudges(application, pool):
     """Hourly check for proactive context-based nudges."""
     try:
+        profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID) or {}
+        notification_config = profile.get("notification_config") or {}
+        if notification_config.get("proactive", True) is False:
+            return
         user_tz = pytz.timezone(TIMEZONE)
         now = datetime.now(user_tz)
         today = now.date()
@@ -574,6 +578,10 @@ async def check_contextual_nudges(application, pool):
 async def proactive_check(application, pool) -> None:
     """Hourly proactive check for overdue pending tasks and missed habit windows."""
     try:
+        profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID) or {}
+        notification_config = profile.get("notification_config") or {}
+        if notification_config.get("proactive", True) is False:
+            return
         from datetime import date, timedelta
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
         from telegram.constants import ParseMode
