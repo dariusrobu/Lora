@@ -6,6 +6,7 @@ __pycache__/
 bot.log
 bot.log.*
 *.log
+backups/
 lora.pid
 node_modules/
 dashboard/dist/
