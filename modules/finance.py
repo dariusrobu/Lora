@@ -14,6 +14,14 @@ async def handle_finance_intent(
     """
     Main router for finance-related intents.
     """
+    # Local agent models occasionally use the generic ``add_item`` intent
+    # for a plainly stated expense.  Once the router has already selected the
+    # finance module, this is unambiguously a transaction, not a shopping
+    # item.  Normalize it here so the action cannot be reported as successful
+    # without actually writing a finance row.
+    if intent == "add_item":
+        intent = "finance_log"
+
     if intent == "finance_log":
         return await _handle_log_expense(pool, data)
 
