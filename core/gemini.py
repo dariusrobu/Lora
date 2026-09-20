@@ -480,7 +480,7 @@ async def get_llm_response(
     user_message = preprocess_text(user_message)
 
     # --- Structured output prompt (short, focused on intent schema) ---
-    recent_ctx = _format_history_for_prompt(history[-2:] if len(history) > 2 else history)
+    recent_ctx = _format_history_for_prompt(history[-6:] if len(history) > 6 else history)
     hint = f"\nHINT: {system_hint}" if system_hint else ""
     structured_prompt = f"""You are an intent classifier. Respond ONLY with valid JSON matching this exact schema:
 
@@ -522,6 +522,10 @@ news → get_news (data: {"topic": "politica"|"economie"|"tech"|"general"|"all"|
 RULES:
 - CHAT mode (module=null): user is chatting freely, just reply naturally
 - ACTION mode (module=X): user wants something done, extract data
+- CONVERSATION mode: answer questions, give advice, and continue the current topic
+  naturally; do not invent an action just because a module keyword appears.
+- Treat pronouns and relative references ("asta", "cel de mai devreme", "mâine")
+  using the recent conversation before asking for clarification.
 - If unclear → clarification_needed=true
 - reply must be in Romanian (Romglish OK)
 - keep reply concise (1-2 sentences)
@@ -558,6 +562,10 @@ CONVERSAȚIE RECENTĂ:
 2. Confidence < 0.7 dacă lipsește un element cheie → clarification_needed=true
 3. needs_agent=true pentru analize complexe sau întrebări ce necesită web search
 4. memory_extracts: extrage fapte noi despre user (preference/pattern/personal/achievement)
+   only when the fact is stable and useful. Never extract passwords, tokens,
+   exact financial amounts, or sensitive medical details as long-term memory.
+5. Be proactive for planning, routines, and blocked goals: suggest one concrete
+   next step, but do not write data or schedule anything without confirmation.
 5. Dacă voice_uri e prezent, adaptează reply-ul la tonul vocal al userului
 
 ## CONTEXT
@@ -611,7 +619,7 @@ trigger_morning_briefing: când userul se trezește
     structured_messages = [{"role": "system", "content": structured_prompt}]
     structured_messages.append({"role": "user", "content": user_message})
 
-    # Messages for text generation — full context-rich prompt (reserved for future use)
+    # Messages for text generation — full context-rich prompt
     text_messages = [{"role": "system", "content": system_prompt}]
     for m in history:
         role = "user" if m["role"] == "user" else "assistant"

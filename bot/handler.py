@@ -735,8 +735,10 @@ async def message_handler(
             return
 
         # Phase 3: Gemini Brain integration
-        # 1. Get history (last 8 messages) BEFORE saving current message
-        history = await get_recent_history(pool, telegram_id, limit=6)
+        # Keep a useful conversational window before intent classification.
+        # The database retains the full history; only this bounded slice is
+        # sent to the local model for predictable latency.
+        history = await get_recent_history(pool, telegram_id, limit=12)
 
         # 2. Save current user message to history
         await save_message(pool, telegram_id, "user", text)

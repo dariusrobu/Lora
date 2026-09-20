@@ -96,7 +96,7 @@ async def _build_context_inner(pool, current_message: str, now: datetime) -> str
     from db.queries.history import get_recent_history
 
     t_projects = get_projects_context()
-    t_history = get_recent_history(pool, TELEGRAM_USER_ID, limit=5)
+    t_history = get_recent_history(pool, TELEGRAM_USER_ID, limit=12)
 
     # 1. Prepare tasks to be executed in parallel
     t_tasks = task_queries.list_tasks(pool)
@@ -185,7 +185,9 @@ async def _build_context_inner(pool, current_message: str, now: datetime) -> str
         not conversation_texts or current_message != conversation_texts[-1]
     ):
         conversation_texts.append(current_message)
-    conversation_texts = conversation_texts[-5:]
+    # A longer bounded window makes references such as "cel de mai devreme"
+    # resolvable without sending the entire history to Ollama.
+    conversation_texts = conversation_texts[-12:]
 
     mentioned_projects = []
     other_projects = []
