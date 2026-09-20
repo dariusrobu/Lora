@@ -214,6 +214,7 @@ async def chat(body: ChatRequest, user=Depends(get_current_user)):
     from core.agent import agent_loop
     from core.context import build_context
     from db.queries.history import get_recent_history, save_message
+    from db.queries.conversation import summarize_if_needed
     import db.queries.profile as profile_queries
 
     pool = await get_pool()
@@ -235,6 +236,7 @@ async def chat(body: ChatRequest, user=Depends(get_current_user)):
     )
     if reply != "__CONFIRMATION_REQUIRED__":
         await save_message(pool, user_id, "assistant", reply)
+        await summarize_if_needed(pool, user_id, history + [{"role": "user", "content": body.message}, {"role": "assistant", "content": reply}])
     return {
         "reply": safe_markdown(reply) if reply != "__CONFIRMATION_REQUIRED__" else reply,
         "requires_confirmation": reply == "__CONFIRMATION_REQUIRED__",

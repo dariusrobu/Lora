@@ -94,9 +94,11 @@ async def _build_context_inner(pool, current_message: str, now: datetime) -> str
             return [dict(r) for r in rows]
 
     from db.queries.history import get_recent_history
+    from db.queries.conversation import get_summary
 
     t_projects = get_projects_context()
     t_history = get_recent_history(pool, TELEGRAM_USER_ID, limit=12)
+    t_summary = get_summary(pool, TELEGRAM_USER_ID)
 
     # 1. Prepare tasks to be executed in parallel
     t_tasks = task_queries.list_tasks(pool)
@@ -150,6 +152,7 @@ async def _build_context_inner(pool, current_message: str, now: datetime) -> str
         t_memory,
         t_projects,
         t_history,
+        t_summary,
         return_exceptions=True,
     )
 
@@ -165,7 +168,8 @@ async def _build_context_inner(pool, current_message: str, now: datetime) -> str
         memory_facts,
         active_projects,
         recent_history,
-    ) = _unwrap_results(results, 11)
+        conversation_summary,
+    ) = _unwrap_results(results, 12)
 
     tasks = tasks or []
     events = events or []
@@ -178,6 +182,7 @@ async def _build_context_inner(pool, current_message: str, now: datetime) -> str
     memory_facts = memory_facts or ""
     active_projects = active_projects or []
     recent_history = recent_history or []
+    conversation_summary = conversation_summary or ""
 
     # 3. Process mentions and projects
     conversation_texts = [h["content"] for h in recent_history if h.get("content")]
@@ -209,6 +214,8 @@ async def _build_context_inner(pool, current_message: str, now: datetime) -> str
 
     snapshot = []
     snapshot.append(f"--- STATUS CURENT ({now.strftime('%H:%M')}) ---")
+    if conversation_summary:
+        snapshot.append(f"--- REZUMAT CONVERSAȚIE ---\n{conversation_summary}")
 
     if profile:
         tone = profile.get("preferred_tone") or profile.get("tone", "direct")
