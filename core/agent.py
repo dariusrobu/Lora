@@ -951,6 +951,11 @@ OR
             # Otherwise an agent-selected tool could bypass human approval.
             from core.router import requires_write_confirmation
 
+            if module == "finance" and intent in {"add_item", "add_finance", "finance_log"}:
+                from modules.finance import prepare_finance_action
+
+                intent, data = await prepare_finance_action(pool, intent, data)
+
             pending_intent = {"intent": intent, "module": module, "data": data}
             if requires_write_confirmation(pending_intent):
                 from core.state import set_pending_action

@@ -14,6 +14,28 @@ class _CategoryDecision(BaseModel):
     confidence: float = Field(ge=0, le=1)
 
 
+async def prepare_finance_action(pool, intent: str, data: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
+    """Normalize agent finance actions before confirmation is shown."""
+    normalized = dict(data or {})
+    if intent in {"add_item", "add_finance"}:
+        intent = "finance_log"
+    if intent != "finance_log":
+        return intent, normalized
+    if normalized.get("entries"):
+        return intent, normalized
+    if normalized.get("amount") is not None and not normalized.get("category"):
+        categories = await finance_queries.list_categories(pool)
+        detected = await finance_queries.detect_category_from_text(
+            pool, str(normalized.get("description") or "")
+        )
+        valid = {str(row["name"]).lower(): row["name"] for row in categories}
+        if detected and detected.lower() in valid and detected.lower() != "altele":
+            normalized["category"] = valid[detected.lower()]
+    normalized.setdefault("category", "altele")
+    normalized.setdefault("type", "expense")
+    return intent, normalized
+
+
 async def handle_finance_intent(
     pool, intent: str, data: Dict[str, Any]
 ) -> Tuple[str, Any, Optional[int]]:
