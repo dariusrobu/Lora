@@ -6,6 +6,12 @@ import io
 from bot.formatter import escape_md, safe_markdown
 import db.queries.finance as finance_queries
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from pydantic import BaseModel, Field
+
+
+class _CategoryDecision(BaseModel):
+    category: str = Field(description="One of the provided finance categories")
+    confidence: float = Field(ge=0, le=1)
 
 
 async def handle_finance_intent(
@@ -91,7 +97,31 @@ async def _handle_log_expense(
             return cat_names[cat.lower()]
         detected = await finance_queries.detect_category_from_text(pool, f"{cat} {desc}")
         if detected and detected.lower() in cat_names:
-            return cat_names[detected.lower()]
+            if detected.lower() != "altele":
+                return cat_names[detected.lower()]
+
+        # Semantic fallback stays local: only Ollama is used, and the model
+        # must choose from categories already configured by the user.
+        try:
+            from core.gemini import generate_structured_response
+
+            choices = ", ".join(cat_names.values())
+            prompt = (
+                "Categorizează această cheltuială în exact una dintre categoriile "
+                f"următoare: {choices}. Produs/categorie sugerată: {cat!r}. "
+                f"Descriere: {desc!r}. Alege categoria semantic, fără să creezi una nouă. "
+                "Folosește altele doar dacă nu există o potrivire rezonabilă."
+            )
+            raw = await generate_structured_response(
+                [{"role": "user", "content": prompt}], _CategoryDecision
+            )
+            decision = _CategoryDecision.model_validate_json(raw)
+            chosen = cat_names.get(decision.category.lower())
+            if chosen and decision.confidence >= 0.72:
+                return chosen
+        except Exception:
+            # Categorization must never block recording a transaction.
+            pass
         return "altele"
 
     # 1. Handle Bulk Entries (Agentic)
