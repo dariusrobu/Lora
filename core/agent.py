@@ -30,6 +30,19 @@ import logging
 
 logger = logging.getLogger("core.agent")
 
+
+def _fast_action_plan(message: str) -> list[dict] | None:
+    """Recognize unambiguous reminder + shopping phrases without an LLM call."""
+    text = message.lower().strip()
+    match = re.search(r"(?:amintește-mi|aminteste-mi)\s+(?:la\s+)?(\d{1,2}:\d{2})\s+să\s+(.+?)\s+și\s+să\s+(?:iau|cumpăr|cumpar)\s+(.+?)[.!]?$", text)
+    if not match:
+        return None
+    time, reminder_title, item = match.groups()
+    return [
+        {"intent": "add_event", "module": "events", "data": {"title": reminder_title.strip(), "event_time": time}},
+        {"intent": "add_item", "module": "shopping", "data": {"item": item.strip()}},
+    ]
+
 _BLOCKED_MEMORY = re.compile(
     r"(?:password|parol[aă]|token|api[_ -]?key|secret|jwt|cvv|pin|iban|diagnos|tratament|medicament)",
     re.IGNORECASE,
@@ -675,6 +688,14 @@ async def agent_loop(
 
     user_message = preprocess_text(user_message)
     temporal_context = build_temporal_context(TIMEZONE)
+
+    fast_plan = _fast_action_plan(user_message)
+    if fast_plan:
+        from core.state import set_pending_action_plan
+
+        await set_pending_action_plan(pool, fast_plan)
+        logger.info("⚡ FAST ACTION PLAN: %s", fast_plan)
+        return "__ACTION_PLAN_CONFIRMATION_REQUIRED__", None, None
 
     hint = f"\nHINT: {system_hint}" if system_hint else ""
 
