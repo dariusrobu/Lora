@@ -8,6 +8,7 @@ export interface Task {
   project_id?: number
   project_name?: string
   created_at: string
+  completed_at?: string
 }
 
 export interface ProjectTask {

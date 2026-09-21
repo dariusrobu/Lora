@@ -100,6 +100,17 @@ function groupTasks(tasks: Task[], groupBy: string): Section[] {
   }
 }
 
+function isDoneThisWeek(task: Task): boolean {
+  if (task.status !== "done" || !task.completed_at) return false
+  const completed = new Date(task.completed_at)
+  const today = new Date()
+  const monday = new Date(today)
+  const day = monday.getDay() || 7
+  monday.setDate(monday.getDate() - day + 1)
+  monday.setHours(0, 0, 0, 0)
+  return completed >= monday
+}
+
 export default function Tasks() {
   const [filter, setFilter] = useState<"all" | "pending" | "done">("all")
   const [groupBy, setGroupBy] = useState<string>("due_date")
@@ -151,7 +162,9 @@ export default function Tasks() {
   })
 
   const filtered = useMemo(() => {
-    let result = tasks ?? []
+    // Keep historical completed tasks stored for reporting, but only show
+    // completions from the current week in the task list.
+    let result = (tasks ?? []).filter((task) => task.status !== "done" || isDoneThisWeek(task))
     if (filter === "pending") result = result.filter((t) => t.status !== "done")
     else if (filter === "done") result = result.filter((t) => t.status === "done")
     if (search.trim()) {
