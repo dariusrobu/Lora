@@ -12,7 +12,7 @@ import {
   deleteSubtask,
 } from "../api/queries/goals"
 import { Card, Spinner, Modal } from "../components/ui"
-import { Plus, Trash2, Search, CheckCircle2, Circle, ChevronDown, ChevronRight, X, Calendar } from "lucide-react"
+import { Plus, Trash2, Search, CheckCircle2, Circle, ChevronDown, ChevronRight, X, Calendar, CalendarOff } from "lucide-react"
 import type { Goal, GoalTask } from "../types"
 
 const horizonStyles: Record<string, { label: string; color: string }> = {
@@ -75,6 +75,7 @@ export default function Goals() {
   const [formTitle, setFormTitle] = useState("")
   const [formHorizon, setFormHorizon] = useState<"short" | "mid" | "long">("mid")
   const [formDeadline, setFormDeadline] = useState("")
+  const [noDeadline, setNoDeadline] = useState(false)
   const [formCategory, setFormCategory] = useState("")
   const formRef = useRef<HTMLInputElement>(null)
 
@@ -102,6 +103,7 @@ export default function Goals() {
       setFormTitle("")
       setFormHorizon("mid")
       setFormDeadline("")
+      setNoDeadline(false)
       setFormCategory("")
     },
   })
@@ -166,6 +168,7 @@ export default function Goals() {
     setFormTitle("")
     setFormHorizon("mid")
     setFormDeadline("")
+    setNoDeadline(false)
     setFormCategory("")
     setShowModal(true)
     setTimeout(() => formRef.current?.focus(), 100)
@@ -176,7 +179,7 @@ export default function Goals() {
     const payload = {
       title: formTitle.trim(),
       time_horizon: formHorizon,
-      ...(formDeadline ? { deadline: formDeadline } : {}),
+      ...(formDeadline && !noDeadline ? { deadline: formDeadline } : {}),
       ...(formCategory.trim() ? { category: formCategory.trim() } : {}),
     }
     createMut.mutate(payload)
@@ -329,11 +332,19 @@ export default function Goals() {
 
           <div>
             <label className="block text-xs font-medium text-text-secondary mb-1">Deadline</label>
-            <div className="relative">
+            <div className="flex gap-2">
+              <div className={`relative flex-1 ${noDeadline ? "opacity-50" : ""}`}>
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
-              <input type="date" value={formDeadline} onChange={(e) => setFormDeadline(e.target.value)}
+              <input type="date" value={formDeadline} disabled={noDeadline} onChange={(e) => setFormDeadline(e.target.value)}
                 className="w-full bg-surface border border-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-text-primary outline-none focus:border-primary/30 transition-all [color-scheme:var(--color-scheme)]"
               />
+              </div>
+              <button type="button" onClick={() => { setNoDeadline((value) => !value); setFormDeadline("") }}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${noDeadline ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-surface text-text-secondary hover:text-text-primary"}`}
+              >
+                <CalendarOff className="w-3.5 h-3.5" />
+                Fără termen
+              </button>
             </div>
           </div>
 
