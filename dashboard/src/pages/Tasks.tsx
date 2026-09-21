@@ -116,6 +116,8 @@ export default function Tasks() {
   const [groupBy, setGroupBy] = useState<string>("due_date")
   const [search, setSearch] = useState("")
   const [showGroupMenu, setShowGroupMenu] = useState(false)
+  const [showMore, setShowMore] = useState(false)
+  const [showDone, setShowDone] = useState(false)
 
   const [showModal, setShowModal] = useState(false)
   const [formTitle, setFormTitle] = useState("")
@@ -303,7 +305,21 @@ export default function Tasks() {
         <Card><p className="text-sm text-text-muted text-center py-8">No tasks found</p></Card>
       ) : (
         <div className="space-y-5">
-          {sections.map((section) => (
+          {sections.map((section) => {
+            const isDoneSection = section.label === "Done"
+            const visibleTasks = isDoneSection
+              ? (showDone ? section.tasks : [])
+              : (showMore ? section.tasks : section.tasks.slice(0, 5))
+            if (isDoneSection && !showDone) {
+              return (
+                <button key={section.label} onClick={() => setShowDone(true)} className="flex w-full items-center gap-2 px-1 py-2 text-left text-xs text-text-muted hover:text-text-primary transition-colors">
+                  <span className="font-semibold uppercase tracking-wider">Finalizate</span>
+                  <span>· {section.tasks.length}</span>
+                  <ChevronDown className="ml-auto w-3.5 h-3.5" />
+                </button>
+              )
+            }
+            return (
             <div key={section.label}>
               {section.label && (
                 <div className="flex items-center gap-2 mb-2 px-1">
@@ -316,7 +332,7 @@ export default function Tasks() {
               )}
               <div className="space-y-0.5">
                 <AnimatePresence>
-                  {section.tasks.sort((a, b) => {
+                  {visibleTasks.slice().sort((a, b) => {
                     const order = { high: 0, medium: 1, low: 2 }
                     return (order[a.priority] ?? 3) - (order[b.priority] ?? 3)
                   }).map((task) => {
@@ -377,8 +393,24 @@ export default function Tasks() {
                   })}
                 </AnimatePresence>
               </div>
+              {!isDoneSection && section.tasks.length > 5 && !showMore && (
+                <button onClick={() => setShowMore(true)} className="mt-2 px-1 text-xs text-text-secondary hover:text-text-primary transition-colors">
+                  Arată încă {section.tasks.length - 5} {section.tasks.length - 5 === 1 ? "task" : "taskuri"}
+                </button>
+              )}
+              {isDoneSection && showDone && (
+                <button onClick={() => setShowDone(false)} className="mt-2 px-1 text-xs text-text-secondary hover:text-text-primary transition-colors">
+                  Ascunde finalizatele
+                </button>
+              )}
             </div>
-          ))}
+            )
+          })}
+          {showMore && filtered.some((task) => task.status !== "done") && (
+            <button onClick={() => setShowMore(false)} className="px-1 text-xs text-text-secondary hover:text-text-primary transition-colors">
+              Arată mai puține
+            </button>
+          )}
         </div>
       )}
 
