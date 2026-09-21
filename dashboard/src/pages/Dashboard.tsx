@@ -470,7 +470,7 @@ export default function Dashboard() {
   })
 
   return (
-    <div className="relative space-y-7 pb-12">
+    <div className="dashboard-home relative space-y-7 pb-12">
       {/* Ambient Aurora Glow Spots behind canvas */}
       <div className="pointer-events-none absolute -top-16 left-1/4 w-96 h-96 bg-indigo-600/[0.07] rounded-full blur-[128px]" />
       <div className="pointer-events-none absolute top-44 right-4 w-80 h-80 bg-violet-600/[0.06] rounded-full blur-[128px]" />

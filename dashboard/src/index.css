@@ -29,6 +29,37 @@
   --color-text-muted: rgba(255, 255, 255, 0.38);
 }
 
+/* Home widgets still contain a few legacy dark-only utility classes. Keep
+   their visual language in dark mode, but make the light dashboard readable. */
+html:not(.dark) .dashboard-home .text-white,
+html:not(.dark) .dashboard-home .text-zinc-100,
+html:not(.dark) .dashboard-home .text-zinc-200,
+html:not(.dark) .dashboard-home .text-zinc-300,
+html:not(.dark) .dashboard-home .text-zinc-400 {
+  color: var(--color-text-primary) !important;
+}
+
+html:not(.dark) .dashboard-home .text-zinc-500 {
+  color: var(--color-text-secondary) !important;
+}
+
+html:not(.dark) .dashboard-home input,
+html:not(.dark) .dashboard-home select,
+html:not(.dark) .dashboard-home textarea {
+  color: var(--color-text-primary) !important;
+  background-color: rgba(0, 0, 0, 0.03) !important;
+}
+
+html:not(.dark) .dashboard-home button.text-white,
+html:not(.dark) .dashboard-home button.bg-primary,
+html:not(.dark) .dashboard-home button.bg-gradient-to-tr {
+  color: #fff !important;
+}
+
+html:not(.dark) .dashboard-home [class*="border-white"] {
+  border-color: var(--color-border) !important;
+}
+
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
