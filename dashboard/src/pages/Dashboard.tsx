@@ -55,7 +55,7 @@ function getGreeting() {
 
 function SubCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={twMerge("rounded-2xl p-5 sm:p-6 bg-white/[0.02] border border-white/[0.04] transition-colors", className)}>
+    <div className={twMerge("rounded-2xl p-5 sm:p-6 bg-black/[0.02] dark:bg-white/[0.02] border border-border-light transition-colors", className)}>
       {children}
     </div>
   )
@@ -481,14 +481,14 @@ export default function Dashboard() {
         <div className="flex items-start justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h1 className="text-3xl sm:text-4xl font-black tracking-tight bg-gradient-to-r from-white via-zinc-100 to-indigo-200 bg-clip-text text-transparent">
+              <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-text-primary dark:bg-gradient-to-r dark:from-white dark:via-zinc-100 dark:to-indigo-200 dark:bg-clip-text dark:text-transparent">
                 {greeting}
               </h1>
               <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
             </div>
             <div className="flex items-center gap-2 pt-0.5">
               <span className="text-xs text-text-secondary font-medium capitalize">{dateStr}</span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.06] text-[11px] text-zinc-300 font-medium">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/[0.03] dark:bg-white/[0.04] border border-border text-[11px] text-text-secondary font-medium">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                 {tasksDue} task-uri active
               </span>
@@ -510,7 +510,7 @@ export default function Dashboard() {
         initial={{ opacity: 0, y: 8 }} 
         animate={{ opacity: 1, y: 0 }} 
         transition={{ delay: 0.08 }}
-        className="py-5 border-y border-white/[0.06]"
+        className="py-5 border-y border-border"
       >
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-2 sm:divide-x sm:divide-white/[0.06]">
           {stats.map(({ icon: Icon, label, value, gradientText, color }) => (

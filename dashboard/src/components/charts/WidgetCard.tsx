@@ -32,25 +32,25 @@ export function WidgetCard({
 }: WidgetCardProps) {
   return (
     <div className={twMerge("relative group py-4 transition-all duration-300", className)}>
-      <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between mb-4 pb-2 border-b border-border">
         <div className="flex items-center gap-2.5">
           <div className="text-indigo-400 flex items-center justify-center shrink-0">
             {icon}
           </div>
-          <h3 className="text-[11px] font-bold text-white uppercase tracking-wider">{label}</h3>
+          <h3 className="text-[11px] font-bold text-text-primary uppercase tracking-wider">{label}</h3>
         </div>
         <div className="flex items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
           {onExpand && (
             <motion.button
               onClick={onExpand}
               whileTap={{ scale: 0.9 }}
-              className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/[0.06] transition-colors"
+              className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors"
               title="Extinde"
             >
               <Maximize2 className="w-3.5 h-3.5" />
             </motion.button>
           )}
-          <Link to={linkTo} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/[0.06] transition-colors" title="Deschide">
+          <Link to={linkTo} className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors" title="Deschide">
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
