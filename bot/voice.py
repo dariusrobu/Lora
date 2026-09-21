@@ -65,22 +65,10 @@ async def transcribe_voice(update: Any, context: Any) -> Tuple[str, str]:
         if not transcription:
             raise ValueError("Nu am putut înțelege mesajul vocal.")
 
-        # Ollama only performs local spelling and Romglish normalization.
-        from core.gemini import generate_text_response
-
-        normalized = await generate_text_response(
-            [
-                {
-                    "role": "user",
-                    "content": (
-                        "Corectează numai greșelile evidente din această transcriere "
-                        "Romglish. Nu schimba sensul. Răspunde doar cu textul corectat.\n\n"
-                        f"{transcription}"
-                    ),
-                }
-            ]
-        )
-        return (normalized or transcription).strip(), f"local://faster-whisper/{LOCAL_STT_MODEL}"
+        # Return the raw transcript.  The handler performs exactly one
+        # normalization pass; normalizing here as well caused two local LLM
+        # rewrites and could turn an unclear phrase into a different intent.
+        return transcription, f"local://faster-whisper/{LOCAL_STT_MODEL}"
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)

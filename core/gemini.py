@@ -796,12 +796,20 @@ async def normalize_voice_text(raw: str, model: str | None = None) -> str:
         "Reformulează-l ca o comandă sau un mesaj clar, corectând greșelile gramaticale evidente, dar păstrând EXACT intenția și toate datele (sume, ore, nume, intervale de timp). "
         "Păstrează toate cifrele și unitățile de măsură (ex: 8 ore, 50 lei, 2 litri). "
         "Dacă sunt mai multe acțiuni, separă-le clar. "
+        "Dacă un fragment este neclar, păstrează-l aproape de forma originală sau marchează-l pentru clarificare; NU îl înlocui cu o presupunere (de exemplu nu transforma un nume de magazin într-o întâlnire). "
         "Nu adăuga informații noi. Răspunde DOAR cu textul reformulat, fără explicații. "
         f"Transcriere: {raw}"
     )
     try:
         messages = [{"role": "user", "content": prompt}]
         normalized = await generate_text_response(messages, model=model)
+
+        # Never accept a rewrite that silently drops numeric facts.
+        raw_numbers = re.findall(r"\d+(?:[.,]\d+)?", raw)
+        normalized_numbers = re.findall(r"\d+(?:[.,]\d+)?", normalized or "")
+        if any(number not in normalized_numbers for number in raw_numbers):
+            _voice_logger.warning("VOICE NORMALIZE DROPPED DATA — using raw transcript")
+            return raw
 
         _voice_logger.info(
             "VOICE NORMALIZE | original=%r | normalized=%r", raw, normalized
