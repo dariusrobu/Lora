@@ -7,11 +7,10 @@ import CalendarPage from "./Calendar"
 import FocusPage from "./Focus"
 
 const tabs = [
-  { key: "tasks", label: "Tasks", icon: CheckSquare },
-  { key: "goals", label: "Goals", icon: Target },
-  { key: "projects", label: "Projects", icon: FolderKanban },
+  { key: "tasks", label: "Azi", icon: CheckSquare },
+  { key: "goals", label: "Obiective", icon: Target },
   { key: "calendar", label: "Calendar", icon: CalendarDays },
-  { key: "focus", label: "Focus", icon: Timer },
+  { key: "more", label: "Mai mult", icon: FolderKanban },
 ] as const
 
 type TabKey = (typeof tabs)[number]["key"]
@@ -44,9 +43,8 @@ export default function Plan() {
       </div>
       {active === "tasks" && <Tasks />}
       {active === "goals" && <Goals />}
-      {active === "projects" && <Projects />}
       {active === "calendar" && <CalendarPage />}
-      {active === "focus" && <FocusPage />}
+      {active === "more" && <div className="space-y-8"><Projects /><FocusPage /></div>}
         </div>
       </div>
     </div>

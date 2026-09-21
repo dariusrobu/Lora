@@ -7,9 +7,8 @@ import Insights from "./Insights"
 
 const tabs = [
   { key: "notes", label: "Notes", icon: StickyNote },
-  { key: "reading", label: "Reading", icon: BookOpen },
-  { key: "memory", label: "Memory", icon: Brain },
-  { key: "insights", label: "Insights", icon: Sparkles },
+  { key: "ideas", label: "Idei", icon: Brain },
+  { key: "reading", label: "Lectură", icon: BookOpen },
 ] as const
 
 type TabKey = (typeof tabs)[number]["key"]
@@ -41,9 +40,8 @@ export default function Mind() {
         })}
       </div>
       {active === "notes" && <Notes />}
+      {active === "ideas" && <div className="space-y-8"><Memory /><Insights /></div>}
       {active === "reading" && <Reading />}
-      {active === "memory" && <Memory />}
-      {active === "insights" && <Insights />}
         </div>
       </div>
     </div>

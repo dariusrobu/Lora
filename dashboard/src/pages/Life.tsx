@@ -9,11 +9,9 @@ import News from "./News"
 
 const tabs = [
   { key: "finance", label: "Finance", icon: Wallet },
-  { key: "news", label: "Știri", icon: Newspaper },
   { key: "shopping", label: "Shopping", icon: ShoppingCart },
-  { key: "travel", label: "Travel", icon: Luggage },
-  { key: "weather", label: "Weather", icon: CloudSun },
-  { key: "places", label: "Places", icon: MapPin },
+  { key: "outings", label: "Ieșiri", icon: Luggage },
+  { key: "info", label: "Info", icon: CloudSun },
 ] as const
 
 type TabKey = (typeof tabs)[number]["key"]
@@ -45,11 +43,9 @@ export default function Life() {
             })}
           </div>
           {active === "finance" && <Finance />}
-          {active === "news" && <News />}
           {active === "shopping" && <Shopping />}
-          {active === "travel" && <TravelPage />}
-          {active === "weather" && <WeatherPage />}
-          {active === "places" && <Places />}
+          {active === "outings" && <div className="space-y-8"><TravelPage /><Places /></div>}
+          {active === "info" && <div className="space-y-8"><WeatherPage /><News /></div>}
         </div>
       </div>
     </div>
