@@ -424,23 +424,21 @@ export default function Dashboard() {
       icon: ListChecks, 
       label: "Task-uri active", 
       value: `${tasksDue}`, 
-      gradientText: "bg-gradient-to-r from-white via-indigo-200 to-indigo-400 bg-clip-text text-transparent",
+      gradientText: "text-text-primary",
       color: "text-indigo-400" 
     },
     {
       icon: Wallet,
       label: isNegative ? "Pe minus" : "Balanță",
       value: fmtCurrency(balance),
-      gradientText: isNegative 
-        ? "bg-gradient-to-r from-rose-400 via-rose-300 to-red-500 bg-clip-text text-transparent" 
-        : "bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-500 bg-clip-text text-transparent",
+      gradientText: isNegative ? "text-rose-500" : "text-emerald-600 dark:text-emerald-400",
       color: isNegative ? "text-rose-400" : "text-emerald-400",
     },
     { 
       icon: CalendarIcon, 
       label: "Azi în program", 
       value: `${eventsCount} evenimente`, 
-      gradientText: "bg-gradient-to-r from-white via-purple-200 to-violet-400 bg-clip-text text-transparent",
+      gradientText: "text-text-primary",
       color: "text-violet-400" 
     },
   ]
@@ -481,7 +479,7 @@ export default function Dashboard() {
         <div className="flex items-start justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-text-primary dark:bg-gradient-to-r dark:from-white dark:via-zinc-100 dark:to-indigo-200 dark:bg-clip-text dark:text-transparent">
+              <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-text-primary">
                 {greeting}
               </h1>
               <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />

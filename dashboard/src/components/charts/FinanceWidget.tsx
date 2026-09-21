@@ -171,9 +171,7 @@ export function FinanceWidget({ onExpand }: Props) {
           <div className="flex items-baseline gap-3">
             <motion.p key={bal} initial={{ y: -8, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
               className={`text-3xl sm:text-4xl font-black tabular-nums tracking-tight ${
-                bal < 0 
-                  ? "bg-gradient-to-r from-rose-400 via-rose-300 to-red-500 bg-clip-text text-transparent" 
-                  : "bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent"
+                bal < 0 ? "text-rose-500" : "text-text-primary"
               }`}>
               {fmtCurrency(bal)}
             </motion.p>

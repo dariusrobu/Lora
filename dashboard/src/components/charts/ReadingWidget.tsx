@@ -140,7 +140,7 @@ export function ReadingWidget({ onExpand }: Props) {
 
             {/* Percentage Badge */}
             {totalPages > 0 && (
-              <span className="text-xl sm:text-2xl font-black bg-gradient-to-r from-indigo-300 to-purple-400 bg-clip-text text-transparent tabular-nums shrink-0">
+              <span className="text-xl sm:text-2xl font-black text-text-primary tabular-nums shrink-0">
                 {pct}%
               </span>
             )}

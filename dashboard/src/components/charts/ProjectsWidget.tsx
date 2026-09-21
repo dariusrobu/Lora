@@ -142,7 +142,7 @@ export function ProjectsWidget({ onExpand }: Props) {
             </div>
 
             {/* Percentage Value */}
-            <span className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-indigo-300 via-indigo-200 to-purple-400 bg-clip-text text-transparent tabular-nums shrink-0">
+            <span className="text-2xl sm:text-3xl font-black text-text-primary tabular-nums shrink-0">
               {heroProject.progress_pct ?? 0}%
             </span>
           </div>
