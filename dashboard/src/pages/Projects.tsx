@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react"
+import { useState, useMemo, useRef, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -75,6 +75,9 @@ export default function Projects() {
   const [filter, setFilter] = useState<"all" | "active" | "completed">("all")
   const [groupBy, setGroupBy] = useState<string>("category")
   const [search, setSearch] = useState("")
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchRef = useRef<HTMLInputElement>(null)
+  useEffect(() => { if (searchOpen) searchRef.current?.focus() }, [searchOpen])
   const [showGroupMenu, setShowGroupMenu] = useState(false)
 
   const [showModal, setShowModal] = useState(false)
@@ -255,15 +258,6 @@ export default function Projects() {
         </div>
       )}
 
-      {/* Search */}
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
-        <input value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search projects..."
-          className="w-full bg-surface border border-border rounded-xl py-2.5 pl-9 pr-3 text-sm text-text-primary placeholder:text-text-muted outline-none focus:border-primary/30 transition-colors"
-        />
-      </div>
-
       {/* Segmented control + group dropdown */}
       <div className="flex items-center gap-3 mb-4">
         <div className="flex p-0.5 rounded-full bg-surface border border-border">
@@ -276,6 +270,11 @@ export default function Projects() {
               {f === "all" ? "All" : f === "active" ? "Active" : "Completed"}
             </button>
           ))}
+        </div>
+        <div className={`ml-auto flex items-center rounded-full border transition-all duration-200 ${searchOpen ? "w-48 border-border bg-surface" : "w-8 border-transparent"}`}>
+          <button type="button" onClick={() => setSearchOpen(true)} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-full text-text-muted hover:text-text-primary hover:bg-surface transition-colors" aria-label="Caută proiecte"><Search className="w-3.5 h-3.5" /></button>
+          <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") { setSearchOpen(false); setSearch("") } }} placeholder="Caută proiecte..." tabIndex={searchOpen ? 0 : -1} className={`min-w-0 flex-1 bg-transparent pr-2 text-xs text-text-primary placeholder:text-text-muted outline-none transition-opacity ${searchOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`} />
+          {searchOpen && search && <button type="button" onClick={() => setSearch("")} className="mr-2 text-text-muted hover:text-text-primary" aria-label="Șterge căutarea">×</button>}
         </div>
         <div className="relative">
           <button onClick={() => setShowGroupMenu(!showGroupMenu)}
