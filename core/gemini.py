@@ -311,6 +311,10 @@ class AgentAction(BaseModel):
         default=None,
         description="Final answer to user in Romanian (only when action_type='final')",
     )
+    additional_intents: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Additional independent actions detected in the same message",
+    )
 
 
     @model_validator(mode="after")
