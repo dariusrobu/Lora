@@ -9,13 +9,13 @@
 
 :root {
   color-scheme: light;
-  --color-bg: #f5f5f7;
+  --color-bg: #ffffff;
   --color-surface: #ffffff;
   --color-border: rgba(0, 0, 0, 0.12);
   --color-border-light: rgba(0, 0, 0, 0.07);
   --color-text-primary: #1d1d1f;
-  --color-text-secondary: rgba(0, 0, 0, 0.68);
-  --color-text-muted: rgba(0, 0, 0, 0.52);
+  --color-text-secondary: rgba(0, 0, 0, 0.74);
+  --color-text-muted: rgba(0, 0, 0, 0.62);
 }
 
 .dark {
