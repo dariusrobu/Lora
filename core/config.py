@@ -25,6 +25,9 @@ OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 LOCAL_STT_MODEL = os.getenv("LOCAL_STT_MODEL", "small")
 LOCAL_STT_DEVICE = os.getenv("LOCAL_STT_DEVICE", "auto")
 LOCAL_STT_COMPUTE_TYPE = os.getenv("LOCAL_STT_COMPUTE_TYPE", "int8")
+# Ollama normalization can rewrite correct Romanian transcripts incorrectly;
+# keep raw local STT by default and enable only for explicitly noisy audio.
+VOICE_NORMALIZE = os.getenv("VOICE_NORMALIZE", "false").lower() == "true"
 
 # Human-in-the-loop confirmation for database writes is on by default.  This
 # protects personal data when a local model misclassifies an ambiguous message.

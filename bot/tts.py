@@ -296,12 +296,24 @@ async def _synthesize_kitten(
         f"DEBUG: KittenTTS start | mode={'podcast' if podcast_mode else 'normal'} | chars={len(processed_text)}",
         flush=True,
     )
-    await asyncio.to_thread(
-        model.generate_to_file,
-        processed_text,
-        filename,
-        voice=KITTEN_TTS_VOICE,
-        sample_rate=24000,
-        clean_text=True,
-    )
+    try:
+        await asyncio.to_thread(
+            model.generate_to_file,
+            processed_text,
+            filename,
+            voice=KITTEN_TTS_VOICE,
+            sample_rate=24000,
+            clean_text=True,
+        )
+    except TypeError as exc:
+        if "clean_text" not in str(exc):
+            raise
+        # Older KittenTTS versions do not expose clean_text.
+        await asyncio.to_thread(
+            model.generate_to_file,
+            processed_text,
+            filename,
+            voice=KITTEN_TTS_VOICE,
+            sample_rate=24000,
+        )
     return filename

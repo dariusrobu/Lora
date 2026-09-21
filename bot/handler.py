@@ -7,7 +7,7 @@ from datetime import date
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, Message
 import os
 from telegram.ext import ContextTypes
-from core.config import TELEGRAM_USER_ID
+from core.config import TELEGRAM_USER_ID, VOICE_NORMALIZE
 from db.queries.profile import get_user_profile
 from bot.formatter import escape_md, safe_markdown, split_message
 from core.context import build_context
@@ -81,10 +81,11 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
             )
             return
 
-        # Normalize raw STT text before intent analysis
         logger.info(f"🎙 VOICE TRANSCRIBED (raw): {repr(text)}")
-        # normalize_voice_text is still useful for cleaning up, but we also have the URI now
-        text = await normalize_voice_text(text)
+        if VOICE_NORMALIZE:
+            text = await normalize_voice_text(text)
+        else:
+            logger.info("🎙 VOICE NORMALIZE skipped (VOICE_NORMALIZE=false)")
 
         return await message_handler(
             update, context, pool, text=text, source="voice", voice_uri=voice_uri
@@ -3535,7 +3536,7 @@ async def send_confirmation_request(
     context: ContextTypes.DEFAULT_TYPE = None,
 ) -> None:
     """Generates a summary of the action and sends the confirmation inline keyboard."""
-    summary = generate_action_summary(intent, data)
+    summary = safe_markdown(generate_action_summary(intent, data))
 
     from bot.keyboards import action_confirm_keyboard
 
