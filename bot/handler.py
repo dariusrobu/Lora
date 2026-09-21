@@ -2036,6 +2036,14 @@ Reguli:
             logger.error("Confirmation requested but no pending action was stored")
             final_reply = "A apărut o eroare la pregătirea confirmării."
 
+        if final_reply == "__ACTION_PLAN_CONFIRMATION_REQUIRED__":
+            from core.state import get_pending_action_plan
+            plan = await get_pending_action_plan(pool)
+            if plan:
+                await send_action_plan_confirmation(update, context, plan)
+                return
+            final_reply = "A apărut o eroare la pregătirea acțiunilor."
+
         # Clear any state now that the agent loop ran
         if state:
             from core.state import clear_state
@@ -2131,6 +2139,18 @@ async def handle_new_confirmation_callback(query, pool, callback_data: str, bot)
     telegram_id = query.from_user.id
 
     if callback_data == "conf_yes":
+        from core.state import get_pending_action_plan
+        plan = await get_pending_action_plan(pool)
+        if plan:
+            await clear_pending_action(pool)
+            from core.router import route_intent
+            results = []
+            for action in plan:
+                response = {"intent": action["intent"], "module": action["module"], "data": action.get("data") or {}, "needs_confirmation": False, "_confirmed_bypass": True}
+                result, _, _ = await route_intent(pool, response, user_id=telegram_id, bot=bot)
+                results.append(result)
+            await query.edit_message_text("Am executat:\n" + "\n".join(results), parse_mode="MarkdownV2")
+            return
         pending = await get_pending_action(pool)
         if pending:
             intent = pending.get("intent")
@@ -3536,6 +3556,26 @@ async def send_confirmation_request(
                 parse_mode="MarkdownV2",
                 reply_markup=reply_markup,
             )
+
+
+async def send_action_plan_confirmation(update, context, actions: list[dict]) -> None:
+    """Shows one concise confirmation for multiple natural-language actions."""
+    from bot.keyboards import action_confirm_keyboard
+
+    lines = ["Vrei să fac următoarele?"]
+    labels = {
+        "add_event": "Adaug reminderul",
+        "add_item": "Adaug pe lista de cumpărături",
+        "add_task": "Creez taskul",
+        "finance_log": "Înregistrez tranzacția",
+    }
+    for action in actions:
+        data = action.get("data") or {}
+        label = labels.get(action.get("intent"), "Execut acțiunea")
+        value = data.get("title") or data.get("item") or data.get("description") or "cerută"
+        lines.append(f"• {label}: {value}")
+    text = "\n".join(lines) + "\nConfirmi?"
+    await update.message.reply_text(text, reply_markup=action_confirm_keyboard())
 
 
 def generate_action_summary(intent: str, data: dict) -> str:

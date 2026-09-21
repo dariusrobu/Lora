@@ -637,7 +637,7 @@ def _select_relevant_tools(user_message: str) -> str | None:
 
     header = """RESPONSE FORMAT:
 {
-  "action_type": "tool" | "final",   // MUST be "tool" or "final" only
+  "action_type": "tool" | "plan" | "final"
   "thought": "reasoning",
   "intent": "add_task",              // the intent name from the list below
   "module": "tasks",                 // the module name
@@ -645,7 +645,7 @@ def _select_relevant_tools(user_message: str) -> str | None:
   "final_reply": "..."               // ONLY when action_type="final"
 }
 
-CRITICAL: action_type is ONLY "tool" or "final". NEVER put the intent name there.
+CRITICAL: action_type is ONLY "tool", "plan", or "final". NEVER put the intent name there.
 
 AVAILABLE INTENTS (use with action_type="tool"):
 """
@@ -686,7 +686,7 @@ async def agent_loop(
     _FULL_TOOLS_LIST = """
 RESPONSE FORMAT:
 {
-  "action_type": "tool" | "final",   // MUST be "tool" or "final" only
+  "action_type": "tool" | "plan" | "final"
   "thought": "reasoning",
   "intent": "add_task",              // the intent name from the list below
   "module": "tasks",                 // the module name
@@ -694,7 +694,7 @@ RESPONSE FORMAT:
   "final_reply": "..."               // ONLY when action_type="final"
 }
 
-CRITICAL: action_type is ONLY "tool" or "final". NEVER put the intent name there.
+CRITICAL: action_type is ONLY "tool", "plan", or "final". NEVER put the intent name there.
 
 CONVERSATIONAL ACTION RULES:
 - Detect implicit intentions, not only explicit commands. "Trebuie să cumpăr apă" suggests shopping and a reminder question.
@@ -788,7 +788,7 @@ EXAMPLE — User says "ce imi poti zice despre atv uri":
         agent_prompt = f"""You are Lora's agent. Loop: think → tool → observe → repeat → final.
 
 RULES:
-- action_type is ALWAYS "tool" or "final". NEVER anything else.
+- action_type is ALWAYS "tool", "plan" or "final". NEVER anything else.
 - To perform a user action (add, list, edit, delete, log, etc.), first use action_type="tool" to run the required tool.
 - IMPORTANT: Once the tool has run and the results show the action succeeded, do NOT run the tool again. Instead, use action_type="final" to summarize the result for the user.
 - For chat, greetings, or general knowledge questions (e.g. asking about ATVs, tech, advice), use action_type="final" directly with your response in final_reply. DO NOT call "list_tasks" or any tool unless the user explicitly mentions their personal tasks, notes, goals, or database items.
@@ -820,7 +820,7 @@ Context: {context_snapshot or "None"}
 User message: {user_message}{hint}
 
 JSON response (ONLY this, no extra text):
-{{"action_type":"tool"|"final","thought":"...","intent":"...","module":"...","data":{{}},"final_reply":"..."}}"""
+{{"action_type":"tool"|"plan"|"final","thought":"...","intent":"...","module":"...","data":{{}},"actions":[],"missing":[],"final_reply":"..."}}"""
 
         messages = [{"role": "system", "content": agent_prompt}]
         raw = await generate_structured_response(messages, AgentAction)
@@ -840,6 +840,8 @@ JSON response (ONLY this, no extra text):
         data = action.get("data") or {}
         thought = action.get("thought", "")
         final_reply = action.get("final_reply")
+        actions = action.get("actions") or []
+        missing = action.get("missing") or []
 
         # KNOWN_INTENTS for normalization — LLM sometimes misplaces fields
         KNOWN_INTENTS = {
@@ -901,7 +903,7 @@ JSON response (ONLY this, no extra text):
             intent = action_type
             action_type = "tool"
             module = module or INTENT_TO_MODULE.get(intent)
-        if action_type not in ("tool", "final") and intent in KNOWN_INTENTS and intent != "chat":
+        if action_type not in ("tool", "final", "plan") and intent in KNOWN_INTENTS and intent != "chat":
             action_type = "tool"
             module = module or INTENT_TO_MODULE.get(intent)
 
@@ -913,6 +915,17 @@ JSON response (ONLY this, no extra text):
                 data["title"] = user_message
 
         logger.info(f"🤖 AGENT Step {step}: type={action_type}, intent={intent}, module={module}, thought={thought}")
+
+        if action_type == "plan":
+            if missing:
+                return ("Am nevoie de un detaliu: " + ", ".join(str(item) for item in missing) + ".", None, None)
+            valid_actions = [item for item in actions if item.get("intent") and item.get("module")]
+            if not valid_actions:
+                return "Nu am putut identifica acțiunile cerute. Spune-mi ce vrei să fac.", None, None
+            from core.state import set_pending_action_plan
+
+            await set_pending_action_plan(pool, valid_actions)
+            return "__ACTION_PLAN_CONFIRMATION_REQUIRED__", None, None
 
         if action_type == "final":
             # Verify all user requests are handled before finalizing

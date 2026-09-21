@@ -290,7 +290,7 @@ class IntentResponse(BaseModel):
 
 class AgentAction(BaseModel):
     action_type: str = Field(
-        description="'tool' to execute a tool, 'final' to give final answer to user"
+        description="'tool' to execute one tool, 'plan' for multiple actions, or 'final' to answer"
     )
     thought: str = Field(
         description="Brief reasoning about the current step"
@@ -315,6 +315,8 @@ class AgentAction(BaseModel):
         default_factory=list,
         description="Additional independent actions detected in the same message",
     )
+    actions: List[Dict[str, Any]] = Field(default_factory=list)
+    missing: List[str] = Field(default_factory=list)
 
 
     @model_validator(mode="after")

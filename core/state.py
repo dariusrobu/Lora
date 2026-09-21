@@ -149,3 +149,22 @@ async def get_pending_action(pool) -> Optional[dict]:
 async def clear_pending_action(pool):
     """Clears the pending action and resets conversation state."""
     await clear_state(pool)
+
+
+async def set_pending_action_plan(pool, actions: list[dict]):
+    """Stores multiple confirmed actions as one atomic user-facing plan."""
+    await set_state(
+        pool,
+        "awaiting_action_plan_confirm",
+        "plan",
+        "action_plan",
+        None,
+        {"pending_action_plan": actions},
+    )
+
+
+async def get_pending_action_plan(pool) -> list[dict] | None:
+    state = await get_state(pool)
+    if state and state.get("state_type") == "awaiting_action_plan_confirm":
+        return (state.get("extra") or {}).get("pending_action_plan")
+    return None
