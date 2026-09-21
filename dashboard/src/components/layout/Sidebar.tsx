@@ -37,7 +37,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               <span className="text-sm font-bold text-white tracking-wider">L</span>
             </div>
             <div>
-              <span className="font-semibold text-base tracking-tight text-white flex items-center gap-1.5">
+              <span className="font-semibold text-base tracking-tight text-text-primary flex items-center gap-1.5">
                 Lora
                 <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-primary/20 text-primary font-mono font-medium border border-primary/30">
                   AI
@@ -53,12 +53,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 <div className={twMerge(
                   "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all duration-200 ease-apple",
                   isActive
-                    ? "font-semibold text-white bg-primary/15 border border-primary/30 shadow-[0_0_16px_rgba(99,102,241,0.2)]"
-                    : "text-text-secondary hover:text-white hover:bg-white/[0.035] border border-transparent",
+                    ? "font-semibold text-text-primary bg-primary/15 border border-primary/30 shadow-[0_0_16px_rgba(99,102,241,0.2)]"
+                    : "text-text-secondary hover:text-text-primary hover:bg-black/[0.04] dark:hover:bg-white/[0.035] border border-transparent",
                 )}>
                   <Icon className={twMerge(
                     "w-4 h-4 shrink-0 transition-colors",
-                    isActive ? "text-primary" : "text-text-muted group-hover:text-white",
+                    isActive ? "text-primary" : "text-text-muted group-hover:text-text-primary",
                   )} />
                   <span>{label}</span>
                 </div>
