@@ -12,6 +12,10 @@ export default function University() {
   const [name, setName] = useState("")
   const [professor, setProfessor] = useState("")
   const [credits, setCredits] = useState("")
+  const [gradeSubject, setGradeSubject] = useState("")
+  const [gradeValue, setGradeValue] = useState("")
+  const [gradeType, setGradeType] = useState("exam")
+  const [gradeWeight, setGradeWeight] = useState("")
   const qc = useQueryClient()
   const addSubject = useMutation({
     mutationFn: async () => {
@@ -20,6 +24,14 @@ export default function University() {
       return response.json()
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["university"] }); setShowAdd(false); setName(""); setProfessor(""); setCredits("") },
+  })
+  const addGrade = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/university/grades", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subject_id: Number(gradeSubject), grade: Number(gradeValue), grade_type: gradeType, weight: gradeWeight ? Number(gradeWeight) : null }) })
+      if (!response.ok) throw new Error("Nu am putut adăuga nota")
+      return response.json()
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["university"] }); setShowAdd(false); setGradeSubject(""); setGradeValue(""); setGradeWeight("") },
   })
   const { data, isLoading } = useQuery<{ subjects: UniversitySubject[] }>({
     queryKey: ["university"],
@@ -39,7 +51,7 @@ export default function University() {
       <div className="card-liquid-page-content p-6">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <div className="mb-6 flex items-center justify-between"><label className="relative flex w-fit items-center gap-2 text-sm font-semibold text-text-primary"><span>University · {view}</span><ChevronDown className="w-4 h-4 text-text-muted" /><select value={view} onChange={(e) => setView(e.target.value)} className="absolute inset-0 cursor-pointer opacity-0" aria-label="Alege secțiunea University">{["Overview", "Materii", "Note", "Prezențe", "Examene", "Orar"].map((item) => <option key={item}>{item}</option>)}</select></label><button type="button" onClick={() => setShowAdd((v) => !v)} className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white" aria-label="Adaugă în University"><Plus className="w-4 h-4" /></button></div>
-          {showAdd && <div className="mb-6 rounded-2xl border border-border bg-surface/70 p-4"><h2 className="mb-3 text-sm font-semibold">Adaugă materie</h2><div className="grid gap-2 sm:grid-cols-3"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nume materie" className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm" /><input value={professor} onChange={(e) => setProfessor(e.target.value)} placeholder="Profesor" className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm" /><input value={credits} onChange={(e) => setCredits(e.target.value)} placeholder="Credite" type="number" className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm" /></div><div className="mt-3 flex gap-2"><button type="button" onClick={() => setShowAdd(false)} className="rounded-xl border border-border px-3 py-2 text-xs text-text-secondary">Anulează</button><button type="button" onClick={() => addSubject.mutate()} disabled={!name.trim() || addSubject.isPending} className="rounded-xl bg-primary px-3 py-2 text-xs text-white">Adaugă</button></div></div>}
+          {showAdd && <div className="mb-6 rounded-2xl border border-border bg-surface/70 p-4"><h2 className="mb-3 text-sm font-semibold">{view === "Note" ? "Adaugă notă" : "Adaugă materie"}</h2>{view === "Note" ? <><div className="grid gap-2 sm:grid-cols-4"><select value={gradeSubject} onChange={(e) => setGradeSubject(e.target.value)} className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"><option value="">Alege materia</option>{subjects.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select><input value={gradeValue} onChange={(e) => setGradeValue(e.target.value)} placeholder="Nota" type="number" min="1" max="10" step="0.01" className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm" /><select value={gradeType} onChange={(e) => setGradeType(e.target.value)} className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"><option value="exam">Examen</option><option value="partial">Test</option><option value="proiect">Proiect</option><option value="laborator">Laborator</option></select><input value={gradeWeight} onChange={(e) => setGradeWeight(e.target.value)} placeholder="Pondere %" type="number" min="0" max="100" className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm" /></div><div className="mt-3 flex gap-2"><button type="button" onClick={() => setShowAdd(false)} className="rounded-xl border border-border px-3 py-2 text-xs text-text-secondary">Anulează</button><button type="button" onClick={() => addGrade.mutate()} disabled={!gradeSubject || !gradeValue || addGrade.isPending} className="rounded-xl bg-primary px-3 py-2 text-xs text-white">Adaugă nota</button></div></> : <><div className="grid gap-2 sm:grid-cols-3"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nume materie" className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm" /><input value={professor} onChange={(e) => setProfessor(e.target.value)} placeholder="Profesor" className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm" /><input value={credits} onChange={(e) => setCredits(e.target.value)} placeholder="Credite" type="number" className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm" /></div><div className="mt-3 flex gap-2"><button type="button" onClick={() => setShowAdd(false)} className="rounded-xl border border-border px-3 py-2 text-xs text-text-secondary">Anulează</button><button type="button" onClick={() => addSubject.mutate()} disabled={!name.trim() || addSubject.isPending} className="rounded-xl bg-primary px-3 py-2 text-xs text-white">Adaugă</button></div></>}</div>}
           <div className="mb-6">
         <p className="text-text-secondary text-sm">{subjects.length} materii · media {avgGrade}</p>
         <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
