@@ -27,6 +27,17 @@ import db.queries.finance as finance_queries
 import db.queries.health as health_queries
 
 
+def _notification_config(profile: dict) -> dict:
+    """Return notification settings regardless of JSONB driver representation."""
+    value = (profile or {}).get("notification_config") or {}
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (TypeError, json.JSONDecodeError):
+            return {}
+    return value if isinstance(value, dict) else {}
+
+
 async def _send_telegram_with_retry(bot, **kwargs):
     """Send a scheduled Telegram message without noisy traceback storms."""
     delay = 2.0
@@ -487,7 +498,7 @@ async def check_contextual_nudges(application, pool):
     """Hourly check for proactive context-based nudges."""
     try:
         profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID) or {}
-        notification_config = profile.get("notification_config") or {}
+        notification_config = _notification_config(profile)
         if notification_config.get("proactive", True) is False:
             return
         user_tz = pytz.timezone(TIMEZONE)
@@ -579,7 +590,7 @@ async def proactive_check(application, pool) -> None:
     """Hourly proactive check for overdue pending tasks and missed habit windows."""
     try:
         profile = await profile_queries.get_user_profile(pool, TELEGRAM_USER_ID) or {}
-        notification_config = profile.get("notification_config") or {}
+        notification_config = _notification_config(profile)
         if notification_config.get("proactive", True) is False:
             return
         from datetime import date, timedelta

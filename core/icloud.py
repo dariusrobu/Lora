@@ -304,6 +304,9 @@ async def delete_event(uid: str) -> bool:
             # If still not found, we assume it's already gone
             return True
     except Exception as e:
+        # A stale CalDAV ETag (412) means the item is already gone or changed.
+        if "412" in str(e) or "Precondition Failed" in str(e):
+            return True
         print(f"Critical error deleting event {uid}: {e}")
         return False
 
