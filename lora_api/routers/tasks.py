@@ -31,6 +31,7 @@ async def create_task(data: dict, user=Depends(get_current_user)):
     tid = await q.add_task(
         pool, title=data["title"], due_date=due_date,
         project_id=data.get("project_id"), priority=data.get("priority", "medium"),
+        university_subject_id=data.get("university_subject_id"),
     )
     return {"id": tid, "status": "created"}
 

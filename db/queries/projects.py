@@ -10,17 +10,19 @@ async def add_project(
     deadline: Optional[date] = None,
     priority: str = "medium",
     category: Optional[str] = None,
+    university_subject_id: Optional[int] = None,
 ) -> int:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            """INSERT INTO projects (name, description, status, deadline, priority, category)
-            VALUES ($1, $2, $3, $4, $5, $6) RETURNING id""",
+            """INSERT INTO projects (name, description, status, deadline, priority, category, university_subject_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id""",
             name,
             description,
             status,
             deadline,
             priority,
             category,
+            university_subject_id,
         )
         return row["id"]
 

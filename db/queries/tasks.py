@@ -13,13 +13,14 @@ async def add_task(
     project_id: Optional[int] = None,
     is_recurring: bool = False,
     recurrence: Optional[str] = None,
+    university_subject_id: Optional[int] = None,
 ) -> int:
     async with pool.acquire() as conn:
         max_order = await conn.fetchval("SELECT COALESCE(MAX(sort_order), 0) FROM tasks WHERE deleted_at IS NULL")
         row = await conn.fetchrow(
             """
-            INSERT INTO tasks (title, notes, priority, due_date, project_id, is_recurring, recurrence, sort_order)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            INSERT INTO tasks (title, notes, priority, due_date, project_id, is_recurring, recurrence, sort_order, university_subject_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING id
             """,
             title,
@@ -30,6 +31,7 @@ async def add_task(
             is_recurring,
             recurrence,
             max_order + 1,
+            university_subject_id,
         )
         return row["id"]
 

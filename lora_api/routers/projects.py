@@ -26,6 +26,7 @@ async def create_project(data: dict, user=Depends(get_current_user)):
         deadline=data.get("deadline"),
         priority=data.get("priority", "medium"),
         category=data.get("category"),
+        university_subject_id=data.get("university_subject_id"),
     )
     return {"id": pid, "status": "created"}
 
