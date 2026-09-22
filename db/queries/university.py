@@ -133,16 +133,18 @@ async def add_exam(
     pool, subject_id, exam_date, exam_type="examen", room=None, notes=None
 ) -> int:
     async with pool.acquire() as conn:
+        subject_name = await conn.fetchval("SELECT name FROM subjects WHERE id = $1", subject_id)
         return await conn.fetchval(
             """
-            INSERT INTO exams (subject_id, exam_date, exam_type, room, notes)
-            VALUES ($1, $2, $3, $4, $5) RETURNING id
+            INSERT INTO exams (subject_id, subject_name, exam_date, exam_type, room, notes)
+            VALUES ($1, $6, $2, $3, $4, $5) RETURNING id
         """,
             subject_id,
             exam_date,
             exam_type,
             room,
             notes,
+            subject_name,
         )
 
 
