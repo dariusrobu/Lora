@@ -177,6 +177,15 @@ export default function Goals() {
     setTimeout(() => formRef.current?.focus(), 100)
   }
 
+  const closeModal = () => {
+    setShowModal(false)
+    setFormTitle("")
+    setFormDeadline("")
+    setFormCategory("")
+    setFormHorizon("mid")
+    setNoDeadline(false)
+  }
+
   const handleCreate = () => {
     if (!formTitle.trim() || createMut.isPending) return
     const payload = {
@@ -295,7 +304,7 @@ export default function Goals() {
       </div>
 
       {/* New Goal Modal */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="New Goal">
+      <Modal open={showModal} onClose={closeModal} title="New Goal">
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-text-secondary mb-1">Title</label>
@@ -354,7 +363,7 @@ export default function Goals() {
           </div>
 
           <div className="flex gap-2 pt-1">
-            <button onClick={() => setShowModal(false)}
+            <button type="button" onClick={closeModal}
               className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-surface text-text-secondary hover:text-text-primary border border-border transition-colors"
             >
               Cancel
