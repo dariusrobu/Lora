@@ -1,15 +1,15 @@
 import { useState } from "react"
-import { Heart, Dumbbell, Apple, Smile } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 import Health from "./Health"
 import Workout from "./Workout"
 import Nutrition from "./Nutrition"
 import Mood from "./Mood"
 
 const tabs = [
-  { key: "health", label: "Health", icon: Heart },
-  { key: "workout", label: "Workout", icon: Dumbbell },
-  { key: "nutrition", label: "Nutrition", icon: Apple },
-  { key: "mood", label: "Mood", icon: Smile },
+  { key: "health", label: "Health" },
+  { key: "workout", label: "Workout" },
+  { key: "nutrition", label: "Nutrition" },
+  { key: "mood", label: "Mood" },
 ] as const
 
 type TabKey = (typeof tabs)[number]["key"]
@@ -21,25 +21,7 @@ export default function Body() {
     <div className="card-liquid-page">
       <div className="card-liquid-page-content p-6">
         <div>
-          <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
-        {tabs.map((t) => {
-          const Icon = t.icon
-          return (
-            <button
-              key={t.key}
-              onClick={() => setActive(t.key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
-                active === t.key
-                  ? "bg-surface text-text-primary border border-border"
-                  : "text-text-secondary hover:text-text-primary border border-transparent"
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {t.label}
-            </button>
-          )
-        })}
-      </div>
+          <label className="relative mb-6 flex w-fit items-center gap-2 text-sm font-semibold text-text-primary"><span>Body · {tabs.find((t) => t.key === active)?.label}</span><ChevronDown className="w-4 h-4 text-text-muted" /><select value={active} onChange={(e) => setActive(e.target.value as TabKey)} className="absolute inset-0 cursor-pointer opacity-0" aria-label="Alege secțiunea Body">{tabs.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select></label>
       {active === "health" && <Health />}
       {active === "workout" && <Workout />}
       {active === "nutrition" && <Nutrition />}
