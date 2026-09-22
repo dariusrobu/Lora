@@ -34,7 +34,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="relative w-full max-w-lg rounded-2xl border border-border bg-bg p-6 shadow-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+            className="relative w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl border border-border bg-bg p-6 shadow-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
           >
             <div className="flex items-center justify-between mb-4">
               {title && <h2 className="text-lg font-semibold text-text-primary">{title}</h2>}
