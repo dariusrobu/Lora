@@ -17,7 +17,7 @@ async def uni_summary(user=Depends(get_current_user)):
     detailed = []
     for s in subjects:
         d = await q.get_subject_details(pool, s["id"])
-        detailed.append(clean_dict(d))
+        detailed.append(clean_dict({**s, **d}))
     return {
         "subjects": detailed,
         "upcoming_exams": [clean_dict(dict(e)) for e in exams],
