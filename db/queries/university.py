@@ -56,6 +56,17 @@ async def get_module_overview(pool) -> dict:
     return result
 
 
+async def get_academic_work(pool) -> dict:
+    async with pool.acquire() as conn:
+        tasks = await conn.fetch("""SELECT t.id, t.title, t.status, t.priority, t.due_date, s.name AS subject_name
+            FROM tasks t JOIN subjects s ON s.id = t.university_subject_id
+            WHERE t.deleted_at IS NULL AND t.status != 'done' ORDER BY t.due_date NULLS LAST, t.priority""")
+        projects = await conn.fetch("""SELECT p.id, p.name, p.status, p.progress, p.deadline, s.name AS subject_name
+            FROM projects p JOIN subjects s ON s.id = p.university_subject_id
+            WHERE p.deleted_at IS NULL ORDER BY p.deadline NULLS LAST""")
+    return {"tasks": [dict(row) for row in tasks], "projects": [dict(row) for row in projects]}
+
+
 async def check_subject_has_seminar(pool, subject_name: str) -> bool:
     """Verifică dacă o materie are seminare în orar."""
     async with pool.acquire() as conn:
