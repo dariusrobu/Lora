@@ -5,7 +5,6 @@ import { MapPin, Plus, Trash2 } from "lucide-react"
 import { Card } from "../components/ui/Card"
 import { Button } from "../components/ui/Button"
 import { Input } from "../components/ui/Input"
-import { Modal } from "../components/ui/Modal"
 import { Spinner } from "../components/ui/Spinner"
 
 export default function Places() {
@@ -67,15 +66,16 @@ export default function Places() {
         )}
       </div>
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Save Place">
+      {showModal && <div className="mb-6 rounded-2xl border border-border bg-surface/70 p-4">
         <div className="space-y-3">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Place name" autoFocus />
           <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Address" />
+          <Button variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button>
           <Button className="w-full" disabled={!name.trim() || saveMut.isPending} onClick={() => saveMut.mutate()}>
             Save
           </Button>
         </div>
-      </Modal>
+      </div>}
     </motion.div>
   )
 }

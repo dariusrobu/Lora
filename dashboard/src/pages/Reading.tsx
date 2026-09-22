@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { motion } from "framer-motion"
 import { BookOpen, Plus, Star } from "lucide-react"
-import { Card, Button, Input, Badge, Modal, Spinner } from "../components/ui"
+import { Card, Button, Input, Badge, Spinner } from "../components/ui"
 import type { Book } from "../types"
 import { fetchBooks, addBook, updateBook } from "../api/queries/reading"
 
@@ -149,7 +149,7 @@ export default function Reading() {
         ))}
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)}>
+      {modalOpen && <div className="mb-6 rounded-2xl border border-border bg-surface/70 p-4">
         <div className="space-y-4 p-4">
           <h2 className="text-lg font-semibold">Add Book</h2>
           <Input
@@ -163,6 +163,7 @@ export default function Reading() {
             value={author}
             onChange={(e) => setAuthor(e.target.value)}
           />
+          <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
           <Button
             onClick={() => addMutation.mutate({ title, author })}
             disabled={!title.trim() || addMutation.isPending}
@@ -170,7 +171,7 @@ export default function Reading() {
             Add
           </Button>
         </div>
-      </Modal>
+      </div>}
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { motion } from "framer-motion"
 import { Brain, Plus, Trash2, Eraser } from "lucide-react"
-import { Card, Button, Badge, Modal, Input, Spinner } from "../components/ui"
+import { Card, Button, Badge, Input, Spinner } from "../components/ui"
 import type { MemoryFact } from "../types"
 import { fetchMemory, saveMemory, deleteMemory, clearMemory } from "../api/queries/memory"
 
@@ -102,7 +102,7 @@ export default function Memory() {
           </div>
         ))}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)}>
+      {modalOpen && <div className="mb-6 rounded-2xl border border-border bg-surface/70 p-4">
         <div className="space-y-4 p-4">
           <h2 className="text-lg font-semibold">Save Memory Fact</h2>
           <textarea
@@ -117,6 +117,7 @@ export default function Memory() {
             value={category}
             onChange={(e) => setCategory(e.target.value)}
           />
+          <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
           <Button
             onClick={() => saveMutation.mutate({ fact, category })}
             disabled={!fact.trim() || saveMutation.isPending}
@@ -124,7 +125,7 @@ export default function Memory() {
             Save
           </Button>
         </div>
-      </Modal>
+      </div>}
     </div>
   )
 }

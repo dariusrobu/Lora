@@ -499,7 +499,6 @@ export default function Tasks() {
               {createMut.isPending ? <Spinner size="sm" /> : "Add Task"}
             </button>
           </div>
-        </div>
         </div></motion.div>}
       </AnimatePresence>
         </div>

@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { motion } from "framer-motion"
 import { StickyNote, Pin, Trash2, Plus } from "lucide-react"
-import { Card, Button, Badge, Modal, Spinner } from "../components/ui"
+import { Card, Button, Badge, Spinner } from "../components/ui"
 import type { Note } from "../types"
 import { fetchNotes, createNote, deleteNote } from "../api/queries/notes"
 
@@ -83,7 +83,7 @@ export default function Notes() {
         ))}
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)}>
+      {modalOpen && <div className="mb-6 rounded-2xl border border-border bg-surface/70 p-4">
         <div className="space-y-4 p-4">
           <h2 className="text-lg font-semibold">New Note</h2>
           <input
@@ -99,11 +99,12 @@ export default function Notes() {
             value={body}
             onChange={(e) => setBody(e.target.value)}
           />
+          <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
           <Button onClick={handleCreate} disabled={createMutation.isPending}>
             Save
           </Button>
         </div>
-      </Modal>
+      </div>}
     </div>
   )
 }

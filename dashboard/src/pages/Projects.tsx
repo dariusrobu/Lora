@@ -636,7 +636,6 @@ export default function Projects() {
               {createMut.isPending ? <Spinner size="sm" /> : "Add Project"}
             </button>
           </div>
-        </div>
         </div></motion.div>}
       </AnimatePresence>
         </div>

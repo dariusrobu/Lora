@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { motion } from "framer-motion"
 import { Zap, Plus, Flame } from "lucide-react"
-import { Card, Button, Input, Badge, Modal, Spinner } from "../components/ui"
+import { Card, Button, Input, Badge, Spinner } from "../components/ui"
 import type { Skill } from "../types"
 import { fetchSkills, logSkill } from "../api/queries/skills"
 
@@ -79,7 +79,7 @@ export default function Skills() {
         ))}
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)}>
+      {modalOpen && <div className="mb-6 rounded-2xl border border-border bg-surface/70 p-4">
         <div className="space-y-4 p-4">
           <h2 className="text-lg font-semibold">New Skill</h2>
           <Input
@@ -88,6 +88,7 @@ export default function Skills() {
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
+          <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
           <Button
             onClick={() => logMutation.mutate(name.trim())}
             disabled={!name.trim() || logMutation.isPending}
@@ -95,7 +96,7 @@ export default function Skills() {
             Create
           </Button>
         </div>
-      </Modal>
+      </div>}
     </div>
   )
 }
