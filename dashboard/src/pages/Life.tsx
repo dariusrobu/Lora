@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Wallet, ShoppingCart, Luggage, CloudSun, MapPin, Newspaper } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 import Finance from "./Finance"
 import Shopping from "./Shopping"
 import TravelPage from "./Travel"
@@ -8,10 +8,10 @@ import Places from "./Places"
 import News from "./News"
 
 const tabs = [
-  { key: "finance", label: "Finance", icon: Wallet },
-  { key: "shopping", label: "Shopping", icon: ShoppingCart },
-  { key: "outings", label: "Ieșiri", icon: Luggage },
-  { key: "info", label: "Info", icon: CloudSun },
+  { key: "finance", label: "Finance" },
+  { key: "shopping", label: "Shopping" },
+  { key: "outings", label: "Ieșiri" },
+  { key: "info", label: "Info" },
 ] as const
 
 type TabKey = (typeof tabs)[number]["key"]
@@ -23,25 +23,7 @@ export default function Life() {
     <div className="card-liquid-page">
       <div className="card-liquid-page-content p-6">
         <div>
-          <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
-            {tabs.map((t) => {
-              const Icon = t.icon
-              return (
-                <button
-                  key={t.key}
-                  onClick={() => setActive(t.key)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
-                    active === t.key
-                      ? "bg-primary/15 text-primary border border-primary/20"
-                      : "text-text-secondary hover:text-text-primary border border-transparent"
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {t.label}
-                </button>
-              )
-            })}
-          </div>
+          <label className="relative mb-6 flex w-fit items-center gap-2 text-sm font-semibold text-text-primary"><span>Life · {tabs.find((t) => t.key === active)?.label}</span><ChevronDown className="w-4 h-4 text-text-muted" /><select value={active} onChange={(e) => setActive(e.target.value as TabKey)} className="absolute inset-0 cursor-pointer opacity-0" aria-label="Alege secțiunea Life">{tabs.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select></label>
           {active === "finance" && <Finance />}
           {active === "shopping" && <Shopping />}
           {active === "outings" && <div className="space-y-8"><TravelPage /><Places /></div>}

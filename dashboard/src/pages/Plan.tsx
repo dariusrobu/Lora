@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { CheckSquare, Target, FolderKanban, CalendarDays, Timer } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 import Tasks from "./Tasks"
 import Goals from "./Goals"
 import Projects from "./Projects"
@@ -7,10 +7,10 @@ import CalendarPage from "./Calendar"
 import FocusPage from "./Focus"
 
 const tabs = [
-  { key: "tasks", label: "Azi", icon: CheckSquare },
-  { key: "goals", label: "Obiective", icon: Target },
-  { key: "calendar", label: "Calendar", icon: CalendarDays },
-  { key: "more", label: "Mai mult", icon: FolderKanban },
+  { key: "tasks", label: "Azi" },
+  { key: "goals", label: "Obiective" },
+  { key: "calendar", label: "Calendar" },
+  { key: "more", label: "Mai mult" },
 ] as const
 
 type TabKey = (typeof tabs)[number]["key"]
@@ -22,25 +22,12 @@ export default function Plan() {
     <div className="card-liquid-page">
       <div className="card-liquid-page-content p-6">
         <div>
-          <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
-        {tabs.map((t) => {
-          const Icon = t.icon
-          return (
-            <button
-              key={t.key}
-              onClick={() => setActive(t.key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
-                active === t.key
-                  ? "bg-primary/15 text-primary border border-primary/20"
-                  : "text-text-secondary hover:text-text-primary border border-transparent"
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {t.label}
-            </button>
-          )
-        })}
-      </div>
+          <label className="relative mb-6 flex w-fit items-center gap-2 text-sm font-semibold text-text-primary">
+            <span>Plan · {tabs.find((t) => t.key === active)?.label}</span><ChevronDown className="w-4 h-4 text-text-muted" />
+            <select value={active} onChange={(e) => setActive(e.target.value as TabKey)} className="absolute inset-0 cursor-pointer opacity-0" aria-label="Alege secțiunea Plan">
+              {tabs.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+            </select>
+          </label>
       {active === "tasks" && <Tasks />}
       {active === "goals" && <Goals />}
       {active === "calendar" && <CalendarPage />}
