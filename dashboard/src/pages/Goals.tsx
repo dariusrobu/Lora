@@ -11,7 +11,7 @@ import {
   toggleSubtask,
   deleteSubtask,
 } from "../api/queries/goals"
-import { Card, Spinner, Modal } from "../components/ui"
+import { Card, Spinner } from "../components/ui"
 import { Plus, Trash2, Search, CheckCircle2, Circle, ChevronDown, ChevronRight, X, Calendar, CalendarOff } from "lucide-react"
 import type { Goal, GoalTask } from "../types"
 
@@ -303,8 +303,19 @@ export default function Goals() {
         </div>
       </div>
 
-      {/* New Goal Modal */}
-      <Modal open={showModal} onClose={closeModal} title="New Goal">
+      {/* Inline new goal form */}
+      <AnimatePresence initial={false}>
+        {showModal && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, y: -8 }}
+            animate={{ opacity: 1, height: "auto", y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -8 }}
+            className="mb-6 overflow-hidden rounded-2xl border border-border bg-surface/70 p-4 sm:p-5"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-text-primary">New Goal</h2>
+              <button type="button" onClick={closeModal} className="text-xs text-text-muted hover:text-text-primary transition-colors">Cancel</button>
+            </div>
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-text-secondary mb-1">Title</label>
@@ -375,7 +386,9 @@ export default function Goals() {
             </button>
           </div>
         </div>
-      </Modal>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Goals list */}
       {sections.length === 0 ? (
