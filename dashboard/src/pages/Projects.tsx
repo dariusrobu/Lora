@@ -9,7 +9,7 @@ import {
 } from "../api/queries/projects"
 import { createTask as apiCreateTask, updateTask as apiUpdateTask } from "../api/queries/tasks"
 import { createNote as apiCreateNote, deleteNote as apiDeleteNote } from "../api/queries/notes"
-import { Card, Spinner, Modal } from "../components/ui"
+import { Card, Spinner } from "../components/ui"
 import {
   Plus, Trash2, Search, CheckCircle2, Circle, ChevronDown, ChevronRight,
   FolderKanban, FileText, X, AlertCircle, Calendar,
@@ -552,8 +552,10 @@ export default function Projects() {
         </div>
       )}
 
-      {/* New Project Modal */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="New Project">
+      {/* Inline new project form */}
+      <AnimatePresence initial={false}>
+        {showModal && <motion.div initial={{ opacity: 0, height: 0, y: -8 }} animate={{ opacity: 1, height: "auto", y: 0 }} exit={{ opacity: 0, height: 0, y: -8 }} className="mb-6 overflow-hidden rounded-2xl border border-border bg-surface/70 p-4 sm:p-5">
+        <div className="flex items-center justify-between mb-4"><h2 className="text-base font-semibold text-text-primary">New Project</h2><button type="button" onClick={() => setShowModal(false)} className="text-xs text-text-muted hover:text-text-primary">Cancel</button></div>
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-text-secondary mb-1">Name</label>
@@ -635,7 +637,8 @@ export default function Projects() {
             </button>
           </div>
         </div>
-      </Modal>
+        </div></motion.div>}
+      </AnimatePresence>
         </div>
       </div>
     </div>
