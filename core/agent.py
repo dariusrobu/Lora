@@ -614,7 +614,7 @@ def _select_relevant_tools(user_message: str) -> str | None:
                 "- Intent: \"schedule_today\" | Module: \"schedule\" | Data: (none)",
                 "- Intent: \"schedule_week\" | Module: \"schedule\" | Data: (none)",
                 "- Intent: \"uni_add_subject\" | Module: \"university\" | Data: name (required), schedule?",
-                "- Intent: \"uni_add_grade\" | Module: \"university\" | Data: subject_name (required), grade (required), credits?",
+                "- Intent: \"uni_add_grade\" | Module: \"university\" | Data: subject (required), grade (required), grade_type?, weight?, assessment_title?, assessment_date?, notes?",
                 "- Intent: \"uni_add_exam\" | Module: \"university\" | Data: subject_name (required), date (required)",
                 "- Intent: \"uni_list\" | Module: \"university\" | Data: (none)",
             ],
@@ -772,7 +772,7 @@ AVAILABLE INTENTS (use with action_type="tool"):
 - Intent: "schedule_today" | Module: "schedule" | Data: (none)
 - Intent: "schedule_week" | Module: "schedule" | Data: (none)
 - Intent: "uni_add_subject" | Module: "university" | Data: name (required), schedule?
-- Intent: "uni_add_grade" | Module: "university" | Data: subject_name (required), grade (required), credits?
+- Intent: "uni_add_grade" | Module: "university" | Data: subject (required), grade (required), grade_type?, weight?, assessment_title?, assessment_date?, notes?
 - Intent: "uni_add_exam" | Module: "university" | Data: subject_name (required), date (required)
 - Intent: "uni_list" | Module: "university" | Data: (none)
 - Intent: "add_wish" | Module: "wishlist" | Data: item (required), description?, price?, priority?

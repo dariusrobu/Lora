@@ -23,7 +23,15 @@ async def uni_summary(user=Depends(get_current_user)):
         "upcoming_exams": [clean_dict(dict(e)) for e in exams],
         "restante": [clean_dict(dict(r)) for r in restante],
         "average": avg,
+        "overview": clean_dict(await q.get_module_overview(pool)),
     }
+
+
+@router.get("/overview")
+async def uni_overview(user=Depends(get_current_user)):
+    import db.queries.university as q
+    pool = await get_pool()
+    return clean_dict(await q.get_module_overview(pool))
 
 
 @router.get("/subjects")

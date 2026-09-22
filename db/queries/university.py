@@ -21,15 +21,39 @@ async def list_subjects(pool) -> list:
             SELECT 
                 s.id, s.name, s.credits, s.professor, s.min_attendance_pct,
                 (SELECT ROUND(AVG(grade), 2) FROM grades WHERE subject_id = s.id) as avg_grade,
+                (SELECT ROUND(SUM(grade * weight) / NULLIF(SUM(weight), 0), 2) FROM grades WHERE subject_id = s.id AND weight IS NOT NULL) as weighted_avg_grade,
                 (SELECT JSON_AGG(JSON_BUILD_OBJECT('grade', grade, 'type', grade_type, 'date', graded_at)) 
                  FROM grades WHERE subject_id = s.id) as grades,
                 (SELECT COUNT(*) FROM attendances WHERE subject_id = s.id AND attended = TRUE) as attended_count,
                 (SELECT COUNT(*) FROM attendances WHERE subject_id = s.id) as total_logged
+                ,(SELECT COUNT(*) FROM exams WHERE subject_id = s.id AND exam_date >= CURRENT_DATE) as upcoming_exam_count
+                ,(SELECT COUNT(*) FROM tasks WHERE university_subject_id = s.id AND deleted_at IS NULL AND status != 'done') as open_task_count
+                ,(SELECT COUNT(*) FROM projects WHERE university_subject_id = s.id AND deleted_at IS NULL) as project_count
             FROM subjects s
             WHERE s.is_active = TRUE
             ORDER BY s.name
         """)
         return [dict(r) for r in rows]
+
+
+async def get_module_overview(pool) -> dict:
+    """Return one compact academic overview for the dashboard and agent."""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT
+              (SELECT COUNT(*) FROM subjects WHERE is_active = TRUE) AS subjects_count,
+              (SELECT COUNT(*) FROM tasks WHERE university_subject_id IS NOT NULL AND status != 'done' AND deleted_at IS NULL) AS open_tasks,
+              (SELECT COUNT(*) FROM projects WHERE university_subject_id IS NOT NULL AND deleted_at IS NULL) AS projects_count,
+              (SELECT COUNT(*) FROM exams WHERE exam_date >= CURRENT_DATE) AS exams_count,
+              (SELECT ROUND(SUM(g.grade * g.weight) / NULLIF(SUM(g.weight), 0), 2)
+                 FROM grades g WHERE g.weight IS NOT NULL) AS weighted_average,
+              (SELECT COUNT(*) FILTER (WHERE attended) FROM attendances) AS attended_count,
+              (SELECT COUNT(*) FROM attendances) AS attendance_total
+        """)
+    result = dict(row) if row else {}
+    total = result.get("attendance_total") or 0
+    result["attendance_pct"] = round((result.get("attended_count") or 0) * 100 / total, 1) if total else None
+    return result
 
 
 async def check_subject_has_seminar(pool, subject_name: str) -> bool:
@@ -93,6 +117,15 @@ async def add_grade(pool, subject_id, grade, grade_type="exam", notes=None) -> i
             grade,
             grade_type,
             notes,
+        )
+
+
+async def add_grade_with_weight(pool, subject_id, grade, grade_type="exam", weight=None, assessment_title=None, assessment_date=None, notes=None) -> int:
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            """INSERT INTO grades (subject_id, grade, grade_type, weight, assessment_title, assessment_date, notes)
+               VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id""",
+            subject_id, grade, grade_type, weight, assessment_title, assessment_date, notes,
         )
 
 

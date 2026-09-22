@@ -114,6 +114,9 @@ async def handle_university_intent(
         subject_name = data.get("subject", "")
         grade = data.get("grade")
         grade_type = data.get("grade_type", "exam")
+        weight = data.get("weight")
+        assessment_title = data.get("assessment_title") or data.get("title")
+        assessment_date = data.get("assessment_date")
 
         if not subject_name or grade is None:
             return "⚠️ Atenție: Specifică materia și nota.", None, None
@@ -126,8 +129,10 @@ async def handle_university_intent(
                 None,
             )
 
-        grade_id = await uni_queries.add_grade(
-            pool, subject["id"], float(grade), grade_type
+        grade_id = await uni_queries.add_grade_with_weight(
+            pool, subject["id"], float(grade), grade_type,
+            float(weight) if weight is not None else None,
+            assessment_title, assessment_date,
         )
 
         return (
