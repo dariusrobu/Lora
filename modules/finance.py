@@ -1,3 +1,5 @@
+"""Logica financiară: normalizează, categorizează și salvează tranzacții."""
+
 from bot.callback_utils import make_callback_data
 from typing import Dict, Any, Tuple, Optional
 from datetime import date

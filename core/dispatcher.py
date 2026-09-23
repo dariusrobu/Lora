@@ -1,3 +1,5 @@
+"""Încarcă dinamic modulele și normalizează rezultatul la un contract comun."""
+
 import importlib
 import logging
 import traceback

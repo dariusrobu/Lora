@@ -3,6 +3,7 @@ from lora_api.auth import get_current_user
 from lora_api.database import get_pool
 from lora_api.serializers import clean_dict
 from fastapi import HTTPException
+from lora_api.schemas import UniversityScheduleRequest
 
 router = APIRouter(prefix="/api/university", tags=["university"])
 
@@ -93,6 +94,87 @@ async def uni_work(user=Depends(get_current_user)):
     import db.queries.university as q
     pool = await get_pool()
     return clean_dict(await q.get_academic_work(pool))
+
+
+@router.get("/schedule")
+async def uni_schedule(user=Depends(get_current_user)):
+    """Returnează orarul activ, grupat pentru afișarea în modulul University."""
+    import db.queries.schedule as q
+    pool = await get_pool()
+    week_type = await q.get_current_week_type(pool)
+    rows = await q.get_full_schedule(pool)
+    visible = [r for r in rows if r.get("week_type") in ("both", week_type)]
+    return {
+        "week_type": week_type,
+        "items": [clean_dict(row) for row in sorted(visible, key=lambda r: (r.get("day_of_week", 0), r.get("start_time") or ""))],
+    }
+
+
+@router.post("/schedule")
+async def create_schedule_entry(data: UniversityScheduleRequest, user=Depends(get_current_user)):
+    import db.queries.schedule as q
+    from datetime import time
+    try:
+        start = time.fromisoformat(data.start_time)
+        end = time.fromisoformat(data.end_time)
+        day = data.day_of_week
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="Invalid schedule values") from exc
+    if day < 0 or day > 6 or end <= start:
+        raise HTTPException(status_code=422, detail="Intervalul orar nu este valid")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        conflict = await conn.fetchval(
+            """SELECT EXISTS (SELECT 1 FROM schedule WHERE is_active = TRUE AND day_of_week = $1
+               AND (week_type = $2 OR week_type = 'both' OR $2 = 'both')
+               AND start_time < $4 AND end_time > $3)""",
+            day, data.week_type, start, end,
+        )
+    if conflict:
+        raise HTTPException(status_code=409, detail="Există deja o activitate în acest interval")
+    entry_id = await q.add_schedule_entry(pool, data.subject_name, day, start, end, data.room, data.class_type, data.week_type)
+    return {"id": entry_id, "status": "created"}
+
+
+@router.delete("/schedule/{schedule_id}")
+async def delete_schedule_entry(schedule_id: int, user=Depends(get_current_user)):
+    import db.queries.schedule as q
+    pool = await get_pool()
+    deleted = await q.deactivate_schedule_entry(pool, schedule_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Intrarea nu există")
+    return {"status": "deleted"}
+
+
+@router.put("/schedule/{schedule_id}")
+async def update_schedule_entry(schedule_id: int, data: dict, user=Depends(get_current_user)):
+    import db.queries.schedule as q
+    from datetime import time
+    try:
+        start = time.fromisoformat(str(data["start_time"]))
+        end = time.fromisoformat(str(data["end_time"]))
+        day = int(data["day_of_week"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="Datele orarului sunt invalide") from exc
+    if not data.get("subject_name") or day < 0 or day > 6 or end <= start:
+        raise HTTPException(status_code=422, detail="Datele orarului sunt invalide")
+    pool = await get_pool()
+    updated = await q.update_schedule_entry(pool, schedule_id, str(data["subject_name"]), day, start, end, data.get("room"), data.get("class_type", "curs"), data.get("week_type", "both"))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Intrarea nu există")
+    return {"status": "updated"}
+
+
+@router.post("/calendar-sync")
+async def sync_university_calendar(user=Depends(get_current_user)):
+    """Pornește sincronizarea manuală a orarului universitar cu Calendar."""
+    from core.icloud import sync_university_schedule_to_calendar
+    pool = await get_pool()
+    try:
+        result = await sync_university_schedule_to_calendar(pool)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Sincronizarea Calendar nu este disponibilă") from exc
+    return clean_dict(result if isinstance(result, dict) else {"result": result})
 
 
 @router.get("/subjects")

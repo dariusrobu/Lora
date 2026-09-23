@@ -1,4 +1,4 @@
-# modules/university.py
+"""Handler-e pentru materii, note, examene, prezențe și activități universitare."""
 
 from typing import Dict, Any, Tuple, Optional
 from datetime import date

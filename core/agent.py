@@ -1,4 +1,7 @@
-# core/agent.py
+"""Agent conversațional local: context, tool planning și acțiuni Ollama.
+
+Nu execută direct SQL și nu trimite mesaje Telegram; pregătește datele pentru router.
+"""
 import json
 import re
 from datetime import date, datetime, timedelta

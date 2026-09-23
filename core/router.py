@@ -1,3 +1,5 @@
+"""Rutare centrală pentru intenții și poarta de confirmare a scrierilor."""
+
 from typing import Dict, Any, Tuple, Optional
 import logging
 import json

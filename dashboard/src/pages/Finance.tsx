@@ -14,7 +14,6 @@ import {
 import { Card } from "../components/ui/Card"
 import { Button } from "../components/ui/Button"
 import { Input } from "../components/ui/Input"
-import { Modal } from "../components/ui/Modal"
 import { Spinner } from "../components/ui/Spinner"
 import {
   Wallet,
@@ -560,8 +559,9 @@ export default function Finance() {
         </div>
       )}
 
-      {/* New Transaction Modal */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Tranzacție Nouă">
+      {/* Inline transaction form */}
+      {showModal && <Card className="border-primary/30 p-4 max-w-2xl mx-auto max-h-[70vh] overflow-y-auto overscroll-contain">
+        <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold text-text-primary">Tranzacție nouă</h2><button type="button" onClick={() => setShowModal(false)} className="text-xs text-text-secondary">Anulează</button></div>
         <div className="space-y-3">
           <Input
             value={amount}
@@ -607,7 +607,7 @@ export default function Finance() {
             {createMut.isPending ? <Spinner size="sm" /> : "Adaugă Tranzacție"}
           </Button>
         </div>
-      </Modal>
+      </Card>}
     </motion.div>
   )
 }

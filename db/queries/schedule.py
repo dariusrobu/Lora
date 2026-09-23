@@ -266,3 +266,37 @@ async def get_full_schedule(pool) -> list:
     async with pool.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM schedule WHERE is_active = TRUE")
         return [dict(r) for r in rows]
+
+
+async def add_schedule_entry(pool, subject_name: str, day_of_week: int, start_time, end_time,
+                             room: str | None = None, class_type: str = "curs",
+                             week_type: str = "both", subject_id: int | None = None) -> int:
+    """Adaugă o intrare activă în orar și returnează id-ul creat."""
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            """
+            INSERT INTO schedule (subject_id, subject_name, day_of_week, start_time, end_time, room, class_type, week_type)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING id
+            """,
+            subject_id, subject_name.strip(), day_of_week, start_time, end_time, room, class_type, week_type,
+        )
+
+
+async def deactivate_schedule_entry(pool, schedule_id: int) -> bool:
+    async with pool.acquire() as conn:
+        result = await conn.execute("UPDATE schedule SET is_active = FALSE WHERE id = $1 AND is_active = TRUE", schedule_id)
+    return result.endswith("1")
+
+
+async def update_schedule_entry(pool, schedule_id: int, subject_name: str, day_of_week: int,
+                                start_time, end_time, room: str | None, class_type: str,
+                                week_type: str) -> bool:
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            """UPDATE schedule SET subject_name = $2, day_of_week = $3, start_time = $4,
+               end_time = $5, room = $6, class_type = $7, week_type = $8
+               WHERE id = $1 AND is_active = TRUE""",
+            schedule_id, subject_name.strip(), day_of_week, start_time, end_time, room, class_type, week_type,
+        )
+    return result.endswith("1")

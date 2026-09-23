@@ -2,8 +2,11 @@ from fastapi import APIRouter, Depends
 from lora_api.auth import get_current_user
 from lora_api.database import get_pool
 from lora_api.serializers import clean_dict
+from lora_api.schemas import FinanceTransactionRequest
 
 router = APIRouter(prefix="/api/finances", tags=["finance"])
+"""Contract: rutele returnează date serializabile prin ``clean_dict``; scrierile
+acceptă payload-uri de tranzacție și sunt protejate de autentificarea API."""
 
 
 @router.get("/summary")
@@ -57,12 +60,12 @@ async def finance_history(limit: int = 20, user=Depends(get_current_user)):
 
 
 @router.post("")
-async def log_transaction(data: dict, user=Depends(get_current_user)):
+async def log_transaction(data: FinanceTransactionRequest, user=Depends(get_current_user)):
     import db.queries.finance as q
     pool = await get_pool()
     tid = await q.log_transaction(
-        pool, amount=data["amount"], category=data.get("category", ""),
-        description=data.get("description", ""), tx_type=data.get("type", "expense"),
+        pool, amount=data.amount, category=data.category,
+        description=data.description, tx_type=data.type,
     )
     return {"id": tid, "status": "created"}
 
@@ -114,4 +117,3 @@ async def remove_merchant_memory(mem_id: int, user=Depends(get_current_user)):
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Memory not found")
     return {"status": "deleted"}
-
