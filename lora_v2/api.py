@@ -22,7 +22,7 @@ from lora_v2.crud import EditRequest, EntityKind, delete_entity, update_entity
 from lora_v2.db import create_pool, migrate
 from lora_v2.models import Command
 from lora_v2.media import save_photo
-from lora_v2.proactive import decide_proposal
+from lora_v2.proactive import decide_followup, decide_proposal
 from lora_v2.service import capture, execute_command
 
 
@@ -38,6 +38,10 @@ class ActionRequest(BaseModel):
 
 class DecisionRequest(BaseModel):
     accept: bool
+
+
+class FollowupDecision(BaseModel):
+    choice: Literal["done", "tomorrow"]
 
 
 class AppleConflictDecision(BaseModel):
@@ -115,11 +119,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         result = await decide_proposal(request.app.state.pool, config, owner_id, proposal_id, body.accept)
         return result or {"status": "rejected_or_unavailable"}
 
+    @app.post("/api/v2/proposals/{proposal_id}/followup")
+    async def followup_decision(proposal_id: uuid.UUID, body: FollowupDecision,
+                                request: Request, owner_id: int = Depends(auth)):
+        result = await decide_followup(
+            request.app.state.pool, config, owner_id, proposal_id, body.choice,
+        )
+        if result is None:
+            raise HTTPException(status_code=409, detail="Întrebarea nu mai este disponibilă")
+        return result
+
     @app.get("/api/v2/proposals")
     async def proposals(request: Request, owner_id: int = Depends(auth)):
         async with request.app.state.pool.acquire() as conn:
             rows = await conn.fetch(
-                """SELECT id,reason,command,expires_at FROM proposals
+                """SELECT id,source,reason,command,expires_at FROM proposals
                 WHERE owner_id=$1 AND status='pending' AND expires_at > now()
                 ORDER BY created_at DESC LIMIT 20""",
                 owner_id,

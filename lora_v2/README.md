@@ -23,6 +23,8 @@ Clear Mini App forms use validated commands. Natural-language captures are saved
 
 Telegram answers short read-only questions such as „Ce am azi?”, „Ce am mâine?”, „Ce taskuri am?”, „Cât am cheltuit luna asta?” and „Ce am la facultate azi?” directly from v2 data. `/azi`, `/maine`, `/taskuri`, `/cheltuieli`, and `/facultate` are shortcuts for the same views. Natural-language edit/delete and broader questions still need a guarded entity selection flow.
 
+Evening follow-ups for unfinished reminders now offer explicit „Am făcut” and „Mută pe mâine” choices in Telegram and the Mini App. Both verify the reminder version before updating it; generated conflict proposals also wait for a choice.
+
 ## Checks
 
 `.venv/bin/ruff check lora_v2 tests/test_lora_v2.py`

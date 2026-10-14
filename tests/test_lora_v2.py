@@ -25,11 +25,11 @@ from lora_v2.media import save_photo
 from lora_v2.agent import Candidate
 from lora_v2.grounding import grounding_issue
 from lora_v2.apple import _digest, pull_changes, push_pending, resolve_conflict
-from lora_v2.notifications import queue_due_alerts
+from lora_v2.notifications import queue_due_alerts, send_pending_telegram
 from lora_v2.rules import extract_common
 from lora_v2.processor import process_capture
 from lora_v2.academics import delete_academic, list_academics, set_semester, write_academic
-from lora_v2.proactive import decide_proposal, generate_proposals
+from lora_v2.proactive import decide_followup, generate_proposals
 from lora_v2.queries import answer_read_intent, read_intent
 from lora_v2.service import capture, execute_command
 
@@ -175,7 +175,17 @@ async def test_v2_database_journey():
                 "SELECT id FROM proposals WHERE owner_id=$1 AND source LIKE 'followup:%'", owner
             )
         assert proposal_id
-        decision = await decide_proposal(pool, settings, owner, proposal_id, True)
+        sent_messages = []
+
+        class FakeBot:
+            async def send_message(self, **kwargs):
+                sent_messages.append(kwargs)
+
+        await send_pending_telegram(pool, FakeBot(), owner)
+        followup_message = next(item for item in sent_messages if "Ai reușit" in item["text"])
+        labels = [button.text for button in followup_message["reply_markup"].inline_keyboard[0]]
+        assert labels == ["Am făcut", "Mută pe mâine"]
+        decision = await decide_followup(pool, settings, owner, proposal_id, "tomorrow")
         assert decision and decision.status == "saved"
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
@@ -187,6 +197,26 @@ async def test_v2_database_journey():
             )
         assert row["starts_at"].date() > target.date() and row["version"] == 2
         assert count == 1
+
+        done_reminder = await execute_command(pool, settings, owner, Command(type="create_calendar_entry", data={
+            "kind": "reminder", "title": "Sună la recepție", "starts_at": target.isoformat(),
+            "followup_evening": True,
+        }), str(uuid.uuid4()))
+        assert done_reminder.status == "saved"
+        assert await generate_proposals(pool, settings, owner, now) == 1
+        async with pool.acquire() as conn:
+            done_proposal = await conn.fetchval(
+                "SELECT id FROM proposals WHERE owner_id=$1 AND source=$2",
+                owner, f"followup:{done_reminder.entity_id}:v1",
+            )
+        assert done_proposal
+        completed = await decide_followup(pool, settings, owner, done_proposal, "done")
+        assert completed and completed.status == "saved"
+        async with pool.acquire() as conn:
+            done_status = await conn.fetchval(
+                "SELECT status FROM calendar_entries WHERE id=$1", uuid.UUID(done_reminder.entity_id),
+            )
+        assert done_status == "done"
 
         merchant = "Cantina " + str(uuid.uuid4())[:8]
         expense = Command(type="log_expense", data={

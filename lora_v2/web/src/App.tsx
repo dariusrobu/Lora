@@ -74,6 +74,16 @@ export default function App() {
     finally { setBusy(false) }
   }
 
+  async function decideFollowup(id: string, choice: "done" | "tomorrow") {
+    setBusy(true); setError("")
+    try {
+      const result = await api.decideFollowup(id, choice)
+      setStatus(result.message)
+      await reload()
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut procesa răspunsul.") }
+    finally { setBusy(false) }
+  }
+
   async function inspectAppleConflict(id: string) {
     setBusy(true); setError("")
     try { setOpenAppleConflict({ id, detail: await api.appleConflictDetail(id) }) }
@@ -224,7 +234,7 @@ export default function App() {
 
         {tab === "today" && <>
           {appleConflicts.length > 0 && <section className="glass section-card"><div className="section-title"><Bell size={18} /><h2>Modificări de comparat</h2></div>{appleConflicts.map(conflict => <div className="proposal-row" key={conflict.id}><p>Apple Reminders și Lora au versiuni diferite pentru „{conflict.local_title || "un element"}”.</p><button className="text-action" disabled={busy} onClick={() => void inspectAppleConflict(conflict.id)}>Compară versiunile</button>{openAppleConflict?.id === conflict.id && <div className="conflict-detail"><p><strong>Lora:</strong> {openAppleConflict.detail.local?.title || "element indisponibil"}{openAppleConflict.detail.local?.at ? ` · ${localDay(openAppleConflict.detail.local.at)} ${hour(openAppleConflict.detail.local.at)}` : ""}</p><p><strong>Apple:</strong> {openAppleConflict.detail.apple_deleted ? "element șters" : `${openAppleConflict.detail.apple?.title || ""}${openAppleConflict.detail.apple?.at ? ` · ${localDay(openAppleConflict.detail.apple.at)} ${hour(openAppleConflict.detail.apple.at)}` : ""}`}</p><div className="inline-actions"><button disabled={busy} onClick={() => void resolveApple(conflict.id, "keep_local")}>Păstrează Lora</button><button disabled={busy} onClick={() => void resolveApple(conflict.id, "use_apple")}>Preia Apple</button></div></div>}</div>)}</section>}
-          {proposals.length > 0 && <section className="glass section-card"><div className="section-title"><Sparkles size={18} /><h2>De decis</h2></div>{proposals.map(proposal => <div className="proposal-row" key={proposal.id}><p>{proposal.reason}</p><div className="inline-actions"><button disabled={busy} onClick={() => void decide(proposal.id, true)}>Da, fă asta</button><button disabled={busy} onClick={() => void decide(proposal.id, false)}>Nu acum</button></div></div>)}</section>}
+          {proposals.length > 0 && <section className="glass section-card"><div className="section-title"><Sparkles size={18} /><h2>De decis</h2></div>{proposals.map(proposal => <div className="proposal-row" key={proposal.id}><p>{proposal.reason}</p><div className="inline-actions">{proposal.source.startsWith("followup:") ? <><button disabled={busy} onClick={() => void decideFollowup(proposal.id, "done")}>Am făcut</button><button disabled={busy} onClick={() => void decideFollowup(proposal.id, "tomorrow")}>Mută pe mâine</button></> : <><button disabled={busy} onClick={() => void decide(proposal.id, true)}>Da, fă asta</button><button disabled={busy} onClick={() => void decide(proposal.id, false)}>Nu acum</button></>}</div></div>)}</section>}
           <section className="glass capture-panel">
             <div className="section-title"><Sparkles size={18} /><h2>Spune-i Lorei</h2></div>
             <div className="capture-row"><textarea aria-label="Ce vrei să rețină Lora?" placeholder="De exemplu: mâine sun administratorul, azi am cheltuit 15 lei la cantină…" value={captureText} onChange={event => setCaptureText(event.target.value)} rows={2} /><label className="photo-action" aria-label="Adaugă fotografie cu mâncarea"><Camera size={19} /><input type="file" accept="image/*" capture="environment" disabled={busy} onChange={event => { void sendPhoto(event.target.files?.[0]); event.target.value = "" }} /></label><button className="circle-action" aria-label="Trimite către Lora" disabled={busy || !captureText.trim()} onClick={() => void sendCapture()}><Send size={19} /></button></div>

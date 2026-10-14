@@ -12,7 +12,7 @@ from telegram.ext import Application, ApplicationBuilder, CallbackQueryHandler, 
 from lora_v2.config import Settings
 from lora_v2.db import create_pool, migrate
 from lora_v2.media import save_photo, save_voice
-from lora_v2.proactive import decide_proposal
+from lora_v2.proactive import decide_followup, decide_proposal
 from lora_v2.models import Command
 from lora_v2.queries import answer_read_intent, read_intent
 from lora_v2.service import capture, execute_command
@@ -86,6 +86,30 @@ def create_bot(settings: Settings | None = None) -> Application:
         await query.edit_message_text(
             result.message if result else "Propunerea a fost respinsă sau nu mai este disponibilă."
         )
+
+    async def on_followup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        query = update.callback_query
+        if not query or not update.effective_user or update.effective_user.id != config.telegram_user_id:
+            return
+        parts = (query.data or "").split(":")
+        if len(parts) != 4 or parts[:2] != ["v2", "f"] or parts[3] not in {"done", "tomorrow"}:
+            await query.answer("Acțiune invalidă", show_alert=True)
+            return
+        try:
+            proposal_id = uuid.UUID(parts[2])
+        except ValueError:
+            await query.answer("Acțiune invalidă", show_alert=True)
+            return
+        result = await decide_followup(
+            context.application.bot_data["pool"], config, config.telegram_user_id,
+            proposal_id, parts[3],
+        )
+        if result is None:
+            await query.answer("Întrebarea nu mai este disponibilă", show_alert=True)
+            return
+        await query.answer(result.message, show_alert=result.status == "needs_input")
+        if result.status in {"saved", "already_done"}:
+            await query.edit_message_text(result.message)
 
     async def on_alert_action(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         query = update.callback_query
@@ -187,6 +211,7 @@ def create_bot(settings: Settings | None = None) -> Application:
 
     app = ApplicationBuilder().token(config.telegram_bot_token).post_init(post_init).post_shutdown(post_shutdown).build()
     app.add_handler(CallbackQueryHandler(on_proposal, pattern=r"^v2:p:"))
+    app.add_handler(CallbackQueryHandler(on_followup, pattern=r"^v2:f:"))
     app.add_handler(CallbackQueryHandler(on_alert_action, pattern=r"^v2:e:"))
     app.add_handler(CallbackQueryHandler(on_task_action, pattern=r"^v2:t:"))
     for name in ("azi", "maine", "taskuri", "cheltuieli", "facultate"):

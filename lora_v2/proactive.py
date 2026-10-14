@@ -62,7 +62,7 @@ async def generate_proposals(
                     "expected_version": row["version"],
                 })
                 source = f"followup:{row['id']}:v{row['version']}"
-                reason = f"Ai reușit să faci «{row['title']}»? Îl pot muta pe mâine."
+                reason = f"Ai reușit să faci «{row['title']}»? Alege «Am făcut» sau «Mută pe mâine»."
                 if await _propose(conn, owner_id, source, reason, command):
                     created += 1
 
@@ -124,6 +124,46 @@ async def decide_proposal(
         pool, settings, owner_id, command, idempotency_key=f"proposal:{proposal_id}"
     )
     if result.status in ("saved", "already_done"):
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE proposals SET status='accepted' WHERE id=$1 AND owner_id=$2 AND status='pending'",
+                proposal_id, owner_id,
+            )
+    return result
+
+
+async def decide_followup(
+    pool: asyncpg.Pool,
+    settings: Settings,
+    owner_id: int,
+    proposal_id: uuid.UUID,
+    choice: str,
+):
+    """Resolve a completion check as done or rescheduled, never by a vague yes/no."""
+    from lora_v2.service import execute_command
+
+    if choice not in {"done", "tomorrow"}:
+        raise ValueError("Unknown follow-up choice")
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT source,command,status,expires_at FROM proposals WHERE id=$1 AND owner_id=$2",
+            proposal_id, owner_id,
+        )
+    if (not row or not row["source"].startswith("followup:") or row["status"] != "pending"
+            or row["expires_at"] <= datetime.now(ZoneInfo("UTC"))):
+        return None
+    planned = Command.model_validate(json.loads(row["command"]))
+    payload = planned.payload()
+    if planned.type != "reschedule_entry":
+        raise ValueError("Invalid follow-up proposal")
+    command = planned if choice == "tomorrow" else Command(type="complete_entry", data={
+        "entry_id": str(payload.entry_id), "expected_version": payload.expected_version,
+    })
+    result = await execute_command(
+        pool, settings, owner_id, command,
+        idempotency_key=f"proposal:{proposal_id}:{choice}",
+    )
+    if result.status in {"saved", "already_done"}:
         async with pool.acquire() as conn:
             await conn.execute(
                 "UPDATE proposals SET status='accepted' WHERE id=$1 AND owner_id=$2 AND status='pending'",
