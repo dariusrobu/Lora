@@ -66,6 +66,15 @@ class AppleRemote:
             supported_calendar_component_set=["VTODO"],
         )
 
+    @staticmethod
+    def _find_todo(collection: caldav.Calendar, uid: str) -> caldav.Todo | None:
+        # iCloud can reject UID-filtered CalDAV REPORT requests with 412 even
+        # while an unfiltered VTODO listing works. Match the UID locally.
+        for todo in collection.todos(include_completed=True):
+            if _snapshot(todo)[0] == uid:
+                return todo
+        return None
+
     def upsert(self, uid: str, title: str, due: datetime | None, completed: bool) -> str:
         collection = self._list(create=True)
         assert collection is not None
@@ -89,10 +98,7 @@ class AppleRemote:
         if completed:
             todo.add("completed", datetime.now(timezone.utc))
         calendar.add_component(todo)
-        try:
-            remote = collection.todo_by_uid(uid)
-        except caldav.error.NotFoundError:
-            remote = None
+        remote = self._find_todo(collection, uid)
         if remote:
             remote.data = calendar.to_ical().decode()
             remote.save()
@@ -104,20 +110,16 @@ class AppleRemote:
         collection = self._list()
         if collection is None:
             return None
-        try:
-            return _snapshot(collection.todo_by_uid(uid))[1]
-        except caldav.error.NotFoundError:
-            return None
+        todo = self._find_todo(collection, uid)
+        return _snapshot(todo)[1] if todo else None
 
     def delete(self, uid: str) -> None:
         collection = self._list()
         if collection is None:
             return
-        try:
-            todo = collection.todo_by_uid(uid)
-        except caldav.error.NotFoundError:
-            return
-        todo.delete()
+        todo = self._find_todo(collection, uid)
+        if todo:
+            todo.delete()
 
     def list_all(self) -> list[tuple[str, str, str, datetime | None, bool]]:
         collection = self._list()
