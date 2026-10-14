@@ -11,15 +11,15 @@ This is a separate application and database. The legacy bot, dashboard, Obsidian
 5. `.venv/bin/uvicorn lora_v2.run_api:app --host 127.0.0.1 --port 8092` serves the API and built Mini App. Telegram requires a trusted HTTPS URL. Set `LORA_V2_MINI_APP_URL` to that URL before starting the new bot.
 6. `.venv/bin/python -m lora_v2.bot` starts Telegram polling and the background worker **only after stopping the legacy polling bot**.
 
-Migrations run automatically on the v2 database at startup. `LORA_V2_APPLE_SYNC_ENABLED` defaults to `false`; when enabled, it uses a dedicated Apple Reminders list named `Lora v2` and the existing iCloud credentials. Its two-way merge has simulated tests, but it still requires a live Apple account test and conflict resolution UI before relying on it.
+Migrations run automatically on the v2 database at startup. `LORA_V2_APPLE_SYNC_ENABLED` defaults to `false`; when enabled, it uses a dedicated Apple Reminders list named `Lora v2` and the existing iCloud credentials. The Mini App has a conflict review screen and the two-way merge has simulated tests. A live Apple account test is still required before relying on sync.
 
 ## Data migration
 
-`python -m lora_v2.migrate_legacy` is a read-only source inventory by default. `--apply` requires `--backup-file` and writes only to the v2 database. The migration is idempotent for its supported entities. Compare source and target counts and inspect dates, schedule parity, and sample items before switching. Some secondary history and integrations remain to be mapped.
+`python -m lora_v2.migrate_legacy` is a read-only source inventory by default. `--apply` requires `--backup-file` and writes only to the v2 database. The migration is idempotent for its supported entities. Invalid legacy rows that cannot become valid v2 records are retained in `legacy_import_exceptions` for review. The importer has been exercised against a restored copy of the local legacy database; it has not been applied to a live v2 production database. Compare source and target counts and inspect dates, schedule parity, and sample items before switching. Some secondary history and integrations remain to be mapped.
 
 ## Current safety boundary
 
-Clear Mini App forms use validated commands. Natural-language captures are saved before model processing, and proposed changes need approval. The local LLM is **not yet reliable on long compound messages**; wrong dates, mismatched amounts, and invalid commands are rejected or sent for clarification. No production cutover has been performed.
+Clear Mini App forms use validated commands. Natural-language captures are saved before model processing, and proactive changes require the owner's choice. Common Romanian captures have deterministic extraction with validation. The local LLM is **not yet reliable on arbitrary long compound messages**; wrong dates, mismatched amounts, and invalid commands are rejected or sent for clarification. No production cutover has been performed.
 
 ## Checks
 

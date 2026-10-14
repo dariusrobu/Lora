@@ -18,16 +18,17 @@ from PIL import Image
 from lora_v2.auth import verify_init_data
 from lora_v2.academic_calendar import _week_type, materialize_schedule
 from lora_v2.config import Settings
-from lora_v2.crud import EditRequest, update_entity
+from lora_v2.crud import EditRequest, delete_entity, update_entity
 from lora_v2.db import create_pool, migrate
 from lora_v2.models import Command
 from lora_v2.media import save_photo
 from lora_v2.agent import Candidate
 from lora_v2.grounding import grounding_issue
-from lora_v2.apple import _digest, pull_changes, push_pending
+from lora_v2.apple import _digest, pull_changes, push_pending, resolve_conflict
 from lora_v2.notifications import queue_due_alerts
 from lora_v2.rules import extract_common
 from lora_v2.processor import process_capture
+from lora_v2.academics import delete_academic, list_academics, set_semester, write_academic
 from lora_v2.proactive import decide_proposal, generate_proposals
 from lora_v2.service import capture, execute_command
 
@@ -118,6 +119,23 @@ def test_compound_daily_message_uses_grounded_shortcuts():
     assert "12:00" in (result.actions[0].missing_information or "")
 
 
+def test_health_shortcuts_extract_water_and_weight():
+    now = datetime(2026, 10, 14, 12, tzinfo=ZoneInfo("Europe/Bucharest"))
+    result, remaining = extract_common("Azi am băut 500 ml apă și cântăresc 78,5 kg.", now, "Europe/Bucharest")
+    assert remaining == ""
+    assert len(result.actions) == 1
+    assert result.actions[0].type == "log_health"
+    assert result.actions[0].water_ml_delta == 500
+    assert result.actions[0].weight_kg == 78.5
+
+
+def test_income_shortcut_is_distinct_from_expense():
+    now = datetime(2026, 10, 14, 12, tzinfo=ZoneInfo("Europe/Bucharest"))
+    result, remaining = extract_common("Azi am primit 100 lei.", now, "Europe/Bucharest")
+    assert remaining == ""
+    assert [item.type for item in result.actions] == ["log_income"]
+
+
 @pytest.mark.asyncio
 async def test_v2_database_journey():
     url = os.getenv("LORA_V2_TEST_DATABASE_URL")
@@ -188,6 +206,55 @@ async def test_v2_database_journey():
                 owner,
             )
         assert task_alerts == 1
+
+        health_one = await execute_command(pool, settings, owner, Command(type="log_health", data={
+            "log_date": now.date().isoformat(), "water_ml_delta": 500,
+        }), str(uuid.uuid4()))
+        health_two = await execute_command(pool, settings, owner, Command(type="log_health", data={
+            "log_date": now.date().isoformat(), "water_ml_delta": 250,
+        }), str(uuid.uuid4()))
+        assert health_one.entity_id == health_two.entity_id
+        async with pool.acquire() as conn:
+            water = await conn.fetchval("SELECT water_ml FROM health_entries WHERE id=$1", uuid.UUID(health_one.entity_id))
+        assert water == 750
+        edited_health = await update_entity(pool, settings, owner, "health", uuid.UUID(health_one.entity_id),
+            EditRequest(expected_version=2, data={"log_date": now.date().isoformat(), "water_ml": 1000}))
+        assert edited_health.status == "saved"
+        deleted_health = await delete_entity(pool, owner, "health", uuid.UUID(health_one.entity_id), 3)
+        assert deleted_health.status == "saved"
+
+        workout = await execute_command(pool, settings, owner, Command(type="log_workout", data={
+            "activity": "Piept", "started_at": now.isoformat(), "duration_minutes": 45,
+            "exercises": [{"name": "Împins la piept", "sets": 3, "reps": 8, "weight_kg": "60"}],
+        }), str(uuid.uuid4()))
+        async with pool.acquire() as conn:
+            exercise = await conn.fetchrow(
+                "SELECT name,sets,reps,weight_kg FROM workout_exercises WHERE workout_id=$1",
+                uuid.UUID(workout.entity_id),
+            )
+        assert exercise["sets"] == 3 and exercise["reps"] == 8
+        changed_workout = await update_entity(pool, settings, owner, "workout", uuid.UUID(workout.entity_id),
+            EditRequest(expected_version=1, data={
+                "activity": "Piept", "started_at": now.isoformat(), "duration_minutes": 45,
+                "exercises": [{"name": "Împins la piept", "sets": 4, "reps": 8, "weight_kg": "60"}],
+            }))
+        assert changed_workout.status == "saved"
+        async with pool.acquire() as conn:
+            exercise_count = await conn.fetchval(
+                "SELECT count(*) FROM workout_exercises WHERE workout_id=$1",
+                uuid.UUID(workout.entity_id),
+            )
+        assert exercise_count == 1
+
+        income = await execute_command(pool, settings, owner, Command(type="log_income", data={
+            "amount": "100", "currency": "RON", "source": "Test", "received_at": now.isoformat(),
+        }), str(uuid.uuid4()))
+        assert income.status == "saved"
+        changed_income = await update_entity(pool, settings, owner, "income", uuid.UUID(income.entity_id),
+            EditRequest(expected_version=1, data={
+                "amount": "120", "currency": "RON", "source": "Test", "received_at": now.isoformat(),
+            }))
+        assert changed_income.status == "saved"
 
         from datetime import timedelta
         beginning = now.date()
@@ -290,7 +357,47 @@ async def test_apple_two_way_sync_and_conflict(monkeypatch):
         assert changes["conflicts"] == 1
         async with pool.acquire() as conn:
             title = await conn.fetchval("SELECT title FROM tasks WHERE id=$1", uuid.UUID(created.entity_id))
+            conflict_id = await conn.fetchval(
+                "SELECT id FROM apple_sync_conflicts WHERE owner_id=$1 AND entity_id=$2 AND status='pending'",
+                owner, uuid.UUID(created.entity_id),
+            )
         assert title == "Modificare locală"
+        assert await resolve_conflict(pool, settings, owner, conflict_id, "keep_local")
+        assert await push_pending(pool, settings, owner) == 1
+        assert remote_data[uid][1] == "Modificare locală"
+
+        async with pool.acquire() as conn:
+            await conn.execute("UPDATE tasks SET title='Altă schimbare locală',version=version+1 WHERE id=$1",
+                               uuid.UUID(created.entity_id))
+        remote_data[uid] = (_digest("Altă schimbare Apple", None, False), "Altă schimbare Apple", None, False)
+        assert (await pull_changes(pool, settings, owner))["conflicts"] == 1
+        async with pool.acquire() as conn:
+            conflict_id = await conn.fetchval(
+                "SELECT id FROM apple_sync_conflicts WHERE owner_id=$1 AND entity_id=$2 AND status='pending'",
+                owner, uuid.UUID(created.entity_id),
+            )
+        assert await resolve_conflict(pool, settings, owner, conflict_id, "use_apple")
+        async with pool.acquire() as conn:
+            title = await conn.fetchval("SELECT title FROM tasks WHERE id=$1", uuid.UUID(created.entity_id))
+        assert title == "Altă schimbare Apple"
+        remote_data.pop(uid)
+        await pull_changes(pool, settings, owner)
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE apple_links SET missing_since=now()-interval '6 minutes' WHERE owner_id=$1 AND apple_uid=$2",
+                owner, uid,
+            )
+        assert (await pull_changes(pool, settings, owner))["conflicts"] == 1
+        async with pool.acquire() as conn:
+            conflict_id = await conn.fetchval(
+                "SELECT id FROM apple_sync_conflicts WHERE owner_id=$1 AND entity_id=$2 AND status='pending'",
+                owner, uuid.UUID(created.entity_id),
+            )
+        assert await resolve_conflict(pool, settings, owner, conflict_id, "use_apple")
+        async with pool.acquire() as conn:
+            status = await conn.fetchval("SELECT status FROM tasks WHERE id=$1", uuid.UUID(created.entity_id))
+            link = await conn.fetchval("SELECT 1 FROM apple_links WHERE owner_id=$1 AND apple_uid=$2", owner, uid)
+        assert status == "cancelled" and link is None
     finally:
         await pool.close()
 
@@ -323,5 +430,53 @@ async def test_compound_capture_saves_clear_facts_and_asks_for_ambiguous_time():
                 await conn.fetchval("SELECT count(*) FROM workouts WHERE owner_id=$1", owner),
             ]
         assert counts == [1, 1, 1, 1, 1]
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_university_records_and_calendar_are_editable():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    settings = _settings(url)
+    owner = uuid.uuid4().int % 1000000000
+    pool = await create_pool(settings)
+    try:
+        await migrate(pool)
+        from datetime import timedelta
+        today = datetime.now(ZoneInfo(settings.timezone)).date()
+        monday = today - timedelta(days=today.weekday())
+        await set_semester(pool, owner, monday, monday + timedelta(days=90), None)
+        subject = await write_academic(pool, owner, "subject", {"name": "Analiză financiară", "credits": 5})
+        rule = await write_academic(pool, owner, "schedule", {
+            "title": "Analiză financiară", "subject_id": subject["id"],
+            "day_of_week": today.weekday(), "start_time": "10:00", "end_time": "12:00",
+            "class_type": "curs",
+        })
+        exam = await write_academic(pool, owner, "exam", {
+            "title": "Analiză financiară", "subject_id": subject["id"],
+            "starts_at": datetime.now(ZoneInfo(settings.timezone)).isoformat(),
+        })
+        await write_academic(pool, owner, "attendance", {
+            "subject_id": subject["id"], "schedule_rule_id": rule["id"],
+            "class_date": today.isoformat(), "attended": True,
+        })
+        await write_academic(pool, owner, "grade", {
+            "subject_id": subject["id"], "label": "parțial", "value": "9.5",
+        })
+        count = await materialize_schedule(pool, settings, owner, start=today, days=1)
+        assert count == 2
+        listed = await list_academics(pool, owner)
+        assert len(listed["subjects"]) == len(listed["attendance"]) == len(listed["grades"]) == 1
+        await delete_academic(pool, owner, "schedule", uuid.UUID(rule["id"]), rule["version"])
+        await delete_academic(pool, owner, "exam", uuid.UUID(exam["id"]), exam["version"])
+        await materialize_schedule(pool, settings, owner, start=today, days=1)
+        async with pool.acquire() as conn:
+            active = await conn.fetchval(
+                "SELECT count(*) FROM calendar_entries WHERE owner_id=$1 AND kind='academic' AND status='active'",
+                owner,
+            )
+        assert active == 0
     finally:
         await pool.close()

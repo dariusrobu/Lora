@@ -13,7 +13,7 @@ from telegram import Bot
 from lora_v2.config import Settings
 from lora_v2.academic_calendar import materialize_schedule
 from lora_v2.apple import pull_changes, push_pending
-from lora_v2.notifications import queue_due_alerts, send_pending_telegram
+from lora_v2.notifications import queue_apple_conflicts, queue_due_alerts, send_pending_telegram
 from lora_v2.proactive import generate_proposals
 from lora_v2.processor import process_capture
 
@@ -36,6 +36,7 @@ async def run_once(pool: asyncpg.Pool, bot: Bot, settings: Settings, refresh_aca
     if sync_apple and settings.apple_sync_enabled:
         await pull_changes(pool, settings, owner_id)
         await push_pending(pool, settings, owner_id)
+        await queue_apple_conflicts(pool, owner_id)
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """SELECT id FROM captures WHERE owner_id=$1 AND (

@@ -97,12 +97,29 @@ def extract_common(text: str, now: datetime, timezone: str) -> tuple[Interpretat
                             {"name": "Piure", "grams": 200, "calories": 220, "protein_g": 4, "carbs_g": 35, "fat_g": 8},
                         ], estimate_source="text", confidence=0.9, evidence=clause))
                     questions.append("Am estimat porția de pui la 150 g și piureul la 200 g. Trimite o poză sau corectează gramajele dacă vrei o estimare mai bună.")
+        if money and re.search(r"\b(?:primit|încasat|incasat|salariu|venit)\b", source):
+            amount = float(money.group(1).replace(",", "."))
+            if amount > 0:
+                actions.append(Candidate(type="log_income", amount=amount, currency="RON",
+                    description=clause[:300], received_at=local_now.isoformat(),
+                    confidence=0.95, evidence=clause))
+                handled = True
         workout = re.search(r"\b(\d{1,3})\s*(?:de\s+)?minute\b", source)
         if workout and re.search(r"\b(?:sal[ăa]|antrenament|workout)\b", source):
             activity = re.search(r"antrenament(?:ul)?\s+de\s+([^,.;]*?)(?:\s+timp\s+de|\s+\d{1,3}\s*(?:de\s+)?minute|$)", source)
             name = "Antrenament de " + activity.group(1).strip() if activity else "Antrenament"
             actions.append(Candidate(type="log_workout", activity=name,
                 duration_minutes=int(workout.group(1)), starts_at=local_now.isoformat(),
+                confidence=0.95, evidence=clause))
+            handled = True
+        water = re.search(r"\b(\d{2,4})\s*ml\s*(?:de\s+)?ap[ăa]\b", source)
+        weight = re.search(r"\b(\d{2,3}(?:[.,]\d)?)\s*kg\b", source)
+        sleep = re.search(r"\b(?:dormit|somn)\s*(\d{1,2}(?:[.,]\d)?)\s*(?:ore|h)\b", source)
+        if water or weight or sleep:
+            actions.append(Candidate(type="log_health", log_date=(day or local_now).date().isoformat(),
+                water_ml_delta=int(water.group(1)) if water else None,
+                weight_kg=float(weight.group(1).replace(",", ".")) if weight else None,
+                sleep_hours=float(sleep.group(1).replace(",", ".")) if sleep else None,
                 confidence=0.95, evidence=clause))
             handled = True
         if not handled:

@@ -1,11 +1,11 @@
 """Validated commands shared by Telegram, Mini App, and the AI interpreter."""
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class StrictModel(BaseModel):
@@ -70,6 +70,20 @@ class LogExpense(StrictModel):
         return _aware(value)
 
 
+class LogIncome(StrictModel):
+    amount: Decimal = Field(gt=0)
+    currency: str = Field(default="RON", min_length=3, max_length=3)
+    category: str | None = None
+    source: str | None = None
+    description: str | None = None
+    received_at: datetime
+
+    @field_validator("received_at")
+    @classmethod
+    def validate_time(cls, value: datetime) -> datetime:
+        return _aware(value)
+
+
 class MealItem(StrictModel):
     name: str = Field(min_length=1)
     grams: Decimal | None = Field(default=None, gt=0)
@@ -92,16 +106,43 @@ class LogMeal(StrictModel):
         return _aware(value)
 
 
+class WorkoutExercise(StrictModel):
+    name: str = Field(min_length=1, max_length=200)
+    sets: int | None = Field(default=None, ge=1, le=100)
+    reps: int | None = Field(default=None, ge=1, le=1000)
+    weight_kg: Decimal | None = Field(default=None, ge=0, le=1000)
+
+
 class LogWorkout(StrictModel):
     started_at: datetime
     duration_minutes: int = Field(gt=0, le=1440)
     activity: str = Field(min_length=1, max_length=200)
     notes: str | None = None
+    exercises: list[WorkoutExercise] = Field(default_factory=list)
 
     @field_validator("started_at")
     @classmethod
     def validate_time(cls, value: datetime) -> datetime:
         return _aware(value)
+
+
+class LogHealth(StrictModel):
+    log_date: date
+    sleep_hours: Decimal | None = Field(default=None, ge=0, le=24)
+    sleep_quality: Literal["great", "good", "neutral", "bad", "terrible"] | None = None
+    water_ml_delta: int | None = Field(default=None, ge=0)
+    weight_kg: Decimal | None = Field(default=None, gt=0, le=500)
+    cigarettes_delta: int | None = Field(default=None, ge=0)
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def has_value(self) -> "LogHealth":
+        if not any(value is not None for value in (
+            self.sleep_hours, self.sleep_quality, self.water_ml_delta,
+            self.weight_kg, self.cigarettes_delta, self.notes,
+        )):
+            raise ValueError("At least one health value is required")
+        return self
 
 
 class RescheduleEntry(StrictModel):
@@ -130,8 +171,10 @@ COMMAND_MODELS: dict[str, type[StrictModel]] = {
     "create_task": CreateTask,
     "create_calendar_entry": CreateCalendarEntry,
     "log_expense": LogExpense,
+    "log_income": LogIncome,
     "log_meal": LogMeal,
     "log_workout": LogWorkout,
+    "log_health": LogHealth,
     "reschedule_entry": RescheduleEntry,
     "complete_entry": CompleteEntry,
     "complete_task": CompleteTask,

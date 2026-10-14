@@ -2,12 +2,19 @@ export type Entry = { id: string; kind: "event" | "reminder" | "academic"; title
 export type Task = { id: string; title: string; status: string; due_at?: string; project_id?: string; project_name?: string; version: number }
 export type Project = { id: string; name: string; status: string; version: number }
 export type Expense = { id: string; amount: number; currency: string; category: string; merchant?: string; description?: string; spent_at: string; version: number }
+export type Income = { id: string; amount: number; currency: string; category?: string; source?: string; description?: string; received_at: string; version: number }
 export type Meal = { id: string; eaten_at: string; description?: string; estimate_uncertain: boolean; version: number }
 export type Workout = { id: string; started_at: string; duration_minutes: number; activity: string; version: number }
+export type Health = { id: string; log_date: string; sleep_hours?: number; sleep_quality?: string; water_ml?: number; weight_kg?: number; cigarettes?: number; notes?: string; version: number }
 export type Today = { date: string; entries: Entry[]; tasks: Task[] }
-export type Journal = { expenses: Expense[]; meals: Meal[]; workouts: Workout[] }
+export type Journal = { expenses: Expense[]; incomes: Income[]; meals: Meal[]; workouts: Workout[]; health: Health[] }
 export type ActionResult = { status: string; message: string; entity_id?: string }
 export type Proposal = { id: string; reason: string; command: { type: string; data: Record<string, unknown> }; expires_at: string }
+export type AppleConflict = { id: string; entity_type: string; entity_id: string; local_title?: string }
+export type AppleConflictDetail = { local: { title: string; at?: string; status: string; version: number } | null; apple: { title: string; at?: string; completed: boolean } | null; apple_deleted: boolean }
+export type UniversityKind = "subject" | "schedule" | "attendance" | "grade" | "exam" | "vacation"
+export type UniversityRecord = { id: string; version: number; [key: string]: unknown }
+export type UniversityData = { subjects: UniversityRecord[]; schedules: UniversityRecord[]; attendance: UniversityRecord[]; grades: UniversityRecord[]; exams: UniversityRecord[]; vacations: UniversityRecord[]; semester: { semester_start: string; semester_end?: string; version: number } | null }
 
 type TelegramWindow = Window & { Telegram?: { WebApp?: { initData?: string; ready?: () => void; expand?: () => void } } }
 export const telegram = (window as TelegramWindow).Telegram?.WebApp
@@ -33,6 +40,14 @@ export const api = {
   journal: () => request<Journal>("/journal"),
   proposals: () => request<Proposal[]>("/proposals"),
   decide: (id: string, accept: boolean) => request<ActionResult>(`/proposals/${id}/decision`, { method: "POST", body: JSON.stringify({ accept }) }),
+  appleConflicts: () => request<AppleConflict[]>("/apple/conflicts"),
+  appleConflictDetail: (id: string) => request<AppleConflictDetail>(`/apple/conflicts/${id}`),
+  resolveAppleConflict: (id: string, choice: "keep_local" | "use_apple") => request<{status: string; message: string}>(`/apple/conflicts/${id}/decision`, { method: "POST", body: JSON.stringify({ choice }) }),
+  university: () => request<UniversityData>("/university"),
+  academicCreate: (kind: UniversityKind, data: Record<string, unknown>) => request<{id: string; version: number}>(`/university/${kind}`, { method: "POST", body: JSON.stringify({ data }) }),
+  academicEdit: (kind: UniversityKind, id: string, expected_version: number, data: Record<string, unknown>) => request<{id: string; version: number}>(`/university/${kind}/${id}`, { method: "PUT", body: JSON.stringify({ expected_version, data }) }),
+  academicDelete: (kind: UniversityKind, id: string, expected_version: number) => request<{id: string; version: number}>(`/university/${kind}/${id}?expected_version=${expected_version}`, { method: "DELETE" }),
+  academicSemester: (semester_start: string, semester_end: string | null, expected_version: number | null) => request<{version: number}>("/university/semester", { method: "PUT", body: JSON.stringify({ semester_start, semester_end, expected_version }) }),
   capture: (text: string) => request<{ id: string; status: string }>("/captures", { method: "POST", body: JSON.stringify({ external_id: crypto.randomUUID(), text }) }),
   photo: async (file: File, caption = "") => {
     if (!telegram?.initData) throw new Error("Deschide Lora din Telegram pentru a accesa datele.")

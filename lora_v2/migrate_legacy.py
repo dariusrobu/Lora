@@ -5,6 +5,7 @@ Dry-run is the default. The legacy connection is explicitly read-only.
 
 import argparse
 import asyncio
+import json
 import os
 import uuid
 from datetime import date, datetime, time, timedelta
@@ -41,6 +42,7 @@ QUERIES = {
     "meal_items": "SELECT * FROM meal_items ORDER BY id",
     "workouts": "SELECT * FROM workouts ORDER BY id",
     "workout_exercises": "SELECT * FROM workout_exercises ORDER BY id",
+    "health_logs": "SELECT * FROM health_logs ORDER BY id",
     "sport_types": "SELECT * FROM sport_types ORDER BY id",
     "subjects": "SELECT * FROM subjects ORDER BY id",
     "schedule": "SELECT * FROM schedule ORDER BY id",
@@ -143,7 +145,15 @@ async def import_legacy(
             counts["events"] = len(data["events"])
 
             for row in data["finances"]:
-                if row.get("type") != "expense" or not row.get("amount") or row["amount"] <= 0:
+                if row.get("type") != "expense":
+                    continue
+                if not row.get("amount") or row["amount"] <= 0:
+                    await conn.execute(
+                        """INSERT INTO legacy_import_exceptions(owner_id,source_table,legacy_id,reason,source_data)
+                        VALUES ($1,'finances',$2,'non_positive_expense',$3::jsonb)
+                        ON CONFLICT (owner_id,source_table,legacy_id) DO NOTHING""",
+                        owner_id, row["id"], json.dumps(row, default=str),
+                    )
                     continue
                 await conn.execute(
                     """INSERT INTO expenses(id,owner_id,amount,currency,category,description,spent_at,receipt_ref,legacy_id,created_at,updated_at)
@@ -155,7 +165,32 @@ async def import_legacy(
                     _datetime(row.get("created_at"), tz) or now,
                     _datetime(row.get("updated_at"), tz) or now,
                 )
-            counts["expenses"] = sum(1 for row in data["finances"] if row.get("type") == "expense")
+            counts["expenses"] = sum(1 for row in data["finances"] if row.get("type") == "expense" and row.get("amount") and row["amount"] > 0)
+            counts["expense_exceptions"] = sum(1 for row in data["finances"] if row.get("type") == "expense" and (not row.get("amount") or row["amount"] <= 0))
+
+            for row in data["finances"]:
+                if row.get("type") != "income":
+                    continue
+                if not row.get("amount") or row["amount"] <= 0:
+                    await conn.execute(
+                        """INSERT INTO legacy_import_exceptions(owner_id,source_table,legacy_id,reason,source_data)
+                        VALUES ($1,'finances',$2,'non_positive_income',$3::jsonb)
+                        ON CONFLICT (owner_id,source_table,legacy_id) DO NOTHING""",
+                        owner_id, row["id"], json.dumps(row, default=str),
+                    )
+                    continue
+                await conn.execute(
+                    """INSERT INTO incomes(id,owner_id,amount,currency,category,description,
+                    received_at,legacy_id,created_at,updated_at)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                    ON CONFLICT (owner_id,legacy_id) DO NOTHING""",
+                    _uuid("finances", row["id"]), owner_id, row["amount"],
+                    row.get("currency") or "RON", row.get("category"), row.get("description"),
+                    _datetime(row.get("tx_date"), tz) or now, row["id"],
+                    _datetime(row.get("created_at"), tz) or now,
+                    _datetime(row.get("updated_at"), tz) or now,
+                )
+            counts["incomes"] = sum(1 for row in data["finances"] if row.get("type") == "income" and row.get("amount") and row["amount"] > 0)
 
             for row in data["meals"]:
                 meal_id = _uuid("meals", row["id"])
@@ -200,6 +235,18 @@ async def import_legacy(
                     row.get("weight_kg"), row["id"],
                 )
             counts["workouts"] = len(data["workouts"])
+
+            for row in data.get("health_logs", []):
+                await conn.execute(
+                    """INSERT INTO health_entries(id,owner_id,log_date,sleep_hours,sleep_quality,
+                    water_ml,weight_kg,cigarettes,notes,legacy_id)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                    ON CONFLICT (owner_id,legacy_id) DO NOTHING""",
+                    _uuid("health_logs", row["id"]), owner_id, row["log_date"],
+                    row.get("sleep_hours"), row.get("sleep_quality"), row.get("water_ml"),
+                    row.get("weight_kg"), row.get("cigarettes"), row.get("notes"), row["id"],
+                )
+            counts["health_logs"] = len(data.get("health_logs", []))
 
             semester_start = data["semester_config"][-1]["semester_start"] if data["semester_config"] else None
             if semester_start:
@@ -287,7 +334,7 @@ async def main() -> None:
     try:
         await migrate(target)
         counts = await import_legacy(target, settings, settings.telegram_user_id, data)
-        print("Imported row counts:", counts)
+        print("Eligible source row counts:", counts)
     finally:
         await target.close()
 

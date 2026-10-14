@@ -15,8 +15,10 @@ from lora_v2.models import (
     CreateProject,
     CreateTask,
     LogExpense,
+    LogIncome,
     LogMeal,
     LogWorkout,
+    LogHealth,
     RescheduleEntry,
     CompleteEntry,
     CompleteTask,
@@ -160,6 +162,16 @@ async def _apply(
         )
         return ActionResult(status="saved", command_type=command_type, entity_id=str(entity_id), entity_type="expense", message=f"Cheltuială salvată: {payload.amount} {payload.currency} · {category}")
 
+    if command_type == "log_income" and isinstance(payload, LogIncome):
+        await conn.execute(
+            """INSERT INTO incomes(id,owner_id,amount,currency,category,source,description,received_at)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8)""",
+            entity_id, owner_id, payload.amount, payload.currency, payload.category,
+            payload.source, payload.description, payload.received_at,
+        )
+        return ActionResult(status="saved", command_type=command_type, entity_id=str(entity_id),
+            entity_type="income", message=f"Venit salvat: {payload.amount} {payload.currency}.")
+
     if command_type == "log_meal" and isinstance(payload, LogMeal):
         await conn.execute(
             """INSERT INTO meals(id,owner_id,eaten_at,description,estimate_source,estimate_uncertain,photo_ref)
@@ -183,7 +195,36 @@ async def _apply(
             entity_id, owner_id, payload.started_at, payload.duration_minutes,
             payload.activity, payload.notes,
         )
+        for exercise in payload.exercises:
+            await conn.execute(
+                """INSERT INTO workout_exercises(id,workout_id,name,sets,reps,weight_kg)
+                VALUES ($1,$2,$3,$4,$5,$6)""",
+                _id(), entity_id, exercise.name, exercise.sets, exercise.reps, exercise.weight_kg,
+            )
         return ActionResult(status="saved", command_type=command_type, entity_id=str(entity_id), entity_type="workout", message=f"Antrenament salvat: {payload.activity}, {payload.duration_minutes} min.")
+
+    if command_type == "log_health" and isinstance(payload, LogHealth):
+        row = await conn.fetchrow(
+            """INSERT INTO health_entries(id,owner_id,log_date,sleep_hours,sleep_quality,water_ml,
+            weight_kg,cigarettes,notes)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+            ON CONFLICT (owner_id,log_date) WHERE deleted_at IS NULL DO UPDATE SET
+            sleep_hours=COALESCE(EXCLUDED.sleep_hours,health_entries.sleep_hours),
+            sleep_quality=COALESCE(EXCLUDED.sleep_quality,health_entries.sleep_quality),
+            water_ml=COALESCE(health_entries.water_ml,0)+COALESCE(EXCLUDED.water_ml,0),
+            weight_kg=COALESCE(EXCLUDED.weight_kg,health_entries.weight_kg),
+            cigarettes=COALESCE(health_entries.cigarettes,0)+COALESCE(EXCLUDED.cigarettes,0),
+            notes=COALESCE(EXCLUDED.notes,health_entries.notes),
+            version=health_entries.version+1,updated_at=now()
+            RETURNING id,version""",
+            entity_id, owner_id, payload.log_date, payload.sleep_hours,
+            payload.sleep_quality, payload.water_ml_delta, payload.weight_kg,
+            payload.cigarettes_delta, payload.notes,
+        )
+        return ActionResult(status="saved", command_type=command_type,
+            entity_id=str(row["id"]), entity_type="health",
+            message=f"Sănătate actualizată pentru {payload.log_date.isoformat()}.",
+            details={"version": row["version"]})
 
     if command_type == "reschedule_entry" and isinstance(payload, RescheduleEntry):
         old = await conn.fetchrow(

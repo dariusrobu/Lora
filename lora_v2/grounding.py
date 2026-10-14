@@ -21,9 +21,10 @@ def grounding_issue(candidate: Candidate, text: str, settings: Settings, now: da
     else:
         source = text.casefold()
     local_now = now.astimezone(ZoneInfo(settings.timezone))
-    if candidate.type in {"log_expense", "log_meal", "log_workout"} and re.search(r"\bazi\b", source):
+    if candidate.type in {"log_expense", "log_income", "log_meal", "log_workout"} and re.search(r"\bazi\b", source):
         timestamp = {
             "log_expense": candidate.spent_at,
+            "log_income": candidate.received_at,
             "log_meal": candidate.eaten_at,
             "log_workout": candidate.starts_at,
         }[candidate.type]
@@ -34,7 +35,7 @@ def grounding_issue(candidate: Candidate, text: str, settings: Settings, now: da
                 return "Când s-a întâmplat?"
             if logged_day != local_now.date():
                 return "Data extrasă nu corespunde cu «azi». Confirmi data?"
-    if candidate.type == "log_expense":
+    if candidate.type in {"log_expense", "log_income"}:
         amounts = {float(value.replace(",", ".")) for value in re.findall(r"\b(\d+(?:[.,]\d{1,2})?)\s*(?:lei|ron)\b", source)}
         if amounts and candidate.amount not in amounts:
             return "Suma cheltuielii nu corespunde cu mesajul. Cât ai plătit?"

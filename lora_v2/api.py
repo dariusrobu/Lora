@@ -1,9 +1,11 @@
 """Mini App API backed by the same commands as Telegram."""
 
+import asyncio
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -12,6 +14,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from lora_v2.auth import owner_from_header
+from lora_v2.academics import AcademicKind, delete_academic, list_academics, set_semester, write_academic
+from lora_v2.academic_calendar import materialize_schedule
+from lora_v2.apple import AppleRemote, resolve_conflict
 from lora_v2.config import Settings
 from lora_v2.crud import EditRequest, EntityKind, delete_entity, update_entity
 from lora_v2.db import create_pool, migrate
@@ -33,6 +38,21 @@ class ActionRequest(BaseModel):
 
 class DecisionRequest(BaseModel):
     accept: bool
+
+
+class AppleConflictDecision(BaseModel):
+    choice: Literal["keep_local", "use_apple"]
+
+
+class AcademicWriteRequest(BaseModel):
+    data: dict[str, object]
+    expected_version: int | None = None
+
+
+class SemesterRequest(BaseModel):
+    semester_start: date
+    semester_end: date | None = None
+    expected_version: int | None = None
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -106,6 +126,64 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         return [dict(row) for row in rows]
 
+    @app.get("/api/v2/apple/conflicts")
+    async def apple_conflicts(request: Request, owner_id: int = Depends(auth)):
+        async with request.app.state.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT c.id,c.entity_type,c.entity_id,c.apple_uid,c.local_version,
+                c.apple_revision,c.created_at,COALESCE(t.title,e.title) AS local_title
+                FROM apple_sync_conflicts c
+                LEFT JOIN tasks t ON c.entity_type='task' AND t.id=c.entity_id
+                LEFT JOIN calendar_entries e ON c.entity_type='calendar_entry' AND e.id=c.entity_id
+                WHERE c.owner_id=$1 AND c.status='pending'
+                ORDER BY c.created_at DESC LIMIT 20""",
+                owner_id,
+            )
+        return [dict(row) for row in rows]
+
+    @app.post("/api/v2/apple/conflicts/{conflict_id}/decision")
+    async def apple_conflict_decision(
+        conflict_id: uuid.UUID, body: AppleConflictDecision, request: Request,
+        owner_id: int = Depends(auth),
+    ):
+        try:
+            message = await resolve_conflict(
+                request.app.state.pool, config, owner_id, conflict_id, body.choice,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return {"status": "resolved", "message": message}
+
+    @app.get("/api/v2/apple/conflicts/{conflict_id}")
+    async def apple_conflict_detail(
+        conflict_id: uuid.UUID, request: Request, owner_id: int = Depends(auth),
+    ):
+        async with request.app.state.pool.acquire() as conn:
+            conflict = await conn.fetchrow(
+                """SELECT entity_type,entity_id,apple_uid,status FROM apple_sync_conflicts
+                WHERE id=$1 AND owner_id=$2""",
+                conflict_id, owner_id,
+            )
+            if not conflict or conflict["status"] != "pending":
+                raise HTTPException(status_code=404, detail="Conflictul nu mai este disponibil")
+            if conflict["entity_type"] == "task":
+                local = await conn.fetchrow(
+                    "SELECT title,due_at AS at,status,version FROM tasks WHERE id=$1 AND owner_id=$2",
+                    conflict["entity_id"], owner_id,
+                )
+            else:
+                local = await conn.fetchrow(
+                    "SELECT title,starts_at AS at,status,version FROM calendar_entries WHERE id=$1 AND owner_id=$2",
+                    conflict["entity_id"], owner_id,
+                )
+        snapshots = await asyncio.to_thread(AppleRemote(config).list_all)
+        remote = next((item for item in snapshots if item[0] == conflict["apple_uid"]), None)
+        return {
+            "local": dict(local) if local else None,
+            "apple": {"title": remote[2], "at": remote[3], "completed": remote[4]} if remote else None,
+            "apple_deleted": remote is None,
+        }
+
     @app.get("/api/v2/today")
     async def today(request: Request, owner_id: int = Depends(auth)):
         now = datetime.now(ZoneInfo(config.timezone))
@@ -126,6 +204,62 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 owner_id, end,
             )
         return {"date": start.date().isoformat(), "entries": [dict(row) for row in entries], "tasks": [dict(row) for row in tasks]}
+
+    @app.get("/api/v2/university")
+    async def university(request: Request, owner_id: int = Depends(auth)):
+        return await list_academics(request.app.state.pool, owner_id)
+
+    @app.put("/api/v2/university/semester")
+    async def university_semester(body: SemesterRequest, request: Request, owner_id: int = Depends(auth)):
+        try:
+            result = await set_semester(
+                request.app.state.pool, owner_id, body.semester_start,
+                body.semester_end, body.expected_version,
+            )
+            await materialize_schedule(request.app.state.pool, config, owner_id, days=60)
+            return result
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/v2/university/{kind}")
+    async def add_university_item(kind: AcademicKind, body: AcademicWriteRequest,
+                                  request: Request, owner_id: int = Depends(auth)):
+        try:
+            result = await write_academic(request.app.state.pool, owner_id, kind, body.data)
+            if kind in {"subject", "schedule", "exam", "vacation"}:
+                await materialize_schedule(request.app.state.pool, config, owner_id, days=60)
+            return result
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.put("/api/v2/university/{kind}/{entity_id}")
+    async def edit_university_item(kind: AcademicKind, entity_id: uuid.UUID,
+                                   body: AcademicWriteRequest, request: Request,
+                                   owner_id: int = Depends(auth)):
+        try:
+            result = await write_academic(
+                request.app.state.pool, owner_id, kind, body.data,
+                entity_id, body.expected_version,
+            )
+            if kind in {"subject", "schedule", "exam", "vacation"}:
+                await materialize_schedule(request.app.state.pool, config, owner_id, days=60)
+            return result
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.delete("/api/v2/university/{kind}/{entity_id}")
+    async def remove_university_item(kind: AcademicKind, entity_id: uuid.UUID,
+                                     expected_version: int, request: Request,
+                                     owner_id: int = Depends(auth)):
+        try:
+            result = await delete_academic(
+                request.app.state.pool, owner_id, kind, entity_id, expected_version,
+            )
+            if kind in {"subject", "schedule", "exam", "vacation"}:
+                await materialize_schedule(request.app.state.pool, config, owner_id, days=60)
+            return result
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/api/v2/calendar")
     async def calendar(request: Request, from_at: datetime, to_at: datetime, owner_id: int = Depends(auth)):
@@ -165,13 +299,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             expenses = await conn.fetch(
                 "SELECT id,amount,currency,category,merchant,description,spent_at,version FROM expenses WHERE owner_id=$1 AND deleted_at IS NULL ORDER BY spent_at DESC LIMIT 100", owner_id
             )
+            incomes = await conn.fetch(
+                """SELECT id,amount,currency,category,source,description,received_at,version
+                FROM incomes WHERE owner_id=$1 AND deleted_at IS NULL ORDER BY received_at DESC LIMIT 100""",
+                owner_id,
+            )
             meals = await conn.fetch(
                 "SELECT id,eaten_at,description,estimate_uncertain,version FROM meals WHERE owner_id=$1 AND deleted_at IS NULL ORDER BY eaten_at DESC LIMIT 100", owner_id
             )
             workouts = await conn.fetch(
                 "SELECT id,started_at,duration_minutes,activity,notes,version FROM workouts WHERE owner_id=$1 AND deleted_at IS NULL ORDER BY started_at DESC LIMIT 100", owner_id
             )
-        return {"expenses": [dict(row) for row in expenses], "meals": [dict(row) for row in meals], "workouts": [dict(row) for row in workouts]}
+            health = await conn.fetch(
+                """SELECT id,log_date,sleep_hours,sleep_quality,water_ml,weight_kg,cigarettes,notes,version
+                FROM health_entries WHERE owner_id=$1 AND deleted_at IS NULL ORDER BY log_date DESC LIMIT 100""",
+                owner_id,
+            )
+        return {"expenses": [dict(row) for row in expenses], "incomes": [dict(row) for row in incomes],
+                "meals": [dict(row) for row in meals],
+                "workouts": [dict(row) for row in workouts], "health": [dict(row) for row in health]}
 
     @app.get("/api/v2/entities/{kind}/{entity_id}")
     async def get_entity(kind: EntityKind, entity_id: uuid.UUID, request: Request, owner_id: int = Depends(auth)):
@@ -180,8 +326,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "task": "SELECT id,title,notes,due_at,project_id,status,version FROM tasks WHERE id=$1 AND owner_id=$2",
             "calendar_entry": "SELECT id,kind,title,starts_at,ends_at,notes,followup_at,status,version FROM calendar_entries WHERE id=$1 AND owner_id=$2",
             "expense": "SELECT id,amount,currency,category,merchant,description,spent_at,version FROM expenses WHERE id=$1 AND owner_id=$2 AND deleted_at IS NULL",
+            "income": "SELECT id,amount,currency,category,source,description,received_at,version FROM incomes WHERE id=$1 AND owner_id=$2 AND deleted_at IS NULL",
             "meal": "SELECT id,eaten_at,description,estimate_source,estimate_uncertain,photo_ref,version FROM meals WHERE id=$1 AND owner_id=$2 AND deleted_at IS NULL",
             "workout": "SELECT id,started_at,duration_minutes,activity,notes,version FROM workouts WHERE id=$1 AND owner_id=$2 AND deleted_at IS NULL",
+            "health": "SELECT id,log_date,sleep_hours,sleep_quality,water_ml,weight_kg,cigarettes,notes,version FROM health_entries WHERE id=$1 AND owner_id=$2 AND deleted_at IS NULL",
         }
         async with request.app.state.pool.acquire() as conn:
             row = await conn.fetchrow(queries[kind], entity_id, owner_id)
@@ -194,6 +342,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     entity_id,
                 )
                 result["items"] = [dict(item) for item in items]
+            if kind == "workout":
+                exercises = await conn.fetch(
+                    "SELECT id,name,sets,reps,weight_kg FROM workout_exercises WHERE workout_id=$1 ORDER BY id",
+                    entity_id,
+                )
+                result["exercises"] = [dict(exercise) for exercise in exercises]
             if kind == "calendar_entry":
                 alerts = await conn.fetch(
                     "SELECT purpose FROM alert_occurrences WHERE entry_id=$1 AND status!='cancelled'",

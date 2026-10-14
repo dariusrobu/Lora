@@ -50,8 +50,14 @@ async def materialize_schedule(
             "SELECT starts_on,ends_on FROM academic_vacations WHERE owner_id=$1", owner_id
         )
         vacations = [(row["starts_on"], row["ends_on"]) for row in vacation_rows]
+        exams = await conn.fetch(
+            """SELECT id,title,starts_at,room,exam_type FROM academic_exams
+            WHERE owner_id=$1 AND deleted_at IS NULL""",
+            owner_id,
+        )
         inserted = 0
         expected_ids: set[uuid.UUID] = set()
+        expected_exam_ids: set[uuid.UUID] = set()
         async with conn.transaction():
             for offset in range(days):
                 day = beginning + timedelta(days=offset)
@@ -98,5 +104,33 @@ async def materialize_schedule(
                 AND status='active' AND starts_at >= $2 AND starts_at < $3
                 AND NOT (id = ANY($4::uuid[]))""",
                 owner_id, window_start, window_end, list(expected_ids),
+            )
+            for exam in exams:
+                if not window_start <= exam["starts_at"] < window_end:
+                    continue
+                exam_id = uuid.uuid5(ACADEMIC_NAMESPACE, f"{owner_id}:exam:{exam['id']}")
+                expected_exam_ids.add(exam_id)
+                title = f"Examen · {exam['title']}"
+                affected = await conn.fetchval(
+                    """INSERT INTO calendar_entries(id,owner_id,kind,title,starts_at,notes,legacy_source)
+                    VALUES ($1,$2,'academic',$3,$4,$5,'academic_exam')
+                    ON CONFLICT (id) DO UPDATE SET status='active',title=EXCLUDED.title,
+                    starts_at=EXCLUDED.starts_at,notes=EXCLUDED.notes,
+                    version=calendar_entries.version+1,updated_at=now()
+                    WHERE calendar_entries.status!='active'
+                    OR calendar_entries.title IS DISTINCT FROM EXCLUDED.title
+                    OR calendar_entries.starts_at IS DISTINCT FROM EXCLUDED.starts_at
+                    OR calendar_entries.notes IS DISTINCT FROM EXCLUDED.notes
+                    RETURNING id""",
+                    exam_id, owner_id, title, exam["starts_at"], exam["room"],
+                )
+                if affected:
+                    inserted += 1
+            await conn.execute(
+                """UPDATE calendar_entries SET status='cancelled',version=version+1,updated_at=now()
+                WHERE owner_id=$1 AND kind='academic' AND legacy_source='academic_exam'
+                AND status='active' AND starts_at >= $2 AND starts_at < $3
+                AND NOT (id = ANY($4::uuid[]))""",
+                owner_id, window_start, window_end, list(expected_exam_ids),
             )
     return inserted

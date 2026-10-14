@@ -23,10 +23,14 @@ def _preview(command: Command) -> str:
         return f"{data.get('title')} · {data.get('starts_at')} · alerte {data.get('alert_offsets_minutes', [])} min"
     if command.type == "log_expense":
         return f"{data.get('amount')} {data.get('currency', 'RON')} · {data.get('category')} · {data.get('merchant') or data.get('description') or ''}"
+    if command.type == "log_income":
+        return f"Venit: {data.get('amount')} {data.get('currency', 'RON')} · {data.get('source') or data.get('description') or ''}"
     if command.type == "log_meal":
         return f"Masă: {data.get('description') or ', '.join(item.get('name', '') for item in data.get('items', []))} (estimare)"
     if command.type == "log_workout":
         return f"Antrenament: {data.get('activity')}, {data.get('duration_minutes')} min"
+    if command.type == "log_health":
+        return f"Sănătate {data.get('log_date')}: {data.get('water_ml_delta') or 0} ml apă, {data.get('weight_kg') or '—'} kg"
     return str(data.get("title") or data.get("name") or command.type)
 
 

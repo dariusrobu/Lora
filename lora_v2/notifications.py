@@ -157,3 +157,24 @@ async def queue_due_alerts(pool: asyncpg.Pool, owner_id: int, now: datetime | No
                 )
                 queued += bool(inserted)
     return queued
+
+
+async def queue_apple_conflicts(pool: asyncpg.Pool, owner_id: int) -> int:
+    """Notify once per unresolved two-way sync conflict."""
+    queued = 0
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT id FROM apple_sync_conflicts WHERE owner_id=$1 AND status='pending'
+            ORDER BY created_at LIMIT 20""",
+            owner_id,
+        )
+        for row in rows:
+            inserted = await conn.fetchval(
+                """INSERT INTO notification_outbox(id,owner_id,dedupe_key,channel,kind,payload)
+                VALUES ($1,$2,$3,'telegram','apple_conflict',$4::jsonb)
+                ON CONFLICT DO NOTHING RETURNING id""",
+                uuid.uuid4(), owner_id, f"apple_conflict:{row['id']}",
+                json.dumps({"text": "Apple Reminders și Lora au modificări diferite. Deschide Mini App → Azi pentru a compara și alege."}),
+            )
+            queued += bool(inserted)
+    return queued

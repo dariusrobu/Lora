@@ -12,3 +12,22 @@
 .photo-action { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; flex: 0 0 42px; border-radius: 50%; cursor: pointer; color: inherit; background: rgba(255,255,255,.38); }
 .photo-action input { display: none; }
 .entry-done { display:grid; place-items:center; width:28px; height:28px; border:1px solid #d8d0f7; border-radius:50%; background:#f7f4ff; color:#765fd0; }
+.conflict-detail { margin-top:10px; padding:12px; background:rgba(255,255,255,.45); border-radius:14px; }
+.conflict-detail p { margin:0 0 8px; }
+.university-details summary { display:flex; align-items:center; gap:9px; font-weight:700; cursor:pointer; list-style:none; }
+.university-details summary::-webkit-details-marker { display:none; }
+.university-details[open] summary { margin-bottom:16px; }
+.university-details .text-action { margin-top:14px; display:inline-flex; align-items:center; gap:5px; }
+.university-list { display:grid; gap:7px; }
+.university-list .simple-row { border-bottom:1px solid rgba(91,73,143,.08); }
+.semester-form { display:flex; flex-wrap:wrap; align-items:end; gap:10px; }
+.semester-form label { display:grid; gap:5px; min-width:150px; color:#625d76; font-size:13px; }
+.semester-form input { width:100%; border:1px solid #ddd8e9; border-radius:10px; padding:9px; background:rgba(255,255,255,.72); }
+.semester-form button { border:0; border-radius:10px; padding:10px 14px; background:#eee9ff; color:#5f4db7; font-weight:700; }
+.university-form { position:sticky; bottom:82px; z-index:3; max-height:70vh; overflow:auto; margin-top:16px; }
+.health-editor { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.health-editor label:last-child { grid-column:1/-1; }
+@media(max-width:520px){.health-editor{grid-template-columns:1fr}}
+.income-form { display:grid; gap:10px; margin-top:15px; }
+.income-form label { display:grid; gap:5px; color:#625d76; font-size:13px; }
+.income-form input { border:1px solid #ddd8e9; border-radius:10px; padding:10px; background:rgba(255,255,255,.7); }

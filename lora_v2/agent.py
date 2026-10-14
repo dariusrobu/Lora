@@ -14,18 +14,20 @@ from lora_v2.models import Command, MealItem
 
 
 class Candidate(BaseModel):
-    type: Literal["create_project", "create_task", "create_calendar_entry", "log_expense", "log_meal", "log_workout"]
+    type: Literal["create_project", "create_task", "create_calendar_entry", "log_expense", "log_income", "log_meal", "log_workout", "log_health"]
     title: str | None = None
     kind: str | None = None
     starts_at: str | None = None
     ends_at: str | None = None
     due_at: str | None = None
     spent_at: str | None = None
+    received_at: str | None = None
     eaten_at: str | None = None
     amount: float | None = None
     currency: str | None = None
     category: str | None = None
     merchant: str | None = None
+    source: str | None = None
     description: str | None = None
     activity: str | None = None
     duration_minutes: int | None = None
@@ -35,6 +37,13 @@ class Candidate(BaseModel):
     project_id: str | None = None
     estimate_source: Literal["text", "photo", "manual"] | None = None
     photo_ref: str | None = None
+    log_date: str | None = None
+    sleep_hours: float | None = None
+    sleep_quality: str | None = None
+    water_ml_delta: int | None = None
+    weight_kg: float | None = None
+    cigarettes_delta: int | None = None
+    notes: str | None = None
     confidence: float = Field(default=0, ge=0, le=1)
     evidence: str | None = None
     missing_information: str | None = None
@@ -53,6 +62,11 @@ class Candidate(BaseModel):
                 "category": self.category, "merchant": self.merchant,
                 "description": self.description, "spent_at": self.spent_at,
             },
+            "log_income": {
+                "amount": self.amount, "currency": self.currency or "RON",
+                "category": self.category, "source": self.source,
+                "description": self.description, "received_at": self.received_at,
+            },
             "log_meal": {
                 "eaten_at": self.eaten_at, "description": self.description,
                 "items": [item.model_dump(mode="json") for item in self.items or []],
@@ -61,6 +75,12 @@ class Candidate(BaseModel):
             "log_workout": {
                 "started_at": self.starts_at, "duration_minutes": self.duration_minutes,
                 "activity": self.activity or self.title,
+            },
+            "log_health": {
+                "log_date": self.log_date, "sleep_hours": self.sleep_hours,
+                "sleep_quality": self.sleep_quality, "water_ml_delta": self.water_ml_delta,
+                "weight_kg": self.weight_kg, "cigarettes_delta": self.cigarettes_delta,
+                "notes": self.notes,
             },
         }
         return Command(type=self.type, data=fields[self.type])
@@ -98,7 +118,7 @@ async def interpret_capture(
     schedule = await _schedule_context(pool, owner_id, local_now)
     prompt = f"""Ești interpretul local al asistentei Lora. Ora curentă: {local_now.isoformat()}.
 Extrage TOATE acțiunile distincte cerute explicit de utilizator, fără să inventezi că au fost deja salvate.
-Comenzi permise: create_project, create_task, create_calendar_entry, log_expense, log_meal, log_workout.
+Comenzi permise: create_project, create_task, create_calendar_entry, log_expense, log_income, log_meal, log_workout, log_health.
 Fiecare acțiune este un obiect plat din schema JSON; lasă câmpurile nefolosite null. Pentru calendar: kind, title, starts_at, alert_offsets_minutes; pentru cheltuieli: amount, currency, category, spent_at; pentru antrenament: starts_at, duration_minutes, activity.
 Adaugă evidence cu fragmentul EXACT din mesaj care justifică acea acțiune; nu folosi un rezumat inventat.
 Nu repeta aceeași intenție sub altă formulare. "Dacă nu reușesc poimâine" este un follow-up, nu un al doilea reminder acum.

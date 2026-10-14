@@ -2,7 +2,8 @@
 
 import json
 import uuid
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
@@ -15,16 +16,28 @@ from lora_v2.models import (
     CreateProject,
     CreateTask,
     LogExpense,
+    LogIncome,
     LogMeal,
     LogWorkout,
 )
 from lora_v2.config import Settings
 
-EntityKind = Literal["project", "task", "calendar_entry", "expense", "meal", "workout"]
+EntityKind = Literal["project", "task", "calendar_entry", "expense", "income", "meal", "workout", "health"]
 
 
 class UpdateProject(CreateProject):
     status: Literal["active", "paused", "done", "archived"] = "active"
+
+
+class UpdateHealth(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    log_date: date
+    sleep_hours: Decimal | None = Field(default=None, ge=0, le=24)
+    sleep_quality: Literal["great", "good", "neutral", "bad", "terrible"] | None = None
+    water_ml: int | None = Field(default=None, ge=0)
+    weight_kg: Decimal | None = Field(default=None, gt=0, le=500)
+    cigarettes: int | None = Field(default=None, ge=0)
+    notes: str | None = None
 
 
 class EditRequest(BaseModel):
@@ -38,8 +51,10 @@ MODELS: dict[str, type[BaseModel]] = {
     "task": CreateTask,
     "calendar_entry": CreateCalendarEntry,
     "expense": LogExpense,
+    "income": LogIncome,
     "meal": LogMeal,
     "workout": LogWorkout,
+    "health": UpdateHealth,
 }
 
 
@@ -129,6 +144,16 @@ async def update_entity(
                         SET category=EXCLUDED.category,source_expense_id=EXCLUDED.source_expense_id,updated_at=now()""",
                         owner_id, payload.merchant.casefold().strip(), payload.category, entity_id,
                     )
+            elif kind == "income" and isinstance(payload, LogIncome):
+                row = await conn.fetchrow(
+                    """UPDATE incomes SET amount=$4,currency=$5,category=$6,source=$7,
+                    description=$8,received_at=$9,version=version+1,updated_at=now()
+                    WHERE id=$1 AND owner_id=$2 AND version=$3 AND deleted_at IS NULL
+                    RETURNING id,version""",
+                    entity_id, owner_id, request.expected_version, payload.amount,
+                    payload.currency, payload.category, payload.source,
+                    payload.description, payload.received_at,
+                )
             elif kind == "meal" and isinstance(payload, LogMeal):
                 row = await conn.fetchrow(
                     """UPDATE meals SET eaten_at=$4,description=$5,estimate_source='manual',
@@ -156,6 +181,25 @@ async def update_entity(
                     entity_id, owner_id, request.expected_version, payload.started_at,
                     payload.duration_minutes, payload.activity, payload.notes,
                 )
+                if row:
+                    await conn.execute("DELETE FROM workout_exercises WHERE workout_id=$1", entity_id)
+                    for exercise in payload.exercises:
+                        await conn.execute(
+                            """INSERT INTO workout_exercises(id,workout_id,name,sets,reps,weight_kg)
+                            VALUES ($1,$2,$3,$4,$5,$6)""",
+                            uuid.uuid4(), entity_id, exercise.name, exercise.sets,
+                            exercise.reps, exercise.weight_kg,
+                        )
+            elif kind == "health" and isinstance(payload, UpdateHealth):
+                row = await conn.fetchrow(
+                    """UPDATE health_entries SET log_date=$4,sleep_hours=$5,sleep_quality=$6,
+                    water_ml=$7,weight_kg=$8,cigarettes=$9,notes=$10,version=version+1,updated_at=now()
+                    WHERE id=$1 AND owner_id=$2 AND version=$3 AND deleted_at IS NULL
+                    RETURNING id,version""",
+                    entity_id, owner_id, request.expected_version, payload.log_date,
+                    payload.sleep_hours, payload.sleep_quality, payload.water_ml,
+                    payload.weight_kg, payload.cigarettes, payload.notes,
+                )
             if row is None:
                 return ActionResult(status="needs_input", command_type=f"update_{kind}", message="Elementul a fost modificat între timp. Reîncarcă-l înainte de editare.")
             return ActionResult(status="saved", command_type=f"update_{kind}", entity_id=str(entity_id), entity_type=kind, message="Modificarea a fost salvată.", details={"version": row["version"]})
@@ -174,8 +218,10 @@ async def delete_entity(
         "task": "UPDATE tasks SET status='cancelled',version=version+1,updated_at=now() WHERE id=$1 AND owner_id=$2 AND version=$3 AND status!='cancelled' RETURNING version",
         "calendar_entry": "UPDATE calendar_entries SET status='cancelled',version=version+1,updated_at=now() WHERE id=$1 AND owner_id=$2 AND version=$3 AND status!='cancelled' RETURNING version",
         "expense": "UPDATE expenses SET deleted_at=now(),version=version+1,updated_at=now() WHERE id=$1 AND owner_id=$2 AND version=$3 AND deleted_at IS NULL RETURNING version",
+        "income": "UPDATE incomes SET deleted_at=now(),version=version+1,updated_at=now() WHERE id=$1 AND owner_id=$2 AND version=$3 AND deleted_at IS NULL RETURNING version",
         "meal": "UPDATE meals SET deleted_at=now(),version=version+1,updated_at=now() WHERE id=$1 AND owner_id=$2 AND version=$3 AND deleted_at IS NULL RETURNING version",
         "workout": "UPDATE workouts SET deleted_at=now(),version=version+1,updated_at=now() WHERE id=$1 AND owner_id=$2 AND version=$3 AND deleted_at IS NULL RETURNING version",
+        "health": "UPDATE health_entries SET deleted_at=now(),version=version+1,updated_at=now() WHERE id=$1 AND owner_id=$2 AND version=$3 AND deleted_at IS NULL RETURNING version",
     }
     if kind not in statements:
         raise ValueError("Unknown entity type")

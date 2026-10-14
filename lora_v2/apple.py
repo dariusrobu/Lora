@@ -5,6 +5,7 @@ import hashlib
 import json
 import uuid
 from datetime import date, datetime, time, timedelta, timezone
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 import asyncpg
@@ -46,7 +47,7 @@ class AppleRemote:
     def __init__(self, settings: Settings):
         self.settings = settings
 
-    def _list(self) -> caldav.Calendar:
+    def _list(self, create: bool = False) -> caldav.Calendar | None:
         if not self.settings.icloud_username or not self.settings.icloud_app_password:
             raise RuntimeError("iCloud credentials not configured")
         client = caldav.DAVClient(
@@ -58,13 +59,16 @@ class AppleRemote:
         for collection in principal.calendars():
             if collection.name == self.settings.apple_reminders_list:
                 return collection
+        if not create:
+            return None
         return principal.make_calendar(
             name=self.settings.apple_reminders_list,
             supported_calendar_component_set=["VTODO"],
         )
 
     def upsert(self, uid: str, title: str, due: datetime | None, completed: bool) -> str:
-        collection = self._list()
+        collection = self._list(create=True)
+        assert collection is not None
         calendar = Calendar()
         calendar.add("prodid", "-//Lora v2//Daily Driver//RO")
         calendar.add("version", "2.0")
@@ -97,13 +101,18 @@ class AppleRemote:
         return _snapshot(remote)[1]
 
     def get_revision(self, uid: str) -> str | None:
+        collection = self._list()
+        if collection is None:
+            return None
         try:
-            return _snapshot(self._list().todo_by_uid(uid))[1]
+            return _snapshot(collection.todo_by_uid(uid))[1]
         except caldav.error.NotFoundError:
             return None
 
     def delete(self, uid: str) -> None:
         collection = self._list()
+        if collection is None:
+            return
         try:
             todo = collection.todo_by_uid(uid)
         except caldav.error.NotFoundError:
@@ -112,6 +121,8 @@ class AppleRemote:
 
     def list_all(self) -> list[tuple[str, str, str, datetime | None, bool]]:
         collection = self._list()
+        if collection is None:
+            return []
         snapshots = []
         for todo in collection.todos(include_completed=True):
             uid, revision, due, completed = _snapshot(todo)
@@ -202,6 +213,11 @@ async def push_pending(pool: asyncpg.Pool, settings: Settings, owner_id: int) ->
                             apple_revision=EXCLUDED.apple_revision,last_synced_version=EXCLUDED.last_synced_version,
                             last_seen_at=now(),missing_since=NULL""",
                             owner_id, kind, entity_id, uid, revision, entity["version"],
+                        )
+                    elif deleted:
+                        await conn.execute(
+                            """DELETE FROM apple_links WHERE owner_id=$1 AND entity_type=$2 AND entity_id=$3""",
+                            owner_id, kind, entity_id,
                         )
                     await conn.execute(
                         "UPDATE notification_outbox SET status='sent',sent_at=now(),lease_until=NULL WHERE id=$1",
@@ -375,3 +391,124 @@ async def pull_changes(pool: asyncpg.Pool, settings: Settings, owner_id: int) ->
                 )
                 counts["conflicts"] += bool(inserted)
     return counts
+
+
+async def resolve_conflict(
+    pool: asyncpg.Pool,
+    settings: Settings,
+    owner_id: int,
+    conflict_id: uuid.UUID,
+    choice: Literal["keep_local", "use_apple"],
+) -> str:
+    """Apply an explicit user choice, checking both sides are still at the reviewed versions."""
+    async with pool.acquire() as conn:
+        conflict = await conn.fetchrow(
+            """SELECT entity_type,entity_id,apple_uid,local_version,apple_revision,status
+            FROM apple_sync_conflicts WHERE id=$1 AND owner_id=$2""",
+            conflict_id, owner_id,
+        )
+    if not conflict or conflict["status"] != "pending":
+        raise ValueError("Conflictul nu mai este disponibil")
+    remote = AppleRemote(settings)
+    snapshots = await asyncio.to_thread(remote.list_all)
+    selected = next((item for item in snapshots if item[0] == conflict["apple_uid"]), None)
+    current_revision = selected[1] if selected else None
+    if current_revision != conflict["apple_revision"]:
+        raise ValueError("Apple Reminders s-a schimbat din nou. Reîncarcă înainte de alegere")
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            if conflict["entity_type"] == "task":
+                entity = await conn.fetchrow(
+                    "SELECT version,status FROM tasks WHERE id=$1 AND owner_id=$2 FOR UPDATE",
+                    conflict["entity_id"], owner_id,
+                )
+            else:
+                entity = await conn.fetchrow(
+                    "SELECT version,status FROM calendar_entries WHERE id=$1 AND owner_id=$2 FOR UPDATE",
+                    conflict["entity_id"], owner_id,
+                )
+            if not entity or entity["version"] != conflict["local_version"]:
+                raise ValueError("Elementul local s-a schimbat. Reîncarcă înainte de alegere")
+            if choice == "keep_local":
+                await conn.execute(
+                    """UPDATE apple_links SET apple_revision=$3,missing_since=NULL,last_seen_at=now()
+                    WHERE owner_id=$1 AND apple_uid=$2""",
+                    owner_id, conflict["apple_uid"], current_revision,
+                )
+                await conn.execute(
+                    """INSERT INTO notification_outbox(id,owner_id,dedupe_key,channel,kind,payload)
+                    VALUES ($1,$2,$3,'apple','upsert',$4::jsonb) ON CONFLICT DO NOTHING""",
+                    uuid.uuid4(), owner_id, f"resolve:{conflict_id}:keep_local",
+                    json.dumps({"entity_type": conflict["entity_type"],
+                                "entity_id": str(conflict["entity_id"]), "operation": "upsert"}),
+                )
+                message = "Am păstrat varianta Lora. Voi actualiza Apple Reminders."
+            else:
+                if selected is None:
+                    if conflict["entity_type"] == "task":
+                        await conn.execute(
+                            """UPDATE tasks SET status='cancelled',version=version+1,updated_at=now()
+                            WHERE id=$1 AND owner_id=$2""",
+                            conflict["entity_id"], owner_id,
+                        )
+                    else:
+                        await conn.execute(
+                            """UPDATE calendar_entries SET status='cancelled',version=version+1,updated_at=now()
+                            WHERE id=$1 AND owner_id=$2""",
+                            conflict["entity_id"], owner_id,
+                        )
+                        await conn.execute(
+                            "UPDATE alert_occurrences SET status='cancelled' WHERE entry_id=$1 AND status='pending'",
+                            conflict["entity_id"],
+                        )
+                    await conn.execute(
+                        "DELETE FROM apple_links WHERE owner_id=$1 AND apple_uid=$2",
+                        owner_id, conflict["apple_uid"],
+                    )
+                    message = "Am acceptat ștergerea din Apple Reminders."
+                else:
+                    _, revision, title, due, completed = selected
+                    if conflict["entity_type"] == "task":
+                        await conn.execute(
+                            """UPDATE tasks SET title=$3,due_at=$4,status=$5,version=version+1,updated_at=now()
+                            WHERE id=$1 AND owner_id=$2""",
+                            conflict["entity_id"], owner_id, title, due,
+                            "done" if completed else "pending",
+                        )
+                    else:
+                        if due is None:
+                            raise ValueError("Reminderul Apple nu are oră. Adaugă o oră în Apple sau păstrează varianta Lora")
+                        await conn.execute(
+                            """UPDATE calendar_entries SET title=$3,starts_at=$4,status=$5,
+                            version=version+1,updated_at=now() WHERE id=$1 AND owner_id=$2""",
+                            conflict["entity_id"], owner_id, title, due,
+                            "done" if completed else "active",
+                        )
+                        await conn.execute(
+                            "UPDATE alert_occurrences SET status='cancelled' WHERE entry_id=$1 AND status='pending'",
+                            conflict["entity_id"],
+                        )
+                        if not completed:
+                            await conn.execute(
+                                """INSERT INTO alert_occurrences(id,owner_id,entry_id,alert_at,purpose)
+                                VALUES ($1,$2,$3,$4,'before_0m') ON CONFLICT DO NOTHING""",
+                                uuid.uuid4(), owner_id, conflict["entity_id"], due,
+                            )
+                    await conn.execute(
+                        """UPDATE apple_links SET apple_revision=$3,last_synced_version=$4,
+                        missing_since=NULL,last_seen_at=now() WHERE owner_id=$1 AND apple_uid=$2""",
+                        owner_id, conflict["apple_uid"], revision, entity["version"] + 1,
+                    )
+                    message = "Am preluat varianta din Apple Reminders."
+                await conn.execute(
+                    """UPDATE notification_outbox SET status='sent',last_error='superseded_by_apple_choice'
+                    WHERE owner_id=$1 AND channel='apple' AND status IN ('pending','leased')
+                    AND payload->>'entity_id'=$2""",
+                    owner_id, str(conflict["entity_id"]),
+                )
+            await conn.execute(
+                "UPDATE apple_sync_conflicts SET status='resolved' WHERE id=$1 AND owner_id=$2",
+                conflict_id, owner_id,
+            )
+    return message
