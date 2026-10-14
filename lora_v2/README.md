@@ -11,7 +11,7 @@ This is a separate application and database. The legacy bot, dashboard, Obsidian
 5. `.venv/bin/uvicorn lora_v2.run_api:app --host 127.0.0.1 --port 8092` serves the API and built Mini App. Telegram requires a trusted HTTPS URL. Set `LORA_V2_MINI_APP_URL` to that URL before starting the new bot.
 6. `.venv/bin/python -m lora_v2.bot` starts Telegram polling and the background worker **only after stopping the legacy polling bot**.
 
-Migrations run automatically on the v2 database at startup. `LORA_V2_APPLE_SYNC_ENABLED` defaults to `false`; when enabled, it uses a dedicated Apple Reminders list named `Lora v2` and the existing iCloud credentials. The Mini App has a conflict review screen and the two-way merge has simulated tests. A temporary VTODO was created, edited, completed, and deleted on the configured iCloud account, but the full two-way worker still needs live end-to-end verification before enabling automatic sync.
+Migrations run automatically on the v2 database at startup. `LORA_V2_APPLE_SYNC_ENABLED` defaults to `false`; when enabled, it uses a dedicated Apple Reminders list named `Lora v2` and the existing iCloud credentials. The Mini App has a conflict review screen and the two-way merge has simulated tests. A temporary task was pushed to the configured iCloud account, edited remotely, pulled back into a temporary v2 database, and removed from Apple. The live background worker, user-facing conflict flow, and device notification delivery still need verification before enabling automatic sync.
 
 ## Data migration
 
