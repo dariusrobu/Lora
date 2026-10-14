@@ -22,7 +22,7 @@ from lora_v2.crud import EditRequest, delete_entity, update_entity
 from lora_v2.db import create_pool, migrate
 from lora_v2.models import Command
 from lora_v2.media import save_photo
-from lora_v2.agent import Candidate
+from lora_v2.agent import Candidate, parse_interpretation
 from lora_v2.grounding import grounding_issue
 from lora_v2.apple import _digest, pull_changes, push_pending, resolve_conflict
 from lora_v2.notifications import queue_due_alerts, send_pending_telegram
@@ -130,6 +130,24 @@ def test_health_shortcuts_extract_water_and_weight():
     assert result.actions[0].weight_kg == 78.5
 
 
+def test_common_daily_phrases_are_grounded_without_model_dates():
+    now = datetime(2026, 10, 14, 15, tzinfo=ZoneInfo("Europe/Bucharest"))
+    task, left = extract_common("Mâine la 9 trebuie să trimit proiectul la statistică.", now, "Europe/Bucharest")
+    assert left == "" and task.actions[0].type == "create_task"
+    assert task.actions[0].due_at == "2026-10-15T09:00:00+03:00"
+    reminder, left = extract_common("Adu-mi aminte luni la 16 să predau tema.", now, "Europe/Bucharest")
+    assert left == "" and reminder.actions[0].type == "create_calendar_entry"
+    assert reminder.actions[0].starts_at == "2026-10-19T16:00:00+03:00"
+    expense, left = extract_common("Am plătit azi 38 lei pe Bolt.", now, "Europe/Bucharest")
+    assert left == "" and expense.actions[0].category == "transport"
+    meal, left = extract_common("Azi am mâncat 200 g piept de pui și 150 g orez.", now, "Europe/Bucharest")
+    assert left == "" and len(meal.actions[0].items) == 2
+    assert meal.actions[0].items[1].grams == 150
+    assert meal.actions[0].confidence < 0.85
+    health, left = extract_common("Astăzi am dormit 7 ore și am băut un litru de apă.", now, "Europe/Bucharest")
+    assert left == "" and health.actions[0].water_ml_delta == 1000
+
+
 def test_income_shortcut_is_distinct_from_expense():
     now = datetime(2026, 10, 14, 12, tzinfo=ZoneInfo("Europe/Bucharest"))
     result, remaining = extract_common("Azi am primit 100 lei.", now, "Europe/Bucharest")
@@ -143,6 +161,16 @@ def test_read_questions_do_not_intercept_writes():
     assert read_intent("Cât am cheltuit luna asta?") == "expenses"
     assert read_intent("Adu-mi aminte mâine să sun") is None
     assert read_intent("Azi am cheltuit 15 lei") is None
+
+
+def test_invalid_local_model_action_does_not_discard_valid_actions():
+    result = parse_interpretation(json.dumps({"actions": [
+        {"type": "create_deadline", "title": "Tema"},
+        {"type": "log_expense", "amount": 15, "confidence": 0.95},
+    ], "reply": None}))
+    assert [item.type for item in result.actions] == ["log_expense"]
+    assert "Nu am înțeles" in result.reply
+    assert parse_interpretation("{broken").actions == []
 
 
 @pytest.mark.asyncio

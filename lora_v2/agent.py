@@ -1,13 +1,14 @@
 """Bounded local interpretation of captured messages into validated commands."""
 
 import asyncio
+import json
 from datetime import datetime, timedelta
 from typing import Literal
 from zoneinfo import ZoneInfo
 
 import asyncpg
 from ollama import AsyncClient
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from lora_v2.config import Settings
 from lora_v2.models import Command, MealItem
@@ -91,6 +92,35 @@ class Interpretation(BaseModel):
     reply: str | None = None
 
 
+def parse_interpretation(raw: str) -> Interpretation:
+    """Keep valid candidates even when the local model invents a command type."""
+    try:
+        document = json.loads(raw)
+    except json.JSONDecodeError:
+        return Interpretation(reply="Nu am înțeles cererea. Poți spune din nou ce vrei să salvez?")
+    if not isinstance(document, dict):
+        return Interpretation(reply="Nu am înțeles cererea. Poți spune din nou ce vrei să salvez?")
+    actions = document.get("actions", [])
+    if not isinstance(actions, list):
+        actions = []
+    valid: list[Candidate] = []
+    invalid = 0
+    for item in actions[:8]:
+        try:
+            valid.append(Candidate.model_validate(item))
+        except ValidationError:
+            invalid += 1
+    if len(actions) > 8:
+        invalid += len(actions) - 8
+    reply = document.get("reply") if isinstance(document.get("reply"), str) else None
+    if invalid:
+        detail = "Nu am înțeles una dintre acțiuni. Spune-mi dacă vrei task, eveniment sau reminder și când."
+        reply = "\n".join(filter(None, [reply, detail]))
+    if not valid and not reply:
+        reply = "Nu am identificat o acțiune clară. Ce vrei să notez?"
+    return Interpretation(actions=valid, reply=reply)
+
+
 async def _schedule_context(pool: asyncpg.Pool, owner_id: int, now: datetime) -> str:
     end = now + timedelta(days=7)
     async with pool.acquire() as conn:
@@ -143,4 +173,4 @@ Pentru fiecare acțiune include type, câmpurile necesare și confidence. Dacă 
         ),
         timeout=120,
     )
-    return Interpretation.model_validate_json(response["message"]["content"])
+    return parse_interpretation(response["message"]["content"])

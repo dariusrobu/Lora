@@ -21,6 +21,8 @@ Migrations run automatically on the v2 database at startup. `LORA_V2_APPLE_SYNC_
 
 Clear Mini App forms use validated commands. Natural-language captures are saved before model processing, and proactive changes require the owner's choice. Common Romanian captures have deterministic extraction with validation. The local LLM is **not yet reliable on arbitrary long compound messages**; wrong dates, mismatched amounts, and invalid commands are rejected or sent for clarification. No production cutover has been performed.
 
+Recent local evaluations found invented command types and missing dates from `qwen2.5:7b`. Parsing now preserves valid actions from a partially invalid JSON reply and asks for clarification about the rest. Grounded Romanian shortcuts handle common tasks with times, reminders, transport expenses, stated food weights, and water in liters. These examples are verified; general conversational accuracy and multi-turn food clarification still need work.
+
 Telegram answers short read-only questions such as „Ce am azi?”, „Ce am mâine?”, „Ce taskuri am?”, „Cât am cheltuit luna asta?” and „Ce am la facultate azi?” directly from v2 data. `/azi`, `/maine`, `/taskuri`, `/cheltuieli`, and `/facultate` are shortcuts for the same views. Natural-language edit/delete and broader questions still need a guarded entity selection flow.
 
 Evening follow-ups for unfinished reminders now offer explicit „Am făcut” and „Mută pe mâine” choices in Telegram and the Mini App. Both verify the reminder version before updating it; generated conflict proposals also wait for a choice.
