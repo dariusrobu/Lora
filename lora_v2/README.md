@@ -21,6 +21,8 @@ Migrations run automatically on the v2 database at startup. `LORA_V2_APPLE_SYNC_
 
 Clear Mini App forms use validated commands. Natural-language captures are saved before model processing, and proactive changes require the owner's choice. Common Romanian captures have deterministic extraction with validation. The local LLM is **not yet reliable on arbitrary long compound messages**; wrong dates, mismatched amounts, and invalid commands are rejected or sent for clarification. No production cutover has been performed.
 
+Telegram answers short read-only questions such as „Ce am azi?”, „Ce am mâine?”, „Ce taskuri am?”, „Cât am cheltuit luna asta?” and „Ce am la facultate azi?” directly from v2 data. `/azi`, `/maine`, `/taskuri`, `/cheltuieli`, and `/facultate` are shortcuts for the same views. Natural-language edit/delete and broader questions still need a guarded entity selection flow.
+
 ## Checks
 
 `.venv/bin/ruff check lora_v2 tests/test_lora_v2.py`

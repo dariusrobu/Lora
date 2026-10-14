@@ -30,6 +30,7 @@ from lora_v2.rules import extract_common
 from lora_v2.processor import process_capture
 from lora_v2.academics import delete_academic, list_academics, set_semester, write_academic
 from lora_v2.proactive import decide_proposal, generate_proposals
+from lora_v2.queries import answer_read_intent, read_intent
 from lora_v2.service import capture, execute_command
 
 
@@ -136,6 +137,14 @@ def test_income_shortcut_is_distinct_from_expense():
     assert [item.type for item in result.actions] == ["log_income"]
 
 
+def test_read_questions_do_not_intercept_writes():
+    assert read_intent("Ce am azi?") == "today"
+    assert read_intent("Ce trebuie să fac?") == "tasks"
+    assert read_intent("Cât am cheltuit luna asta?") == "expenses"
+    assert read_intent("Adu-mi aminte mâine să sun") is None
+    assert read_intent("Azi am cheltuit 15 lei") is None
+
+
 @pytest.mark.asyncio
 async def test_v2_database_journey():
     url = os.getenv("LORA_V2_TEST_DATABASE_URL")
@@ -199,6 +208,10 @@ async def test_v2_database_journey():
             "title": "Trimite proiectul", "due_at": now.isoformat(),
         }), str(uuid.uuid4()))
         assert due_task.status == "saved"
+        today_answer = await answer_read_intent(pool, settings, owner, "today", now)
+        assert "Trimite proiectul" in today_answer and "Sună administratorul" not in today_answer
+        tasks_answer = await answer_read_intent(pool, settings, owner, "tasks", now)
+        assert "Trimite proiectul" in tasks_answer
         assert await queue_due_alerts(pool, owner, now) >= 1
         async with pool.acquire() as conn:
             task_alerts = await conn.fetchval(

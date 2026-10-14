@@ -7,13 +7,14 @@ import uuid
 from datetime import timedelta
 
 from telegram import MenuButtonWebApp, Update, WebAppInfo
-from telegram.ext import Application, ApplicationBuilder, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import Application, ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
 from lora_v2.config import Settings
 from lora_v2.db import create_pool, migrate
 from lora_v2.media import save_photo, save_voice
 from lora_v2.proactive import decide_proposal
 from lora_v2.models import Command
+from lora_v2.queries import answer_read_intent, read_intent
 from lora_v2.service import capture, execute_command
 from lora_v2.worker import run_forever
 
@@ -31,6 +32,14 @@ def create_bot(settings: Settings | None = None) -> Application:
         content_type = "text"
         attachment_ref = None
         message_text = update.message.text or update.message.caption or ""
+        if update.message.text:
+            intent = read_intent(update.message.text)
+            if intent:
+                answer = await answer_read_intent(
+                    context.application.bot_data["pool"], config, config.telegram_user_id, intent,
+                )
+                await update.message.reply_text(answer)
+                return
         try:
             if update.message.photo:
                 photo = update.message.photo[-1]
@@ -139,6 +148,19 @@ def create_bot(settings: Settings | None = None) -> Application:
         if result.status in ("saved", "already_done"):
             await query.edit_message_text(result.message)
 
+    async def on_read_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not update.message or not update.effective_user or update.effective_user.id != config.telegram_user_id:
+            return
+        command = (update.message.text or "").split()[0].split("@")[0].lower()
+        intent = {
+            "/azi": "today", "/maine": "tomorrow", "/taskuri": "tasks",
+            "/cheltuieli": "expenses", "/facultate": "university",
+        }.get(command)
+        if intent:
+            await update.message.reply_text(await answer_read_intent(
+                context.application.bot_data["pool"], config, config.telegram_user_id, intent,
+            ))
+
     async def post_init(application: Application) -> None:
         pool = await create_pool(config)
         await migrate(pool)
@@ -167,6 +189,8 @@ def create_bot(settings: Settings | None = None) -> Application:
     app.add_handler(CallbackQueryHandler(on_proposal, pattern=r"^v2:p:"))
     app.add_handler(CallbackQueryHandler(on_alert_action, pattern=r"^v2:e:"))
     app.add_handler(CallbackQueryHandler(on_task_action, pattern=r"^v2:t:"))
+    for name in ("azi", "maine", "taskuri", "cheltuieli", "facultate"):
+        app.add_handler(CommandHandler(name, on_read_command))
     app.add_handler(MessageHandler((filters.TEXT | filters.PHOTO | filters.VOICE) & ~filters.COMMAND & filters.ChatType.PRIVATE, on_message))
     return app
 
