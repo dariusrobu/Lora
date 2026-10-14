@@ -233,6 +233,21 @@ async def test_v2_database_journey():
         async with pool.acquire() as conn:
             learned = await conn.fetchval("SELECT category FROM expenses WHERE id=$1", uuid.UUID(again.entity_id))
         assert learned == "mâncare"
+        manual = await execute_command(pool, settings, owner, Command(type="log_expense", data={
+            "amount": "20", "category": "cadouri", "category_override": True,
+            "merchant": merchant, "spent_at": now.isoformat(),
+        }), str(uuid.uuid4()))
+        async with pool.acquire() as conn:
+            manual_category = await conn.fetchval(
+                "SELECT category FROM expenses WHERE id=$1", uuid.UUID(manual.entity_id),
+            )
+        assert manual_category == "cadouri"
+        learned_again = await execute_command(pool, settings, owner, expense, str(uuid.uuid4()))
+        async with pool.acquire() as conn:
+            latest_category = await conn.fetchval(
+                "SELECT category FROM expenses WHERE id=$1", uuid.UUID(learned_again.entity_id),
+            )
+        assert latest_category == "cadouri"
 
         due_task = await execute_command(pool, settings, owner, Command(type="create_task", data={
             "title": "Trimite proiectul", "due_at": now.isoformat(),

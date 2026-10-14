@@ -188,7 +188,7 @@ export default function App() {
       alert_offsets_minutes: editing ? JSON.parse(fields.alerts || "[]") : form === "event" ? [30, 0] : [0],
       followup_evening: form === "reminder" && fields.followup === "yes",
     } }
-    if (form === "expense") { type = "log_expense"; data = { amount: fields.amount, currency: "RON", category: fields.category || null, merchant: fields.merchant || null, description: fields.title || null, spent_at: at } }
+    if (form === "expense") { type = "log_expense"; data = { amount: fields.amount, currency: "RON", category: fields.category || null, category_override: Boolean(fields.category?.trim()), merchant: fields.merchant || null, description: fields.title || null, spent_at: at } }
     if (form === "workout") { type = "log_workout"; data = { activity: fields.title, duration_minutes: Number(fields.minutes), started_at: at, exercises: exercises.filter(item => item.name.trim()).map(item => ({ name: item.name.trim(), sets: item.sets ? Number(item.sets) : null, reps: item.reps ? Number(item.reps) : null, weight_kg: item.weight_kg ? Number(item.weight_kg) : null })) } }
     if (form === "meal") { type = "log_meal"; data = { eaten_at: at, description: fields.title, items: mealItems.map(item => ({ name: item.name, grams: item.grams ? Number(item.grams) : null, calories: item.calories ? Number(item.calories) : null, protein_g: item.protein_g ? Number(item.protein_g) : null, carbs_g: item.carbs_g ? Number(item.carbs_g) : null, fat_g: item.fat_g ? Number(item.fat_g) : null })), estimate_source: editing ? "manual" : "text" } }
     if (form === "health") { type = "log_health"; data = editing ? {

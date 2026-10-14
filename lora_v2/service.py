@@ -151,7 +151,7 @@ async def _apply(
                 "SELECT category FROM expense_category_rules WHERE owner_id=$1 AND merchant_key=$2",
                 owner_id, payload.merchant.casefold().strip(),
             )
-            category = learned or category
+            category = category if payload.category_override and category else learned or category
         if not category:
             return ActionResult(status="needs_input", command_type=command_type, message="În ce categorie pun cheltuiala?")
         await conn.execute(
@@ -160,6 +160,13 @@ async def _apply(
             entity_id, owner_id, payload.amount, payload.currency, category,
             payload.merchant, payload.description, payload.spent_at,
         )
+        if payload.category_override and payload.merchant:
+            await conn.execute(
+                """INSERT INTO expense_category_rules(owner_id,merchant_key,category,source_expense_id)
+                VALUES ($1,$2,$3,$4) ON CONFLICT (owner_id,merchant_key) DO UPDATE SET
+                category=EXCLUDED.category,source_expense_id=EXCLUDED.source_expense_id,updated_at=now()""",
+                owner_id, payload.merchant.casefold().strip(), category, entity_id,
+            )
         return ActionResult(status="saved", command_type=command_type, entity_id=str(entity_id), entity_type="expense", message=f"Cheltuială salvată: {payload.amount} {payload.currency} · {category}")
 
     if command_type == "log_income" and isinstance(payload, LogIncome):

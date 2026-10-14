@@ -25,6 +25,8 @@ Telegram answers short read-only questions such as „Ce am azi?”, „Ce am m�
 
 Evening follow-ups for unfinished reminders now offer explicit „Am făcut” and „Mută pe mâine” choices in Telegram and the Mini App. Both verify the reminder version before updating it; generated conflict proposals also wait for a choice.
 
+For expenses, a category explicitly chosen in the Mini App overrides an older merchant rule and becomes the new learned category for that merchant. AI-extracted expenses continue to use the learned category when available.
+
 ## Checks
 
 `.venv/bin/ruff check lora_v2 tests/test_lora_v2.py`
