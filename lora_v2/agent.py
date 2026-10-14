@@ -1,0 +1,126 @@
+"""Bounded local interpretation of captured messages into validated commands."""
+
+import asyncio
+from datetime import datetime, timedelta
+from typing import Literal
+from zoneinfo import ZoneInfo
+
+import asyncpg
+from ollama import AsyncClient
+from pydantic import BaseModel, Field
+
+from lora_v2.config import Settings
+from lora_v2.models import Command, MealItem
+
+
+class Candidate(BaseModel):
+    type: Literal["create_project", "create_task", "create_calendar_entry", "log_expense", "log_meal", "log_workout"]
+    title: str | None = None
+    kind: str | None = None
+    starts_at: str | None = None
+    ends_at: str | None = None
+    due_at: str | None = None
+    spent_at: str | None = None
+    eaten_at: str | None = None
+    amount: float | None = None
+    currency: str | None = None
+    category: str | None = None
+    merchant: str | None = None
+    description: str | None = None
+    activity: str | None = None
+    duration_minutes: int | None = None
+    items: list[MealItem] | None = None
+    alert_offsets_minutes: list[int] | None = None
+    followup_evening: bool | None = None
+    project_id: str | None = None
+    estimate_source: Literal["text", "photo", "manual"] | None = None
+    photo_ref: str | None = None
+    confidence: float = Field(default=0, ge=0, le=1)
+    evidence: str | None = None
+    missing_information: str | None = None
+
+    def as_command(self) -> Command:
+        fields = {
+            "create_project": {"name": self.title},
+            "create_task": {"title": self.title, "due_at": self.due_at, "project_id": self.project_id},
+            "create_calendar_entry": {
+                "kind": self.kind, "title": self.title, "starts_at": self.starts_at,
+                "ends_at": self.ends_at, "alert_offsets_minutes": self.alert_offsets_minutes or [],
+                "followup_evening": bool(self.followup_evening),
+            },
+            "log_expense": {
+                "amount": self.amount, "currency": self.currency or "RON",
+                "category": self.category, "merchant": self.merchant,
+                "description": self.description, "spent_at": self.spent_at,
+            },
+            "log_meal": {
+                "eaten_at": self.eaten_at, "description": self.description,
+                "items": [item.model_dump(mode="json") for item in self.items or []],
+                "estimate_source": self.estimate_source or "text", "photo_ref": self.photo_ref,
+            },
+            "log_workout": {
+                "started_at": self.starts_at, "duration_minutes": self.duration_minutes,
+                "activity": self.activity or self.title,
+            },
+        }
+        return Command(type=self.type, data=fields[self.type])
+
+
+class Interpretation(BaseModel):
+    actions: list[Candidate] = Field(default_factory=list, max_length=8)
+    reply: str | None = None
+
+
+async def _schedule_context(pool: asyncpg.Pool, owner_id: int, now: datetime) -> str:
+    end = now + timedelta(days=7)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT title,kind,starts_at,ends_at FROM calendar_entries
+            WHERE owner_id=$1 AND status='active' AND starts_at >= $2 AND starts_at < $3
+            ORDER BY starts_at LIMIT 30""",
+            owner_id, now, end,
+        )
+    return "\n".join(
+        f"{row['starts_at'].isoformat()} {row['kind']}: {row['title']}"
+        for row in rows
+    ) or "Nu există evenimente cunoscute în următoarele 7 zile."
+
+
+async def interpret_capture(
+    pool: asyncpg.Pool,
+    settings: Settings,
+    owner_id: int,
+    text: str,
+    now: datetime | None = None,
+) -> Interpretation:
+    """Ask local Ollama for independent actions; it never executes tools."""
+    local_now = now or datetime.now(ZoneInfo(settings.timezone))
+    schedule = await _schedule_context(pool, owner_id, local_now)
+    prompt = f"""Ești interpretul local al asistentei Lora. Ora curentă: {local_now.isoformat()}.
+Extrage TOATE acțiunile distincte cerute explicit de utilizator, fără să inventezi că au fost deja salvate.
+Comenzi permise: create_project, create_task, create_calendar_entry, log_expense, log_meal, log_workout.
+Fiecare acțiune este un obiect plat din schema JSON; lasă câmpurile nefolosite null. Pentru calendar: kind, title, starts_at, alert_offsets_minutes; pentru cheltuieli: amount, currency, category, spent_at; pentru antrenament: starts_at, duration_minutes, activity.
+Adaugă evidence cu fragmentul EXACT din mesaj care justifică acea acțiune; nu folosi un rezumat inventat.
+Nu repeta aceeași intenție sub altă formulare. "Dacă nu reușesc poimâine" este un follow-up, nu un al doilea reminder acum.
+Datele trebuie să includă offsetul Europe/Bucharest. "Duminică" înseamnă următoarea duminică față de ora curentă.
+Un eveniment cerut cu reminder la 30 minute și la ora exactă are alert_offsets_minutes [30,0].
+Pentru "dacă nu reușesc, întreabă-mă seara" setează followup_evening=true.
+O cheltuială pentru cantină sau restaurant are category="mâncare". Nu clasifica sportul drept cheltuială.
+La masă poți aproxima gramajele și macro-urile, dar estimarea va fi prezentată ca incertă și editabilă.
+Dacă ora, suma sau acțiunea nu sunt clare, nu inventa valori. Omite acea acțiune și pune o întrebare precisă în reply.
+"Pe la amiază" este aproximativ: întreabă dacă 12:00 este potrivită înainte de a salva reminderul.
+Nu crea acțiuni noi doar pe baza orarului; folosește-l ca informație de context.
+Program cunoscut:\n{schedule}
+Răspunde DOAR JSON în forma {{"actions":[{{"type":"log_expense","amount":15,"currency":"RON","category":"mâncare","spent_at":"2026-10-14T12:00:00+03:00","confidence":0.95}}],"reply":null}}.
+Pentru fiecare acțiune include type, câmpurile necesare și confidence. Dacă ai nevoie de clarificare, reply conține întrebarea în română."""
+    client = AsyncClient(host=settings.ollama_host)
+    response = await asyncio.wait_for(
+        client.chat(
+            model=settings.ollama_model,
+            messages=[{"role": "system", "content": prompt}, {"role": "user", "content": text}],
+            format="json",
+            options={"temperature": 0.1, "num_predict": 2000},
+        ),
+        timeout=120,
+    )
+    return Interpretation.model_validate_json(response["message"]["content"])

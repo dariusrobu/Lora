@@ -1,0 +1,1 @@
+ALTER TABLE apple_links ADD COLUMN IF NOT EXISTS missing_since TIMESTAMPTZ;

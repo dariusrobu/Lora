@@ -1,0 +1,231 @@
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Dumbbell, GraduationCap, House, Pencil, Plus, Send, Sparkles, Trash2, Wallet, X } from "lucide-react"
+import { api, telegram, type Entry, type Journal, type Project, type Proposal, type Task, type Today } from "./api"
+
+type Tab = "today" | "calendar" | "projects" | "journal" | "university"
+type FormKind = "task" | "project" | "event" | "reminder" | "expense" | "workout" | "meal" | null
+type MealDraft = { name: string; grams: string; calories: string; protein_g: string; carbs_g: string; fat_g: string }
+const blankMealItem = (): MealDraft => ({ name: "", grams: "", calories: "", protein_g: "", carbs_g: "", fat_g: "" })
+
+const tabs: { id: Tab; label: string; icon: typeof House }[] = [
+  { id: "today", label: "Azi", icon: House },
+  { id: "calendar", label: "Calendar", icon: CalendarDays },
+  { id: "projects", label: "Proiecte", icon: Check },
+  { id: "journal", label: "Jurnal", icon: Wallet },
+  { id: "university", label: "Facultate", icon: GraduationCap },
+]
+
+function localDay(value: string): string { return new Date(value).toLocaleDateString("ro-RO", { day: "numeric", month: "long", weekday: "long" }) }
+function hour(value: string): string { return new Date(value).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" }) }
+function isoLocalDate(value: Date): string { return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}` }
+function monthBounds(month: Date): [string, string] {
+  return [new Date(month.getFullYear(), month.getMonth(), 1).toISOString(), new Date(month.getFullYear(), month.getMonth() + 1, 1).toISOString()]
+}
+
+function Empty({ children }: { children: string }) { return <p className="empty">{children}</p> }
+
+export default function App() {
+  const [tab, setTab] = useState<Tab>("today")
+  const [form, setForm] = useState<FormKind>(null)
+  const [captureText, setCaptureText] = useState("")
+  const [status, setStatus] = useState("")
+  const [error, setError] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [month, setMonth] = useState(() => new Date())
+  const [today, setToday] = useState<Today | null>(null)
+  const [entries, setEntries] = useState<Entry[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [journal, setJournal] = useState<Journal | null>(null)
+  const [proposals, setProposals] = useState<Proposal[]>([])
+  const [fields, setFields] = useState<Record<string, string>>({})
+  const [editing, setEditing] = useState<{ kind: string; id: string; version: number } | null>(null)
+  const [mealItems, setMealItems] = useState<MealDraft[]>([blankMealItem()])
+
+  const reload = useCallback(async () => {
+    if (!telegram?.initData) return
+    try {
+      const [start, end] = monthBounds(month)
+      const [todayData, calendarData, projectsData, tasksData, journalData, proposalData] = await Promise.all([
+        api.today(), api.calendar(start, end), api.projects(), api.tasks(), api.journal(), api.proposals(),
+      ])
+      setToday(todayData); setEntries(calendarData); setProjects(projectsData); setTasks(tasksData); setJournal(journalData); setProposals(proposalData)
+      setError("")
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut încărca datele.") }
+  }, [month])
+
+  useEffect(() => { void reload() }, [reload])
+  useEffect(() => { if (!telegram?.initData) return; const timer = window.setInterval(() => void reload(), 15000); return () => window.clearInterval(timer) }, [reload])
+
+  async function decide(id: string, accept: boolean) {
+    setBusy(true); setError("")
+    try {
+      const result = await api.decide(id, accept)
+      setStatus(accept ? result.message || "Acțiunea a fost aplicată." : "Propunerea a fost respinsă.")
+      await reload()
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut procesa propunerea.") }
+    finally { setBusy(false) }
+  }
+
+  async function act(type: string, data: Record<string, unknown>) {
+    setBusy(true); setError("")
+    try {
+      const result = await api.action(type, data)
+      setStatus(result.message)
+      if (result.status === "saved") { setForm(null); setFields({}); await reload() }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut salva.") }
+    finally { setBusy(false) }
+  }
+
+  async function openEdit(kind: string, id: string) {
+    setBusy(true); setError("")
+    try {
+      const item = await api.entity(kind, id)
+      const at = String(item.starts_at || item.due_at || item.spent_at || item.eaten_at || item.started_at || "")
+      const localAt = at ? new Date(at) : null
+      const inputAt = localAt ? `${isoLocalDate(localAt)}T${String(localAt.getHours()).padStart(2, "0")}:${String(localAt.getMinutes()).padStart(2, "0")}` : ""
+      setFields({
+        name: String(item.name || ""), title: String(item.title || item.activity || item.description || ""),
+        project: String(item.project_id || ""), at: inputAt,
+        amount: String(item.amount || ""), category: String(item.category || ""),
+        merchant: String(item.merchant || ""), minutes: String(item.duration_minutes || ""),
+        projectStatus: String(item.status || "active"),
+        alerts: JSON.stringify(item.alert_offsets_minutes || []),
+        followup: item.followup_at ? "yes" : "no",
+      })
+      if (kind === "meal" && Array.isArray(item.items)) setMealItems(item.items.map(raw => {
+        const food = raw as Record<string, unknown>
+        return { name: String(food.name || ""), grams: String(food.grams || ""), calories: String(food.calories || ""), protein_g: String(food.protein_g || ""), carbs_g: String(food.carbs_g || ""), fat_g: String(food.fat_g || "") }
+      }))
+      setEditing({ kind, id, version: Number(item.version) })
+      setForm(kind === "calendar_entry" ? (item.kind === "reminder" ? "reminder" : "event") : kind as FormKind)
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut deschide elementul.") }
+    finally { setBusy(false) }
+  }
+
+  async function remove(kind: string, id: string, version: number) {
+    if (!window.confirm("Ștergi acest element?")) return
+    setBusy(true); setError("")
+    try {
+      const result = await api.remove(kind, id, version)
+      setStatus(result.message); await reload()
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut șterge.") }
+    finally { setBusy(false) }
+  }
+
+  async function sendCapture() {
+    if (!captureText.trim()) return
+    setBusy(true); setError("")
+    try {
+      await api.capture(captureText.trim())
+      setCaptureText("")
+      setStatus("Am păstrat mesajul. Îți trimit rezultatul în Telegram.")
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut păstra mesajul.") }
+    finally { setBusy(false) }
+  }
+
+  async function sendPhoto(file: File | undefined) {
+    if (!file) return
+    setBusy(true); setError("")
+    try {
+      await api.photo(file, captureText.trim())
+      setCaptureText("")
+      setStatus("Am păstrat fotografia. Îți trimit estimarea în Telegram.")
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut păstra fotografia.") }
+    finally { setBusy(false) }
+  }
+
+  async function submitForm(event: React.FormEvent) {
+    event.preventDefault()
+    if (!form) return
+    const at = fields.at ? new Date(fields.at).toISOString() : new Date().toISOString()
+    let type = ""; let data: Record<string, unknown> = {}
+    if (form === "project") { type = "create_project"; data = { name: fields.name, ...(editing ? { status: fields.projectStatus || "active" } : {}) } }
+    if (form === "task") { type = "create_task"; data = { title: fields.title, project_id: fields.project || null, due_at: fields.at ? at : null } }
+    if (form === "event" || form === "reminder") { type = "create_calendar_entry"; data = {
+      kind: form, title: fields.title, starts_at: at,
+      alert_offsets_minutes: editing ? JSON.parse(fields.alerts || "[]") : form === "event" ? [30, 0] : [0],
+      followup_evening: form === "reminder" && fields.followup === "yes",
+    } }
+    if (form === "expense") { type = "log_expense"; data = { amount: fields.amount, currency: "RON", category: fields.category || null, merchant: fields.merchant || null, description: fields.title || null, spent_at: at } }
+    if (form === "workout") { type = "log_workout"; data = { activity: fields.title, duration_minutes: Number(fields.minutes), started_at: at } }
+    if (form === "meal") { type = "log_meal"; data = { eaten_at: at, description: fields.title, items: mealItems.map(item => ({ name: item.name, grams: item.grams ? Number(item.grams) : null, calories: item.calories ? Number(item.calories) : null, protein_g: item.protein_g ? Number(item.protein_g) : null, carbs_g: item.carbs_g ? Number(item.carbs_g) : null, fat_g: item.fat_g ? Number(item.fat_g) : null })), estimate_source: editing ? "manual" : "text" } }
+    if (editing) {
+      setBusy(true); setError("")
+      try {
+        const result = await api.edit(editing.kind, editing.id, editing.version, data)
+        setStatus(result.message)
+        if (result.status === "saved") { setForm(null); setEditing(null); setFields({}); await reload() }
+      } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut modifica.") }
+      finally { setBusy(false) }
+    } else await act(type, data)
+  }
+
+  const grouped = useMemo(() => {
+    const result: Record<string, Entry[]> = {}
+    for (const entry of entries) (result[isoLocalDate(new Date(entry.starts_at))] ??= []).push(entry)
+    return Object.entries(result).sort(([a], [b]) => a.localeCompare(b))
+  }, [entries])
+  const academic = entries.filter(item => item.kind === "academic")
+
+  return <div className="app-shell">
+    <div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="ambient ambient-three" />
+    <main className="app-content">
+      {!telegram?.initData ? <section className="glass notice"><h1>Lora</h1><p>Deschide Mini App din conversația Telegram cu Lora.</p></section> : <>
+        <header className="page-heading">
+          <span className="eyebrow">LORA · {tab === "today" ? "ZIUA TA" : tabs.find(item => item.id === tab)?.label.toUpperCase()}</span>
+          <h1>{tab === "today" ? "Azi" : tabs.find(item => item.id === tab)?.label}</h1>
+          <p>{tab === "today" ? localDay(new Date().toISOString()) : tab === "calendar" ? "Evenimente, remindere și programul tău" : tab === "projects" ? "Ce ai de făcut, pe proiecte" : tab === "journal" ? "Cheltuieli, mese și mișcare" : "Programul calendaristic al facultății"}</p>
+        </header>
+
+        {status && <div className="toast" role="status"><span>{status}</span><button aria-label="Închide mesajul" onClick={() => setStatus("")}><X size={16} /></button></div>}
+        {error && <div className="error" role="alert">{error} <button onClick={() => void reload()}>Reîncearcă</button></div>}
+
+        {tab === "today" && <>
+          {proposals.length > 0 && <section className="glass section-card"><div className="section-title"><Sparkles size={18} /><h2>De decis</h2></div>{proposals.map(proposal => <div className="proposal-row" key={proposal.id}><p>{proposal.reason}</p><div className="inline-actions"><button disabled={busy} onClick={() => void decide(proposal.id, true)}>Da, fă asta</button><button disabled={busy} onClick={() => void decide(proposal.id, false)}>Nu acum</button></div></div>)}</section>}
+          <section className="glass capture-panel">
+            <div className="section-title"><Sparkles size={18} /><h2>Spune-i Lorei</h2></div>
+            <div className="capture-row"><textarea aria-label="Ce vrei să rețină Lora?" placeholder="De exemplu: mâine sun administratorul, azi am cheltuit 15 lei la cantină…" value={captureText} onChange={event => setCaptureText(event.target.value)} rows={2} /><label className="photo-action" aria-label="Adaugă fotografie cu mâncarea"><Camera size={19} /><input type="file" accept="image/*" capture="environment" disabled={busy} onChange={event => { void sendPhoto(event.target.files?.[0]); event.target.value = "" }} /></label><button className="circle-action" aria-label="Trimite către Lora" disabled={busy || !captureText.trim()} onClick={() => void sendCapture()}><Send size={19} /></button></div>
+          </section>
+          <div className="quick-actions"><button onClick={() => setForm("task")}><Plus size={16} /> Task</button><button onClick={() => setForm("reminder")}><Bell size={16} /> Reminder</button><button onClick={() => setForm("expense")}><Wallet size={16} /> Cheltuială</button></div>
+          <div className="two-column">
+            <section className="glass section-card"><div className="section-title"><CalendarDays size={19} /><h2>Ce urmează</h2></div>{!today ? <Empty>Se încarcă programul…</Empty> : today.entries.length ? today.entries.map(item => <EntryRow key={item.id} entry={item} done={item.kind === "reminder" ? () => void act("complete_entry", { entry_id: item.id, expected_version: item.version }) : undefined} edit={() => void openEdit("calendar_entry",item.id)} remove={() => void remove("calendar_entry",item.id,item.version)} />) : <Empty>Ziua este liberă. Adaugă ce contează.</Empty>}</section>
+            <section className="glass section-card"><div className="section-title"><Check size={19} /><h2>De făcut</h2></div>{!today ? <Empty>Se încarcă taskurile…</Empty> : today.tasks.length ? today.tasks.slice(0, 6).map(task => <TaskRow key={task.id} task={task} done={() => void act("complete_task", { task_id: task.id, expected_version: task.version })} edit={() => void openEdit("task",task.id)} remove={() => void remove("task",task.id,task.version)} />) : <Empty>Nu ai taskuri de făcut acum.</Empty>}</section>
+          </div>
+        </>}
+
+        {tab === "calendar" && <section className="glass section-card"><div className="section-title month-title"><CalendarDays size={19} /><h2>{month.toLocaleDateString("ro-RO", { month: "long", year: "numeric" })}</h2><span className="month-controls"><button aria-label="Luna anterioară" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}><ChevronLeft size={18} /></button><button aria-label="Luna următoare" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}><ChevronRight size={18} /></button></span></div>
+          <div className="month-grid">{Array.from({ length: new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate() }, (_, index) => {
+            const date = new Date(month.getFullYear(), month.getMonth(), index + 1)
+            const count = entries.filter(entry => isoLocalDate(new Date(entry.starts_at)) === isoLocalDate(date)).length
+            return <div key={index} className={`month-day ${isoLocalDate(date) === isoLocalDate(new Date()) ? "is-today" : ""}`}><span>{index + 1}</span>{count > 0 && <i aria-label={`${count} elemente`} />}</div>
+          })}</div>
+          {grouped.length ? grouped.map(([date, items]) => <div className="day-group" key={date}><h3>{localDay(`${date}T12:00:00`)}</h3>{items.map(item => <EntryRow key={item.id} entry={item} done={item.kind === "reminder" ? () => void act("complete_entry", { entry_id: item.id, expected_version: item.version }) : undefined} edit={() => void openEdit("calendar_entry",item.id)} remove={() => void remove("calendar_entry",item.id,item.version)} />)}</div>) : <Empty>Nu sunt evenimente în această lună.</Empty>}
+          <div className="inline-actions"><button onClick={() => setForm("event")}><Plus size={16} /> Eveniment</button><button onClick={() => setForm("reminder")}><Plus size={16} /> Reminder</button></div>
+        </section>}
+
+        {tab === "projects" && <section className="glass section-card"><div className="section-title"><Check size={19} /><h2>Taskuri pe proiecte</h2></div>{projects.map(project => <div className="project-group" key={project.id}><div className="group-head"><h3>{project.name}</h3><button aria-label={`Editează proiectul ${project.name}`} onClick={() => void openEdit("project",project.id)}><Pencil size={14} /></button><button aria-label={`Șterge proiectul ${project.name}`} onClick={() => void remove("project",project.id,project.version)}><Trash2 size={14} /></button></div>{tasks.filter(task => task.project_id === project.id && task.status === "pending").map(task => <TaskRow key={task.id} task={task} done={() => void act("complete_task", { task_id: task.id, expected_version: task.version })} edit={() => void openEdit("task",task.id)} remove={() => void remove("task",task.id,task.version)} />)}</div>)}<div className="project-group"><h3>Fără proiect</h3>{tasks.filter(task => !task.project_id && task.status === "pending").map(task => <TaskRow key={task.id} task={task} done={() => void act("complete_task", { task_id: task.id, expected_version: task.version })} edit={() => void openEdit("task",task.id)} remove={() => void remove("task",task.id,task.version)} />)}</div>{!tasks.length && <Empty>Nu ai încă taskuri.</Empty>}<div className="inline-actions"><button onClick={() => setForm("task")}><Plus size={16} /> Task</button><button onClick={() => setForm("project")}><Plus size={16} /> Proiect</button></div></section>}
+
+        {tab === "journal" && <div className="journal-grid"><section className="glass section-card"><div className="section-title"><Wallet size={19} /><h2>Cheltuieli</h2></div>{journal?.expenses.length ? journal.expenses.slice(0, 8).map(item => <div className="simple-row" key={item.id}><span><strong>{item.merchant || item.description || item.category}</strong><small>{item.category} · {localDay(item.spent_at)}</small></span><b>{item.amount} {item.currency}</b><RowActions edit={() => void openEdit("expense",item.id)} remove={() => void remove("expense",item.id,item.version)} /></div>) : <Empty>Nicio cheltuială încă.</Empty>}<button className="text-action" onClick={() => setForm("expense")}>+ Adaugă cheltuială</button></section><section className="glass section-card"><div className="section-title"><Sparkles size={19} /><h2>Mese</h2></div>{journal?.meals.length ? journal.meals.slice(0, 8).map(item => <div className="simple-row" key={item.id}><span><strong>{item.description || "Masă"}</strong><small>{localDay(item.eaten_at)}{item.estimate_uncertain ? " · estimare" : ""}</small></span><RowActions edit={() => void openEdit("meal",item.id)} remove={() => void remove("meal",item.id,item.version)} /></div>) : <Empty>Nicio masă încă.</Empty>}<button className="text-action" onClick={() => {setMealItems([blankMealItem()]);setForm("meal")}}>+ Adaugă masă</button></section><section className="glass section-card"><div className="section-title"><Dumbbell size={19} /><h2>Antrenamente</h2></div>{journal?.workouts.length ? journal.workouts.slice(0, 8).map(item => <div className="simple-row" key={item.id}><span><strong>{item.activity}</strong><small>{localDay(item.started_at)}</small></span><b>{item.duration_minutes} min</b><RowActions edit={() => void openEdit("workout",item.id)} remove={() => void remove("workout",item.id,item.version)} /></div>) : <Empty>Niciun antrenament încă.</Empty>}<button className="text-action" onClick={() => setForm("workout")}>+ Adaugă antrenament</button></section></div>}
+
+        {tab === "university" && <section className="glass section-card"><div className="section-title"><GraduationCap size={19} /><h2>Program calendaristic</h2></div>{academic.length ? academic.map(item => <EntryRow entry={item} key={item.id} />) : <Empty>Nu există cursuri importate pentru luna afișată.</Empty>}<p className="helper">Materialele și notițele rămân în Obsidian.</p></section>}
+
+        {form && <form className="glass inline-form" onSubmit={event => void submitForm(event)}><div className="section-title"><Plus size={18} /><h2>{editing ? "Editează" : ({ task: "Task nou", project: "Proiect nou", event: "Eveniment nou", reminder: "Reminder nou", expense: "Cheltuială nouă", workout: "Antrenament nou", meal: "Masă nouă" } as const)[form]}</h2><button className="close-form" type="button" aria-label="Închide formularul" onClick={() => {setForm(null);setEditing(null)}}><X size={18} /></button></div>
+          {form === "project" ? <label>Nume<input required value={fields.name || ""} onChange={event => setFields({ ...fields, name: event.target.value })} /></label> : <label>{form === "expense" ? "Descriere" : form === "workout" ? "Tip antrenament" : "Titlu"}<input required={form !== "expense"} value={fields.title || ""} onChange={event => setFields({ ...fields, title: event.target.value })} /></label>}
+          {(form === "task") && <label>Proiect<select value={fields.project || ""} onChange={event => setFields({ ...fields, project: event.target.value })}><option value="">Fără proiect</option>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>}
+          {form === "expense" && <><label>Sumă (lei)<input type="number" min="0.01" step="0.01" required value={fields.amount || ""} onChange={event => setFields({ ...fields, amount: event.target.value })} /></label><label>Loc / comerciant<input value={fields.merchant || ""} onChange={event => setFields({ ...fields, merchant: event.target.value })} /></label><label>Categorie<input placeholder="mâncare, transport…" value={fields.category || ""} onChange={event => setFields({ ...fields, category: event.target.value })} /></label></>}
+          {form === "workout" && <label>Durată (minute)<input type="number" min="1" required value={fields.minutes || ""} onChange={event => setFields({ ...fields, minutes: event.target.value })} /></label>}
+          {form === "meal" && <div className="meal-editor"><p>Alimente și valori estimate</p>{mealItems.map((item, index) => <div className="meal-item" key={index}><label>Aliment<input required value={item.name} onChange={event => setMealItems(mealItems.map((old, i) => i === index ? { ...old, name: event.target.value } : old))} /></label><label>Grame<input type="number" min="1" value={item.grams} onChange={event => setMealItems(mealItems.map((old, i) => i === index ? { ...old, grams: event.target.value } : old))} /></label><label>kcal<input type="number" min="0" value={item.calories} onChange={event => setMealItems(mealItems.map((old, i) => i === index ? { ...old, calories: event.target.value } : old))} /></label><label>Proteine g<input type="number" min="0" value={item.protein_g} onChange={event => setMealItems(mealItems.map((old, i) => i === index ? { ...old, protein_g: event.target.value } : old))} /></label><label>Carbo g<input type="number" min="0" value={item.carbs_g} onChange={event => setMealItems(mealItems.map((old, i) => i === index ? { ...old, carbs_g: event.target.value } : old))} /></label><label>Grăsimi g<input type="number" min="0" value={item.fat_g} onChange={event => setMealItems(mealItems.map((old, i) => i === index ? { ...old, fat_g: event.target.value } : old))} /></label>{mealItems.length > 1 && <button type="button" className="text-action" onClick={() => setMealItems(mealItems.filter((_, i) => i !== index))}>Elimină aliment</button>}</div>)}<button type="button" className="text-action" onClick={() => setMealItems([...mealItems, blankMealItem()])}>+ Adaugă aliment</button></div>}
+          {form !== "project" && <label>{form === "task" ? "Termen (opțional)" : "Când"}<input type="datetime-local" required={form === "event" || form === "reminder"} value={fields.at || ""} onChange={event => setFields({ ...fields, at: event.target.value })} /></label>}
+          {form === "reminder" && <label className="checkbox-label"><input type="checkbox" checked={fields.followup === "yes"} onChange={event => setFields({ ...fields, followup: event.target.checked ? "yes" : "no" })} /> Întreabă-mă seara dacă nu l-am făcut</label>}
+          <button className="primary" type="submit" disabled={busy}>Salvează</button>
+        </form>}
+      </>}
+    </main>
+    {telegram?.initData && <nav className="bottom-nav" aria-label="Navigație principală">{tabs.map(({ id, label, icon: Icon }) => <button key={id} className={tab === id ? "active" : ""} aria-current={tab === id ? "page" : undefined} onClick={() => { setTab(id); setForm(null) }}><Icon size={20} strokeWidth={1.8} /><span>{label}</span></button>)}</nav>}
+  </div>
+}
+
+function RowActions({ edit, remove }: { edit: () => void; remove: () => void }) { return <span className="row-actions"><button aria-label="Editează" onClick={edit}><Pencil size={14} /></button><button aria-label="Șterge" onClick={remove}><Trash2 size={14} /></button></span> }
+function EntryRow({ entry, done, edit, remove }: { entry: Entry; done?: () => void; edit?: () => void; remove?: () => void }) { return <div className={`agenda-row kind-${entry.kind}`}><span className="agenda-time">{hour(entry.starts_at)}</span><span className="agenda-line" /><span className="agenda-text"><strong>{entry.title}</strong><small>{entry.kind === "academic" ? "Facultate" : entry.kind === "reminder" ? "Reminder" : "Eveniment"}</small></span>{done ? <button className="entry-done" onClick={done} aria-label={`Marchează ${entry.title} ca făcut`}><Check size={16} /></button> : entry.kind === "reminder" && <Bell size={16} />}{edit && remove && <RowActions edit={edit} remove={remove} />}</div> }
+function TaskRow({ task, done, edit, remove }: { task: Task; done: () => void; edit: () => void; remove: () => void }) { return <div className="task-row"><button aria-label={`Marchează ${task.title} ca făcut`} className="task-check" onClick={done}><Check size={14} /></button><span><strong>{task.title}</strong><small>{task.project_name || (task.due_at ? localDay(task.due_at) : "Fără termen")}</small></span><RowActions edit={edit} remove={remove} /></div> }
