@@ -5,6 +5,8 @@ import json
 import logging
 import os
 import re
+from pathlib import Path
+from uuid import uuid4
 from typing import Any, Dict, Optional, Tuple
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -12,6 +14,10 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from bot.callback_utils import make_callback_data
 from bot.formatter import escape_md, safe_markdown
 from core import config
+from core.food_reference import apply_food_references, foods_from_visual_description, has_food_reference
+from core.food_portions import estimate_visual_portions
+from core.meal_review import normalize_meal_proposal, user_food_claims
+from core.meal_nutrition import enrich_meal_references
 from core.state import clear_state, get_state, set_state
 from db.queries.finance import log_transaction
 from ollama import AsyncClient
@@ -26,8 +32,30 @@ OLLAMA_STRUCTURED_MODEL = getattr(
 OLLAMA_VISION_MODEL = getattr(
     config, "OLLAMA_VISION_MODEL", os.getenv("OLLAMA_VISION_MODEL", "moondream")
 )
+OLLAMA_FOOD_VISION_MODEL = getattr(config, "OLLAMA_FOOD_VISION_MODEL", OLLAMA_VISION_MODEL)
 
 _ollama_client = AsyncClient(host=OLLAMA_HOST)
+
+
+def save_optimized_receipt(photo_bytes: bytes) -> Optional[str]:
+    """Save a compact local copy of a receipt and return its relative path."""
+    if not photo_bytes:
+        return None
+    storage_path = Path(getattr(config, "RECEIPTS_STORAGE_PATH", "data/finance/receipts"))
+    storage_path.mkdir(parents=True, exist_ok=True)
+    relative_path = Path("data") / "finance" / "receipts" / f"{uuid4().hex}.webp"
+    output_path = storage_path / relative_path.name
+    try:
+        from PIL import Image, ImageOps
+
+        with Image.open(io.BytesIO(photo_bytes)) as image:
+            image = ImageOps.exif_transpose(image).convert("RGB")
+            image.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
+            image.save(output_path, "WEBP", quality=80, method=6)
+        return str(relative_path)
+    except Exception:
+        logger.exception("Failed to optimize local receipt image")
+        return None
 
 
 def _clean_json_from_text(raw: str) -> Dict[str, Any]:
@@ -257,9 +285,11 @@ async def extract_text_ocr(photo_bytes: bytes) -> str:
         return ""
 
 
-async def _call_local_llm_json(prompt: str) -> Dict[str, Any]:
+async def _call_local_llm_json(
+    prompt: str, max_tokens: int | None = None, model_names: list[str] | None = None,
+) -> Dict[str, Any]:
     """Calls local Ollama model with structured JSON enforcement and fallback."""
-    models_to_try = [
+    models_to_try = model_names or [
         OLLAMA_STRUCTURED_MODEL,
         "qwen2.5:7b",
         "qwen2.5:3b",
@@ -274,10 +304,14 @@ async def _call_local_llm_json(prompt: str) -> Dict[str, Any]:
     last_err = None
     for model_name in unique_models:
         try:
+            options = {"temperature": 0.2, "num_predict": max_tokens, "num_ctx": 4096} if max_tokens else {}
             res = await _ollama_client.chat(
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 format="json",
+                **({"think": False} if model_name.startswith("qwen3-vl") and "instruct" not in model_name else {}),
+                options=options,
+                keep_alive="1m" if max_tokens else None,
             )
             content = res.get("message", {}).get("content", "")
             return _clean_json_from_text(content)
@@ -290,11 +324,23 @@ async def _call_local_llm_json(prompt: str) -> Dict[str, Any]:
 
 async def describe_image_with_vision(
     photo_bytes: bytes,
-    prompt: str = "Describe what is shown in this image in detail. If there is food, a meal, or drinks, list each dish, ingredient, and estimated portion sizes.",
+    prompt: str = (
+        "Name only the visible foods in this photo, with visible piece counts if clear. "
+        "Distinguish toast from breaded meat and eggs from other fried foods. "
+        "Mention uncertainty when ambiguous. "
+        "Do not invent side dishes, oil, sauces or hidden ingredients. "
+        "A photo cannot provide measured grams or exact calories. "
+        "Keep under 70 words. For non-food describe the object."
+    ),
+    *,
+    food_photo: bool = False,
 ) -> str:
     """Uses a local Ollama vision model (moondream, llava, etc.) to extract a rich visual description."""
     b64_img = base64.b64encode(photo_bytes).decode("utf-8")
-    vision_models = [OLLAMA_VISION_MODEL, "moondream", "llama3.2-vision", "llava"]
+    vision_models = [
+        OLLAMA_FOOD_VISION_MODEL if food_photo else OLLAMA_VISION_MODEL,
+        OLLAMA_VISION_MODEL, "moondream", "llava",
+    ]
     unique_models = []
     for m in vision_models:
         if m and m not in unique_models:
@@ -311,6 +357,7 @@ async def describe_image_with_vision(
                         "images": [b64_img],
                     }
                 ],
+                options={"temperature": 0, "num_predict": 180},
             )
             content = res.get("message", {}).get("content", "").strip()
             if content:
@@ -322,6 +369,58 @@ async def describe_image_with_vision(
     return ""
 
 
+def _food_result(data: Dict[str, Any], user_text: str = "", *, references: bool = False, reviewed: bool = False) -> Dict[str, Any]:
+    proposal = data if reviewed else apply_food_references(data, user_text, estimate_missing=True) if references else normalize_meal_proposal(data, user_text)
+    return {
+        "type": "food", "confidence": 0.5,
+        "extracted_data": {
+            **proposal,
+            **{f"total_{key}": proposal[key] for key in ("calories", "protein", "carbs", "fat")},
+        },
+        "reply": f"Verifică alimentele și porțiile: {proposal['description']}",
+    }
+
+
+async def analyze_food_photo(photo_bytes: bytes, caption: str | None = None) -> Dict[str, Any] | None:
+    """Use a modern local vision model directly, avoiding lossy text translation.
+
+    The legacy vision-description pipeline remains available for older models.
+    No model is downloaded automatically by an incoming photo.
+    """
+    if not OLLAMA_FOOD_VISION_MODEL.startswith(("qwen3-vl", "qwen2.5vl")):
+        return None
+    # This small model identifies food better in a short inventory than when
+    # asked to simultaneously translate, weigh and invent nutrition in JSON.
+    prompt = (
+        "List all visible edible foods in English, separated by commas. No other sentences. "
+        "Include piece counts only when clearly visible. Distinguish toast from breaded meat. "
+        "Include food on the nearby cutting board too. "
+        "For unidentified fried items say fried food. No weights, nutrition, recipes or hidden ingredients. "
+        "If this is not a food photo say NOT FOOD."
+    )
+    try:
+        response = await asyncio.wait_for(_ollama_client.chat(
+            model=OLLAMA_FOOD_VISION_MODEL,
+            messages=[{"role": "user", "content": prompt, "images": [base64.b64encode(photo_bytes).decode("utf-8")]}],
+            options={"temperature": 0.2, "num_predict": 150, "num_ctx": 4096},
+            **({"think": False} if OLLAMA_FOOD_VISION_MODEL.startswith("qwen3-vl") and "instruct" not in OLLAMA_FOOD_VISION_MODEL else {}),
+            keep_alive="1m",
+        ), timeout=75)
+        description = response.get("message", {}).get("content", "")
+        complete, claims = user_food_claims(caption or "")
+        items = claims if complete and claims else foods_from_visual_description(description)
+        if items and "NOT FOOD" not in description.upper():
+            reviewed = normalize_meal_proposal({"items": items}, caption or "")
+            items = await estimate_visual_portions(_ollama_client, OLLAMA_FOOD_VISION_MODEL, photo_bytes, reviewed["items"], caption or "")
+            proposal = await enrich_meal_references({"items": items}, caption or "")
+            result = _food_result(proposal, reviewed=True)
+            logger.info("Local food vision: model=%s items=%d needs_details=%s", OLLAMA_FOOD_VISION_MODEL, len(result["extracted_data"]["items"]), result["extracted_data"]["needs_portion_details"])
+            return result
+    except Exception as error:
+        logger.warning("Direct local food vision failed: %s", type(error).__name__)
+    return None
+
+
 async def analyze_food_from_vision(
     vision_description: str, caption: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
@@ -331,75 +430,26 @@ async def analyze_food_from_vision(
     if not vision_description:
         return None
 
-    prompt = f"""Ești un nutriționist și asistent expert.
-Analizează descrierea vizuală a unei farfurii / mese:
-\"\"\"{vision_description}\"\"\"
-{f"Text adițional de la utilizator: {caption}" if caption else ""}
-
-Întrebare: Imaginea conține mâncare, alimente, o masă sau băuturi?
-Dacă DA:
-- Identifică preparatul în limba română (ex: "Piept de pui la grătar cu lămâie").
-- Stabilește tipul mesei: "mic_dejun", "pranz", "cina" sau "gustare".
-- REGULI STRICTE:
-  1. Include EXCLUSIV alimentele și ingredientele menționate în descrierea vizuală. NU inventa garnituri (nu adăuga orez, cartofi, salată, pâine etc. dacă NU apar în descriere!). Farfuria albă sau spațiile goale NU sunt mâncare/orez!
-  2. Dacă este o farfurie mare de servire (platou) cu mai multe bucăți, estimează o porție individuală standard (1 persoană, ex: 1 piept de pui ~150-180g) dacă utilizatorul nu a cerut tot platoul.
-  3. Feliile de lămâie sau verdețurile folosite ca decor/aromă au calorii minime (~5-10 kcal, carbohidrați neglijabili).
-  4. Pieptul de pui simplu la grătar NU conține carbohidrați (0g carbohidrați).
-  5. Folosește termeni corecți și firești în limba română (ex: 'Piept de pui', 'Lămâie', NU 'limon' sau invenții de cuvinte).
-
-Dacă NU este mâncare (este un obiect, peisaj, animal, persoană etc.), setează is_food: false.
-
-Răspunde STRICT cu un JSON valid (fără markdown):
-{{
-  "is_food": true,
-  "description": "Denumire preparat identificat",
-  "meal_type": "pranz",
-  "items": [
-    {{"name": "Denumire aliment", "grams": 150, "calories": 220, "protein": 35, "carbs": 0, "fat": 4}}
-  ]
-}}"""
+    complete, claims = user_food_claims(caption or "")
+    prompt = f"""Extract a food proposal from visible evidence. JSON only.
+Visual observations: {vision_description}
+User caption (authoritative about what was actually eaten): {caption or 'none'}
+User-confirmed food list: {json.dumps(claims if complete else [], ensure_ascii=False)}
+Rules:
+- If the user lists what they ate, REPLACE the visual guesses with ONLY that list. Copy those food names exactly.
+- Otherwise include only observed foods. Prefer simple food names, not a narrative. Mark ambiguous foods uncertain=true.
+- Do not invent sauces, cooking oil, sides, or ingredients hidden in a dish.
+- This is NOT a measurement: estimate edible grams for the specified pieces/size, with grams_min/grams_max. Counted, identified foods CAN have approximate ranges without weighing; do not set null just because there is no scale. Ask for truly unknown portions using null, never zero. Do not assume an entire serving platter was eaten.
+- Explicit user grams/kg are authoritative. All calorie/macronutrient values remain estimates.
+- Match preparation (breaded fried meat is not plain grilled chicken). Numeric fields are JSON numbers WITHOUT units; protein/carbs/fat are grams. Calories approximate 4*protein+4*carbs+9*fat.
+- If not food, is_food=false. meal_type must be mic_dejun, pranz, cina, gustare or masa.
+Example schema (replace the example values with actual estimates):
+{{"is_food":true,"meal_type":"masa","items":[{{"name":"Food name","count":1,"uncertain":false,"grams":100,"grams_min":80,"grams_max":120,"calories":150,"protein":20,"carbs":4,"fat":6}}]}}"""
 
     try:
-        data = await _call_local_llm_json(prompt)
-        if data.get("is_food"):
-            desc = (data.get("description") or "Masă").strip()
-            desc = desc.replace("Pițipui", "Piept de pui").replace("pițipui", "piept de pui")
-            data["description"] = desc
-
-            items = data.get("items") or []
-            # Normalize naming and recalculate totals directly from items for mathematical consistency
-            for it in items:
-                it_name = it.get("name", "")
-                if "limon" in it_name.lower():
-                    it["name"] = it_name.replace("limon", "lămâie").replace("Limon", "Lămâie")
-                if "pițipui" in it_name.lower():
-                    it["name"] = it_name.replace("pițipui", "piept de pui").replace("Pițipui", "Piept de pui")
-
-            if items:
-                total_calories = sum(int(it.get("calories") or 0) for it in items)
-                total_protein = sum(int(it.get("protein") or 0) for it in items)
-                total_carbs = sum(int(it.get("carbs") or 0) for it in items)
-                total_fat = sum(int(it.get("fat") or 0) for it in items)
-            else:
-                total_calories = int(data.get("total_calories") or 0)
-                total_protein = int(data.get("total_protein") or 0)
-                total_carbs = int(data.get("total_carbs") or 0)
-                total_fat = int(data.get("total_fat") or 0)
-
-            return {
-                "type": "food",
-                "confidence": 0.88,
-                "extracted_data": {
-                    "description": data.get("description") or "Masă",
-                    "meal_type": data.get("meal_type") or "pranz",
-                    "total_calories": total_calories,
-                    "total_protein": total_protein,
-                    "total_carbs": total_carbs,
-                    "total_fat": total_fat,
-                    "items": items,
-                },
-                "reply": f"Am identificat: {data.get('description')}",
-            }
+        data = await _call_local_llm_json(prompt, max_tokens=2048)
+        if data.get("is_food") is True:
+            return _food_result(await enrich_meal_references(data, caption or ""), reviewed=True)
     except Exception as e:
         logger.warning(f"Error parsing food nutrition from vision description: {e}")
 
@@ -570,7 +620,10 @@ Răspunde STRICT cu un JSON valid (fără markdown):
                 logger.error(f"Error parsing OCR receipt with local LLM: {e}")
 
         # Step 3: Run local vision model to inspect visual scene (especially for food / objects)
-        vision_desc = await describe_image_with_vision(photo_bytes)
+        direct_food_result = await analyze_food_photo(photo_bytes, caption)
+        if direct_food_result:
+            return direct_food_result
+        vision_desc = await describe_image_with_vision(photo_bytes, food_photo=True)
         if vision_desc:
             food_result = await analyze_food_from_vision(vision_desc, caption)
             if food_result:
@@ -651,7 +704,10 @@ def render_receipt_preview(extra: Dict[str, Any]) -> Tuple[str, InlineKeyboardMa
             lines.append(f"• _...și încă {len(clean_items) - 12} produse_")
 
         lines.append(f"\n💰 *Total*: `{final_amount:.2f} RON` ({len(clean_items)} produse)")
-        lines.append("\n_Dorești să înregistrez aceste cheltuieli pe categorii?_")
+        if extra.get("items_reliable", True):
+            lines.append("\n_Dorești să înregistrez aceste cheltuieli pe categorii?_")
+        else:
+            lines.append("\n⚠️ Sumele produselor nu se potrivesc cu totalul tipărit. Voi înregistra doar totalul bonului, ca să nu dublez cheltuiala.")
         lines.append("💡 _Trimite un mesaj pentru corecții (ex: „pune pâinea la 5 lei”, „magazinul e Lukoil”) sau confirmă direct._")
         msg = "\n".join(lines)
     else:
@@ -771,42 +827,66 @@ Răspunde STRICT cu un obiect JSON în următorul format:
 def render_meal_preview(extra: Dict[str, Any]) -> Tuple[str, InlineKeyboardMarkup]:
     """Generates the MarkdownV2 preview message and inline keyboard for an identified meal."""
     description = extra.get("description") or "Masă"
-    calories = int(extra.get("calories") or 0)
-    protein = int(extra.get("protein") or 0)
-    carbs = int(extra.get("carbs") or 0)
-    fat = int(extra.get("fat") or 0)
+    def value(field: str, unit: str) -> str:
+        number = extra.get(field)
+        return "necunoscut" if number is None else f"{number:g}{unit}" if isinstance(number, (float, int)) else f"{number}{unit}"
     items = extra.get("items") or []
 
     lines = [
-        f"🥗 Am identificat: *{escape_md(str(description))}*\n",
-        f"🔥 *Calorii*: `{calories} kcal`",
-        f"📊 *Macros*: `{protein}g P` · `{carbs}g C` · `{fat}g F`",
+        f"🥗 *Verifică masa:* {escape_md(str(description))}\n",
+        f"🔥 *Calorii estimate*: `{value('calories', ' kcal')}`",
+        f"📊 *Macros estimați*: `{value('protein', 'g P')}` · `{value('carbs', 'g C')}` · `{value('fat', 'g F')}`",
     ]
 
     if items:
-        lines.append("\n*Componență estimată:*")
+        lines.append("\n*Alimente și porții:*")
         for it in items:
             it_name = it.get("name") or "Aliment"
             it_g = it.get("grams")
             it_cal = it.get("calories")
-            it_p = it.get("protein")
-            it_c = it.get("carbs")
-            it_f = it.get("fat")
 
-            g_str = f" (~{it_g}g)" if it_g else ""
-            macro_details = []
-            if it_p is not None:
-                macro_details.append(f"{it_p}g P")
-            if it_c is not None:
-                macro_details.append(f"{it_c}g C")
-            if it_f is not None:
-                macro_details.append(f"{it_f}g F")
-            macro_str = f" · _{', '.join(macro_details)}_" if macro_details else ""
-            lines.append(f"• *{escape_md(str(it_name))}*{escape_md(g_str)}: `{it_cal or 0} kcal`{macro_str}")
+            if it.get("grams_source") == "user_weight":
+                portion = f"{it_g:g} g, specificat de tine"
+            elif it.get("grams_min") and it.get("grams_max"):
+                portion = f"aprox. {it_g:g} g ({it['grams_min']:g}–{it['grams_max']:g} g)"
+                if it.get("portion_method") == "standard_serving":
+                    portion += " · porție orientativă"
+            elif it_g:
+                portion = f"aproximativ {it_g:g} g"
+            else:
+                portion = "gramaj necunoscut"
+            if it.get("count"):
+                count_unit = it.get("count_unit", "bucăți")
+                if it["count"] == 1 and count_unit == "bucăți":
+                    count_unit = "bucată"
+                portion = f"{it['count']:g} {count_unit} · {portion}"
+            calorie_text = f"{it_cal:g} kcal" if it_cal is not None else "calorii necunoscute"
+            lines.append(f"• *{escape_md(str(it_name))}*: {escape_md(portion)} · {escape_md(calorie_text)}")
 
-    lines.append("\n_Dorești să înregistrez această masă în jurnal?_")
-    lines.append("💡 _Trimite un mesaj pentru corecții (ex: „am mâncat 200g”, „adaugă și 100g orez”) sau confirmă direct._")
-    msg = "\n".join(lines)
+    lines.append("\n_Gramajele din poză sunt estimări, nu cântărire. Verifică și ce parte ai mâncat._")
+    if any(item.get("nutrition_reference") for item in items):
+        lines.append("_Caloriile folosesc alimente de referință; rețeta și prepararea pot schimba rezultatul._")
+        providers = {item.get("nutrition_provider") for item in items}
+        if "USDA FoodData Central" in providers:
+            lines.append("Sursă: USDA FoodData Central.")
+        if "Open Food Facts" in providers:
+            lines.append("Sursă: Open Food Facts · ODbL.")
+        for item in items:
+            if item.get("nutrition_provider"):
+                lines.append(f"↳ {escape_md(str(item['name']))}: {escape_md(str(item['nutrition_reference']))}")
+        if any(item.get("nutrition_stale") for item in items):
+            lines.append("_Am folosit date din cache; sursa online nu a putut fi actualizată._")
+    for question in extra.get("review_questions") or []:
+        lines.append(f"• {escape_md(str(question))}")
+    if extra.get("needs_portion_details"):
+        if extra.get("nutrition_lookup_incomplete"):
+            lines.append("\n*Lipsesc date nutriționale verificate pentru o parte din masă.* Nu trebuie să cântărești alimentele.")
+        else:
+            lines.append("\n*Nu pot estima încă toată masa.* Spune-mi ce este alimentul neidentificat sau cum a fost preparat; nu trebuie să-l cântărești.")
+    else:
+        lines.append("\n_Confirmi alimentele, porțiile și estimarea pentru salvare?_")
+    lines.append("💡 Poți corecta: „am mâncat 3 șnițele mici, 2 ouă și o roșie” sau „puiul are 180 g”.")
+    msg = safe_markdown("\n".join(lines))
 
     keyboard = InlineKeyboardMarkup(
         [
@@ -825,7 +905,7 @@ def render_meal_preview(extra: Dict[str, Any]) -> Tuple[str, InlineKeyboardMarku
     return msg, keyboard
 
 
-async def modify_pending_meal(extra: Dict[str, Any], instruction: str) -> Dict[str, Any]:
+async def modify_pending_meal(extra: Dict[str, Any], instruction: str, *, photo_bytes: bytes | None = None) -> Dict[str, Any]:
     """Applies natural language corrections to pending meal (ingredients, grams, macros, meal type) using local LLM."""
     desc = extra.get("description", "Masă")
     items = extra.get("items", [])
@@ -835,68 +915,66 @@ async def modify_pending_meal(extra: Dict[str, Any], instruction: str) -> Dict[s
     carbs = extra.get("carbs", 0)
     fat = extra.get("fat", 0)
 
-    items_repr = json.dumps(items, ensure_ascii=False)
-    prompt = f"""Ești un nutriționist expert care ajustează datele unei mese la cererea utilizatorului.
-
-Date curente ale mesei:
-- Preparat: "{desc}"
-- Tip masă: "{meal_type}"
-- Calorii curente: {calories} kcal
-- Macros curenți: {protein}g P, {carbs}g C, {fat}g F
-- Ingrediente:
-{items_repr}
-
-Instrucțiunea utilizatorului:
-"{instruction}"
-
-Reguli:
-1. Ajustează ingredientele, gramajele, tipul mesei sau denumirea conform instrucțiunii utilizatorului (ex: schimbă cantitatea, adaugă un aliment nou, elimină un ingredient).
-2. Recalculează precis caloriile și macronutrienții (protein, carbs, fat) pentru fiecare aliment și pentru total.
-3. Răspunde STRICT cu un JSON valid:
-{{
-  "description": "Denumire preparat actualizată",
-  "meal_type": "mic_dejun|pranz|cina|gustare",
-  "items": [
-    {{"name": "Denumire aliment", "grams": 150, "calories": 220, "protein": 35, "carbs": 0, "fat": 4}}
-  ]
-}}"""
+    complete, claims = user_food_claims(instruction)
+    barcode_match = re.fullmatch(r"\s*(?:cod(?:ul)? de bare|barcode|ean)\s*[:=]?\s*(\d{8,14})[.!]?\s*", instruction, re.IGNORECASE)
+    if barcode_match:
+        if len(items) != 1:
+            raise ValueError("Spune-mi pentru care aliment este codul de bare.")
+        product = {**items[0], "barcode": barcode_match.group(1), "packaged": True}
+        product.pop("uncertain", None)
+        return {**extra, **await enrich_meal_references({"meal_type": meal_type, "items": [product]}, previous_items=items)}
+    reestimate_words = {
+        "estimeaza", "estimează", "aproximeaza", "aproximează", "estimeaza tu", "estimează tu",
+        "aproximeaza tu", "aproximează tu", "nu stiu gramele", "nu știu gramele",
+        "nu stiu gramajul", "nu știu gramajul",
+    }
+    if instruction.lower().strip().rstrip(".!?") in reestimate_words:
+        reviewed = normalize_meal_proposal(extra, "", items)
+        portions = await estimate_visual_portions(_ollama_client, OLLAMA_FOOD_VISION_MODEL, photo_bytes or b"", reviewed["items"])
+        return {**extra, **await enrich_meal_references({"meal_type": meal_type, "items": portions}, "", items)}
+    if complete and claims:
+        # User-provided identities/counts do not need another model translation.
+        reviewed = normalize_meal_proposal({"meal_type": meal_type, "items": claims}, instruction, items)
+        portions = await estimate_visual_portions(_ollama_client, OLLAMA_FOOD_VISION_MODEL, photo_bytes or b"", reviewed["items"], instruction)
+        return {**extra, **await enrich_meal_references({"meal_type": meal_type, "items": portions}, instruction, items)}
+    if claims and all(has_food_reference(claim["name"]) and (claim.get("grams") is not None or claim.get("count") is not None) for claim in claims):
+        existing_names = {item.get("name") for item in items}
+        if all(claim["name"] in existing_names for claim in claims):
+            return {**extra, **await enrich_meal_references({"meal_type": meal_type, "items": items}, instruction, items)}
+    if complete:
+        # Do not contaminate a full correction with fabricated foods from the photo.
+        desc = "Descrierea anterioară a fost greșită; se înlocuiește complet."
+        items_repr = json.dumps(claims, ensure_ascii=False)
+        calories = protein = carbs = fat = "necunoscut"
+    else:
+        items_repr = json.dumps(items, ensure_ascii=False)
+    prompt = f"""Update a meal proposal. JSON only, numeric fields without units.
+Current description: {desc}. Meal type: {meal_type}.
+Current calories/macros: {calories}, {protein}, {carbs}, {fat}.
+Food list: {items_repr}
+User instruction: {instruction}
+Complete replacement: {complete}
+Rules:
+- For a complete replacement, use ONLY the supplied food list, copy each name EXACTLY, and preserve counts. Ignore all earlier photo guesses.
+- Șnițele = breaded fried meat, Ouă = eggs (fried if pictured), Slănină = pork fat/bacon, Roșie = tomato. Never translate these names into other names.
+- Adjust/add/remove only what was requested. Keep any user_weight grams unless explicitly changed.
+- For counted foods or specified small/medium/large portions, estimate reasonable edible grams with a broad range grams_min/grams_max. Do not set null merely because they are not weighed: the UI clearly labels estimates. Truly unknown quantities remain null, never zero. No measured weight can be inferred from a photograph.
+- Explicit user g/kg weights override estimates. Calories/macros remain estimates for the preparation described. Match calories to 4*protein+4*carbs+9*fat. For each item return ALL four numeric fields or null if impossible to estimate.
+- Preserve any barcode and brand for the SAME food; remove them when replacing the food. For a branded/packaged product set packaged=true. preparation may be raw/fried/boiled/grilled/baked/cooked/toasted/breaded. nutrition_query may contain only the English food name/preparation, never the user's message or personal information.
+- meal_type is mic_dejun, pranz, cina, gustare or masa.
+Schema example (use actual estimates, not the example numbers):
+Return meal_type and items. Each item has name (string), count (number or null), grams/grams_min/grams_max (numbers or null), calories/protein/carbs/fat (numbers or null). Do not copy current values for a different food."""
 
     try:
-        updated_data = await _call_local_llm_json(prompt)
+        updated_data = await asyncio.wait_for(_call_local_llm_json(
+            prompt, max_tokens=2048,
+            model_names=[OLLAMA_FOOD_VISION_MODEL, OLLAMA_STRUCTURED_MODEL, "qwen2.5:3b"],
+        ), timeout=45)
     except Exception as e:
         logger.warning(f"Local LLM failed to modify meal JSON: {e}")
-        return extra
+        raise ValueError("Nu am putut recalcula masa. Datele anterioare au fost păstrate.") from e
 
-    new_extra = dict(extra)
-    if updated_data.get("description"):
-        new_extra["description"] = str(updated_data["description"]).strip()
-    if updated_data.get("meal_type"):
-        new_extra["meal_type"] = str(updated_data["meal_type"]).strip()
-
-    raw_items = updated_data.get("items")
-    if isinstance(raw_items, list) and raw_items:
-        clean_items = []
-        for it in raw_items:
-            if isinstance(it, dict) and "name" in it:
-                try:
-                    clean_items.append({
-                        "name": str(it["name"]).strip(),
-                        "grams": int(it.get("grams") or 0),
-                        "calories": int(it.get("calories") or 0),
-                        "protein": int(it.get("protein") or 0),
-                        "carbs": int(it.get("carbs") or 0),
-                        "fat": int(it.get("fat") or 0),
-                    })
-                except (ValueError, TypeError):
-                    continue
-        if clean_items:
-            new_extra["items"] = clean_items
-            new_extra["calories"] = sum(i["calories"] for i in clean_items)
-            new_extra["protein"] = sum(i["protein"] for i in clean_items)
-            new_extra["carbs"] = sum(i["carbs"] for i in clean_items)
-            new_extra["fat"] = sum(i["fat"] for i in clean_items)
-
-    return new_extra
+    return {**extra, **await enrich_meal_references(updated_data, instruction, items)}
 
 
 async def process_vision_result(
@@ -904,6 +982,8 @@ async def process_vision_result(
     result: Dict[str, Any],
     user_profile: Dict[str, Any],
     client: Any = None,
+    receipt_telegram_file_id: Optional[str] = None,
+    receipt_local_path: Optional[str] = None,
 ) -> Tuple[str, Optional[InlineKeyboardMarkup]]:
     """Routes the extracted data to the corresponding module action or asks for confirmation."""
     img_type = result.get("type")
@@ -966,6 +1046,7 @@ async def process_vision_result(
 
         # The printed receipt total is authoritative. A partial item list is useful
         # for confirmation, but must never replace the total paid by the user.
+        items_reliable = True
         if clean_items:
             items_sum = round(sum(i["price"] for i in clean_items), 2)
             if total_amount is None or abs(float(total_amount) - items_sum) > 0.05:
@@ -974,6 +1055,10 @@ async def process_vision_result(
                 )
                 if total_amount is None:
                     total_amount = items_sum
+                # Discounts, deposits and OCR line pairing can make the item list
+                # unreliable. Never write each guessed line as a separate expense
+                # when it cannot reconcile with the printed amount.
+                items_reliable = False
 
         if total_amount is None and not clean_items:
             return safe_markdown(
@@ -988,8 +1073,11 @@ async def process_vision_result(
             "category": category,
             "description": merchant,
             "items": clean_items,
+            "items_reliable": items_reliable,
             "type": "expense",
             "ocr_text": ocr_text,
+            "receipt_telegram_file_id": receipt_telegram_file_id,
+            "receipt_local_path": receipt_local_path,
         }
         await set_state(
             pool,
@@ -1052,10 +1140,10 @@ Răspunde direct, în română, formatat elegant cu MarkdownV2. Maximum 3 propoz
         return msg, None
 
     elif img_type == "food":
-        calories = int(data.get("total_calories") or 0)
-        protein = int(data.get("total_protein") or 0)
-        carbs = int(data.get("total_carbs") or 0)
-        fat = int(data.get("total_fat") or 0)
+        calories = data.get("total_calories")
+        protein = data.get("total_protein")
+        carbs = data.get("total_carbs")
+        fat = data.get("total_fat")
         description = data.get("description", "Masă")
         meal_type = data.get("meal_type", "masa")
         items = data.get("items") or []
@@ -1068,6 +1156,11 @@ Răspunde direct, în română, formatat elegant cu MarkdownV2. Maximum 3 propoz
             "description": description,
             "meal_type": meal_type,
             "items": items,
+            "nutrition_lookup_incomplete": data.get("nutrition_lookup_incomplete", False),
+            "nutrition_estimated": True,
+            "needs_portion_details": data.get("needs_portion_details", False),
+            "review_questions": data.get("review_questions") or [],
+            "food_telegram_file_id": receipt_telegram_file_id,
         }
         await set_state(
             pool,
@@ -1126,17 +1219,25 @@ async def confirm_vision_action(pool, state: Dict[str, Any]) -> str:
     if action == "log_expense":
         items = extra.get("items") or []
         desc = extra.get("description") or "Bon fiscal"
+        receipt_file_id = extra.get("receipt_telegram_file_id")
+        receipt_local_path = extra.get("receipt_local_path")
 
-        if items:
+        if items and extra.get("items_reliable", True):
             count = 0
             for item in items:
                 name = item.get("name") or "Articol"
                 price = float(item.get("price") or 0)
                 category = (item.get("category") or extra.get("category") or "altele").lower()
                 item_desc = f"{name} ({desc})" if desc and desc != "Necunoscut" else name
-                await log_transaction(
-                    pool, "expense", price, category=category, description=item_desc
-                )
+                transaction_kwargs = {
+                    "category": category,
+                    "description": item_desc,
+                }
+                if receipt_file_id:
+                    transaction_kwargs["receipt_telegram_file_id"] = receipt_file_id
+                if receipt_local_path:
+                    transaction_kwargs["receipt_local_path"] = receipt_local_path
+                await log_transaction(pool, "expense", price, **transaction_kwargs)
                 # Automatically remember product mapping for future receipts
                 try:
                     from db.queries.product_memory import remember_product
@@ -1173,14 +1274,25 @@ async def confirm_vision_action(pool, state: Dict[str, Any]) -> str:
         else:
             amount = float(extra.get("amount") or 0)
             category = extra.get("category", "altele")
-            await log_transaction(
-                pool, "expense", amount, category=category, description=desc
-            )
+            if items and not extra.get("items_reliable", True):
+                logger.warning(
+                    "Receipt line items were not reconciled; logging one authoritative total "
+                    "instead of guessed line-item expenses"
+                )
+            transaction_kwargs = {"category": category, "description": desc}
+            if receipt_file_id:
+                transaction_kwargs["receipt_telegram_file_id"] = receipt_file_id
+            if receipt_local_path:
+                transaction_kwargs["receipt_local_path"] = receipt_local_path
+            await log_transaction(pool, "expense", amount, **transaction_kwargs)
             await clear_state(pool)
             return f"✅ Cheltuială de `{amount:.2f} RON` înregistrată cu succes ({escape_md(category)})."
 
     if action == "meal_log":
         from modules.nutrition import handle_nutrition_intent
+
+        if extra.get("needs_portion_details"):
+            return render_meal_preview(extra)[0]
 
         meal_data = {
             "calories": extra.get("calories", 0),
@@ -1189,13 +1301,18 @@ async def confirm_vision_action(pool, state: Dict[str, Any]) -> str:
             "fat": extra.get("fat", 0),
             "description": extra.get("description", "Masă din poză"),
             "meal_type": extra.get("meal_type", "masa"),
-            "items": extra.get("items") or [],
+            "items": [
+                {**item, "quantity_g": item.get("grams", item.get("quantity_g"))}
+                for item in extra.get("items") or []
+            ],
         }
 
         result = await handle_nutrition_intent(pool, "meal_log", meal_data)
         reply = result[0] if isinstance(result, tuple) else result
+        if str(reply).startswith(("⚠️", "❌")):
+            return reply
         await clear_state(pool)
-        return reply
+        return f"{reply}\n\n_Estimările nutriționale au fost confirmate de tine._"
 
     await clear_state(pool)
     return "Acțiune finalizată."
@@ -1220,6 +1337,11 @@ async def handle_vision_callback(query, pool, callback_data: str):
 
     if callback_data == "vision:confirm":
         action = state.get("action")
+        if action == "meal_log" and (state.get("extra") or {}).get("needs_portion_details"):
+            msg, keyboard = render_meal_preview(state["extra"])
+            await query.answer("Mai am nevoie de identificarea alimentelor neclare.")
+            await query.edit_message_text(msg, parse_mode="MarkdownV2", reply_markup=keyboard)
+            return
         msg = await confirm_vision_action(pool, state)
         answer_text = "Poftă bună!" if action == "meal_log" else "Salvat!"
         await query.answer(answer_text)

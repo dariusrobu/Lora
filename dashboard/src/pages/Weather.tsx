@@ -2,18 +2,15 @@ import { useState, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { motion } from "framer-motion"
 import { CloudSun, Thermometer, Droplets, Wind } from "lucide-react"
-import { Card } from "../components/ui/Card"
-import { Spinner } from "../components/ui/Spinner"
+import { Card, Spinner, PageHeader } from "../components/ui"
 import { fetchWeather } from "../api/queries/weather"
 
 export default function WeatherPage() {
-  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null)
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>({ lat: 46.7555, lon: 23.5556 })
 
   useEffect(() => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      () => {},
-    )
+    // Use the configured home location instead of device GPS.
+    setCoords({ lat: 46.7555, lon: 23.5556 })
   }, [])
 
   const { data, isLoading } = useQuery({
@@ -33,10 +30,8 @@ export default function WeatherPage() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Weather</h1>
-        {w && <p className="text-text-secondary text-sm">{w.city ?? w.name}</p>}
-      </div>
+      <PageHeader title="Weather" />
+      {w && <p className="-mt-4 mb-6 text-sm text-text-secondary">{w.city ?? w.name}</p>}
 
       {w && (
         <Card className="mb-4">
@@ -56,7 +51,7 @@ export default function WeatherPage() {
       )}
 
       {forecast.length > 0 && (
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {forecast.slice(0, 5).map((day: any, i: number) => (
             <Card key={i} className="text-center py-3 px-2">
               <p className="text-xs text-text-secondary mb-1">{day.day ?? day.date ?? `Day ${i + 1}`}</p>

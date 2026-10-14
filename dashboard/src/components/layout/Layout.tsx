@@ -1,34 +1,32 @@
-import { Outlet, useLocation } from "react-router-dom"
-import { motion, AnimatePresence } from "framer-motion"
-import { Header } from "./Header"
+import { NavLink, Outlet } from "react-router-dom"
+import { CalendarDays, FolderKanban, GraduationCap, House, NotebookTabs } from "lucide-react"
 import { MobileTabBar } from "./MobileTabBar"
 import { NotificationProvider } from "../../context/NotificationContext"
+import { CommandPalette } from "../CommandPalette"
+import { useState, useEffect } from "react"
+import "./daily.css"
+
+const navigation = [
+  { to: "/", label: "Azi", icon: House },
+  { to: "/calendar", label: "Calendar", icon: CalendarDays },
+  { to: "/projects", label: "Proiecte", icon: FolderKanban },
+  { to: "/journal", label: "Jurnal", icon: NotebookTabs },
+  { to: "/university", label: "Facultate", icon: GraduationCap },
+]
 
 export function Layout() {
-  const location = useLocation()
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  useEffect(() => { const onKey = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setPaletteOpen(true) } }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey) }, [])
 
   return (
     <NotificationProvider>
-      <div className="min-h-screen bg-bg text-text-primary transition-colors">
-        <div>
-          <Header />
-          <div className="max-w-5xl mx-auto p-4 md:p-6 pb-32 lg:pb-10">
-            <main>
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={location.pathname}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Outlet />
-                </motion.div>
-              </AnimatePresence>
-            </main>
-          </div>
+      <div className="daily-shell">
+        <div className="daily-container">
+          <nav className="daily-desktop-nav" aria-label="Navigație principală">{navigation.map(({ to, label, icon: Icon }) => <NavLink to={to} end={to === "/"} key={to} className={({ isActive }) => `daily-desktop-link ${isActive ? "active" : ""}`}><Icon size={17} strokeWidth={1.8} />{label}</NavLink>)}</nav>
+          <main id="main-content"><Outlet /></main>
         </div>
         <MobileTabBar />
+        <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       </div>
     </NotificationProvider>
   )

@@ -242,12 +242,14 @@ async def fetch_news_articles(
     now = datetime.now(timezone.utc)
     cutoff_time = now - timedelta(hours=48)
 
-    async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0 LoraBot/1.0"}) as client:
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        headers={"User-Agent": "Mozilla/5.0 LoraBot/1.0"},
+    ) as client:
         for cat_key, title, icon, url in feeds_to_fetch:
             try:
                 res = await client.get(url, timeout=7.0)
-                if res.status_code != 200:
-                    continue
+                res.raise_for_status()
                 feed = feedparser.parse(res.content)
                 cat_count = 0
                 max_per_feed = limit if category else max(3, limit // len(feeds_to_fetch))
@@ -283,4 +285,3 @@ async def fetch_news_articles(
 
     articles.sort(key=lambda a: a["published_at"] or "", reverse=True)
     return articles[:limit]
-

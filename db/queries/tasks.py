@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any
-from datetime import date
+from datetime import date, time
 from core.utils import with_retry
 
 
@@ -7,31 +7,39 @@ from core.utils import with_retry
 async def add_task(
     pool,
     title: str,
+    description: Optional[str] = None,
     notes: Optional[str] = None,
     priority: str = "medium",
     due_date: Optional[date] = None,
+    due_time: Optional[time] = None,
     project_id: Optional[int] = None,
     is_recurring: bool = False,
     recurrence: Optional[str] = None,
     university_subject_id: Optional[int] = None,
+    class_type: str = "curs",
+    tags: Optional[List[str]] = None,
 ) -> int:
     async with pool.acquire() as conn:
         max_order = await conn.fetchval("SELECT COALESCE(MAX(sort_order), 0) FROM tasks WHERE deleted_at IS NULL")
         row = await conn.fetchrow(
             """
-            INSERT INTO tasks (title, notes, priority, due_date, project_id, is_recurring, recurrence, sort_order, university_subject_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            INSERT INTO tasks (title, description, notes, priority, due_date, due_time, project_id, is_recurring, recurrence, sort_order, university_subject_id, class_type, tags)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             RETURNING id
             """,
             title,
+            description,
             notes,
             priority,
             due_date,
+            due_time,
             project_id,
             is_recurring,
             recurrence,
             max_order + 1,
             university_subject_id,
+            class_type,
+            tags or [],
         )
         return row["id"]
 
@@ -119,9 +127,10 @@ async def list_tasks(
 ) -> List[Dict[str, Any]]:
     async with pool.acquire() as conn:
         query = """
-            SELECT t.*, p.name AS project_name 
+            SELECT t.*, p.name AS project_name, s.name AS subject_name
             FROM tasks t 
             LEFT JOIN projects p ON t.project_id = p.id 
+            LEFT JOIN subjects s ON t.university_subject_id = s.id
             WHERE t.deleted_at IS NULL
         """
         args = []
@@ -277,10 +286,11 @@ async def get_monthly_task_stats(pool, start_date, end_date) -> dict:
 
 
 async def cleanup_done_tasks(pool, days: int = 30) -> int:
-    """Hard-deletes tasks with status='done' older than `days` days."""
+    """Hides completed tasks older than `days` days while preserving history."""
     async with pool.acquire() as conn:
         result = await conn.execute(
-            "DELETE FROM tasks WHERE status = 'done' AND completed_at < NOW() - make_interval(days => $1)",
+            """UPDATE tasks SET deleted_at = COALESCE(deleted_at, NOW()), updated_at = NOW()
+             WHERE status = 'done' AND completed_at < NOW() - make_interval(days => $1)""",
             days,
         )
         parts = result.split()

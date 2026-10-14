@@ -1,41 +1,49 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom"
-import { useEffect } from "react"
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom"
+import { lazy, Suspense, useEffect } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ErrorBoundary } from "./components/ErrorBoundary"
 import { Layout } from "./components/layout/Layout"
-import Dashboard from "./pages/Dashboard"
-import Plan from "./pages/Plan"
-import Body from "./pages/Body"
-import Mind from "./pages/Mind"
-import Life from "./pages/Life"
-import University from "./pages/University"
-import Tasks from "./pages/Tasks"
-import Notes from "./pages/Notes"
-import Goals from "./pages/Goals"
-import Finance from "./pages/Finance"
-import Health from "./pages/Health"
-import Shopping from "./pages/Shopping"
-import Calendar from "./pages/Calendar"
-import Weather from "./pages/Weather"
-import Mood from "./pages/Mood"
-import Insights from "./pages/Insights"
-import Memory from "./pages/Memory"
-import Focus from "./pages/Focus"
-import Reading from "./pages/Reading"
-import Skills from "./pages/Skills"
-import Workout from "./pages/Workout"
-import Nutrition from "./pages/Nutrition"
-import Places from "./pages/Places"
-import Travel from "./pages/Travel"
-import News from "./pages/News"
-import Login from "./pages/Login"
-import KioskPage from "./pages/Kiosk"
-import SpacePage from "./pages/Space"
-import Chat from "./pages/Chat"
+import DailyHome from "./pages/daily/DailyHome"
+import DailyCalendar from "./pages/daily/DailyCalendar"
+import ProjectBoard from "./pages/daily/ProjectBoard"
+import Journal from "./pages/daily/Journal"
+import More from "./pages/daily/More"
+
+const Dashboard = lazy(() => import("./pages/Dashboard"))
+const Plan = lazy(() => import("./pages/Plan"))
+const Body = lazy(() => import("./pages/Body"))
+const Mind = lazy(() => import("./pages/Mind"))
+const Life = lazy(() => import("./pages/Life"))
+const University = lazy(() => import("./pages/University"))
+const Tasks = lazy(() => import("./pages/Tasks"))
+const Notes = lazy(() => import("./pages/Notes"))
+const Goals = lazy(() => import("./pages/Goals"))
+const Finance = lazy(() => import("./pages/Finance"))
+const Health = lazy(() => import("./pages/Health"))
+const Shopping = lazy(() => import("./pages/Shopping"))
+const Calendar = lazy(() => import("./pages/Calendar"))
+const Weather = lazy(() => import("./pages/Weather"))
+const Mood = lazy(() => import("./pages/Mood"))
+const Insights = lazy(() => import("./pages/Insights"))
+const Memory = lazy(() => import("./pages/Memory"))
+const Focus = lazy(() => import("./pages/Focus"))
+const Reading = lazy(() => import("./pages/Reading"))
+const Skills = lazy(() => import("./pages/Skills"))
+const Workout = lazy(() => import("./pages/Workout"))
+const Nutrition = lazy(() => import("./pages/Nutrition"))
+const Places = lazy(() => import("./pages/Places"))
+const Travel = lazy(() => import("./pages/Travel"))
+const News = lazy(() => import("./pages/News"))
+const Login = lazy(() => import("./pages/Login"))
+const KioskPage = lazy(() => import("./pages/Kiosk"))
+const SpacePage = lazy(() => import("./pages/Space"))
+const Chat = lazy(() => import("./pages/Chat"))
 
 const qc = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
 })
+
+const isTelegramMiniApp = Boolean((window as Window & { Telegram?: { WebApp?: { initData?: string } } }).Telegram?.WebApp?.initData)
 
 export default function App() {
   useEffect(() => {
@@ -53,11 +61,11 @@ export default function App() {
     <QueryClientProvider client={qc}>
       <BrowserRouter>
         <ErrorBoundary>
-          <Routes>
-            <Route path="/login" element={<Login />} />
+          <Suspense fallback={<div className="daily-route-loading" role="status">Se încarcă…</div>}><Routes>
+            <Route path="/login" element={isTelegramMiniApp ? <Navigate to="/" replace /> : <Login />} />
             <Route path="/kiosk" element={<KioskPage />} />
             <Route element={<Layout />}>
-              <Route index element={<Dashboard />} />
+              <Route index element={<DailyHome />} />
               <Route path="plan" element={<Plan />} />
               <Route path="body" element={<Body />} />
               <Route path="mind" element={<Mind />} />
@@ -69,7 +77,12 @@ export default function App() {
               <Route path="finance" element={<Finance />} />
               <Route path="health" element={<Health />} />
               <Route path="shopping" element={<Shopping />} />
-              <Route path="calendar" element={<Calendar />} />
+              <Route path="calendar" element={<DailyCalendar />} />
+              <Route path="projects" element={<ProjectBoard />} />
+              <Route path="journal" element={<Journal />} />
+              <Route path="more" element={<More />} />
+              <Route path="overview" element={<Dashboard />} />
+              <Route path="calendar-legacy" element={<Calendar />} />
               <Route path="weather" element={<Weather />} />
               <Route path="mood" element={<Mood />} />
               <Route path="insights" element={<Insights />} />
@@ -84,9 +97,9 @@ export default function App() {
               <Route path="news" element={<News />} />
               <Route path="space" element={<SpacePage />} />
               <Route path="chat" element={<Chat />} />
-              <Route path="*" element={<Dashboard />} />
+              <Route path="*" element={<DailyHome />} />
             </Route>
-          </Routes>
+          </Routes></Suspense>
         </ErrorBoundary>
       </BrowserRouter>
     </QueryClientProvider>

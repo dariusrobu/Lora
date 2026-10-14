@@ -1,8 +1,8 @@
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { motion } from "framer-motion"
-import { StickyNote, Pin, Trash2, Plus } from "lucide-react"
-import { Card, Button, Badge, Spinner } from "../components/ui"
+import { Trash2, Plus } from "lucide-react"
+import { Card, Button, Badge, Spinner, PageHeader } from "../components/ui"
 import type { Note } from "../types"
 import { fetchNotes, createNote, deleteNote } from "../api/queries/notes"
 
@@ -42,15 +42,7 @@ export default function Notes() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <StickyNote className="h-6 w-6 text-blue-500" />
-          <h1 className="text-2xl font-bold">Notes</h1>
-        </div>
-        <Button onClick={() => setModalOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> New Note
-        </Button>
-      </div>
+      <PageHeader title="Notes" action={<Button onClick={() => setModalOpen(true)}><Plus className="h-4 w-4 mr-1" /> New note</Button>} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {notes?.map((note) => (

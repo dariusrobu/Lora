@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS user_profile (
     telegram_id           BIGINT UNIQUE NOT NULL,
     name                  TEXT,
     timezone              TEXT DEFAULT 'Europe/Bucharest',
-    morning_time          TEXT DEFAULT '08:00',
+    morning_time          TEXT DEFAULT '07:00',
     eod_time              TEXT DEFAULT '21:00',
     tone                  TEXT DEFAULT 'warm',   -- warm | direct | brief
     personal_notes        TEXT,                  -- freeform facts Lora knows
@@ -472,7 +472,7 @@ CREATE TABLE IF NOT EXISTS semester_config (
     created_at TIMESTAMP DEFAULT NOW()
 );
 -- Default seed if empty
-INSERT INTO semester_config (semester_start) VALUES ('2026-02-23') ON CONFLICT DO NOTHING;
+INSERT INTO semester_config (semester_start) VALUES ('2026-09-28') ON CONFLICT DO NOTHING;
 
 -- ── University Schedule ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS subjects (
@@ -659,4 +659,3 @@ CREATE TABLE IF NOT EXISTS feedback (
     user_correction TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
-

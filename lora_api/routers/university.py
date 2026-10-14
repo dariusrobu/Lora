@@ -19,6 +19,29 @@ async def create_subject(data: dict, user=Depends(get_current_user)):
     return {"id": subject_id, "status": "created"}
 
 
+@router.put("/subjects/{subject_id}")
+async def update_subject(subject_id: int, data: dict, user=Depends(get_current_user)):
+    """Actualizează metadatele unei materii fără a modifica istoricul academic."""
+    import db.queries.university as q
+    allowed = {"name", "professor", "credits", "total_classes", "total_seminars", "min_attendance_pct"}
+    updates = {key: data[key] for key in allowed if key in data}
+    if "name" in updates and not str(updates["name"]).strip():
+        raise HTTPException(status_code=422, detail="name is required")
+    if not updates:
+        raise HTTPException(status_code=422, detail="Nu există câmpuri de actualizat")
+    pool = await get_pool()
+    await q.update_subject(pool, subject_id, **updates)
+    return {"id": subject_id, "status": "updated"}
+
+
+@router.delete("/subjects/{subject_id}")
+async def delete_subject(subject_id: int, user=Depends(get_current_user)):
+    import db.queries.university as q
+    pool = await get_pool()
+    await q.delete_subject(pool, subject_id)
+    return {"id": subject_id, "status": "deleted"}
+
+
 @router.post("/grades")
 async def create_grade(data: dict, user=Depends(get_current_user)):
     import db.queries.university as q
@@ -28,6 +51,21 @@ async def create_grade(data: dict, user=Depends(get_current_user)):
         raise HTTPException(status_code=422, detail="subject_id and grade are required")
     grade_id = await q.add_grade_with_weight(pool, int(subject_id), float(data["grade"]), data.get("grade_type", "exam"), data.get("weight"), data.get("assessment_title"), data.get("assessment_date"), data.get("notes"))
     return {"id": grade_id, "status": "created"}
+
+@router.put("/grades/{grade_id}")
+async def update_grade(grade_id: int, data: dict, user=Depends(get_current_user)):
+    import db.queries.university as q
+    allowed = {"grade", "grade_type", "weight", "assessment_title", "assessment_date", "notes"}
+    updates = {k: data[k] for k in allowed if k in data}
+    if not updates: raise HTTPException(status_code=422, detail="Nu există câmpuri de actualizat")
+    pool = await get_pool(); await q.update_grade(pool, grade_id, **updates)
+    return {"id": grade_id, "status": "updated"}
+
+@router.delete("/grades/{grade_id}")
+async def delete_grade(grade_id: int, user=Depends(get_current_user)):
+    import db.queries.university as q
+    await q.delete_grade(await get_pool(), grade_id)
+    return {"id": grade_id, "status": "deleted"}
 
 
 @router.post("/exams")
@@ -44,6 +82,21 @@ async def create_exam(data: dict, user=Depends(get_current_user)):
     exam_id = await q.add_exam(pool, int(data["subject_id"]), exam_date, data.get("exam_type", "final"), data.get("room"), data.get("notes"))
     return {"id": exam_id, "status": "created"}
 
+@router.put("/exams/{exam_id}")
+async def update_exam(exam_id: int, data: dict, user=Depends(get_current_user)):
+    import db.queries.university as q
+    allowed = {"exam_date", "exam_type", "room", "notes"}
+    updates = {k: data[k] for k in allowed if k in data}
+    if not updates: raise HTTPException(status_code=422, detail="Nu există câmpuri de actualizat")
+    await q.update_exam(await get_pool(), exam_id, **updates)
+    return {"id": exam_id, "status": "updated"}
+
+@router.delete("/exams/{exam_id}")
+async def delete_exam(exam_id: int, user=Depends(get_current_user)):
+    import db.queries.university as q
+    await q.delete_exam(await get_pool(), exam_id)
+    return {"id": exam_id, "status": "deleted"}
+
 
 @router.post("/attendance")
 async def create_attendance(data: dict, user=Depends(get_current_user)):
@@ -56,8 +109,29 @@ async def create_attendance(data: dict, user=Depends(get_current_user)):
         class_date = date.fromisoformat(str(data["class_date"]))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail="class_date must use YYYY-MM-DD") from exc
-    attendance_id = await q.log_attendance(pool, int(data["subject_id"]), bool(data["attended"]), class_date, data.get("notes"))
+    class_type = data.get("class_type", "curs")
+    if class_type not in {"curs", "seminar"}:
+        raise HTTPException(status_code=422, detail="class_type trebuie să fie curs sau seminar")
+    try:
+        attendance_id = await q.log_attendance(pool, int(data["subject_id"]), bool(data["attended"]), class_date, data.get("notes"), class_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return {"id": attendance_id, "status": "created"}
+
+@router.put("/attendance/{attendance_id}")
+async def update_attendance(attendance_id: int, data: dict, user=Depends(get_current_user)):
+    import db.queries.university as q
+    allowed = {"attended", "class_date", "notes"}
+    updates = {k: data[k] for k in allowed if k in data}
+    if not updates: raise HTTPException(status_code=422, detail="Nu există câmpuri de actualizat")
+    await q.update_attendance(await get_pool(), attendance_id, **updates)
+    return {"id": attendance_id, "status": "updated"}
+
+@router.delete("/attendance/{attendance_id}")
+async def delete_attendance(attendance_id: int, user=Depends(get_current_user)):
+    import db.queries.university as q
+    await q.delete_attendance(await get_pool(), attendance_id)
+    return {"id": attendance_id, "status": "deleted"}
 
 
 @router.get("/summary")
@@ -97,15 +171,18 @@ async def uni_work(user=Depends(get_current_user)):
 
 
 @router.get("/schedule")
-async def uni_schedule(user=Depends(get_current_user)):
+async def uni_schedule(week_type: str = "current", user=Depends(get_current_user)):
     """Returnează orarul activ, grupat pentru afișarea în modulul University."""
     import db.queries.schedule as q
     pool = await get_pool()
-    week_type = await q.get_current_week_type(pool)
+    current_week_type = await q.get_current_week_type(pool)
     rows = await q.get_full_schedule(pool)
-    visible = [r for r in rows if r.get("week_type") in ("both", week_type)]
+    if week_type not in {"current", "odd", "even", "all"}:
+        raise HTTPException(status_code=422, detail="week_type invalid")
+    selected_week_type = current_week_type if week_type == "current" else week_type
+    visible = rows if selected_week_type == "all" else [r for r in rows if r.get("week_type") in ("both", selected_week_type)]
     return {
-        "week_type": week_type,
+        "week_type": selected_week_type,
         "items": [clean_dict(row) for row in sorted(visible, key=lambda r: (r.get("day_of_week", 0), r.get("start_time") or ""))],
     }
 
@@ -113,6 +190,7 @@ async def uni_schedule(user=Depends(get_current_user)):
 @router.post("/schedule")
 async def create_schedule_entry(data: UniversityScheduleRequest, user=Depends(get_current_user)):
     import db.queries.schedule as q
+    import db.queries.university as uq
     from datetime import time
     try:
         start = time.fromisoformat(data.start_time)
@@ -123,6 +201,9 @@ async def create_schedule_entry(data: UniversityScheduleRequest, user=Depends(ge
     if day < 0 or day > 6 or end <= start:
         raise HTTPException(status_code=422, detail="Intervalul orar nu este valid")
     pool = await get_pool()
+    subject = await uq.get_subject_by_name(pool, data.subject_name)
+    if not subject:
+        raise HTTPException(status_code=422, detail="Materia trebuie să existe și să fie activă")
     async with pool.acquire() as conn:
         conflict = await conn.fetchval(
             """SELECT EXISTS (SELECT 1 FROM schedule WHERE is_active = TRUE AND day_of_week = $1
@@ -132,7 +213,10 @@ async def create_schedule_entry(data: UniversityScheduleRequest, user=Depends(ge
         )
     if conflict:
         raise HTTPException(status_code=409, detail="Există deja o activitate în acest interval")
-    entry_id = await q.add_schedule_entry(pool, data.subject_name, day, start, end, data.room, data.class_type, data.week_type)
+    entry_id = await q.add_schedule_entry(
+        pool, data.subject_name, day, start, end, data.room, data.class_type,
+        data.week_type, subject_id=subject["id"],
+    )
     return {"id": entry_id, "status": "created"}
 
 

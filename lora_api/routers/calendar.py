@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from lora_api.auth import get_current_user
+from lora_api.auth import get_current_user, require_standd_token
 from lora_api.database import get_pool
 from lora_api.serializers import clean_dict
 from datetime import date, timedelta
@@ -27,7 +27,7 @@ async def get_events_for_range(pool, start: date, end: date):
         return [dict(r) for r in rows]
 
 
-@router.get("/calendar/week")
+@router.get("/calendar/week", dependencies=[Depends(require_standd_token)])
 async def calendar_week(ref_date: str = None, user=Depends(get_current_user)):
     import db.queries.schedule as sq
     pool = await get_pool()
@@ -80,6 +80,15 @@ async def create_event(data: dict, user=Depends(get_current_user)):
         description=data.get("description"),
         event_type=data.get("type", "event"),
     )
+
+    # A mini-app-created event must follow the same projection path as a
+    # Telegram-created event: iCloud immediately, Obsidian asynchronously.
+    import asyncio
+    from core.icloud import sync_events_table_to_calendar
+    from integrations.obsidian_sync import sync_vault_safe
+
+    asyncio.create_task(sync_events_table_to_calendar(pool))
+    asyncio.create_task(sync_vault_safe(pool))
     return {"id": eid, "status": "created"}
 
 

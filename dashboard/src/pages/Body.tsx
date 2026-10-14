@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ChevronDown } from "lucide-react"
+import { ModeSelector, PageHeader } from "../components/ui"
 import Health from "./Health"
 import Workout from "./Workout"
 import Nutrition from "./Nutrition"
@@ -21,7 +21,7 @@ export default function Body() {
     <div className="card-liquid-page">
       <div className="card-liquid-page-content p-6">
         <div>
-          <label className="relative mb-6 flex w-fit items-center gap-2 text-sm font-semibold text-text-primary"><span>Body · {tabs.find((t) => t.key === active)?.label}</span><ChevronDown className="w-4 h-4 text-text-muted" /><select value={active} onChange={(e) => setActive(e.target.value as TabKey)} className="absolute inset-0 cursor-pointer opacity-0" aria-label="Alege secțiunea Body">{tabs.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select></label>
+          <PageHeader eyebrow="Spatial OS · Wellness" title="Body" description="Sănătate, mișcare și energie într-o vedere simplă." action={<ModeSelector value={active} options={tabs.map((t) => ({ value: t.key, label: t.label }))} onChange={setActive} />} />
       {active === "health" && <Health />}
       {active === "workout" && <Workout />}
       {active === "nutrition" && <Nutrition />}

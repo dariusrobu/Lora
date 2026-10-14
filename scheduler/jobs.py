@@ -1,6 +1,7 @@
 from bot.callback_utils import make_callback_data
 import asyncio
 import json
+import re
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from core.icloud import (
     sync_events_table_to_calendar,
@@ -14,17 +15,46 @@ from core.config import (
     MORNING_BRIEFING_TIME,
     EOD_REFLECTION_TIME,
     HABIT_REMINDER_TIME,
-    TASK_CLEANUP_DAYS,
+    OBSIDIAN_SYNC_INTERVAL_MINUTES,
 )
 from bot.formatter import escape_md, safe_markdown
 from telegram.constants import ParseMode
-from telegram.error import NetworkError, TimedOut
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.error import BadRequest, NetworkError, TimedOut
 import db.queries.profile as profile_queries
 import db.queries.tasks as task_queries
 import db.queries.skills as skill_queries
 import db.queries.events as event_queries
 import db.queries.finance as finance_queries
 import db.queries.health as health_queries
+
+
+async def send_study_review(application, pool) -> None:
+    """Send a short local Obsidian study review without invoking an LLM."""
+    try:
+        from core.config import OBSIDIAN_VAULT_PATH
+        from pathlib import Path
+
+        root = Path(OBSIDIAN_VAULT_PATH) / "05 University" / "Subjects"
+        summaries = list(root.rglob("*.summary.md")) if root.is_dir() else []
+        flashcards = list(root.rglob("*.flashcards.md")) if root.is_dir() else []
+        if not summaries and not flashcards:
+            return
+        text = (
+            "📚 *Review de studiu*\n\n"
+            f"Ai {len(summaries)} summary-uri și {len(flashcards)} seturi de flashcards în Obsidian.\n"
+            "Deschide pagina `00 Dashboard/Review.md` pentru recapitularea de azi."
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Începe review", callback_data=make_callback_data("study_review", "open")),
+             InlineKeyboardButton("⏰ Mai târziu", callback_data=make_callback_data("study_review", "later"))]
+        ])
+        await _send_telegram_with_retry(
+            application.bot, chat_id=TELEGRAM_USER_ID, text=text,
+            parse_mode=ParseMode.MARKDOWN_V2, reply_markup=keyboard,
+        )
+    except Exception as exc:
+        print(f"Study review failed: {type(exc).__name__}", flush=True)
 
 
 def _notification_config(profile: dict) -> dict:
@@ -54,6 +84,24 @@ async def _send_telegram_with_retry(bot, **kwargs):
             )
             await asyncio.sleep(delay)
             delay *= 2
+
+
+def _plain_telegram_text(text: str) -> str:
+    """Remove MarkdownV2 control characters for a safe plain-text retry."""
+    return re.sub(r"[\\*_`~>#+=|{}.!()\[\]-]", "", text)
+
+
+async def _send_telegram_safe(bot, **kwargs):
+    """Send MarkdownV2 and retry as plain text when Telegram rejects formatting."""
+    try:
+        return await _send_telegram_with_retry(bot, **kwargs)
+    except BadRequest as exc:
+        if "parse entities" not in str(exc).lower() and "can't parse" not in str(exc).lower():
+            raise
+        fallback = dict(kwargs)
+        fallback.pop("parse_mode", None)
+        fallback["text"] = _plain_telegram_text(str(fallback.get("text", "")))
+        return await _send_telegram_with_retry(bot, **fallback)
 
 
 async def _build_eod_payload(pool) -> dict:
@@ -175,6 +223,35 @@ async def send_daily_report(application, pool) -> bool:
     return False
 
 
+async def sync_obsidian_job(pool) -> None:
+    """Export local Lora data to the configured Obsidian vault."""
+    try:
+        from integrations.obsidian_bidirectional import sync_calendar_from_obsidian
+        from integrations.obsidian_sync import sync_vault_safe
+
+        imported = await sync_calendar_from_obsidian(pool)
+        if imported.get("updated"):
+            print(f"Obsidian import: {imported['updated']} calendar records updated.", flush=True)
+        result = await sync_vault_safe(pool)
+        if result.get("written"):
+            print(f"Obsidian sync: {result['written']} notes updated.", flush=True)
+    except Exception as exc:
+        # Obsidian is an optional local projection; it must never stop the bot.
+        print(f"Obsidian sync skipped: {type(exc).__name__}", flush=True)
+
+
+async def process_obsidian_job(pool) -> None:
+    """Analyze changed user-authored Obsidian files locally into drafts."""
+    try:
+        from integrations.obsidian_processor import process_vault_safe
+
+        result = await process_vault_safe()
+        if result.get("processed"):
+            print(f"Obsidian processing: {result['processed']} draft(s) created.", flush=True)
+    except Exception as exc:
+        print(f"Obsidian processing skipped: {type(exc).__name__}", flush=True)
+
+
 # NOTE: This bot uses long polling and should NOT be run in multiple instances simultaneously.
 # A PID lock file (lora.pid) in main.py prevents duplicate polling instances.
 
@@ -243,8 +320,22 @@ async def check_wake_time_and_schedule(application, pool):
         traceback.print_exc()
 
 
+_icloud_rate_limited_until: datetime | None = None
+_icloud_sync_lock = asyncio.Lock()
+
+
 async def sync_calendar_job(pool):
+    """Run at most one iCloud sync at a time."""
+    if _icloud_sync_lock.locked():
+        print("⏭️ Apple Sync already running; skipping overlapping run.", flush=True)
+        return
+    async with _icloud_sync_lock:
+        await _sync_calendar_job_impl(pool)
+
+
+async def _sync_calendar_job_impl(pool):
     """Background job to keep Apple Calendar and Reminders in sync."""
+    global _icloud_rate_limited_until
     import asyncio
     from core.icloud import (
         sync_university_schedule_to_calendar,
@@ -254,21 +345,35 @@ async def sync_calendar_job(pool):
         sync_exams_to_calendar,
     )
 
+    now = datetime.now(pytz.UTC)
+    if _icloud_rate_limited_until and now < _icloud_rate_limited_until:
+        remaining = int((_icloud_rate_limited_until - now).total_seconds() / 60) + 1
+        print(f"⏸️ Apple Sync paused by iCloud rate limit ({remaining} min remaining).", flush=True)
+        return
+
     print("⏳ Starting periodic Apple Sync (Calendar & Reminders)...", flush=True)
     for attempt in range(3):
         try:
-            await asyncio.gather(
-                cleanup_calendar_orphans(pool),
-                sync_university_schedule_to_calendar(pool),
-                sync_events_table_to_calendar(pool),
-                sync_tasks_with_deadlines(pool),
-                sync_exams_to_calendar(pool),
-                sync_tasks_to_reminders(pool),
-                sync_from_icloud_to_lora(pool),
-            )
+            await cleanup_calendar_orphans(pool)
+            await sync_university_schedule_to_calendar(pool)
+            await sync_events_table_to_calendar(pool)
+            await sync_tasks_with_deadlines(pool)
+            await sync_exams_to_calendar(pool)
+            await sync_tasks_to_reminders(pool)
+            await sync_from_icloud_to_lora(pool)
             print("✅ Periodic Apple Sync completed.", flush=True)
             return
         except Exception as exc:
+            message = str(exc)
+            rate_match = re.search(r"Retry after:\s*(\d+)", message, re.IGNORECASE)
+            if "RateLimitError" in type(exc).__name__ or "rate limit" in message.lower() or rate_match:
+                retry_seconds = int(rate_match.group(1)) if rate_match else 3600
+                _icloud_rate_limited_until = datetime.now(pytz.UTC) + timedelta(seconds=retry_seconds)
+                print(
+                    f"Apple Sync rate-limited by iCloud; pausing for {retry_seconds // 60} minutes.",
+                    flush=True,
+                )
+                return
             if attempt == 2:
                 print(f"Apple Sync unavailable after 3 attempts: {type(exc).__name__}", flush=True)
                 return
@@ -377,6 +482,10 @@ CUPRINS (Păstrează toate secțiunile, ignoră doar dacă e complet gol):
 8. 💡 INSIGHT: Sfat motivațional scurt.
 9. ⚔️ PROVOCAREA ZILEI: Acțiune concretă.
 
+PROGRAM ACADEMIC EXACT — OBLIGATORIU:
+{briefing_data.get("university", {}).get("schedule_text", "- Nu sunt cursuri programate astăzi.")}
+Include TOATE liniile de mai sus, exact în această ordine. Nu elimina, combina, rezuma sau reordona niciun curs. Dacă există program academic, nu ai voie să spui doar primul și ultimul curs.
+
 REGULI STRICTE DE FORMAT:
 - MarkdownV2 (caractere RAW).
 - Folosește DOAR * pentru bold. 
@@ -443,7 +552,10 @@ REGULI STRICTE DE FORMAT:
 
             podcast_instruction = f"""Ești Lora. Generezi un podcast vocal scurt bazat pe briefing-ul de azi. 
 Scrie să sune natural când e citit cu voce, EXCLUSIV în limba română (MAXIM 200 cuvinte).
-Salută-l pe {name}, prezintă prioritățile și încheie motivant. Fără liste, fără titluri."""
+Salută-l pe {name}, prezintă prioritățile și încheie motivant. Fără liste, fără titluri.
+Pentru programul academic, rostește fiecare activitate și fiecare interval exact din această linie:
+{briefing_data.get("university", {}).get("spoken_schedule_text", "Nu sunt cursuri programate astăzi.")}
+Nu omite activități și nu schimba intervalele. Folosește formularea „de la ora X la ora Y”."""
 
             tts_input = await get_proactive_response(
                 podcast_instruction, briefing_text_raw
@@ -540,7 +652,7 @@ async def check_contextual_nudges(application, pool):
                 async with pool.acquire() as conn:
                     # Check if any workout logged today
                     logged_today = await conn.fetchval(
-                        "SELECT EXISTS(SELECT 1 FROM workout_logs WHERE log_date = CURRENT_DATE)"
+                        "SELECT EXISTS(SELECT 1 FROM workouts WHERE workout_date = CURRENT_DATE)"
                     )
                     if not logged_today:
                         # Check if user has any active streak
@@ -1346,7 +1458,8 @@ MAX 200 cuvinte. DOAR textul review-ului, fără introducere/concluzie extra.
         if not review_text:
             review_text = f"📊 *Review Lunar — {month_name_ro} {prev_year}*\n\nLuna aceasta ai completat {task_stats['completed']} tasks din {task_stats['created']} create."
 
-        await application.bot.send_message(
+        await _send_telegram_safe(
+            application.bot,
             chat_id=TELEGRAM_USER_ID,
             text=safe_markdown(review_text),
             parse_mode=ParseMode.MARKDOWN_V2,
@@ -1471,7 +1584,8 @@ async def send_weekly_finance_summary(application, pool) -> None:
         )
 
         # 5. Send Telegram message
-        await application.bot.send_message(
+        await _send_telegram_safe(
+            application.bot,
             chat_id=TELEGRAM_USER_ID, text=message, parse_mode=ParseMode.MARKDOWN_V2
         )
 
@@ -1495,6 +1609,30 @@ async def reset_budget_alerts(application, pool) -> None:
     print("Budget alert flags reset successfully.", flush=True)
 
 
+async def reset_weekly_budget_alerts(application, pool) -> None:
+    """Resets weekly budget thresholds at the start of each week."""
+    await finance_queries.reset_weekly_budget_alerts(pool)
+
+
+async def check_budget_alerts(application, pool) -> None:
+    """Sends a concise Telegram alert when a configured budget crosses 80/100%."""
+    try:
+        alerts = await finance_queries.claim_budget_alerts(pool)
+        for alert in alerts:
+            verb = "ai ajuns la" if alert["threshold"] == 80 else "ai depășit"
+            await _send_telegram_with_retry(
+                application.bot,
+                chat_id=TELEGRAM_USER_ID,
+                text=(
+                    f"💸 Buget {alert['period']} — {escape_md(str(alert['category']))}: "
+                    f"{verb} {alert['threshold']}% ({alert['spent']:.2f}/{alert['limit']:.2f} RON)."
+                ),
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+    except Exception as exc:
+        print(f"Budget alert check failed: {exc}", flush=True)
+
+
 async def check_event_reminders(application, pool):
     """Checks for upcoming events and sends both early (e.g. 30 min before) and exact-time reminders."""
     try:
@@ -1503,6 +1641,8 @@ async def check_event_reminders(application, pool):
 
         # 1. Early warnings (e.g. 30 min before)
         pre_events = await event_queries.get_events_needing_pre_reminder(pool)
+        if pre_events:
+            print(f"Reminder pre-check: {len(pre_events)} candidate(s)", flush=True)
         for e in pre_events:
             remind_min = e.get("remind_before_minutes", 30)
             time_str = (
@@ -1533,7 +1673,8 @@ async def check_event_reminders(application, pool):
             )
 
             try:
-                await application.bot.send_message(
+                await _send_telegram_with_retry(
+                    application.bot,
                     chat_id=TELEGRAM_USER_ID,
                     text=msg,
                     parse_mode=ParseMode.MARKDOWN_V2,
@@ -1541,7 +1682,8 @@ async def check_event_reminders(application, pool):
                 )
             except Exception as err:
                 print(f"Pre-reminder MarkdownV2 failed, falling back: {err}", flush=True)
-                await application.bot.send_message(
+                await _send_telegram_with_retry(
+                    application.bot,
                     chat_id=TELEGRAM_USER_ID,
                     text=msg,
                     reply_markup=keyboard,
@@ -1552,6 +1694,8 @@ async def check_event_reminders(application, pool):
 
         # 2. Exact-time reminders
         exact_events = await event_queries.get_events_needing_exact_reminder(pool)
+        if exact_events:
+            print(f"Reminder exact-check: {len(exact_events)} candidate(s)", flush=True)
         for e in exact_events:
             time_str = (
                 e["event_time"].strftime("%H:%M")
@@ -1581,7 +1725,8 @@ async def check_event_reminders(application, pool):
             )
 
             try:
-                await application.bot.send_message(
+                await _send_telegram_with_retry(
+                    application.bot,
                     chat_id=TELEGRAM_USER_ID,
                     text=msg,
                     parse_mode=ParseMode.MARKDOWN_V2,
@@ -1589,7 +1734,8 @@ async def check_event_reminders(application, pool):
                 )
             except Exception as err:
                 print(f"Exact reminder MarkdownV2 failed, falling back: {err}", flush=True)
-                await application.bot.send_message(
+                await _send_telegram_with_retry(
+                    application.bot,
                     chat_id=TELEGRAM_USER_ID,
                     text=msg,
                     reply_markup=keyboard,
@@ -1719,7 +1865,8 @@ async def check_habit_reminders(application, pool) -> None:
 
         keyboard = InlineKeyboardMarkup(keyboard_buttons)
 
-        await application.bot.send_message(
+        await _send_telegram_safe(
+            application.bot,
             chat_id=TELEGRAM_USER_ID,
             text=msg,
             parse_mode=ParseMode.MARKDOWN_V2,
@@ -1743,12 +1890,39 @@ async def check_task_deadline_reminders(application, pool) -> None:
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """
-                SELECT t.id, t.title, t.due_date, t.priority, p.name as project_name
+                SELECT t.id, t.title, t.due_date, t.due_time, t.priority, p.name as project_name,
+                       CASE
+                           WHEN t.due_time IS NULL AND EXTRACT(HOUR FROM (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')) >= 19 THEN '19'
+                           ELSE '09'
+                       END AS reminder_slot
                 FROM tasks t
                 LEFT JOIN projects p ON t.project_id = p.id
                 WHERE t.status = 'pending' AND t.deleted_at IS NULL
                   AND t.due_date IS NOT NULL
-                  AND t.due_date <= CURRENT_DATE + INTERVAL '1 day'
+                  AND t.due_date <= (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::date
+                  AND (
+                      (t.due_time IS NOT NULL AND (
+                          t.due_date < (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::date
+                          OR t.due_time <= (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time
+                      ))
+                      OR
+                      (t.due_time IS NULL AND (
+                          ((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time >= TIME '09:00'
+                           AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time < TIME '09:05')
+                          OR
+                          ((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time >= TIME '19:00'
+                           AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time < TIME '19:05')
+                      ))
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM task_deadline_reminders_sent sent
+                      WHERE sent.task_id = t.id
+                        AND sent.reminder_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::date
+                        AND sent.reminder_slot = CASE
+                            WHEN t.due_time IS NULL AND EXTRACT(HOUR FROM (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')) >= 19 THEN '19'
+                            ELSE '09'
+                        END
+                  )
                 ORDER BY 
                     CASE t.priority 
                         WHEN 'high' THEN 1 
@@ -1763,14 +1937,15 @@ async def check_task_deadline_reminders(application, pool) -> None:
         if not rows:
             return
 
-        overdue = [t for t in rows if t["due_date"] < datetime.now().date()]
-        due_today = [t for t in rows if t["due_date"] == datetime.now().date()]
+        today = datetime.now().date()
+        overdue = [t for t in rows if t["due_date"] < today]
+        due_today = [t for t in rows if t["due_date"] == today]
 
         from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 
         if overdue:
             overdue_list = "\n".join(
-                f"• [{p}] {escape_md(t['title'])}"
+                f"• *{escape_md(p)}*: {escape_md(t['title'])}"
                 for t, p in [
                     (t, t.get("project_name") or "fără proiect") for t in overdue
                 ]
@@ -1781,7 +1956,7 @@ async def check_task_deadline_reminders(application, pool) -> None:
 
         if due_today:
             due_list = "\n".join(
-                f"• [{p}] {escape_md(t['title'])}"
+                f"• *{escape_md(p)}*: {escape_md(t['title'])}"
                 for t, p in [
                     (t, t.get("project_name") or "fără proiect") for t in due_today
                 ]
@@ -1810,6 +1985,16 @@ async def check_task_deadline_reminders(application, pool) -> None:
             reply_markup=keyboard,
         )
 
+        async with pool.acquire() as conn:
+            await conn.executemany(
+                """
+                INSERT INTO task_deadline_reminders_sent (task_id, reminder_date, reminder_slot)
+                VALUES ($1, (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::date, $2)
+                ON CONFLICT (task_id, reminder_date, reminder_slot) DO NOTHING
+                """,
+                [(int(task["id"]), task["reminder_slot"]) for task in rows],
+            )
+
         print(
             f"Task deadline reminder sent: {len(overdue)} overdue, {len(due_today)} due today",
             flush=True,
@@ -1820,6 +2005,24 @@ async def check_task_deadline_reminders(application, pool) -> None:
         import traceback
 
         traceback.print_exc()
+
+
+async def check_university_exam_reminders(application, pool) -> None:
+    """Send one Telegram reminder for university exams happening tomorrow."""
+    try:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("""SELECT e.id, e.subject_name, e.exam_date, e.exam_type
+                FROM exams e JOIN subjects s ON s.id = e.subject_id
+                WHERE s.is_active = TRUE AND e.exam_date = CURRENT_DATE + 1
+                  AND NOT EXISTS (SELECT 1 FROM university_exam_reminders r WHERE r.exam_id = e.id)""")
+            for row in rows:
+                text = (f"🎓 *Examen mâine*\n\n*{escape_md(row['subject_name'])}* — "
+                        f"{escape_md(row['exam_type'] or 'examen')}\\.")
+                await _send_telegram_with_retry(application.bot, chat_id=TELEGRAM_USER_ID,
+                    text=text, parse_mode=ParseMode.MARKDOWN_V2)
+                await conn.execute("INSERT INTO university_exam_reminders (exam_id, reminder_date) VALUES ($1, CURRENT_DATE) ON CONFLICT DO NOTHING", row["id"])
+    except Exception as e:
+        print(f"Error in university exam reminders: {e}", flush=True)
 
 
 async def check_budget_forecast(application, pool):
@@ -1871,11 +2074,11 @@ async def check_proactive_insights(application, pool) -> None:
 
 
 async def cleanup_done_tasks_job(pool):
-    """Delete completed tasks older than TASK_CLEANUP_DAYS."""
+    """Hide completed tasks after seven days while retaining their history."""
     try:
-        deleted = await task_queries.cleanup_done_tasks(pool, TASK_CLEANUP_DAYS)
-        if deleted:
-            print(f"🧹 Cleaned {deleted} done tasks older than {TASK_CLEANUP_DAYS} days.", flush=True)
+        hidden = await task_queries.cleanup_done_tasks(pool, 7)
+        if hidden:
+            print(f"🧹 Hid {hidden} completed tasks older than 7 days.", flush=True)
     except Exception as e:
         print(f"Error in cleanup_done_tasks_job: {e}", flush=True)
 
@@ -2063,6 +2266,24 @@ def setup_scheduler(application, pool):
         args=[application, pool],
     )
 
+    scheduler.add_job(
+        reset_weekly_budget_alerts,
+        "cron",
+        day_of_week="mon",
+        hour=0,
+        minute=0,
+        misfire_grace_time=3600,
+        args=[application, pool],
+    )
+
+    scheduler.add_job(
+        check_budget_alerts,
+        "interval",
+        minutes=15,
+        misfire_grace_time=300,
+        args=[application, pool],
+    )
+
     # University Attendace Warning (Insight) - Daily at 09:00
     scheduler.add_job(
         check_proactive_insights,
@@ -2111,13 +2332,17 @@ def setup_scheduler(application, pool):
         args=[application, pool],
     )
 
-    # Task deadline reminder - Daily at 09:00
+    # Task deadline reminder - every 5 minutes, once per task/day
     scheduler.add_job(
         check_task_deadline_reminders,
-        "cron",
-        hour=9,
-        minute=0,
-        misfire_grace_time=3600,
+        "interval",
+        minutes=5,
+        misfire_grace_time=300,
+        args=[application, pool],
+    )
+    scheduler.add_job(
+        check_university_exam_reminders,
+        "cron", hour=9, minute=5, misfire_grace_time=3600,
         args=[application, pool],
     )
 
@@ -2178,6 +2403,32 @@ def setup_scheduler(application, pool):
         "interval",
         minutes=CALENDAR_SYNC_INTERVAL,
         args=[pool],
+    )
+
+    # ━━━ LOCAL OBSIDIAN PROJECTION ━━━
+    scheduler.add_job(
+        sync_obsidian_job,
+        "interval",
+        minutes=max(1, OBSIDIAN_SYNC_INTERVAL_MINUTES),
+        misfire_grace_time=300,
+        args=[pool],
+    )
+    from core.config import OBSIDIAN_PROCESS_INTERVAL_MINUTES
+    scheduler.add_job(
+        process_obsidian_job,
+        "interval",
+        minutes=max(1, OBSIDIAN_PROCESS_INTERVAL_MINUTES),
+        misfire_grace_time=300,
+        args=[pool],
+    )
+
+    scheduler.add_job(
+        send_study_review,
+        "cron",
+        hour=20,
+        minute=30,
+        misfire_grace_time=3600,
+        args=[application, pool],
     )
 
     # ━━━ SHOPPING CLEANUP ━━━

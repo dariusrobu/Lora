@@ -3,13 +3,33 @@ import hmac
 from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError
 from typing import Optional
-from fastapi import HTTPException, Depends, Request
+from fastapi import HTTPException, Depends, Request, Header, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from lora_api.config import (
     JWT_SECRET,
     JWT_ALGORITHM,
     JWT_EXPIRY_HOURS,
+    STANDD_API_TOKEN,
 )
+
+
+async def require_standd_token(
+    authorization: str | None = Header(default=None),
+) -> bool:
+    """Permite tokenul read-only Standd sau JWT-ul existent al dashboardului."""
+    if not authorization:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing service token")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid service token")
+    if STANDD_API_TOKEN and hmac.compare_digest(token.encode("utf-8"), STANDD_API_TOKEN.encode("utf-8")):
+        return True
+    # Compatibilitate: dashboardul continuă să folosească JWT pe aceleași GET-uri.
+    try:
+        decode_token(token)
+    except HTTPException as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid service token") from exc
+    return True
 
 security = HTTPBearer(auto_error=False)
 _SALT = None
@@ -51,6 +71,11 @@ async def get_current_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> dict:
+    if credentials and credentials.credentials and STANDD_API_TOKEN:
+        service_paths = {"/api/tasks", "/api/calendar/week", "/api/finances/summary", "/api/health"}
+        if request.method == "GET" and request.url.path in service_paths:
+            if hmac.compare_digest(credentials.credentials.encode("utf-8"), STANDD_API_TOKEN.encode("utf-8")):
+                return {"sub": "standd", "service": True}
     # 1. Check Bearer credentials
     if credentials and credentials.credentials:
         return decode_token(credentials.credentials)

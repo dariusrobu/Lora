@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { twMerge } from "tailwind-merge"
 import { fetchProfile } from "../api/auth"
 import { fetchWeek } from "../api/queries/calendar"
 import { fetchFinanceHistory, fetchFinanceSummary } from "../api/queries/finance"
-import { fetchTasks } from "../api/queries/tasks"
+import { fetchTasks, updateTask } from "../api/queries/tasks"
 import { fetchProjects } from "../api/queries/projects"
 import { fetchShopping } from "../api/queries/shopping"
 import { fetchHealthSummary } from "../api/queries/health"
@@ -20,6 +20,7 @@ import { HealthWidget } from "../components/charts/HealthWidget"
 import { ShoppingWidget } from "../components/charts/ShoppingWidget"
 import { NutritionWidget } from "../components/charts/NutritionWidget"
 import { NewsWidget } from "../components/charts/NewsWidget"
+import { DateField } from "../components/ui/DateField"
 import { ReadingWidget } from "../components/charts/ReadingWidget"
 import News from "./News"
 import Reading from "./Reading"
@@ -186,6 +187,10 @@ function ExpandedFinance() {
 
 function ExpandedTasks() {
   const { data: tasks, isLoading } = useQuery({ queryKey: ["tasks"], queryFn: () => fetchTasks("all"), refetchInterval: 60_000 })
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [edit, setEdit] = useState<{ title: string; description: string; due_date: string; priority: "low" | "medium" | "high" }>({ title: "", description: "", due_date: "", priority: "medium" })
+  const qc = useQueryClient()
+  const saveEdit = async () => { if (editingId == null || !edit.title.trim()) return; await updateTask(editingId, { ...edit, due_date: edit.due_date || undefined }); await qc.invalidateQueries({ queryKey: ["tasks"] }); setEditingId(null) }
   if (isLoading) return <Spinner className="py-16" />
   if (!tasks || tasks.length === 0) return <p className="text-apple-caption1 text-text-muted">No tasks yet</p>
   const done = tasks.filter((t) => t.status === "done")
@@ -212,7 +217,7 @@ function ExpandedTasks() {
           {pending.length === 0 ? <p className="text-apple-caption1 text-text-muted px-4 py-3">All clear!</p> : pending.map((t, idx) => (
             <div key={t.id} className={`flex items-center gap-2.5 px-4 py-2.5 ${idx < pending.length - 1 ? "border-b border-border/30 ml-4" : ""}`}>
               <Circle className="w-3.5 h-3.5 text-text-muted shrink-0" />
-              <span className="text-apple-caption1 text-text-primary truncate">{t.title}</span>
+              {editingId === t.id ? <div className="min-w-0 flex-1 space-y-1"><input autoFocus value={edit.title} onChange={(e) => setEdit({ ...edit, title: e.target.value })} className="w-full rounded border border-border bg-transparent px-2 py-1 text-xs text-text-primary" /><input value={edit.description} onChange={(e) => setEdit({ ...edit, description: e.target.value })} placeholder="Descriere" className="w-full rounded border border-border bg-transparent px-2 py-1 text-xs text-text-secondary" /><div className="flex gap-1"><DateField value={edit.due_date} onChange={(e) => setEdit({ ...edit, due_date: e.target.value })} aria-label="Data limită" className="h-7 rounded px-1 py-1 text-[10px]" /><select value={edit.priority} onChange={(e) => setEdit({ ...edit, priority: e.target.value as "low" | "medium" | "high" })} className="rounded border border-border bg-transparent px-1 py-1 text-[10px]"><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select><button type="button" onClick={saveEdit} className="text-[10px] text-primary">Salvează</button></div></div> : <button type="button" onClick={() => { setEditingId(t.id); setEdit({ title: t.title, description: t.description || t.notes || "", due_date: t.due_date || "", priority: t.priority }) } } className="text-left text-apple-caption1 text-text-primary truncate hover:text-primary">{t.title}</button>}
               {t.priority === "high" && <span className="text-apple-caption2 text-red-500 shrink-0">high</span>}
             </div>
           ))}
@@ -267,8 +272,7 @@ function ExpandedProjects() {
 }
 
 function ExpandedWeather() {
-  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null)
-  useEffect(() => { navigator.geolocation.getCurrentPosition((pos) => setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude }), () => {}) }, [])
+  const [coords] = useState<{ lat: number; lon: number } | null>({ lat: 46.7555, lon: 23.5556 })
   const { data, isLoading } = useQuery({
     queryKey: ["weather", "expanded", coords?.lat, coords?.lon],
     queryFn: () => fetchWeather(coords!.lat, coords!.lon),
@@ -297,7 +301,7 @@ function ExpandedWeather() {
       </div>
       {forecast.length > 0 && (
         <SubCard><h4 className="text-apple-footnote font-semibold text-text-secondary uppercase tracking-wider mb-4">5-Day Forecast</h4>
-          <div className="grid grid-cols-5 gap-3">{forecast.slice(0, 5).map((day: any) => (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">{forecast.slice(0, 5).map((day: any) => (
             <div key={day.date} className="text-center py-3 rounded-xl bg-white/40 dark:bg-white/[0.04]">
               <p className="text-xs text-text-muted font-medium mb-1">{dayLabel(day.date)}</p>
               <p className="text-2xl mb-1">{emoji(day.icon)}</p>
@@ -403,6 +407,7 @@ type FilterCategory = "all" | "focus" | "finance" | "wellness"
 export default function Dashboard() {
   const [expanded, setExpanded] = useState<ExpandedWidget>(null)
   const [activeTab, setActiveTab] = useState<FilterCategory>("all")
+  const [homeMode, setHomeMode] = useState<"today" | "overview">("today")
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: fetchProfile, refetchInterval: 60_000 })
   const { data: tasks } = useQuery({ queryKey: ["tasks"], queryFn: () => fetchTasks("all"), refetchInterval: 60_000 })
   const { data: summary } = useQuery({ queryKey: ["finance-summary"], queryFn: fetchFinanceSummary, refetchInterval: 60_000 })
@@ -460,6 +465,7 @@ export default function Dashboard() {
   ]
 
   const filteredWidgets = widgets.filter((w) => {
+    if (homeMode === "today") return ["calendar", "tasks", "finance", "weather", "health"].includes(w.key)
     if (activeTab === "all") return true
     if (activeTab === "focus") return w.category === "focus"
     if (activeTab === "finance") return w.category === "finance" || w.key === "finance"
@@ -469,11 +475,6 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-home relative space-y-7 pb-12">
-      {/* Ambient Aurora Glow Spots behind canvas */}
-      <div className="pointer-events-none absolute -top-16 left-1/4 w-96 h-96 bg-indigo-600/[0.07] rounded-full blur-[128px]" />
-      <div className="pointer-events-none absolute top-44 right-4 w-80 h-80 bg-violet-600/[0.06] rounded-full blur-[128px]" />
-      <div className="pointer-events-none absolute top-[450px] left-8 w-72 h-72 bg-emerald-600/[0.04] rounded-full blur-[128px]" />
-
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
         <div className="flex items-start justify-between">
@@ -492,11 +493,16 @@ export default function Dashboard() {
               </span>
             </div>
           </div>
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white font-bold shadow-[0_4px_20px_rgba(99,102,241,0.3)] text-sm shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center text-white font-bold text-sm shrink-0">
             {nameInitial}
           </div>
         </div>
       </motion.div>
+
+      <div className="flex items-center justify-between border-b border-border pb-3">
+        <div><p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">Personal OS</p><p className="mt-1 text-sm text-text-secondary">{homeMode === "today" ? "Ce contează acum" : "Imaginea completă"}</p></div>
+        <div className="flex rounded-xl border border-border bg-surface p-1"><button type="button" onClick={() => setHomeMode("today")} className={twMerge("rounded-lg px-3 py-1.5 text-xs transition-colors", homeMode === "today" ? "bg-primary text-white" : "text-text-muted hover:text-text-primary")}>Today</button><button type="button" onClick={() => setHomeMode("overview")} className={twMerge("rounded-lg px-3 py-1.5 text-xs transition-colors", homeMode === "overview" ? "bg-primary text-white" : "text-text-muted hover:text-text-primary")}>Overview</button></div>
+      </div>
 
       {/* Quick Actions */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.05 }}>
@@ -526,7 +532,7 @@ export default function Dashboard() {
       </motion.div>
 
       {/* Category Navigation Pills */}
-      <div className="flex items-center justify-between gap-3 pt-1">
+      <div className={twMerge("flex items-center justify-between gap-3 pt-1", homeMode === "today" && "hidden")}>
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           {[
             { id: "all", label: "Toate" },
@@ -539,9 +545,9 @@ export default function Dashboard() {
               onClick={() => setActiveTab(tab.id as FilterCategory)}
               className={twMerge(
                 "px-3.5 py-1.5 rounded-full text-xs font-medium transition-all",
-                activeTab === tab.id
-                  ? "bg-white/[0.08] text-white border border-white/[0.12] shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
-                  : "text-text-muted hover:text-white bg-transparent border border-transparent hover:bg-white/[0.03]"
+                  activeTab === tab.id
+                  ? "bg-primary/10 text-primary border border-primary/20"
+                  : "text-text-muted hover:text-text-primary bg-transparent border border-transparent hover:bg-surface"
               )}
             >
               {tab.label}

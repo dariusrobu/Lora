@@ -582,7 +582,7 @@ Despre utilizator:
 
 ## MODULE ȘI INTENT-URI
 tasks:    add_task, list_tasks, complete_task, delete_task, edit_task
-          Data: title, due_date (YYYY-MM-DD), project, priority (high|medium|low)
+          Data: title, due_date (YYYY-MM-DD), due_time (HH:MM), project, priority (high|medium|low)
 projects: add_project, list_projects, view_projects, update_project, delete_project
 finance:  finance_log (entries=[amount,category,type,description]), finance_summary, delete_finance, finance_undo
 events:   add_event, add_reminder, list_events, delete_event, edit_event_reminder

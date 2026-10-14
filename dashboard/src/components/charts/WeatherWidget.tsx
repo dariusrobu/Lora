@@ -38,7 +38,8 @@ function dayLabel(dateStr: string): string {
 }
 
 export function WeatherWidget({ onExpand }: Props) {
-  const [coords] = useState<{ lat: number; lon: number }>({ lat: 45.9567, lon: 23.5664 })
+  // Fixed home location: Cluj-Napoca, Mănăștur.
+  const [coords] = useState<{ lat: number; lon: number }>({ lat: 46.7555, lon: 23.5556 })
   // Sebeș, Romania
 
   const { data, isLoading } = useQuery({

@@ -58,10 +58,10 @@ async def get_module_overview(pool) -> dict:
 
 async def get_academic_work(pool) -> dict:
     async with pool.acquire() as conn:
-        tasks = await conn.fetch("""SELECT t.id, t.title, t.status, t.priority, t.due_date, s.name AS subject_name
+        tasks = await conn.fetch("""SELECT t.id, t.title, t.status, t.priority, t.due_date, t.class_type, s.name AS subject_name
             FROM tasks t JOIN subjects s ON s.id = t.university_subject_id
             WHERE t.deleted_at IS NULL AND t.status != 'done' ORDER BY t.due_date NULLS LAST, t.priority""")
-        projects = await conn.fetch("""SELECT p.id, p.name, p.status, p.progress, p.deadline, s.name AS subject_name
+        projects = await conn.fetch("""SELECT p.id, p.name, p.status, COALESCE(p.progress_pct, 0) AS progress, p.deadline, s.name AS subject_name
             FROM projects p JOIN subjects s ON s.id = p.university_subject_id
             WHERE p.deleted_at IS NULL ORDER BY p.deadline NULLS LAST""")
     return {"tasks": [dict(row) for row in tasks], "projects": [dict(row) for row in projects]}
@@ -103,40 +103,65 @@ async def get_subject_by_id(pool, subject_id: int) -> dict | None:
         return dict(row) if row else None
 
 
-async def log_attendance(pool, subject_id, attended, class_date, notes=None) -> int:
+async def log_attendance(pool, subject_id, attended, class_date, notes=None, class_type="curs") -> int:
     async with pool.acquire() as conn:
+        from db.queries.schedule import get_week_type_for_date
+        week_type = await get_week_type_for_date(pool, class_date)
+        day_of_week = class_date.weekday()
+        already_logged = await conn.fetchval(
+            """SELECT EXISTS (
+                SELECT 1 FROM attendances a
+                WHERE a.subject_id = $1 AND a.class_date = $2
+                  AND COALESCE(a.class_type, 'curs') = $3
+            )""",
+            subject_id, class_date, class_type,
+        )
+        if already_logged:
+            raise ValueError("Există deja o prezență pentru această materie și categorie în ziua respectivă")
+        has_class = await conn.fetchval(
+            """SELECT EXISTS (
+                SELECT 1 FROM schedule
+                WHERE subject_id = $1 AND day_of_week = $2
+                  AND (class_type = $3 OR class_type = 'curs+seminars') AND is_active = TRUE
+                  AND (week_type = 'both' OR week_type = $4)
+            )""",
+            subject_id, day_of_week, class_type, week_type,
+        )
+        if not has_class:
+            raise ValueError("Materia nu are această categorie în orar în ziua selectată")
         return await conn.fetchval(
             """
-            INSERT INTO attendances (subject_id, attended, class_date, notes)
-            VALUES ($1, $2, $3, $4) RETURNING id
+            INSERT INTO attendances (subject_id, attended, class_date, notes, class_type)
+            VALUES ($1, $2, $3, $4, $5) RETURNING id
         """,
             subject_id,
             attended,
             class_date,
             notes,
+            class_type,
         )
 
 
-async def add_grade(pool, subject_id, grade, grade_type="exam", notes=None) -> int:
+async def add_grade(pool, subject_id, grade, grade_type="exam", notes=None, class_type=None) -> int:
     async with pool.acquire() as conn:
         return await conn.fetchval(
             """
-            INSERT INTO grades (subject_id, grade, grade_type, notes)
-            VALUES ($1, $2, $3, $4) RETURNING id
+            INSERT INTO grades (subject_id, grade, grade_type, notes, class_type)
+            VALUES ($1, $2, $3, $4, $5) RETURNING id
         """,
             subject_id,
             grade,
             grade_type,
-            notes,
+            notes, class_type,
         )
 
 
-async def add_grade_with_weight(pool, subject_id, grade, grade_type="exam", weight=None, assessment_title=None, assessment_date=None, notes=None) -> int:
+async def add_grade_with_weight(pool, subject_id, grade, grade_type="exam", weight=None, assessment_title=None, assessment_date=None, notes=None, class_type=None) -> int:
     async with pool.acquire() as conn:
         return await conn.fetchval(
-            """INSERT INTO grades (subject_id, grade, grade_type, weight, assessment_title, assessment_date, notes)
-               VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id""",
-            subject_id, grade, grade_type, weight, assessment_title, assessment_date, notes,
+            """INSERT INTO grades (subject_id, grade, grade_type, weight, assessment_title, assessment_date, notes, class_type)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id""",
+            subject_id, grade, grade_type, weight, assessment_title, assessment_date, notes, class_type,
         )
 
 
@@ -163,7 +188,7 @@ async def get_subject_details(pool, subject_id) -> dict:
     async with pool.acquire() as conn:
         grades = await conn.fetch(
             """
-            SELECT grade, grade_type, graded_at FROM grades
+            SELECT id, grade, grade_type, graded_at FROM grades
             WHERE subject_id = $1 ORDER BY graded_at DESC
         """,
             subject_id,
@@ -181,16 +206,37 @@ async def get_subject_details(pool, subject_id) -> dict:
 
         exams = await conn.fetch(
             """
-            SELECT exam_date, exam_type, room FROM exams
+            SELECT id, exam_date, exam_type, room FROM exams
             WHERE subject_id = $1 AND exam_date >= CURRENT_DATE
             ORDER BY exam_date ASC
         """,
             subject_id,
         )
 
+        attendance_rows = await conn.fetch(
+            """SELECT a.id, a.class_date, a.attended, a.notes,
+                      COALESCE(a.class_type, s.class_type, 'curs') AS class_type
+               FROM attendances a
+               LEFT JOIN schedule s ON s.id = a.schedule_id
+               WHERE a.subject_id = $1 ORDER BY a.class_date DESC""", subject_id
+        )
+
+        attendance_by_type = await conn.fetch(
+            """SELECT COALESCE(a.class_type, s.class_type, 'curs') AS class_type,
+                      COUNT(*) AS total,
+                      COUNT(*) FILTER (WHERE a.attended = TRUE) AS attended,
+                      COUNT(*) FILTER (WHERE a.attended = FALSE) AS absent
+               FROM attendances a
+               LEFT JOIN schedule s ON s.id = a.schedule_id
+               WHERE a.subject_id = $1
+               GROUP BY COALESCE(a.class_type, s.class_type, 'curs')""", subject_id
+        )
+
         return {
             "grades": [dict(g) for g in grades],
             "attendance": dict(attendance) if attendance else {},
+            "attendance_rows": [dict(a) for a in attendance_rows],
+            "attendance_by_type": [dict(a) for a in attendance_by_type],
             "upcoming_exams": [dict(e) for e in exams],
         }
 
@@ -257,11 +303,12 @@ async def log_attendance_by_schedule(
     async with pool.acquire() as conn:
         # Găsește subject_id-ul corespunzător
         row = await conn.fetchrow(
-            "SELECT subject_id FROM schedule WHERE id = $1", schedule_id
+            "SELECT subject_id, class_type FROM schedule WHERE id = $1", schedule_id
         )
         if row:
             await log_attendance(
-                pool, row["subject_id"], attended, date.today(), notes=notes
+                pool, row["subject_id"], attended, date.today(), notes=notes,
+                class_type="seminar" if row["class_type"] == "seminar" else "curs",
             )
 
 
@@ -291,8 +338,11 @@ async def delete_subject(pool, subject_id: int) -> None:
             )
             # Deactivate schedule entries
             await conn.execute(
-                "UPDATE schedule SET is_active = FALSE WHERE subject_id = $1",
+                """UPDATE schedule SET is_active = FALSE
+                   WHERE subject_id = $1
+                      OR (subject_id IS NULL AND LOWER(subject_name) = LOWER($2))""",
                 subject_id,
+                await conn.fetchval("SELECT name FROM subjects WHERE id = $1", subject_id),
             )
 
 

@@ -81,11 +81,13 @@ async def get_schedule_for_date(pool, target_date: date) -> list:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT DISTINCT ON (start_time, subject_name, room) * FROM schedule
-            WHERE day_of_week = $1
-              AND is_active = TRUE
+            SELECT DISTINCT ON (sc.start_time, sc.subject_name, sc.room) sc.* FROM schedule sc
+            LEFT JOIN subjects sub ON sub.id = sc.subject_id
+            WHERE sc.day_of_week = $1
+              AND sc.is_active = TRUE
+              AND (sc.subject_id IS NULL OR sub.is_active = TRUE)
               AND (week_type = 'both' OR week_type = $2)
-            ORDER BY start_time ASC, subject_name ASC, room ASC
+            ORDER BY sc.start_time ASC, sc.subject_name ASC, sc.room ASC
         """,
             day_of_week,
             week_type,
@@ -100,10 +102,12 @@ async def get_week_schedule(pool) -> tuple:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT DISTINCT ON (day_of_week, start_time, subject_name, room) * FROM schedule
-            WHERE is_active = TRUE
-              AND (week_type = 'both' OR week_type = $1)
-            ORDER BY day_of_week ASC, start_time ASC, subject_name ASC, room ASC
+            SELECT DISTINCT ON (sc.day_of_week, sc.start_time, sc.subject_name, sc.room) sc.* FROM schedule sc
+            LEFT JOIN subjects sub ON sub.id = sc.subject_id
+            WHERE sc.is_active = TRUE
+              AND (sc.subject_id IS NULL OR sub.is_active = TRUE)
+              AND (sc.week_type = 'both' OR sc.week_type = $1)
+            ORDER BY sc.day_of_week ASC, sc.start_time ASC, sc.subject_name ASC, sc.room ASC
         """,
             week_type,
         )
@@ -135,13 +139,15 @@ async def get_upcoming_classes(pool, minutes_ahead=20) -> list:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT DISTINCT ON (start_time, subject_name, room) * FROM schedule
-            WHERE day_of_week = $1
-              AND is_active = TRUE
-              AND (week_type = 'both' OR week_type = $2)
-              AND start_time > $3
-              AND start_time <= $4
-            ORDER BY start_time ASC, subject_name ASC, room ASC
+            SELECT DISTINCT ON (sc.start_time, sc.subject_name, sc.room) sc.* FROM schedule sc
+            LEFT JOIN subjects sub ON sub.id = sc.subject_id
+            WHERE sc.day_of_week = $1
+              AND sc.is_active = TRUE
+              AND (sc.subject_id IS NULL OR sub.is_active = TRUE)
+              AND (sc.week_type = 'both' OR sc.week_type = $2)
+              AND sc.start_time > $3
+              AND sc.start_time <= $4
+            ORDER BY sc.start_time ASC, sc.subject_name ASC, sc.room ASC
         """,
             today.weekday(),
             week_type,
@@ -264,7 +270,9 @@ async def get_all_vacations(pool) -> list:
 async def get_full_schedule(pool) -> list:
     """Returnează tot orarul activ (indiferent de săptămână)."""
     async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT * FROM schedule WHERE is_active = TRUE")
+        rows = await conn.fetch("""SELECT sc.* FROM schedule sc
+            LEFT JOIN subjects sub ON sub.id = sc.subject_id
+            WHERE sc.is_active = TRUE AND (sc.subject_id IS NULL OR sub.is_active = TRUE)""")
         return [dict(r) for r in rows]
 
 

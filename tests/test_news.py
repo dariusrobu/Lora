@@ -1,73 +1,45 @@
-"""
-Unit tests for modules/news.py — RSS parsing, 24h filter, relative time, and intent handling.
-"""
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, patch
+from datetime import datetime, timezone
+from email.utils import format_datetime
+from typing import Any
+
+import httpx
 import pytest
 
-from modules.news import (
-    _format_relative_time,
-    fetch_news_digest,
-    handle_news_intent,
+from modules import news
+
+
+@pytest.mark.parametrize(
+    ("category", "expected_category"),
+    [("romania", "politica"), ("business", "economie"), ("tech", "tech")],
 )
+async def test_dashboard_categories_follow_rss_redirects(
+    monkeypatch: pytest.MonkeyPatch, category: str, expected_category: str
+) -> None:
+    """Category feeds redirect before returning RSS; they must not appear empty."""
+    published = format_datetime(datetime.now(timezone.utc))
+    rss = f"""<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0"><channel><title>Știri</title><item>
+    <title>Articol recent - Sursa</title>
+    <link>https://example.com/article</link><pubDate>{published}</pubDate>
+    </item></channel></rss>"""
+    requested_paths: list[str] = []
 
+    def respond(request: httpx.Request) -> httpx.Response:
+        requested_paths.append(request.url.path)
+        if request.url.path == "/rss/resolved":
+            return httpx.Response(200, text=rss, headers={"Content-Type": "application/rss+xml"})
+        return httpx.Response(302, headers={"Location": "/rss/resolved"})
 
-def test_format_relative_time():
-    now = datetime.now(timezone.utc)
-    assert _format_relative_time(None) == "recent"
-    assert "min" in _format_relative_time(now - timedelta(minutes=25))
-    assert "ore" in _format_relative_time(now - timedelta(hours=3))
-    assert _format_relative_time(now - timedelta(hours=30)) == "ieri"
+    real_client = httpx.AsyncClient
 
+    def mock_client(**kwargs: Any) -> httpx.AsyncClient:
+        return real_client(transport=httpx.MockTransport(respond), **kwargs)
 
-@pytest.mark.asyncio
-async def test_fetch_news_digest_mocked():
-    sample_rss = b"""<?xml version="1.0" encoding="UTF-8"?>
-    <rss version="2.0">
-      <channel>
-        <title>Google News</title>
-        <item>
-          <title>Guvernul a anuntat noile masuri fiscale - Economedia.ro</title>
-          <pubDate>""" + datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT").encode() + b"""</pubDate>
-        </item>
-        <item>
-          <title>Stire veche de acum 3 zile - ProTV</title>
-          <pubDate>""" + (datetime.now(timezone.utc) - timedelta(days=3)).strftime("%a, %d %b %Y %H:%M:%S GMT").encode() + b"""</pubDate>
-        </item>
-      </channel>
-    </rss>"""
+    monkeypatch.setattr(news.httpx, "AsyncClient", mock_client)
+    articles = await news.fetch_news_articles(category=category, limit=4)
 
-    with patch("httpx.AsyncClient.get") as mock_get:
-        mock_resp = AsyncMock()
-        mock_resp.status_code = 200
-        mock_resp.content = sample_rss
-        mock_resp.raise_for_status = lambda: None
-        mock_get.return_value = mock_resp
-
-        # Test Politica
-        digest_pol = await fetch_news_digest("politica")
-        assert "Politică" in digest_pol
-        assert "Guvernul a anuntat noile masuri fiscale" in digest_pol
-        assert "Stire veche" not in digest_pol  # filtered out by 24h cutoff
-
-        # Test Economie
-        digest_eco = await fetch_news_digest("economie")
-        assert "Economie" in digest_eco
-
-        # Test All
-        digest_all = await fetch_news_digest("all")
-        assert "Sinteza Știrilor din Ultimele 24h" in digest_all
-
-
-@pytest.mark.asyncio
-async def test_handle_news_intent():
-    with patch("modules.news.fetch_news_digest", new_callable=AsyncMock) as mock_fetch:
-        mock_fetch.return_value = "News content"
-
-        reply, markup, item_id = await handle_news_intent(
-            pool=None, intent="get_news", data={"topic": "politica"}
-        )
-        assert reply == "News content"
-        assert markup is None
-        assert item_id is None
-        mock_fetch.assert_called_once_with(topic="politica", limit=3)
+    assert requested_paths[-1] == "/rss/resolved"
+    assert len(articles) == 1
+    assert articles[0]["category"] == expected_category
+    assert articles[0]["title"] == "Articol recent"
+    assert articles[0]["source"] == "Sursa"

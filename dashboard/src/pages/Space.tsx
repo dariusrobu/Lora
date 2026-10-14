@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "../api/client"
 import { Button } from "../components/ui/Button"
 import { Input } from "../components/ui/Input"
+import { DateField } from "../components/ui/DateField"
 import { Spinner } from "../components/ui/Spinner"
 import { User, Cpu, Puzzle, Brain, GitBranch, Clock, Sparkles, Timer, ScrollText, RefreshCw, Download, HardDrive } from "lucide-react"
 import type { Profile, MemoryFact, JobConfig, LogStats, LogEntry, LogResponse, CalendarSyncStatus, BackupConfig, BackupRecord } from "../types"
@@ -424,7 +425,7 @@ function LLMTab({ profile, onUpdate }: { profile: Profile; onUpdate: (data: Part
           </div>
         </div>
         {sysSpecs && !editingSpecs && (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="p-2.5 rounded-lg bg-surface/50 border border-border text-center">
               <div className="text-xs text-text-muted">RAM</div>
               <div className="text-sm font-semibold text-text-primary">{sysSpecs.total_ram_gb} GB</div>
@@ -441,7 +442,7 @@ function LLMTab({ profile, onUpdate }: { profile: Profile; onUpdate: (data: Part
         )}
         {sysSpecs && editingSpecs && (
           <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="space-y-1">
                 <label className="text-xs text-text-muted">RAM (GB)</label>
                 <input type="number" className="w-full h-9 px-3 rounded-lg bg-surface border border-border text-text-primary text-sm focus:outline-none focus:border-primary/30"
@@ -1129,8 +1130,8 @@ function ExportTab() {
           </select>
         </div>
         <div />
-        <Input label="De la (opțional)" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-        <Input label="Până la (opțional)" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        <DateField label="De la (opțional)" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+        <DateField label="Până la (opțional)" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
       </div>
       <Button onClick={handleExport} disabled={exporting}>
         {exporting ? <Spinner className="w-4 h-4" /> : <Download className="w-4 h-4" />}

@@ -73,6 +73,34 @@ async def get_weather_summary(
         return None
 
 
+async def get_today_forecast_summary(city: str = None, lat: float = None, lon: float = None) -> Optional[str]:
+    """Returns today's forecast range for briefings (daily min/max, not current temperature)."""
+    if not OPENWEATHER_API_KEY:
+        return None
+    params = {"appid": OPENWEATHER_API_KEY, "units": "metric", "lang": "ro", "cnt": 8}
+    if lat is not None and lon is not None:
+        params.update(lat=lat, lon=lon)
+        label = "locația ta"
+    else:
+        params["q"] = city or WEATHER_CITY
+        label = city or WEATHER_CITY
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get("https://api.openweathermap.org/data/2.5/forecast", params=params, timeout=10.0)
+            if response.status_code != 200:
+                return None
+            data = response.json()
+            items = data.get("list", [])
+            if not items:
+                return None
+            temps = [float(item.get("main", {}).get("temp", 0)) for item in items]
+            desc = (items[0].get("weather") or [{}])[0].get("description", "cer variabil").capitalize()
+            return f"☁️ *Vremea azi în {label}*: {round(min(temps))}°C – {round(max(temps))}°C · {desc}"
+    except Exception as exc:
+        print(f"Weather forecast exception: {exc}")
+        return None
+
+
 async def check_weather_for_alerts(lat: float, lon: float) -> Optional[str]:
     """
     Checks for rain or extreme weather and returns a warning message if found.

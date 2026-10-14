@@ -1,10 +1,9 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { motion } from "framer-motion"
 import { login } from "../api/auth"
-import { Button } from "../components/ui/Button"
-import { Input } from "../components/ui/Input"
-import { Spinner } from "../components/ui/Spinner"
+import { ArrowLeft, LockKeyhole } from "lucide-react"
+import { Link } from "react-router-dom"
+import "../components/layout/daily.css"
 
 export default function Login() {
   const [email, setEmail] = useState("")
@@ -22,49 +21,13 @@ export default function Login() {
       localStorage.setItem("lora_token", token)
       navigate("/")
     } catch {
-      setError("Email sau parolă incorectă")
+      setError("Nu te-am putut conecta. Verifică adresa și parola.")
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-bg flex items-center justify-center p-4 transition-colors">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-sm"
-      >
-        <div className="text-center mb-8">
-          <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-indigo-500 flex items-center justify-center text-2xl font-bold shadow-lg shadow-indigo-500/20 dark:shadow-black/30">
-            L
-          </div>
-          <h1 className="text-2xl font-bold text-text-primary">Lora</h1>
-          <p className="text-text-secondary text-sm mt-1">Your personal dashboard</p>
-        </div>
-        <form onSubmit={handleSubmit} className="rounded-2xl border border-border bg-surface backdrop-blur-xl p-6 space-y-4">
-          <Input
-            label="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            required
-          />
-          <Input
-            label="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            required
-          />
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? <Spinner size="sm" /> : "Sign in"}
-          </Button>
-        </form>
-      </motion.div>
-    </div>
+    <div className="daily-shell daily-login-screen"><Link to="/" className="daily-login-back"><ArrowLeft size={17} /> Înapoi</Link><div className="daily-panel daily-login-card"><span className="daily-auth-icon"><LockKeyhole size={24} /></span><p className="daily-eyebrow">SPAȚIUL TĂU</p><h1>Conectează-te</h1><p className="daily-subtitle">Calendarul, taskurile și restul zilei tale sunt aici.</p><form onSubmit={handleSubmit} className="daily-login-form"><label className="daily-field"><span>Adresa contului</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label className="daily-field"><span>Parola</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>{error && <p className="daily-inline-error" role="alert">{error}</p>}<button className="daily-primary-button" type="submit" disabled={loading}>{loading ? "Se conectează…" : "Intră în Lora"}</button></form></div></div>
   )
 }

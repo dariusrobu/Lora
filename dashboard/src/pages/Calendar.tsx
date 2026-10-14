@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useSearchParams } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import { fetchWeek, createEvent, deleteEvent } from "../api/queries/calendar"
 import { Card, Button, Spinner } from "../components/ui"
@@ -43,28 +44,32 @@ function isToday(d: Date): boolean {
   return d.getDate() === t.getDate() && d.getMonth() === t.getMonth() && d.getFullYear() === t.getFullYear()
 }
 
-function isSameDay(a: Date, b: Date): boolean {
-  return a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()
-}
-
 export default function Calendar() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()))
   const [selectedIdx, setSelectedIdx] = useState<number>(() => {
     const today = new Date()
     const m = getMonday(today)
     return Math.min(Math.max(Math.round((today.getTime() - m.getTime()) / 86400000), 0), 6)
   })
-  const [showAdd, setShowAdd] = useState(false)
+  const [showAdd, setShowAdd] = useState(() => searchParams.get("action") === "add")
   const [addTitle, setAddTitle] = useState("")
   const [addTime, setAddTime] = useState("")
   const [addDesc, setAddDesc] = useState("")
 
+  useEffect(() => {
+    if (searchParams.get("action") !== "add") return
+    setSearchParams({}, { replace: true })
+  }, [searchParams, setSearchParams])
+
   const qc = useQueryClient()
   const invalidate = () => qc.invalidateQueries({ queryKey: ["calendar"] })
 
-  const { data: days, isLoading } = useQuery({
+  const { data: days, isLoading, isError, refetch } = useQuery({
     queryKey: ["calendar", weekStart.toISOString()],
     queryFn: () => fetchWeek(weekStart),
+    placeholderData: (previousData) => previousData,
+    retry: 1,
   })
 
   const createMut = useMutation({
@@ -84,9 +89,16 @@ export default function Calendar() {
   })
 
   const selectedDay: CalendarDay | undefined = days?.[selectedIdx]
+  const weekClasses = (days ?? []).flatMap((day) => day.schedule.map((item) => ({ ...item, day_name: day.day_name, date: day.date })))
 
-  const goBack = () => setWeekStart(addDays(weekStart, -7))
-  const goForward = () => setWeekStart(addDays(weekStart, 7))
+  const goBack = () => {
+    setWeekStart(addDays(weekStart, -7))
+    setSelectedIdx(0)
+  }
+  const goForward = () => {
+    setWeekStart(addDays(weekStart, 7))
+    setSelectedIdx(0)
+  }
   const goToday = () => {
     const m = getMonday(new Date())
     setWeekStart(m)
@@ -110,6 +122,7 @@ export default function Calendar() {
   }, [weekStart])
 
   if (isLoading) return <Spinner className="py-12" />
+  if (isError && !days) return <Card><div className="py-8 text-center"><p className="text-sm text-text-secondary">Calendarul nu a putut fi încărcat.</p><button type="button" onClick={() => refetch()} className="mt-3 text-xs text-primary">Încearcă din nou</button></div></Card>
 
   return (
     <div>
@@ -305,6 +318,12 @@ export default function Calendar() {
             </>
           )}
         </div>
+      )}
+      {weekClasses.length > 0 && (
+        <Card className="mt-5 p-3">
+          <div className="mb-2 flex items-center gap-1 text-[10px] uppercase tracking-wider text-text-muted"><GraduationCap className="h-3 w-3" /> Materiile din această săptămână</div>
+          <div className="space-y-1">{weekClasses.map((item, index) => <div key={`${item.id}-${index}`} className="flex items-center gap-2 rounded-lg px-2 py-1.5"><span className="w-12 text-[10px] text-text-muted">{item.day_name}</span><span className="w-12 text-xs text-text-secondary">{item.start_time?.slice(0, 5)}</span><span className="flex-1 truncate text-sm text-text-primary">{item.subject_name}</span><span className="text-[10px] text-text-muted">{item.class_type}</span>{item.room && <span className="text-[10px] text-text-muted">{item.room}</span>}</div>)}</div>
+        </Card>
       )}
     </div>
   )

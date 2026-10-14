@@ -7,6 +7,7 @@ import { createTransaction } from "../api/queries/finance"
 import { createEvent } from "../api/queries/calendar"
 import { useNotify } from "../context/NotificationContext"
 import { BottomSheet } from "./ui/BottomSheet"
+import { DateField } from "./ui/DateField"
 
 const expenseCategories = [
   "Food", "Transport", "Shopping", "Entertainment", "Bills", "Health", "Other",
@@ -69,23 +70,27 @@ export function QuickActions() {
 
   return (
     <>
-      <div className="flex items-center gap-2 flex-wrap">
-        {actions.map(({ id, icon: Icon, label }, i) => (
-          <motion.button
-            key={id}
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setModal(id)}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 + i * 0.04 }}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-black/[0.03] dark:bg-white/[0.04] border border-border hover:border-indigo-400/30 text-xs font-medium text-text-secondary hover:text-text-primary transition-all"
-          >
-            <Icon className="w-3.5 h-3.5" />
-            {label}
-          </motion.button>
-        ))}
-      </div>
+      <motion.button
+        whileTap={{ scale: 0.97 }}
+        onClick={() => setModal("menu")}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs font-medium text-text-secondary transition-colors hover:border-primary/30 hover:text-text-primary"
+      >
+        <Plus className="h-3.5 w-3.5 text-primary" />
+        Adaugă
+      </motion.button>
+
+      <BottomSheet open={modal === "menu"} onClose={() => setModal(null)} title="Adaugă">
+        <div className="space-y-2">
+          {actions.map(({ id, icon: Icon, label }) => (
+            <button key={id} type="button" onClick={() => setModal(id)} className="flex w-full items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-left transition-colors hover:border-primary/30 hover:bg-primary/[0.04]">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><Icon className="h-4 w-4" /></span>
+              <span className="text-sm font-medium text-text-primary">{label}</span>
+            </button>
+          ))}
+        </div>
+      </BottomSheet>
 
       <BottomSheet open={modal === "task"} onClose={() => setModal(null)} title="Add Task">
         <div className="space-y-4">
@@ -163,12 +168,7 @@ export function QuickActions() {
             className="w-full bg-surface border border-border rounded-xl py-3 px-4 text-apple-body text-text-primary placeholder:text-text-muted outline-none focus:border-text-muted/30 transition-colors"
           />
           <div className="grid grid-cols-2 gap-3">
-            <input
-              type="date"
-              value={evDate}
-              onChange={(e) => setEvDate(e.target.value)}
-              className="bg-surface border border-border rounded-xl py-3 px-4 text-apple-body text-text-primary outline-none focus:border-text-muted/30 transition-colors"
-            />
+            <DateField value={evDate} onChange={(e) => setEvDate(e.target.value)} aria-label="Data evenimentului" className="py-3 px-4 text-apple-body" />
             <input
               type="time"
               value={evTime}

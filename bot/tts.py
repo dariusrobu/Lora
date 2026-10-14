@@ -4,7 +4,7 @@ import re
 import tempfile
 from typing import Optional
 
-from core.config import KITTEN_TTS_MODEL, KITTEN_TTS_VOICE
+from core.config import EDGE_TTS_VOICE, KITTEN_TTS_MODEL, KITTEN_TTS_VOICE
 
 
 # ─── Lazy KittenTTS singleton ─────────────────────────────────────────────────
@@ -259,6 +259,10 @@ async def text_to_speech(
     Returns:
         Absolute path to the generated audio file.
     """
+    # The podcast is Romanian-first and benefits from a native Romanian voice.
+    # Keep short interactive replies on the local KittenTTS path.
+    if podcast_mode:
+        return await _synthesize_edge(text, filename, podcast_mode)
     return await _synthesize_kitten(text, filename, podcast_mode)
 
 
@@ -268,8 +272,34 @@ async def _synthesize_edge(
     podcast_mode: bool = False,
     voice: str = "ro-RO-AlinaNeural",
 ) -> str:
-    """Compatibility wrapper for callers that selected the retired cloud voice."""
-    return await _synthesize_kitten(text, filename, podcast_mode)
+    """Generate Romanian speech with Microsoft's Edge neural voice."""
+    try:
+        import edge_tts
+    except ImportError as exc:
+        raise RuntimeError(
+            "Edge TTS nu este instalat. Instalează dependențele din requirements.txt."
+        ) from exc
+
+    processed_text = prepare_podcast_text(text) if podcast_mode else preprocess_text_for_tts(text)
+    if not processed_text:
+        processed_text = "Bună dimineața. Lora este activă."
+
+    if not filename:
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        filename = temp_file.name
+        temp_file.close()
+
+    print(
+        f"DEBUG: Edge TTS start | voice={EDGE_TTS_VOICE} | mode={'podcast' if podcast_mode else 'normal'} | chars={len(processed_text)}",
+        flush=True,
+    )
+    communicator = edge_tts.Communicate(
+        processed_text,
+        voice=voice if voice != "auto" else EDGE_TTS_VOICE,
+        rate="-5%" if podcast_mode else "+0%",
+    )
+    await communicator.save(filename)
+    return filename
 
 
 async def _synthesize_kitten(

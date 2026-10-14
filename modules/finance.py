@@ -293,9 +293,15 @@ async def _set_budget(pool, data: Dict[str, Any]) -> Tuple[str, Any]:
 
     from db.queries.finance import set_budget_limit
 
-    await set_budget_limit(pool, category, limit)
+    period = str(data.get("period") or "monthly").lower()
+    if any(word in period for word in ("săptăm", "sapt", "weekly", "week")):
+        period = "weekly"
+    else:
+        period = "monthly"
+
+    await set_budget_limit(pool, category, limit, period)
     return (
-        f"✏️ Bugetul pentru *{escape_md(category)}* a fost actualizat la *{limit} RON*.",
+        f"✏️ Bugetul {period} pentru *{escape_md(category)}* a fost actualizat la *{limit} RON*.",
         None,
     )
 

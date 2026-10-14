@@ -2,7 +2,12 @@ import { api } from "../client"
 import type { CalendarDay } from "../../types"
 
 function fmt(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  // Use local calendar date; UTC conversion shifts midnight back one day in
+  // Romania and made Monday requests load the previous week.
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
 }
 
 export async function fetchWeek(refDate?: Date): Promise<CalendarDay[]> {

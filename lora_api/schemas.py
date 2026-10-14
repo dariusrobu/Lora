@@ -12,6 +12,7 @@ class FinanceTransactionRequest(BaseModel):
 
 
 class UniversityScheduleRequest(BaseModel):
+    subject_id: int | None = None
     subject_name: str = Field(min_length=1)
     day_of_week: int = Field(ge=0, le=6)
     start_time: str

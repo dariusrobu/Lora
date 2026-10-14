@@ -10,6 +10,71 @@ from core.config import REQUIRE_CONFIRMATION
 
 logger = logging.getLogger("core.router")
 
+# Romanian reminder language is intentionally handled before the LLM result is
+# dispatched.  A voice transcript such as "adu-mi aminte să ..." is often
+# classified as ``add_event`` by a small/local model because both concepts
+# contain a future action.  The distinction matters: reminders use the
+# reminder notification flow, while calendar events are merely appointments.
+_REMINDER_PHRASES = (
+    "amintește-mi",
+    "aminteste-mi",
+    "adu-mi aminte",
+    "adu mi aminte",
+    "să nu uit",
+    "sa nu uit",
+    "reamintește-mi",
+    "reaminteste-mi",
+    "reminder",
+    "remind me",
+)
+
+_REMINDER_TIME_MARKERS = re.compile(
+    r"\b(?:azi|astăzi|astazi|mâine|maine|poimâine|poimaine|luni|marți|marti|"
+    r"miercuri|joi|vineri|sâmbătă|sambata|duminică|duminica|today|tomorrow)\b|"
+    r"\b(?:în|in|peste)\s+\d+\s+(?:minute|min|ore|oră|ora)\b|"
+    r"\b\d{1,2}:\d{2}\b",
+    re.IGNORECASE,
+)
+
+
+def _coerce_voice_reminder_intent(
+    intent_response: Dict[str, Any], user_message: str
+) -> None:
+    """Correct the common local-model ``add_event``/reminder confusion.
+
+    This is a deterministic safety net, not a replacement for intent
+    classification.  Only explicit reminder language is promoted, so a
+    normal calendar event ("adaugă un eveniment...") remains unchanged.
+    """
+    if not user_message:
+        return
+    text = user_message.casefold()
+    if not any(phrase in text for phrase in _REMINDER_PHRASES):
+        return
+    if intent_response.get("module") != "events":
+        return
+    if intent_response.get("intent") not in {"add_event", "add_reminder"}:
+        return
+
+    if intent_response.get("intent") == "add_event":
+        logger.info(
+            "ROUTER reminder correction: add_event -> add_reminder | text=%r",
+            user_message,
+        )
+        intent_response["intent"] = "add_reminder"
+
+    # A reminder without any temporal information cannot be delivered at the
+    # moment the user expects.  Ask for the missing time instead of silently
+    # creating an untimed event that only fires in the 09:00 fallback window.
+    data = intent_response.setdefault("data", {})
+    has_time = bool(data.get("event_time") or data.get("time"))
+    has_date = bool(data.get("event_date") or data.get("date"))
+    if not has_time and not has_date and not _REMINDER_TIME_MARKERS.search(text):
+        intent_response["clarification_needed"] = True
+        intent_response["clarification_question"] = (
+            "Când vrei să-ți amintesc: azi la o anumită oră sau într-o altă zi?"
+        )
+
 _SENSITIVE_MEMORY = re.compile(
     r"(?:password|parol[aă]|token|api[_ -]?key|secret|jwt|card(?:ul)?|cvv|pin|iban|diagnos|tratament|medicament)",
     re.IGNORECASE,
@@ -188,6 +253,12 @@ async def _route_single_intent(
         "_user_message", ""
     )  # Injected by handler usually
     data["_user_message"] = user_message
+
+    # Voice and text users naturally say "adu-mi aminte" rather than
+    # "adaugă reminder".  Enforce the semantic distinction before the
+    # clarification/confirmation gates so the correct notification pipeline is
+    # selected even when the local model returns ``add_event``.
+    _coerce_voice_reminder_intent(intent_response, user_message)
 
     # Memory extraction also applies to free conversation, not only module
     # actions. The filter prevents secrets and sensitive medical/financial

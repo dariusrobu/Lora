@@ -1,0 +1,5 @@
+ALTER TABLE events
+    ADD COLUMN IF NOT EXISTS urgent BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_events_urgent
+    ON events (urgent) WHERE urgent = TRUE;

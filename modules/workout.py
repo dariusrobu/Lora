@@ -622,6 +622,7 @@ async def handle_workout_callback(query, pool, data: str):
 async def handle_workout_message(update, pool, state: dict, text: str):
     action = state.get("action")
     item_id = state.get("item_id")
+    clear_workout_state = True
 
     try:
         if action == "add_sport":
@@ -653,7 +654,17 @@ async def handle_workout_message(update, pool, state: dict, text: str):
             )
 
         elif action == "log_duration":
-            duration = int(text.strip())
+            raw_duration = text.strip()
+            if not raw_duration.isdigit() or int(raw_duration) <= 0:
+                clear_workout_state = False
+                await update.message.reply_text(
+                    "⏱ Am nevoie de durata antrenamentului în minute.\n"
+                    "Scrie doar un număr pozitiv, de exemplu: `25`\.",
+                    parse_mode="MarkdownV2",
+                )
+                return
+
+            duration = int(raw_duration)
             await workout_queries.log_workout(pool, date.today(), item_id, duration, "")
             await update.message.reply_text(
                 f"✅ Antrenament salvat: {duration} min\\. Poți folosi integrarea vocală pentru detalii extra\\.",
@@ -686,10 +697,11 @@ async def handle_workout_message(update, pool, state: dict, text: str):
     except Exception as e:
         print(f"Error in workout state handler: {e}")
         traceback.print_exc()
-        await update.message.reply_text(f"❌ Eroare: Format incorect. {e}")
+        await update.message.reply_text("❌ Nu am putut procesa durata antrenamentului.")
 
     finally:
-        await clear_state(pool)
+        if clear_workout_state:
+            await clear_state(pool)
 
 
 async def _save_prompt_to_conversation(pool, prompt: str) -> None:

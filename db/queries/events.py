@@ -13,12 +13,13 @@ async def add_event(
     recurrence: Optional[str] = None,
     remind_before_minutes: int = 30,
     event_type: str = "event",
+    urgent: bool = False,
 ) -> int:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO events (title, event_date, event_time, description, project_id, is_recurring, recurrence, remind_before_minutes, event_type)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            INSERT INTO events (title, event_date, event_time, description, project_id, is_recurring, recurrence, remind_before_minutes, event_type, urgent)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             RETURNING id
             """,
             title,
@@ -30,6 +31,7 @@ async def add_event(
             recurrence,
             remind_before_minutes,
             event_type,
+            urgent,
         )
         return row["id"]
 
@@ -146,18 +148,19 @@ async def get_events_needing_exact_reminder(
         rows = await conn.fetch(
             """
             SELECT e.* FROM events e
-            WHERE e.event_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::date
+            WHERE e.event_date >= ((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::date - 1)
               AND e.reminded_at IS NULL
               AND (
-                -- 1. Timed events that reached event_time (checked every minute, with catch-up up to 2 hours)
+                -- 1. Timed events that reached event_time. Keep a one-day catch-up
+                -- window so a short outage or restart cannot permanently lose a reminder.
                 (e.event_time IS NOT NULL
-                 AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time >= e.event_time
-                 AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time < e.event_time + INTERVAL '2 hours')
+                 AND (e.event_date + e.event_time) <= (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')
+                 AND (e.event_date + e.event_time) > (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest') - INTERVAL '1 day')
                 OR
                 -- 2. Untimed reminders in morning slot (09:00)
                 (e.event_type = 'reminder' AND e.event_time IS NULL
-                 AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time >= '09:00'::time
-                 AND (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::time < '09:05'::time)
+                 AND e.event_date <= (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::date
+                 AND e.event_date >= ((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Bucharest')::date - 1))
               )
             ORDER BY e.event_time ASC NULLS LAST
             """

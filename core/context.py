@@ -386,7 +386,7 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
     now = datetime.now(user_tz)
     today = now.date()
     from core.config import TELEGRAM_USER_ID
-    from modules.weather import get_weather_summary
+    from modules.weather import get_today_forecast_summary
     from db.queries.schedule import get_today_schedule, get_current_week_type
     from db.queries.events import list_events
     from db.queries.health import get_health_log
@@ -419,7 +419,7 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
         skill_queries.get_all_skills(pool),
         finance_queries.get_monthly_summary(pool, today.month, today.year),
         finance_queries.get_budget_status(pool),
-        get_weather_summary(lat=lat, lon=lon),
+        get_today_forecast_summary(lat=lat, lon=lon),
         get_today_schedule(pool),
         list_events(pool, today, today),
         get_health_log(pool, today),
@@ -498,20 +498,43 @@ async def build_morning_briefing_context(pool) -> Dict[str, Any]:
         if streak >= 3:
             active_streaks.append({"name": s["name"], "streak": streak})
 
+    academic_classes = [
+        {
+            "subject": c["subject_name"],
+            "time": str(c["start_time"]),
+            "end_time": str(c["end_time"]),
+            "room": c["room"],
+            "class_type": c.get("class_type"),
+        }
+        for c in schedule
+    ]
+    academic_schedule_lines = []
+    academic_spoken_lines = []
+    for item in academic_classes:
+        room_suffix = f", sala {item['room']}" if item["room"] else ""
+        class_type = "Seminar" if item["class_type"] == "seminar" else "Curs"
+        academic_schedule_lines.append(
+            f"- {item['time']}–{item['end_time']}: {class_type} — "
+            f"{item['subject']}{room_suffix}"
+        )
+        start_hour = str(item["time"]).split(":", 1)[0].lstrip("0") or "0"
+        end_hour = str(item["end_time"]).split(":", 1)[0].lstrip("0") or "0"
+        academic_spoken_lines.append(
+            f"{class_type}, {item['subject']}, de la ora {start_hour} "
+            f"la ora {end_hour}{room_suffix}"
+        )
+    academic_schedule_text = "\n".join(academic_schedule_lines) or "- Nu sunt cursuri programate astăzi."
+    academic_spoken_text = "; ".join(academic_spoken_lines) or "Nu sunt cursuri programate astăzi."
+
     return {
         "user_name": profile.get("name") or "User",
         "today": today.strftime("%Y-%m-%d"),
         "weather": weather,
         "university": {
             "week_type": week_type,
-            "classes": [
-                {
-                    "subject": c["subject_name"],
-                    "time": str(c["start_time"]),
-                    "room": c["room"],
-                }
-                for c in schedule
-            ],
+            "classes": academic_classes,
+            "schedule_text": academic_schedule_text,
+            "spoken_schedule_text": academic_spoken_text,
         },
         "events": [{"title": e["title"], "time": str(e["event_time"])} for e in events],
         "urgent_tasks": [

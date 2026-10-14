@@ -1,10 +1,10 @@
 import { useState } from "react"
-import { ChevronDown } from "lucide-react"
 import Tasks from "./Tasks"
 import Goals from "./Goals"
 import Projects from "./Projects"
 import CalendarPage from "./Calendar"
 import FocusPage from "./Focus"
+import { PageHeader, ModeSelector } from "../components/ui"
 
 const tabs = [
   { key: "tasks", label: "Azi" },
@@ -22,12 +22,7 @@ export default function Plan() {
     <div className="card-liquid-page">
       <div className="card-liquid-page-content p-6">
         <div>
-          <label className="relative mb-6 flex w-fit items-center gap-2 text-sm font-semibold text-text-primary">
-            <span>Plan · {tabs.find((t) => t.key === active)?.label}</span><ChevronDown className="w-4 h-4 text-text-muted" />
-            <select value={active} onChange={(e) => setActive(e.target.value as TabKey)} className="absolute inset-0 cursor-pointer opacity-0" aria-label="Alege secțiunea Plan">
-              {tabs.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-            </select>
-          </label>
+          <PageHeader eyebrow="Spatial OS" title="Plan" description="Organizează ce urmează, fără zgomot." action={<ModeSelector value={active} options={tabs.map((t) => ({ value: t.key, label: t.label }))} onChange={setActive} />} />
       {active === "tasks" && <Tasks />}
       {active === "goals" && <Goals />}
       {active === "calendar" && <CalendarPage />}

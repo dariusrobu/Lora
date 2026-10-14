@@ -11,7 +11,7 @@ import {
   toggleSubtask,
   deleteSubtask,
 } from "../api/queries/goals"
-import { Card, Spinner } from "../components/ui"
+import { Card, Spinner, PageHeader, DateField } from "../components/ui"
 import { Plus, Trash2, Search, CheckCircle2, Circle, ChevronDown, ChevronRight, X, Calendar, CalendarOff } from "lucide-react"
 import type { Goal, GoalTask } from "../types"
 
@@ -232,14 +232,7 @@ export default function Goals() {
     <div className="card-liquid-page">
       <div className="card-liquid-page-content p-6">
         <div>
-          <div className="flex items-center justify-between mb-5">
-        <h1 className="text-2xl font-bold text-text-primary">Goals</h1>
-        <button onClick={openModal}
-          className="w-9 h-9 rounded-full bg-emerald-500 text-white shadow-sm flex items-center justify-center hover:brightness-110 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
-      </div>
+          <PageHeader title="Goals" action={<button onClick={openModal} className="inline-flex items-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/15"><Plus className="h-3.5 w-3.5" />Adaugă</button>} />
 
       {/* Progress bar */}
       {(goals ?? []).length > 0 && (
@@ -352,9 +345,7 @@ export default function Goals() {
             <div className="flex gap-2">
               <div className={`relative flex-1 ${noDeadline ? "opacity-50" : ""}`}>
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
-              <input type="date" value={formDeadline} disabled={noDeadline} onChange={(e) => setFormDeadline(e.target.value)}
-                className="w-full bg-surface border border-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-text-primary outline-none focus:border-primary/30 transition-all [color-scheme:var(--color-scheme)]"
-              />
+              <DateField value={formDeadline} disabled={noDeadline} onChange={(e) => setFormDeadline(e.target.value)} aria-label="Deadline" className="pl-9" />
               </div>
               <button type="button" onClick={() => { setNoDeadline((value) => !value); setFormDeadline("") }}
                 className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${noDeadline ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-surface text-text-secondary hover:text-text-primary"}`}

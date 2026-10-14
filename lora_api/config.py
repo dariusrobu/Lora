@@ -9,6 +9,7 @@ if DATABASE_URL.startswith("postgres://"):
 
 LORA_API_SECRET = os.getenv("LORA_API_SECRET", "")
 LORA_API_PASSWORD = os.getenv("LORA_API_PASSWORD", "")
+STANDD_API_TOKEN = os.getenv("STANDD_API_TOKEN", "")
 
 JWT_SECRET = os.getenv("JWT_SECRET", "")
 JWT_ALGORITHM = "HS256"
@@ -25,7 +26,7 @@ NUTRITIONIX_APP_ID = os.getenv("NUTRITIONIX_APP_ID")
 NUTRITIONIX_API_KEY = os.getenv("NUTRITIONIX_API_KEY")
 TIMEZONE = os.getenv("TIMEZONE", "Europe/Bucharest")
 TELEGRAM_USER_ID = int(os.getenv("TELEGRAM_USER_ID", "0"))
-SEMESTER_START_DATE = os.getenv("SEMESTER_START_DATE", "2026-02-23")
+SEMESTER_START_DATE = os.getenv("SEMESTER_START_DATE", "2026-09-28")
 
 # Home server
 SERVER_IP = os.getenv("SERVER_IP", "192.168.1.15")

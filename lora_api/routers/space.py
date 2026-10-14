@@ -232,15 +232,13 @@ async def trigger_calendar_sync(user=Depends(get_current_user)):
             sync_events_table_to_calendar, sync_tasks_with_deadlines,
             sync_exams_to_calendar, sync_tasks_to_reminders, sync_from_icloud_to_lora,
         )
-        await asyncio.gather(
-            cleanup_calendar_orphans(pool),
-            sync_university_schedule_to_calendar(pool),
-            sync_events_table_to_calendar(pool),
-            sync_tasks_with_deadlines(pool),
-            sync_exams_to_calendar(pool),
-            sync_tasks_to_reminders(pool),
-            sync_from_icloud_to_lora(pool),
-        )
+        await cleanup_calendar_orphans(pool)
+        await sync_university_schedule_to_calendar(pool)
+        await sync_events_table_to_calendar(pool)
+        await sync_tasks_with_deadlines(pool)
+        await sync_exams_to_calendar(pool)
+        await sync_tasks_to_reminders(pool)
+        await sync_from_icloud_to_lora(pool)
         return {"ok": True, "message": "Calendar sync completed"}
     except Exception as e:
         return {"ok": False, "message": str(e)}

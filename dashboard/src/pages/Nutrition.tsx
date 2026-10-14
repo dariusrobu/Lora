@@ -198,7 +198,7 @@ export default function Nutrition() {
       {/* Targets card */}
       <div className="glass-strong rounded-2xl p-4 shadow-apple-heavy">
         <p className="text-apple-footnote font-semibold text-text-secondary uppercase tracking-wider mb-3">Daily Targets</p>
-        <div className="grid grid-cols-4 gap-3 text-sm">
+        <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
           <div className="flex flex-col"><span className="text-apple-caption2 text-text-muted">Calories</span><span className="text-lg font-bold text-text-primary">{t.calories}</span></div>
           <div className="flex flex-col"><span className="text-apple-caption2 text-text-muted">Protein</span><span className="text-lg font-bold text-text-primary">{t.protein_g}g</span></div>
           <div className="flex flex-col"><span className="text-apple-caption2 text-text-muted">Carbs</span><span className="text-lg font-bold text-text-primary">{t.carbs_g}g</span></div>

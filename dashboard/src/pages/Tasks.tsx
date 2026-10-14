@@ -1,10 +1,14 @@
 import { useState, useMemo, useRef, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useSearchParams } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import { fetchTasks, createTask, completeTask, deleteTask, updateTask } from "../api/queries/tasks"
-import { Card, Spinner } from "../components/ui"
+import { fetchProjects } from "../api/queries/projects"
+import { api } from "../api/client"
+import { Card, Spinner, PageHeader, DateField } from "../components/ui"
 import { Circle, CheckCircle2, Trash2, Plus, ChevronDown, Search, Calendar } from "lucide-react"
 import type { Task } from "../types"
+import "./Tasks.css"
 
 const today = () => {
   const d = new Date()
@@ -89,7 +93,16 @@ function groupTasks(tasks: Task[], groupBy: string): Section[] {
     case "project": {
       const map = new Map<string, Task[]>()
       tasks.forEach((x) => {
-        const key = x.project_name ?? "No project"
+        const key = x.university_subject_id ? "University" : (x.project_name ?? "No project")
+        if (!map.has(key)) map.set(key, [])
+        map.get(key)!.push(x)
+      })
+      return Array.from(map.entries()).map(([label, tasks]) => ({ label, tasks }))
+    }
+    case "category": {
+      const map = new Map<string, Task[]>()
+      tasks.forEach((x) => {
+        const key = x.tags?.[0] || "Fără categorie"
         if (!map.has(key)) map.set(key, [])
         map.get(key)!.push(x)
       })
@@ -112,23 +125,34 @@ function isDoneThisWeek(task: Task): boolean {
 }
 
 export default function Tasks() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [filter, setFilter] = useState<"all" | "pending" | "done">("all")
   const [groupBy, setGroupBy] = useState<string>("due_date")
+  const [projectFilter, setProjectFilter] = useState("all")
   const [search, setSearch] = useState("")
   const [searchOpen, setSearchOpen] = useState(false)
   const [showGroupMenu, setShowGroupMenu] = useState(false)
   const [showMore, setShowMore] = useState(false)
   const [showDone, setShowDone] = useState(false)
 
-  const [showModal, setShowModal] = useState(false)
+  const [showModal, setShowModal] = useState(() => searchParams.get("action") === "add")
   const [formTitle, setFormTitle] = useState("")
   const [formPriority, setFormPriority] = useState<"low" | "medium" | "high">("medium")
+  const [formCategory, setFormCategory] = useState("")
+  const [formProjectId, setFormProjectId] = useState("")
+  const [formUniversitySubjectId, setFormUniversitySubjectId] = useState("")
+  const [formUniversityType, setFormUniversityType] = useState("curs")
   const [formHasDue, setFormHasDue] = useState(false)
   const [formDue, setFormDue] = useState("")
   const formRef = useRef<HTMLInputElement>(null)
 
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editValue, setEditValue] = useState("")
+  const [editDescription, setEditDescription] = useState("")
+  const [editDueDate, setEditDueDate] = useState("")
+  const [editPriority, setEditPriority] = useState<"low" | "medium" | "high">("medium")
+  const [editCategory, setEditCategory] = useState("")
+  const [editProjectId, setEditProjectId] = useState("")
   const editRef = useRef<HTMLInputElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -142,6 +166,12 @@ export default function Tasks() {
     queryKey: ["tasks"],
     queryFn: () => fetchTasks("all"),
   })
+  const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: fetchProjects })
+  const { data: universityData } = useQuery({
+    queryKey: ["university"],
+    queryFn: async () => (await api.get("/api/university/summary")).data,
+  })
+  const universitySubjects = universityData?.subjects ?? []
 
   const completeMut = useMutation({
     mutationFn: completeTask,
@@ -161,6 +191,8 @@ export default function Tasks() {
       setFormTitle("")
       setFormDue("")
       setFormPriority("medium")
+      setFormCategory("")
+      setFormProjectId("")
     },
   })
 
@@ -175,12 +207,14 @@ export default function Tasks() {
     let result = (tasks ?? []).filter((task) => task.status !== "done" || isDoneThisWeek(task))
     if (filter === "pending") result = result.filter((t) => t.status !== "done")
     else if (filter === "done") result = result.filter((t) => t.status === "done")
+    if (projectFilter === "university") result = result.filter((t) => Boolean(t.university_subject_id))
+    else if (projectFilter !== "all") result = result.filter((t) => String(t.project_id ?? "") === projectFilter)
     if (search.trim()) {
       const q = search.toLowerCase()
       result = result.filter((t) => t.title.toLowerCase().includes(q))
     }
     return result
-  }, [tasks, filter, search])
+  }, [tasks, filter, projectFilter, search])
 
   const completedCount = (tasks ?? []).filter((t) => t.status === "done").length
   const totalCount = tasks?.length ?? 0
@@ -193,21 +227,37 @@ export default function Tasks() {
     { key: "due_date", label: "Due Date" },
     { key: "priority", label: "Priority" },
     { key: "project", label: "Project" },
+    { key: "category", label: "Category" },
     { key: "none", label: "None" },
   ] as const
 
   const openModal = () => {
     setFormTitle("")
     setFormPriority("medium")
+    setFormCategory("")
+    setFormProjectId("")
+    setFormUniversitySubjectId("")
+    setFormUniversityType("curs")
     setFormHasDue(false)
     setFormDue("")
     setShowModal(true)
     setTimeout(() => formRef.current?.focus(), 100)
   }
 
+  useEffect(() => {
+    if (searchParams.get("action") === "add") setSearchParams({}, { replace: true })
+  }, [searchParams, setSearchParams])
+
   const handleCreate = () => {
-    if (!formTitle.trim() || createMut.isPending) return
+    if (!formTitle.trim() || createMut.isPending || (formProjectId === "university" && !formUniversitySubjectId)) return
     const payload: Partial<Task> = { title: formTitle.trim(), priority: formPriority }
+    if (formCategory.trim()) payload.tags = [formCategory.trim()]
+    if (formProjectId) payload.project_id = Number(formProjectId)
+    if (formProjectId === "university" && formUniversitySubjectId) {
+      payload.university_subject_id = Number(formUniversitySubjectId)
+      payload.class_type = formUniversityType
+      delete payload.project_id
+    }
     if (formHasDue && formDue) payload.due_date = formDue
     createMut.mutate(payload)
   }
@@ -215,13 +265,16 @@ export default function Tasks() {
   const startEdit = (task: Task) => {
     setEditingId(task.id)
     setEditValue(task.title)
+    setEditDescription(task.description || task.notes || "")
+    setEditDueDate(task.due_date || "")
+    setEditPriority(task.priority)
+    setEditCategory(task.tags?.[0] || "")
+    setEditProjectId(task.project_id ? String(task.project_id) : "")
     setTimeout(() => editRef.current?.focus(), 10)
   }
 
   const saveEdit = (taskId: number) => {
-    if (editValue.trim() && editValue.trim() !== tasks?.find((t) => t.id === taskId)?.title) {
-      updateMut.mutate({ id: taskId, updates: { title: editValue.trim() } })
-    }
+    if (editValue.trim()) updateMut.mutate({ id: taskId, updates: { title: editValue.trim(), description: editDescription, due_date: editDueDate || undefined, priority: editPriority, tags: editCategory.trim() ? [editCategory.trim()] : [], project_id: editProjectId ? Number(editProjectId) : null } })
     setEditingId(null)
   }
 
@@ -233,17 +286,10 @@ export default function Tasks() {
   if (isLoading) return <Spinner className="py-12" />
 
   return (
-    <div className="card-liquid-page">
+    <div className="card-liquid-page tasks-page">
       <div className="card-liquid-page-content p-6">
-        <div>
-          <div className="flex items-center justify-between mb-5">
-        <h1 className="text-2xl font-bold text-text-primary">Tasks</h1>
-        <button onClick={openModal}
-          className="w-9 h-9 rounded-full bg-emerald-500 text-white shadow-sm flex items-center justify-center hover:brightness-110 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
-      </div>
+        <div className="flex flex-col">
+          <PageHeader title="Tasks" action={<button onClick={openModal} className="inline-flex items-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/15"><Plus className="h-3.5 w-3.5" />Adaugă</button>} />
 
       {/* Progress bar */}
       {totalCount > 0 && (
@@ -259,10 +305,11 @@ export default function Tasks() {
       )}
 
       {/* Segmented control + group dropdown */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="tasks-toolbar mb-4 flex flex-wrap items-center gap-2">
         <div className="flex p-0.5 rounded-full bg-surface border border-border">
           {filters.map((f) => (
             <button key={f} onClick={() => setFilter(f)}
+              aria-pressed={filter === f}
               className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
                 filter === f ? "bg-white/10 dark:bg-white/[0.08] font-semibold text-text-primary" : "text-text-secondary hover:text-text-primary"
               }`}
@@ -271,9 +318,16 @@ export default function Tasks() {
             </button>
           ))}
         </div>
+        <select aria-label="Filtrează după proiect" data-active={projectFilter !== "all"} value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className="min-w-0 max-w-full rounded-xl border border-border bg-surface text-xs font-medium text-text-secondary sm:max-w-56">
+          <option value="all">Toate proiectele</option>
+          <option value="university">University</option>
+          {(projects ?? []).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+        </select>
         <div className="relative">
           <button onClick={() => setShowGroupMenu(!showGroupMenu)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium text-text-secondary hover:text-text-primary hover:bg-surface border border-transparent hover:border-border transition-all"
+            aria-expanded={showGroupMenu}
+            aria-label="Grupează taskurile"
+            className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition-colors hover:border-primary/30 hover:text-primary"
           >
             {groupOptions.find((g) => g.key === groupBy)?.label ?? "Group"}
             <ChevronDown className="w-3 h-3" />
@@ -284,8 +338,8 @@ export default function Tasks() {
               <div className="absolute right-0 top-full mt-1 z-20 min-w-32 bg-bg border border-border rounded-xl shadow-apple-heavy dark:shadow-apple-dark py-1">
                 {groupOptions.map((g) => (
                   <button key={g.key} onClick={() => { setGroupBy(g.key); setShowGroupMenu(false) }}
-                    className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
-                      groupBy === g.key ? "text-primary font-medium" : "text-text-secondary hover:text-text-primary hover:bg-surface"
+                    className={`min-h-11 w-full text-left px-3 py-2 text-xs transition-colors ${
+                      groupBy === g.key ? "bg-primary/10 text-primary font-medium" : "text-text-secondary hover:text-text-primary hover:bg-surface"
                     }`}
                   >
                     {g.label}
@@ -319,6 +373,7 @@ export default function Tasks() {
         </div>
       </div>
 
+      <div className="order-2">
       {/* Task list */}
       {sections.length === 0 ? (
         <Card><p className="text-sm text-text-muted text-center py-8">No tasks found</p></Card>
@@ -372,9 +427,8 @@ export default function Tasks() {
 
                           <div className="flex-1 min-w-0">
                             {editingId === task.id ? (
-                              <input ref={editRef} value={editValue}
+                              <div className="space-y-1.5 rounded-xl border border-border bg-surface p-2" onClick={(e) => e.stopPropagation()}><input ref={editRef} value={editValue}
                                 onChange={(e) => setEditValue(e.target.value)}
-                                onBlur={() => saveEdit(task.id)}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") saveEdit(task.id)
                                   if (e.key === "Escape") setEditingId(null)
@@ -382,6 +436,8 @@ export default function Tasks() {
                                 className="w-full bg-surface border border-border rounded-lg px-2 py-0.5 text-sm text-text-primary outline-none"
                                 onClick={(e) => e.stopPropagation()}
                               />
+                                <input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Descriere" className="w-full rounded-lg border border-border bg-transparent px-2 py-1 text-xs text-text-secondary outline-none" />
+                                <div className="flex flex-wrap gap-1.5"><select value={editProjectId} onChange={(e) => setEditProjectId(e.target.value)} className="h-8 min-w-32 flex-1 rounded-lg border border-border bg-transparent px-2 py-1 text-xs"><option value="">Fără proiect</option>{(projects ?? []).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select><input value={editCategory} onChange={(e) => setEditCategory(e.target.value)} placeholder="Categorie" className="h-8 min-w-28 flex-1 rounded-lg border border-border bg-transparent px-2 py-1 text-xs" /><DateField value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} aria-label="Data limită" className="h-8 rounded-lg px-2 py-1 text-xs" /><select value={editPriority} onChange={(e) => setEditPriority(e.target.value as "low" | "medium" | "high")} className="rounded-lg border border-border bg-transparent px-2 py-1 text-xs"><option value="low">Prioritate mică</option><option value="medium">Prioritate medie</option><option value="high">Prioritate mare</option></select><button type="button" onClick={() => saveEdit(task.id)} className="rounded-lg bg-primary px-2 py-1 text-xs text-white">Salvează</button><button type="button" onClick={() => setEditingId(null)} className="rounded-lg border border-border px-2 py-1 text-xs">Anulează</button></div></div>
                             ) : (
                               <button onClick={() => startEdit(task)}
                                 className={`text-sm text-left w-full truncate transition-all ${task.status === "done" ? "line-through text-text-muted" : "text-text-primary"}`}
@@ -432,10 +488,11 @@ export default function Tasks() {
           )}
         </div>
       )}
+      </div>
 
       {/* Inline new task form */}
       <AnimatePresence initial={false}>
-        {showModal && <motion.div initial={{ opacity: 0, height: 0, y: -8 }} animate={{ opacity: 1, height: "auto", y: 0 }} exit={{ opacity: 0, height: 0, y: -8 }} className="mb-6 overflow-hidden rounded-2xl border border-border bg-surface/70 p-4 sm:p-5">
+        {showModal && <motion.div initial={{ opacity: 0, height: 0, y: -8 }} animate={{ opacity: 1, height: "auto", y: 0 }} exit={{ opacity: 0, height: 0, y: -8 }} className="order-1 mb-6 overflow-hidden rounded-2xl border border-border bg-surface/70 p-4 sm:p-5">
         <div className="flex items-center justify-between mb-4"><h2 className="text-base font-semibold text-text-primary">New Task</h2><button type="button" onClick={() => setShowModal(false)} className="text-xs text-text-muted hover:text-text-primary">Cancel</button></div>
         <div className="space-y-4">
           <div>
@@ -448,10 +505,26 @@ export default function Tasks() {
           </div>
 
           <div>
+            <label className="block text-xs font-medium text-text-secondary mb-1">Project</label>
+            <select value={formProjectId} onChange={(e) => setFormProjectId(e.target.value)} className="w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-text-primary outline-none focus:border-primary/30">
+              <option value="">Fără proiect</option>
+              <option value="university">University</option>
+              {(projects ?? []).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+            </select>
+            {formProjectId === "university" && <div className="mt-2 grid gap-2 sm:grid-cols-2"><select value={formUniversitySubjectId} onChange={(e) => setFormUniversitySubjectId(e.target.value)} className="w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-text-primary outline-none"><option value="">Alege materia</option>{universitySubjects.map((subject: any) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select><select value={formUniversityType} onChange={(e) => setFormUniversityType(e.target.value)} className="w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-text-primary outline-none"><option value="curs">Curs</option><option value="seminar">Seminar</option></select></div>}
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-text-secondary mb-1">Category</label>
+            <input value={formCategory} onChange={(e) => setFormCategory(e.target.value)} placeholder="ex. Facultate, Personal, Casă" className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted outline-none focus:border-primary/30 transition-colors" />
+          </div>
+
+          <div>
             <label className="block text-xs font-medium text-text-secondary mb-1.5">Priority</label>
             <div className="flex gap-1.5">
               {(["low", "medium", "high"] as const).map((p) => (
                 <button key={p} onClick={() => setFormPriority(p)}
+                  aria-pressed={formPriority === p}
                   className={`flex-1 py-2 rounded-xl text-xs font-medium capitalize transition-all ${
                     formPriority === p
                       ? p === "high"
@@ -480,9 +553,7 @@ export default function Tasks() {
             {formHasDue && (
               <div className="relative mt-1">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
-                <input type="date" value={formDue} onChange={(e) => setFormDue(e.target.value)}
-                  className="w-full bg-surface border border-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-text-primary outline-none focus:border-primary/30 transition-all [color-scheme:var(--color-scheme)]"
-                />
+                <DateField value={formDue} onChange={(e) => setFormDue(e.target.value)} aria-label="Data limită" className="pl-9" />
               </div>
             )}
           </div>
@@ -493,8 +564,8 @@ export default function Tasks() {
             >
               Cancel
             </button>
-            <button onClick={handleCreate} disabled={!formTitle.trim() || createMut.isPending}
-              className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-blue-600 text-white disabled:opacity-40 transition-all"
+            <button onClick={handleCreate} disabled={!formTitle.trim() || createMut.isPending || (formProjectId === "university" && !formUniversitySubjectId)}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-primary text-white shadow-sm hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-40 transition-all"
             >
               {createMut.isPending ? <Spinner size="sm" /> : "Add Task"}
             </button>

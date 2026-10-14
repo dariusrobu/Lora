@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { motion, AnimatePresence } from "framer-motion"
-import { Dumbbell, Clock, CalendarDays, TrendingUp, ChevronDown, ChevronUp, Plus } from "lucide-react"
+import { Dumbbell, Clock, CalendarDays, TrendingUp, ChevronDown, ChevronUp } from "lucide-react"
 import { Card, Button, Spinner } from "../components/ui"
 import { fetchWorkoutStats, logWorkout } from "../api/queries/workout"
 import type { WorkoutSession } from "../types"
@@ -33,7 +33,7 @@ export default function Workout() {
 
   const qc = useQueryClient()
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["workout"],
     queryFn: fetchWorkoutStats,
   })
@@ -56,6 +56,7 @@ export default function Workout() {
   }
 
   if (isLoading) return <Spinner className="py-12" />
+  if (isError) return <Card><p className="text-sm text-text-secondary">Antrenamentele nu au putut fi încărcate.</p><button type="button" className="mt-3 text-sm text-primary" onClick={() => refetch()}>Reîncearcă</button></Card>
 
   const { stats, recent, personal_records } = data ?? {
     stats: { total_sessions: 0, active_days: 0, most_common_type: null, avg_duration: null },

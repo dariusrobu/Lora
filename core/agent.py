@@ -46,6 +46,89 @@ def _fast_action_plan(message: str) -> list[dict] | None:
         {"intent": "add_item", "module": "shopping", "data": {"item": item.strip()}},
     ]
 
+
+def _fast_reminder_action(message: str) -> dict | None:
+    """Parse short Romanian relative reminders before the agent loop."""
+    text = message.casefold().strip()
+    urgent = bool(re.search(r"\burgent(?:ă|a)?\b", text))
+    match = re.search(
+        r"(?:adu[- ]mi aminte|amintește[- ]mi|aminteste[- ]mi)\s+"
+        r"(?:în|in|peste)\s+(\d+|o)\s+(minute|minut|minutele|ore|oră|ora|zile|zi|săptămâni|saptamani|săptămână|saptamana)\s+"
+        r"(?:să|sa)\s+(.+?)[.!]?$",
+        text,
+    )
+    title = None
+    if match:
+        amount = 1 if match.group(1) == "o" else int(match.group(1))
+        unit = match.group(2)
+        if "săptăm" in unit or "sapt" in unit:
+            delta = timedelta(weeks=amount)
+        elif "zi" in unit:
+            delta = timedelta(days=amount)
+        elif "or" in unit:
+            delta = timedelta(hours=amount)
+        else:
+            delta = timedelta(minutes=amount)
+        target = datetime.now() + delta
+        title = match.group(3).strip()
+    else:
+        day_time = re.search(
+            r"\b(azi|astăzi|mâine|maine|poimâine|poimaine)\s+"
+            r"(?:la\s+(?:ora\s*)?|ora\s*)?(\d{1,2}:\d{2})\s+"
+            r"(?:să|sa)\s+(.+?)[.!]?$",
+            text,
+        )
+        absolute = re.search(
+            r"(?:la|ora)\s+(\d{1,2}:\d{2})\s+(?:să|sa)\s+(.+?)[.!]?$", text
+        )
+        relative_day = re.search(
+            r"(?:mâine|maine|peste\s+o\s+zi)\s+(?:să|sa)\s+(.+?)[.!]?$", text
+        )
+        relative_week = re.search(
+            r"peste\s+o\s+(?:săptămână|saptamana)\s+(?:să|sa)\s+(.+?)[.!]?$", text
+        )
+        if day_time:
+            day_name, time_text, reminder_title = day_time.groups()
+            day_offsets = {
+                "azi": 0,
+                "astăzi": 0,
+                "mâine": 1,
+                "maine": 1,
+                "poimâine": 2,
+                "poimaine": 2,
+            }
+            target = datetime.combine(
+                datetime.now().date() + timedelta(days=day_offsets[day_name]),
+                datetime.strptime(time_text, "%H:%M").time(),
+            )
+            title = reminder_title.strip()
+        elif absolute:
+            target = datetime.combine(datetime.now().date(), datetime.strptime(absolute.group(1), "%H:%M").time())
+            if target <= datetime.now():
+                target += timedelta(days=1)
+            title = absolute.group(2).strip()
+        elif relative_day:
+            target = datetime.now() + timedelta(days=1)
+            title = relative_day.group(1).strip()
+        elif relative_week:
+            target = datetime.now() + timedelta(weeks=1)
+            title = relative_week.group(1).strip()
+        else:
+            return None
+    title = re.sub(r"\burgent(?:ă|a)?\b", "", title, flags=re.IGNORECASE)
+    title = re.sub(r"\s+", " ", title).strip()
+    return {
+        "intent": "add_reminder",
+        "module": "events",
+        "data": {
+            "title": title,
+            "event_date": target.strftime("%Y-%m-%d"),
+            "event_time": target.strftime("%H:%M"),
+            "remind_before_minutes": 0,
+            "urgent": urgent,
+        },
+    }
+
 _BLOCKED_MEMORY = re.compile(
     r"(?:password|parol[aă]|token|api[_ -]?key|secret|jwt|cvv|pin|iban|diagnos|tratament|medicament)",
     re.IGNORECASE,
@@ -555,7 +638,7 @@ def _select_relevant_tools(user_message: str) -> str | None:
         "tasks_projects": {
             "keywords": ["task", "sarcin", "todo", "proiect", "project", "deadline", "priorit", "adaug task", "complet", "finalizez", "sterge task"],
             "tools": [
-                "- Intent: \"add_task\" | Module: \"tasks\" | Data: title (required), due_date?, project?, priority?",
+                "- Intent: \"add_task\" | Module: \"tasks\" | Data: title (required), due_date? (YYYY-MM-DD), due_time? (HH:MM), project?, priority?",
                 "- Intent: \"list_tasks\" | Module: \"tasks\" | Data: (none)",
                 "- Intent: \"complete_task\" | Module: \"tasks\" | Data: task_id? or title?",
                 "- Intent: \"delete_task\" | Module: \"tasks\" | Data: task_id? or title?",
@@ -700,6 +783,14 @@ async def agent_loop(
         logger.info("⚡ FAST ACTION PLAN: %s", fast_plan)
         return "__ACTION_PLAN_CONFIRMATION_REQUIRED__", None, None
 
+    fast_reminder = _fast_reminder_action(user_message)
+    if fast_reminder:
+        from core.state import set_pending_action
+
+        await set_pending_action(pool, "add_reminder", "events", fast_reminder["data"])
+        logger.info("⚡ FAST REMINDER: %s", fast_reminder)
+        return "__CONFIRMATION_REQUIRED__", None, None
+
     hint = f"\nHINT: {system_hint}" if system_hint else ""
 
     # --- Dynamic Tool Selection: reduce prompt by ~70% for local LLMs ---
@@ -728,7 +819,7 @@ CONVERSATIONAL ACTION RULES:
 - Keep final replies natural Romanian and never expose intent/module names.
 
 AVAILABLE INTENTS (use with action_type="tool"):
-- Intent: "add_task" | Module: "tasks" | Data: title (required), due_date?, project?, priority?
+- Intent: "add_task" | Module: "tasks" | Data: title (required), due_date? (YYYY-MM-DD), due_time? (HH:MM), project?, priority?
 - Intent: "list_tasks" | Module: "tasks" | Data: (none)
 - Intent: "complete_task" | Module: "tasks" | Data: task_id? or title?
 - Intent: "delete_task" | Module: "tasks" | Data: task_id? or title?

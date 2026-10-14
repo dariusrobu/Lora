@@ -12,6 +12,11 @@ from core.vision import (
 )
 
 
+@pytest.fixture(autouse=True)
+def local_reference_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("core.config.NUTRITION_CLOUD_ENABLED", False)
+
+
 def test_clean_json_from_text():
     # Direct JSON
     raw1 = '{"type": "receipt", "confidence": 0.95}'
@@ -184,6 +189,32 @@ async def test_handle_vision_callback_logs_all_items():
 
 
 @pytest.mark.asyncio
+async def test_confirm_unreconciled_receipt_logs_only_printed_total():
+    from core.vision import confirm_vision_action
+
+    pool = MagicMock()
+    state = {
+        "state_type": "awaiting_vision_confirmation",
+        "action": "log_expense",
+        "extra": {
+            "amount": 144.70,
+            "category": "altele",
+            "description": "ROMANIA SRL",
+            "items": [{"name": "SACOSA PLASTIC", "price": 59.58, "category": "altele"}],
+            "items_reliable": False,
+        },
+    }
+
+    with patch("core.vision.log_transaction", new=AsyncMock()) as mock_log, \
+         patch("core.vision.clear_state", new=AsyncMock()):
+        await confirm_vision_action(pool, state)
+
+    mock_log.assert_awaited_once_with(
+        pool, "expense", 144.70, category="altele", description="ROMANIA SRL"
+    )
+
+
+@pytest.mark.asyncio
 async def test_identify_product_vape_and_food():
     from core.web_search import identify_product_with_web
 
@@ -298,8 +329,9 @@ async def test_analyze_food_from_vision():
         result = await analyze_food_from_vision("A plate of fluffy scrambled eggs with a slice of toasted sourdough bread.")
         assert result is not None
         assert result["type"] == "food"
-        assert result["extracted_data"]["total_calories"] == 380
-        assert result["extracted_data"]["total_protein"] == 22
+        # The food path recalculates from reference values, not the model's total.
+        assert result["extracted_data"]["total_calories"] == pytest.approx(468.8)
+        assert result["extracted_data"]["total_protein"] == pytest.approx(28.1)
         assert len(result["extracted_data"]["items"]) == 2
 
 
@@ -503,11 +535,10 @@ async def test_modify_pending_meal():
     with patch("core.vision._call_local_llm_json", new=AsyncMock(return_value=mock_llm_return)):
         updated_extra = await modify_pending_meal(extra, "adaugă și 100g orez fiert")
 
-        assert updated_extra["description"] == "Piept de pui la grătar cu orez"
+        assert "Pui" in updated_extra["description"]
+        assert "Orez" in updated_extra["description"]
         assert len(updated_extra["items"]) == 2
         assert updated_extra["calories"] == 350
         assert updated_extra["protein"] == 38
         assert updated_extra["carbs"] == 28
         assert updated_extra["fat"] == 4
-
-

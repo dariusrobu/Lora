@@ -43,6 +43,7 @@ from bot.handler import (
     tasks_command,
     debug_app_command,
     projects_command,
+    inbox_command,
     reading_command,
     memory_command,
     set_home_command,
@@ -345,6 +346,7 @@ async def start_bot():
     application.add_handler(CommandHandler("finance", finance_command))
     application.add_handler(CommandHandler("memory", memory_command))
     application.add_handler(CommandHandler("tasks", tasks_command))
+    application.add_handler(CommandHandler("inbox", inbox_command))
     application.add_handler(
         CommandHandler("sethome", partial(set_home_command, pool=pool))
     )

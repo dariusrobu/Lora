@@ -233,6 +233,8 @@ async def handle_event_intent(
         if remind_minutes is None:
             remind_minutes = 30
 
+        urgent = bool(data.get("urgent", False))
+
         # If event/reminder is scheduled today within remind_minutes from now (e.g. in 2 min, 5 min),
         # disable the 30m pre-reminder so it only triggers at the exact time.
         if event_date == datetime.now().date() and event_time and remind_minutes > 0:
@@ -251,6 +253,7 @@ async def handle_event_intent(
             is_recurring=data.get("is_recurring", False),
             remind_before_minutes=remind_minutes,
             event_type="reminder" if is_reminder else "event",
+            urgent=urgent,
         )
 
         # Immediate sync to iCloud
@@ -260,6 +263,15 @@ async def handle_event_intent(
             asyncio.create_task(sync_events_table_to_calendar(pool))
         except Exception as e:
             print(f"Error triggering immediate sync: {e}")
+
+        # Keep the local Obsidian projection fresh after Telegram-created
+        # events/reminders instead of waiting for the periodic scheduler job.
+        try:
+            from integrations.obsidian_sync import sync_vault_safe
+
+            asyncio.create_task(sync_vault_safe(pool))
+        except Exception as e:
+            print(f"Error triggering immediate Obsidian sync: {e}")
 
         time_msg = f" la {time_str}" if event_time else ""
         type_msg = "Reminder" if is_reminder else "Eveniment"

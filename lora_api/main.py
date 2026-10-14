@@ -14,7 +14,7 @@ from typing import List
 
 from lora_api.config import ALLOWED_ORIGINS, DATABASE_URL, JWT_SECRET, LORA_API_PASSWORD, API_PORT
 from lora_api.database import init_pool, close_pool, get_pool
-from lora_api.auth import decode_token, hash_password, verify_password, create_token, get_current_user
+from lora_api.auth import decode_token, hash_password, verify_password, create_token, get_current_user, require_standd_token
 from lora_api.routers import (
     tasks, projects, finance, university, shopping, health,
     workout, skills, reading, nutrition, goals, mood,
@@ -152,7 +152,7 @@ async def _ensure_schema():
 
         # 3. Seed user_profile row for the default user
         from lora_api.config import TELEGRAM_USER_ID, TIMEZONE
-        morning_time = os.getenv("MORNING_BRIEFING_TIME", "08:00")
+        morning_time = os.getenv("MORNING_BRIEFING_TIME", "07:00")
         eod_time = os.getenv("EOD_REFLECTION_TIME", "21:00")
         await conn.execute("""
             INSERT INTO user_profile (telegram_id, timezone, morning_time, eod_time, is_at_home)
@@ -246,7 +246,7 @@ async def telegram_auth(body: TelegramAuthRequest):
 
 
 
-@app.get("/api/health")
+@app.get("/api/health", dependencies=[Depends(require_standd_token)])
 async def health_status():
     pool = await get_pool()
     db_ok = False

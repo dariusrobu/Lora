@@ -361,6 +361,21 @@ async def handle_task_intent(
             except Exception:
                 pass
 
+        due_time = None
+        due_time_str = data.get("due_time")
+        if not due_time_str:
+            due_time_match = re.search(
+                r"(?:la\s+(?:ora\s*)?|ora\s*)(\d{1,2}:\d{2})",
+                data.get("_user_message", ""),
+                re.IGNORECASE,
+            )
+            due_time_str = due_time_match.group(1) if due_time_match else None
+        if due_time_str:
+            try:
+                due_time = datetime.strptime(due_time_str, "%H:%M").time()
+            except ValueError:
+                due_time = None
+
         priority = priority or "medium"
         project_id = data.get("project_id") or data.get("id")
         project_name = project_name or data.get("project") or data.get("project_name")
@@ -394,6 +409,7 @@ async def handle_task_intent(
             notes=data.get("notes"),
             priority=data.get("priority", "medium"),
             due_date=due_date,
+            due_time=due_time,
             project_id=project_id,
             is_recurring=data.get("is_recurring", False),
             recurrence=data.get("recurrence"),
@@ -415,6 +431,8 @@ async def handle_task_intent(
             from bot.formatter import format_date_short
 
             reply_msg += f" ⏳ {format_date_short(due_date)}"
+            if due_time:
+                reply_msg += f" la {due_time.strftime('%H:%M')}"
         if project_name:
             reply_msg += f" 📂 {escape_md(project_name)}"
 

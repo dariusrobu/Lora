@@ -9,12 +9,15 @@ recurring-ical-events>=2.1.0
 asyncpg>=0.29.0
 apscheduler==3.10.4
 httpx
+lxml>=5.0.0
+playwright>=1.50.0
 python-dotenv
 pytz
 python-dateutil
 feedparser>=6.0.0
 # KittenTTS — local ONNX text-to-speech
 https://github.com/KittenML/KittenTTS/releases/download/0.8.1/kittentts-0.8.1-py3-none-any.whl
+edge-tts>=7.2.1
 matplotlib
 numpy
 aiohttp>=3.9.0

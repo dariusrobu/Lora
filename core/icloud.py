@@ -223,10 +223,11 @@ async def create_event(
 
 async def create_reminder(
     summary: str,
-    due_date: Optional[date] = None,
+    due_date: Optional[date | datetime] = None,
     priority: int = 0,  # 0=none, 1=high, 5=medium, 9=low in CalDAV/iCloud
     uid: str = None,
     description: str = None,
+    alarm_minutes_before: Optional[int] = 0,
 ) -> str:
     """Creates a VTODO reminder in the iCloud Reminders list."""
     try:
@@ -239,6 +240,15 @@ async def create_reminder(
 
         if due_date:
             todo.add("due", due_date)
+
+        # Apple Reminders exposes timed VTODOs as clock alarms.  Keep the
+        # alarm on the due time (the default for an urgent reminder).
+        if due_date is not None and alarm_minutes_before is not None:
+            alarm = iAlarm()
+            alarm.add("action", "DISPLAY")
+            alarm.add("description", f"Reminder: {summary}")
+            alarm.add("trigger", timedelta(minutes=-alarm_minutes_before))
+            todo.add_component(alarm)
 
         if priority > 0:
             todo.add("priority", priority)
@@ -274,6 +284,8 @@ async def update_event(uid: str, **kwargs) -> bool:
             vevent["summary"] = vText(kwargs["summary"])
         if "description" in kwargs:
             vevent["description"] = vText(kwargs["description"])
+        if "rrule" in kwargs and kwargs["rrule"]:
+            vevent["rrule"] = vRecur.from_ical(kwargs["rrule"])
         # ... add others if needed
 
         event.data = ical.to_ical()
@@ -338,7 +350,7 @@ async def sync_university_schedule_to_calendar(pool) -> dict:
                 "SELECT semester_start FROM semester_config LIMIT 1"
             )
             if not semester_start:
-                semester_start = date(2026, 2, 23)
+                semester_start = date(2026, 9, 28)
 
             # Fetch didactic periods for segmented syncing
             didactic_periods = await conn.fetch(
@@ -362,14 +374,6 @@ async def sync_university_schedule_to_calendar(pool) -> dict:
                     lora_id = c["id"]
                     lora_type = "university_schedule"
                     uid = f"lora-schedule-{lora_id}-p{p_idx}@lora"
-
-                    # Check if already synced
-                    existing = await calendar_queries.get_sync_record(
-                        pool, lora_type, lora_id, uid
-                    )
-                    if existing:
-                        stats["skipped"] += 1
-                        continue
 
                     target_dow = (
                         c["day_of_week"]
@@ -409,6 +413,20 @@ async def sync_university_schedule_to_calendar(pool) -> dict:
                     rrule = f"FREQ=WEEKLY;BYDAY={day_codes[target_dow % 7]};UNTIL={until_str}"
                     if rrule_interval > 1:
                         rrule += f";INTERVAL={rrule_interval}"
+
+                    # Existing records may predate recurring-event support. Repair
+                    # the iCloud event instead of trusting the local sync marker.
+                    existing = await calendar_queries.get_sync_record(
+                        pool, lora_type, lora_id, uid
+                    )
+                    if existing:
+                        try:
+                            repaired = await update_event(uid, rrule=rrule)
+                            if repaired:
+                                stats["skipped"] += 1
+                                continue
+                        except Exception as exc:
+                            print(f"Error repairing schedule {lora_id}: {exc}")
 
                     # Alarms for classes: 15 min before
                     alarms = [15]
@@ -520,7 +538,11 @@ async def sync_events_table_to_calendar(pool) -> dict:
 
             uid = f"lora-event-{lora_id}@lora"
             icon = "📅" if r["event_type"] == "event" else "🔔"
-            summary = f"{icon} {r['title']}"
+            summary = (
+                f"🚨 REMINDER URGENT: {r['title']}"
+                if r["event_type"] == "reminder" and r.get("urgent")
+                else f"{icon} {r['title']}"
+            )
 
             # Set alarms based on Lora settings
             alarms = []

@@ -7,6 +7,8 @@ bot.log
 bot.log.*
 *.log
 backups/
+data/nutrition/
+obsidian.local-backup-*/
 lora.pid
 node_modules/
 dashboard/dist/
@@ -18,3 +20,7 @@ scratch/
 .step/
 images.jpeg
 .DS_Store
+.moodle-*-profile/
+scratch/moodle/*.json
+n8n/.env.n8n
+n8n/.env.bridge

@@ -1,8 +1,8 @@
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { motion } from "framer-motion"
-import { BookOpen, Plus, Star } from "lucide-react"
-import { Card, Button, Input, Badge, Spinner } from "../components/ui"
+import { Plus, Star } from "lucide-react"
+import { Card, Button, Input, Badge, Spinner, PageHeader } from "../components/ui"
 import type { Book } from "../types"
 import { fetchBooks, addBook, updateBook } from "../api/queries/reading"
 
@@ -42,15 +42,7 @@ export default function Reading() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <BookOpen className="h-6 w-6 text-indigo-500" />
-          <h1 className="text-2xl font-bold">Reading</h1>
-        </div>
-        <Button onClick={() => setModalOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Add Book
-        </Button>
-      </div>
+      <PageHeader title="Reading" action={<Button onClick={() => setModalOpen(true)}><Plus className="h-4 w-4 mr-1" /> Add book</Button>} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {books?.map((book) => (

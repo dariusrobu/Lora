@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ChevronDown } from "lucide-react"
+import { ModeSelector, PageHeader } from "../components/ui"
 import Finance from "./Finance"
 import Shopping from "./Shopping"
 import TravelPage from "./Travel"
@@ -23,7 +23,7 @@ export default function Life() {
     <div className="card-liquid-page">
       <div className="card-liquid-page-content p-6">
         <div>
-          <label className="relative mb-6 flex w-fit items-center gap-2 text-sm font-semibold text-text-primary"><span>Life · {tabs.find((t) => t.key === active)?.label}</span><ChevronDown className="w-4 h-4 text-text-muted" /><select value={active} onChange={(e) => setActive(e.target.value as TabKey)} className="absolute inset-0 cursor-pointer opacity-0" aria-label="Alege secțiunea Life">{tabs.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select></label>
+          <PageHeader eyebrow="Spatial OS · Life" title="Life" description="Bani, cumpărături, ieșiri și informații utile." action={<ModeSelector value={active} options={tabs.map((t) => ({ value: t.key, label: t.label }))} onChange={setActive} />} />
           {active === "finance" && <Finance />}
           {active === "shopping" && <Shopping />}
           {active === "outings" && <div className="space-y-8"><TravelPage /><Places /></div>}

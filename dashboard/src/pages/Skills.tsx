@@ -1,8 +1,8 @@
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { motion } from "framer-motion"
-import { Zap, Plus, Flame } from "lucide-react"
-import { Card, Button, Input, Badge, Spinner } from "../components/ui"
+import { Plus, Flame } from "lucide-react"
+import { Card, Button, Input, Badge, Spinner, PageHeader } from "../components/ui"
 import type { Skill } from "../types"
 import { fetchSkills, logSkill } from "../api/queries/skills"
 
@@ -29,15 +29,7 @@ export default function Skills() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Zap className="h-6 w-6 text-yellow-500" />
-          <h1 className="text-2xl font-bold">Skills</h1>
-        </div>
-        <Button onClick={() => setModalOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> New Skill
-        </Button>
-      </div>
+      <PageHeader title="Skills" action={<Button onClick={() => setModalOpen(true)}><Plus className="h-4 w-4 mr-1" /> New skill</Button>} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {skills?.map((skill) => (

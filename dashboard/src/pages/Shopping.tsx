@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { motion, AnimatePresence } from "framer-motion"
 import { fetchShopping, addShoppingItem, toggleShoppingItem, deleteShoppingItem } from "../api/queries/shopping"
 import { Spinner } from "../components/ui/Spinner"
+import { PageHeader } from "../components/ui/Spatial"
 import { 
-  Plus, Trash2, CheckSquare, Square, ShoppingBag, ShoppingCart, 
+  Plus, Trash2, ShoppingCart,
   Check, Sparkles, Tag, Filter, Circle, CheckCircle2 
 } from "lucide-react"
 import type { ShoppingItem } from "../types"
@@ -95,25 +96,10 @@ export default function Shopping() {
       animate={{ opacity: 1, y: 0 }}
       className="max-w-4xl mx-auto space-y-6 pb-20"
     >
-      {/* Header with Aurora Glow */}
-      <div className="relative pt-2 pb-1">
-        <div className="absolute -top-10 left-0 w-72 h-40 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-                <ShoppingBag className="w-4 h-4" />
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">Cumpărături</h1>
-            </div>
-            <p className="text-zinc-400 text-xs sm:text-sm pl-10">
-              {totalCount === 0 
-                ? "Niciun articol în listă" 
-                : `${pendingCount} articole rămase de cumpărat, ${boughtCount} finalizate`}
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader title="Cumpărături" />
+      <p className="-mt-4 mb-6 text-sm text-text-secondary">
+        {totalCount === 0 ? "Niciun articol în listă" : `${pendingCount} articole rămase de cumpărat, ${boughtCount} finalizate`}
+      </p>
 
       {/* 3 Large Prominent Metrics */}
       <div className="grid grid-cols-3 gap-3 sm:gap-4 p-4 rounded-3xl bg-white/[0.02] border border-white/[0.05] divide-x divide-white/[0.06] backdrop-blur-xl">

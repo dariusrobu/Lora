@@ -2,11 +2,16 @@ export interface Task {
   id: number
   title: string
   notes?: string
+  description?: string
   priority: "high" | "medium" | "low"
   status: "pending" | "done"
   due_date?: string
-  project_id?: number
+  project_id?: number | null
   project_name?: string
+  university_subject_id?: number | null
+  subject_name?: string
+  class_type?: string
+  tags?: string[]
   created_at: string
   completed_at?: string
 }
@@ -51,6 +56,7 @@ export interface Transaction {
   description: string
   type: "expense" | "income"
   transaction_date: string
+  tx_date?: string
 }
 
 export interface FinanceSummary {
@@ -59,6 +65,22 @@ export interface FinanceSummary {
   balance: number
   total_balance?: number
   monthly_balance?: number
+}
+
+export interface UniversityScheduleItem {
+  id: number
+  subject_name: string
+  day_of_week: number
+  start_time: string
+  end_time: string
+  room?: string | null
+  class_type?: "curs" | "seminar" | "laborator" | "curs+seminars" | string
+  week_type?: "odd" | "even" | "both" | string
+}
+
+export interface UniversityScheduleResponse {
+  week_type: "odd" | "even"
+  items: UniversityScheduleItem[]
 }
 
 export interface ShoppingItem {

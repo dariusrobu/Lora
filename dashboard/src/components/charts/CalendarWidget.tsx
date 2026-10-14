@@ -37,7 +37,9 @@ export function CalendarWidget({ onExpand }: Props) {
 
   const hasEvents = today ? today.events.length > 0 : false
   const hasSchedule = today ? today.schedule.length > 0 : false
-  const hasAnything = hasEvents || hasSchedule
+  const weekSchedule = (week ?? []).flatMap((day) => day.schedule.map((entry) => ({ ...entry, day_name: day.day_name })))
+  const scheduleItems = hasSchedule ? today!.schedule.map((entry) => ({ ...entry, day_name: today!.day_name })) : weekSchedule.slice(0, 6)
+  const hasAnything = hasEvents || scheduleItems.length > 0
 
   return (
     <Card liquid hover>
@@ -113,17 +115,18 @@ export function CalendarWidget({ onExpand }: Props) {
               ))}
             </div>
           )}
-          {hasSchedule && (
+          {scheduleItems.length > 0 && (
             <div className="bg-white/60 dark:bg-white/[0.04] rounded-xl divide-y divide-border shadow-sm">
               <div className="px-3 py-1.5">
-                <span className="text-apple-caption2 font-semibold text-text-muted uppercase tracking-wider">Schedule</span>
+                <span className="text-apple-caption2 font-semibold text-text-muted uppercase tracking-wider">{hasSchedule ? "Schedule azi" : "Orar săptămâna aceasta"}</span>
               </div>
-              {today!.schedule.map((s, idx) => (
+              {scheduleItems.map((s, idx) => (
                 <div
                   key={s.id}
-                  className={`flex items-center gap-2.5 px-3 py-2 ${idx === today!.schedule.length - 1 ? "" : ""}`}
+                  className="flex items-center gap-2.5 px-3 py-2"
                 >
                   <div className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
+                  {!hasSchedule && <span className="text-apple-caption2 text-text-muted shrink-0 w-12">{s.day_name}</span>}
                   {s.start_time && (
                     <span className="text-apple-caption1 text-text-muted shrink-0 font-medium tabular-nums w-10">
                       {s.start_time.slice(0, 5)}

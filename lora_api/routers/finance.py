@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
-from lora_api.auth import get_current_user
+from pydantic import BaseModel, Field
+from lora_api.auth import get_current_user, require_standd_token
 from lora_api.database import get_pool
 from lora_api.serializers import clean_dict
 from lora_api.schemas import FinanceTransactionRequest
@@ -9,7 +10,7 @@ router = APIRouter(prefix="/api/finances", tags=["finance"])
 acceptă payload-uri de tranzacție și sunt protejate de autentificarea API."""
 
 
-@router.get("/summary")
+@router.get("/summary", dependencies=[Depends(require_standd_token)])
 async def finance_summary(month: int | None = None, year: int | None = None, user=Depends(get_current_user)):
     import db.queries.finance as q
     pool = await get_pool()
@@ -39,8 +40,40 @@ async def finance_summary(month: int | None = None, year: int | None = None, use
     return {
         "summary": clean_dict(summary),
         "budget_alerts": [clean_dict(dict(b)) for b in budget],
+        "budgets": [clean_dict(dict(b)) for b in budget],
         "categories": [clean_dict(dict(c)) for c in categories],
     }
+
+
+@router.get("/category/{category}")
+async def finance_category_transactions(category: str, month: int | None = None, year: int | None = None, user=Depends(get_current_user)):
+    import db.queries.finance as q
+    from datetime import datetime as dt
+    pool = await get_pool()
+    rows = await q.get_category_transactions(pool, category, month or dt.now().month, year or dt.now().year)
+    return [clean_dict(dict(row)) for row in rows]
+
+
+class BudgetRequest(BaseModel):
+    category: str = Field(min_length=1, max_length=100)
+    amount: float = Field(gt=0)
+    period: str = Field(pattern="^(weekly|monthly)$")
+
+
+@router.get("/budgets")
+async def finance_budgets(user=Depends(get_current_user)):
+    import db.queries.finance as q
+    pool = await get_pool()
+    return [clean_dict(dict(row)) for row in await q.get_budget_status(pool)]
+
+
+@router.put("/budgets")
+async def update_finance_budget(data: BudgetRequest, user=Depends(get_current_user)):
+    import db.queries.finance as q
+    pool = await get_pool()
+    category = data.category.strip()
+    await q.set_budget_limit(pool, category, data.amount, data.period)
+    return {"status": "updated", "category": category, "amount": data.amount, "period": data.period}
 
 
 @router.get("/chart")

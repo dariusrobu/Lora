@@ -6,14 +6,18 @@ import logging
 from datetime import date
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, Message
 import os
+import base64
+from pathlib import Path
 from telegram.ext import ContextTypes
 from core.config import TELEGRAM_USER_ID, VOICE_NORMALIZE
+from core.config import OBSIDIAN_VAULT_PATH
 from db.queries.profile import get_user_profile
 from bot.formatter import escape_md, safe_markdown, split_message
 from core.context import build_context
 from core.gemini import get_gemini_response
 from core.agent import agent_loop
 from core.router import route_intent
+from core.state import set_state
 from db.queries.history import save_message, get_recent_history
 from core.stats import update_last_message
 
@@ -115,6 +119,31 @@ async def focus_command(update, context):
     await update.message.reply_text(reply, parse_mode="MarkdownV2")
 
 
+async def inbox_command(update, context):
+    """Show new Obsidian Inbox files without moving them automatically."""
+    if not await security_check(update):
+        return
+    inbox = Path(OBSIDIAN_VAULT_PATH) / "07 Notes" / "Inbox"
+    supported = {".pdf", ".ppt", ".pptx", ".docx", ".png", ".jpg", ".jpeg", ".webp", ".md", ".canvas"}
+    files = sorted(p for p in inbox.iterdir() if p.is_file() and p.suffix.lower() in supported) if inbox.is_dir() else []
+    if not files:
+        await update.message.reply_text("Inbox-ul este gol.")
+        return
+    lines = ["📥 Documente noi în Inbox:"]
+    keyboard = []
+    from bot.callback_utils import make_callback_data
+    for path in files[:20]:
+        lines.append(f"• {path.name}")
+        encoded = base64.urlsafe_b64encode(path.name.encode()).decode().rstrip("=")
+        if len(encoded) < 48:
+            keyboard.append([
+                InlineKeyboardButton(f"Curs · {path.name[:24]}", callback_data=make_callback_data("obsidian", "move", encoded, "Cursuri")),
+                InlineKeyboardButton("Seminar", callback_data=make_callback_data("obsidian", "move", encoded, "Seminarii")),
+            ])
+    lines.append("\nPentru mutare confirmată folosește comanda din statusul Inbox sau spune-mi materia și dacă este curs ori seminar.")
+    await update.message.reply_text("\n".join(lines), reply_markup=InlineKeyboardMarkup(keyboard) if keyboard else None)
+
+
 async def stopfocus_command(update, context):
     if not await security_check(update):
         return
@@ -167,7 +196,7 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
         return
 
     try:
-        from core.vision import analyze_image, process_vision_result
+        from core.vision import analyze_image, process_vision_result, save_optimized_receipt
 
         # Send loading message
         loading_msg = await update.message.reply_text("Analizând imaginea... 👁️")
@@ -193,11 +222,26 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, pool
             )
             return
 
+        local_receipt_path = None
+        if result.get("type") == "receipt":
+            local_receipt_path = await asyncio.to_thread(
+                save_optimized_receipt, photo_bytes
+            )
+
         profile = await get_user_profile(pool, TELEGRAM_USER_ID)
 
         # Process result and get formatting
         reply_text, keyboard = await process_vision_result(
-            pool, result, profile, None
+            pool,
+            result,
+            profile,
+            None,
+            receipt_telegram_file_id=(
+                update.message.photo[-1].file_id
+                if update.message.photo
+                else update.message.document.file_id
+            ),
+            receipt_local_path=local_receipt_path,
         )
 
         # Edit loading message with real reply
@@ -660,7 +704,6 @@ async def message_handler(
             from datetime import datetime as _dt, timedelta as _td
             from db.queries.profile import update_user_profile
             from core.config import TELEGRAM_USER_ID as TG_UID
-            from core.state import set_state
             from modules.planner import get_day_preview
 
             try:
@@ -901,19 +944,19 @@ async def message_handler(
                     "renunta",
                 ]
 
-                if any(
-                    low_text == w or low_text.startswith(w + " ") or low_text.endswith(" " + w)
-                    for w in confirm_words
-                ):
+                if low_text in confirm_words:
                     from core.vision import confirm_vision_action
+                    from core.vision import render_meal_preview
 
                     reply_msg = await confirm_vision_action(pool, state)
-                    await update.message.reply_text(reply_msg, parse_mode="MarkdownV2")
+                    keyboard = (
+                        render_meal_preview(state.get("extra") or {})[1]
+                        if state.get("action") == "meal_log" and (state.get("extra") or {}).get("needs_portion_details")
+                        else None
+                    )
+                    await update.message.reply_text(reply_msg, parse_mode="MarkdownV2", reply_markup=keyboard)
                     return
-                elif any(
-                    low_text == w or low_text.startswith(w + " ") or low_text.endswith(" " + w)
-                    for w in cancel_words
-                ):
+                elif low_text in cancel_words:
                     from core.vision import cancel_vision_action
 
                     reply_msg = await cancel_vision_action(pool)
@@ -952,7 +995,17 @@ async def message_handler(
 
                         extra = state.get("extra") or {}
                         try:
-                            updated_extra = await modify_pending_meal(extra, text)
+                            photo_bytes = None
+                            if extra.get("food_telegram_file_id"):
+                                try:
+                                    photo_file = await asyncio.wait_for(context.bot.get_file(extra["food_telegram_file_id"]), timeout=10)
+                                    photo_bytes = bytes(await asyncio.wait_for(photo_file.download_as_bytearray(), timeout=10))
+                                except Exception as photo_error:
+                                    logger.warning("Pending food photo unavailable: %s; using serving estimates", type(photo_error).__name__)
+                            if photo_bytes:
+                                updated_extra = await modify_pending_meal(extra, text, photo_bytes=photo_bytes)
+                            else:
+                                updated_extra = await modify_pending_meal(extra, text)
                             await set_state(
                                 pool,
                                 "awaiting_vision_confirmation",
@@ -1914,6 +1967,7 @@ Reguli:
                     from modules.workout import handle_workout_message
 
                     await handle_workout_message(update, pool, state, text)
+                    return
 
                 # Fall through to Gemini if not returned by handlers
                 await clear_state(pool)
@@ -2182,7 +2236,9 @@ async def handle_new_confirmation_callback(query, pool, callback_data: str, bot)
                 success_msg, parse_mode="MarkdownV2", reply_markup=reply_markup
             )
         else:
-            await query.edit_message_text("Nu am găsit nicio acțiune în așteptare. ❌")
+            await query.edit_message_text(
+                "Acțiunea a fost deja confirmată sau acest buton a expirat."
+            )
 
     elif callback_data == "conf_no":
         await clear_pending_action(pool)
@@ -2208,10 +2264,76 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
 
         logger.info(f"DEBUG: CALLBACK RECEIVED: action={action} params={params} from user={update.effective_user.id}")
 
+        if action == "obsidian" and params and params[0] in {"move", "choose"}:
+            if params[0] == "choose":
+                if len(params) != 4:
+                    await query.edit_message_text("Nu am putut identifica alegerea.")
+                    return
+                subjects_root = Path(OBSIDIAN_VAULT_PATH) / "05 University" / "Subjects"
+                subjects = sorted(p.name for p in subjects_root.iterdir() if p.is_dir()) if subjects_root.is_dir() else []
+                try:
+                    params = ["move", params[1], params[3], subjects[int(params[2])]]
+                except (ValueError, IndexError):
+                    await query.edit_message_text("Materia aleasă nu mai există.")
+                    return
+            if len(params) != 3:
+                await query.edit_message_text("Nu am putut identifica documentul.")
+                return
+            try:
+                filename = base64.urlsafe_b64decode(params[1] + "=" * (-len(params[1]) % 4)).decode()
+                relative_path = str(Path("07 Notes") / "Inbox" / filename)
+                class_type = params[2]
+                filename = Path(relative_path).name.casefold()
+                subjects_root = Path(OBSIDIAN_VAULT_PATH) / "05 University" / "Subjects"
+                subjects = sorted(p.name for p in subjects_root.iterdir() if p.is_dir()) if subjects_root.is_dir() else []
+                subject = params[3] if len(params) == 4 else next((name for name in subjects if name.casefold() in filename), None)
+                if not subject:
+                    buttons = []
+                    for index, name in enumerate(subjects):
+                        buttons.append([InlineKeyboardButton(name[:32], callback_data=make_callback_data("obsidian", "choose", params[1], str(index), class_type))])
+                    await query.edit_message_text("Alege materia pentru acest document:", reply_markup=InlineKeyboardMarkup(buttons))
+                    return
+                from integrations.obsidian_processor import move_inbox_document
+                moved = move_inbox_document(relative_path, subject, class_type)
+                await query.edit_message_text(
+                    f"✅ Mutat în {moved}\n\nAnaliza locală a fost pornită. Îți voi lăsa summary-ul și flashcards în folderul materiei."
+                )
+                # Do not block the callback on Ollama; the processor is
+                # capped per run and will refresh Study Index/Inbox status.
+                from integrations.obsidian_processor import process_vault_safe
+
+                asyncio.create_task(process_vault_safe())
+            except Exception as exc:
+                logger.warning("Obsidian Inbox move rejected: %s", type(exc).__name__)
+                await query.edit_message_text("Nu am mutat documentul. Verifică materia și încearcă din nou.")
+            return
+
+        if action == "study_review":
+            if params and params[0] == "later":
+                await query.edit_message_text("Review-ul rămâne disponibil în 00 Dashboard/Review.md.")
+            else:
+                await query.edit_message_text("Deschide Obsidian → 00 Dashboard → Review pentru flashcards și summaries.")
+            return
+
         if action == "action":
             action_type = params[0] if params else ""
             await handle_confirmation_callback(query, pool, action_type, context.bot)
             return
+
+        # Reminder callbacks generated by make_callback_data use colon-separated
+        # fields: event:reminder:ack:<id> and event:note:<id>.
+        if action == "event" and params:
+            event_action = params[0]
+            if event_action == "reminder" and len(params) >= 3 and params[1] == "ack":
+                await query.answer("Ok 👍")
+                await query.edit_message_text("Reminder confirmat 👍")
+                return
+            if event_action == "note" and len(params) >= 2:
+                from core.state import set_state
+
+                await set_state(pool, "awaiting_event_note", "events", "add_note", int(params[1]))
+                await query.edit_message_text("Ce notă vrei să adaugi pentru acest eveniment?")
+                return
 
         if action == "work_lunch":
             sub_action = params[0] if params else ""
@@ -2415,16 +2537,13 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             return
 
         if data.startswith("attendance:"):
-            from db.queries.university import log_attendance_by_schedule
+            from bot.attendance import confirm_attendance
 
             # Format: attendance:present:schedule_id
             if len(params) >= 2:
                 status = params[0] == "present"
                 schedule_id = int(params[1])
-                await log_attendance_by_schedule(pool, schedule_id, status)
-                msg = "✅ Prezență salvată" if status else "❌ Absență salvată"
-                await query.answer(msg)
-                await query.edit_message_text(f"{msg} (confirmat)")
+                await confirm_attendance(query, pool, schedule_id, status)
             return
 
         if (
@@ -3536,27 +3655,47 @@ async def send_confirmation_request(
     context: ContextTypes.DEFAULT_TYPE = None,
 ) -> None:
     """Generates a summary of the action and sends the confirmation inline keyboard."""
-    summary = safe_markdown(generate_action_summary(intent, data))
+    raw_summary = generate_action_summary(intent, data)
+    summary = safe_markdown(raw_summary)
 
     from bot.keyboards import action_confirm_keyboard
 
     reply_markup = action_confirm_keyboard()
 
     if update and update.message:
-        await update.message.reply_text(
-            summary, parse_mode="MarkdownV2", reply_markup=reply_markup
-        )
+        try:
+            await update.message.reply_text(
+                summary, parse_mode="MarkdownV2", reply_markup=reply_markup
+            )
+        except Exception as exc:
+            from telegram.error import BadRequest
+
+            if not isinstance(exc, BadRequest):
+                raise
+            plain = raw_summary.replace("\\", "")
+            await update.message.reply_text(plain, reply_markup=reply_markup)
     else:
         from core.config import TELEGRAM_USER_ID
 
         bot = context.bot if context else None
         if bot:
-            await bot.send_message(
-                chat_id=TELEGRAM_USER_ID,
-                text=summary,
-                parse_mode="MarkdownV2",
-                reply_markup=reply_markup,
-            )
+            try:
+                await bot.send_message(
+                    chat_id=TELEGRAM_USER_ID,
+                    text=summary,
+                    parse_mode="MarkdownV2",
+                    reply_markup=reply_markup,
+                )
+            except Exception as exc:
+                from telegram.error import BadRequest
+
+                if not isinstance(exc, BadRequest):
+                    raise
+                await bot.send_message(
+                    chat_id=TELEGRAM_USER_ID,
+                    text=raw_summary.replace("\\", ""),
+                    reply_markup=reply_markup,
+                )
 
 
 async def send_action_plan_confirmation(update, context, actions: list[dict]) -> None:
@@ -3631,7 +3770,9 @@ def generate_action_summary(intent: str, data: dict) -> str:
     elif intent == "set_budget":
         cat = escape_md(data.get("category", ""))
         amount = escape_md(str(data.get("amount") or data.get("limit") or ""))
-        return rf"Ești pe cale să setezi bugetul pentru *'{cat}'* la *{amount} lei*\\. Confirmă?"
+        raw_period = str(data.get("period") or "lunar").lower()
+        period = "săptămânal" if any(word in raw_period for word in ("săptăm", "sapt", "weekly", "week")) else "lunar"
+        return rf"Setez bugetul *{period}* pentru *'{cat}'* la *{amount} lei*\\. Confirmi?"
 
     elif intent == "log_skill":
         name = escape_md(data.get("name") or data.get("skill") or "")
@@ -3705,6 +3846,14 @@ def generate_action_summary(intent: str, data: dict) -> str:
     elif intent == "add_event":
         title = escape_md(data.get("title", ""))
         return f"Ești pe cale să adaugi evenimentul *'{title}'*\\. Confirmă?"
+
+    elif intent == "add_reminder":
+        title = escape_md(data.get("title") or data.get("description") or "")
+        date_value = escape_md(str(data.get("event_date") or data.get("date") or ""))
+        time_value = escape_md(str(data.get("event_time") or data.get("time") or ""))
+        when = f" pe {date_value}" if date_value else ""
+        when += f" la {time_value}" if time_value else ""
+        return f"Îți setez un reminder să *{title}*{when}\\. Confirmi?"
 
     elif intent == "add_shopping_item":
         item = escape_md(data.get("item") or data.get("name") or "")

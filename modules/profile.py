@@ -29,10 +29,13 @@ async def update_profile_from_behavior(pool, user_id: int):
         # 2. Analyze Task Categories/Projects (last 30 days)
         task_rows = await conn.fetch(
             """
-            SELECT project, COUNT(*) as count
-            FROM tasks
-            WHERE created_at >= CURRENT_DATE - INTERVAL '30 days' AND project IS NOT NULL
-            GROUP BY project
+            SELECT p.name AS project, COUNT(*) AS count
+            FROM tasks t
+            JOIN projects p ON p.id = t.project_id
+            WHERE t.created_at >= CURRENT_DATE - INTERVAL '30 days'
+              AND t.project_id IS NOT NULL
+              AND p.deleted_at IS NULL
+            GROUP BY p.name
             ORDER BY count DESC
             LIMIT 5
             """

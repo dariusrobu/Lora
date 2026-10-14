@@ -76,7 +76,7 @@ async def handle_onboarding_callback(
 async def finish_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE, pool):
     telegram_id = update.effective_user.id
     profile = await get_user_profile(pool, telegram_id)
-    morning_time = profile.get("morning_time", "08:00")
+    morning_time = profile.get("morning_time", "07:00")
     eod_time = profile.get("eod_time", "21:00")
 
     reply = (

@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useSearchParams } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   fetchFinanceSummary,
@@ -10,18 +11,20 @@ import {
   deleteProductMemory,
   fetchMerchantMemories,
   deleteMerchantMemory,
+  fetchCategoryTransactions,
+  updateFinanceBudget,
 } from "../api/queries/finance"
 import { Card } from "../components/ui/Card"
 import { Button } from "../components/ui/Button"
 import { Input } from "../components/ui/Input"
 import { Spinner } from "../components/ui/Spinner"
+import { PageHeader, ModeSelector, Metric } from "../components/ui"
 import {
   Wallet,
   Plus,
   Trash2,
   TrendingUp,
   TrendingDown,
-  Receipt,
   Store,
   Search,
   PieChart as PieIcon,
@@ -47,15 +50,42 @@ function formatCurrency(n: number) {
   return new Intl.NumberFormat("ro-RO", { style: "currency", currency: "RON", minimumFractionDigits: 2 }).format(n)
 }
 
+function formatChartAmount(n: number) {
+  return new Intl.NumberFormat("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
+}
+
+function formatTransactionDate(value?: string) {
+  if (!value) return "Dată necunoscută"
+  const parsed = new Date(`${value.slice(0, 10)}T00:00:00`)
+  return Number.isNaN(parsed.getTime()) ? "Dată necunoscută" : parsed.toLocaleDateString("ro-RO", { day: "numeric", month: "short" })
+}
+
 export default function Finance() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState<"transactions" | "memory">("transactions")
-  const [showModal, setShowModal] = useState(false)
+  const [showModal, setShowModal] = useState(() => searchParams.get("action") === "add")
   const [amount, setAmount] = useState("")
   const [category, setCategory] = useState("")
   const [type, setType] = useState<"income" | "expense">("expense")
   const [description, setDescription] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [budgetCategory, setBudgetCategory] = useState("Total")
+  const [budgetAmount, setBudgetAmount] = useState("")
+  const [budgetPeriod, setBudgetPeriod] = useState<"weekly" | "monthly">("monthly")
+  const [showBudgets, setShowBudgets] = useState(false)
+  const categoryPanelRef = useRef<HTMLDivElement>(null)
   const qc = useQueryClient()
+
+  useEffect(() => {
+    if (searchParams.get("action") !== "add") return
+    setSearchParams({}, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  useEffect(() => {
+    if (!selectedCategory) return
+    requestAnimationFrame(() => categoryPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }))
+  }, [selectedCategory])
 
   const { data: summary } = useQuery({
     queryKey: ["finance", "summary"],
@@ -66,6 +96,15 @@ export default function Finance() {
     queryKey: ["finance", "history"],
     queryFn: () => fetchFinanceHistory(30),
   })
+
+  const categorySummary = summary?.categories
+  const normalizeCategory = (value: string | undefined) => (value ?? "").trim().toLocaleLowerCase("ro-RO")
+  const { data: categoryTransactions, isLoading: categoryLoading, isError: categoryError } = useQuery<Transaction[]>({
+    queryKey: ["finance", "category", selectedCategory],
+    queryFn: () => fetchCategoryTransactions(selectedCategory ?? ""),
+    enabled: Boolean(selectedCategory),
+  })
+  const fallbackCategoryTransactions = (transactions ?? []).filter((txn) => normalizeCategory(txn.category) === normalizeCategory(selectedCategory ?? ""))
 
   const { data: productMemories, isLoading: prodLoading } = useQuery<ProductMemory[]>({
     queryKey: ["finance", "product-memories"],
@@ -111,6 +150,14 @@ export default function Finance() {
     },
   })
 
+  const budgetMut = useMutation({
+    mutationFn: updateFinanceBudget,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["finance"] })
+      setBudgetAmount("")
+    },
+  })
+
   const handleSubmit = () => {
     const parsed = parseFloat(amount)
     if (!isNaN(parsed) && parsed > 0) {
@@ -120,12 +167,12 @@ export default function Finance() {
 
   // Category breakdown for chart
   const categoriesData = useMemo(() => {
-    if (!summary?.categories?.length) return []
-    return summary.categories.map((c) => ({
+    if (!categorySummary?.length) return []
+    return categorySummary.map((c) => ({
       name: c.category || "Altele",
       value: c.total,
     }))
-  }, [summary?.categories])
+  }, [categorySummary])
 
   const totalCategoryExpense = useMemo(() => {
     return categoriesData.reduce((acc, c) => acc + c.value, 0)
@@ -147,48 +194,15 @@ export default function Finance() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Finanțe & Bonuri</h1>
-          <p className="text-text-secondary text-sm">Monitorizare venituri, cheltuieli și memorie automată bonuri</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Sub-tab navigation */}
-          <div className="flex bg-surface border border-border/60 rounded-xl p-1">
-            <button
-              onClick={() => setActiveTab("transactions")}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                activeTab === "transactions"
-                  ? "bg-primary text-white font-semibold shadow-glow-indigo"
-                  : "text-text-secondary hover:text-white hover:bg-white/[0.04]"
-              }`}
-            >
-              <Wallet className="w-3.5 h-3.5" />
-              Tranzacții
-            </button>
-            <button
-              onClick={() => setActiveTab("memory")}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                activeTab === "memory"
-                  ? "bg-primary text-white font-semibold shadow-glow-indigo"
-                  : "text-text-secondary hover:text-white hover:bg-white/[0.04]"
-              }`}
-            >
-              <Receipt className="w-3.5 h-3.5" />
-              Memorie Bonuri
-            </button>
-          </div>
-
-          <Button onClick={() => setShowModal(true)}>
-            <Plus className="w-4 h-4" /> Tranzacție
-          </Button>
-        </div>
-      </div>
+      <PageHeader eyebrow="Spatial OS · Finance" title="Finanțe" description="Balanță, tranzacții și memoria bonurilor." action={<div className="flex items-center gap-2"><ModeSelector value={activeTab} options={[{ value: "transactions" as const, label: "Tranzacții" }, { value: "memory" as const, label: "Memorie bonuri" }]} onChange={setActiveTab} /><Button onClick={() => setShowModal(true)}><Plus className="h-4 w-4" /> Adaugă</Button></div>} />
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="py-4 px-5 border-white/[0.08] hover:border-emerald-500/30 transition-all">
+        <Metric label="Venituri lună" value={summary ? formatCurrency(summary.summary?.income ?? 0) : "—"} className="border-emerald-500/20" />
+        <Metric label="Cheltuieli lună" value={summary ? formatCurrency(summary.summary?.expense ?? 0) : "—"} className="border-rose-500/20" />
+        <Metric label="Balanță" value={summary ? formatCurrency(summary.summary?.balance ?? 0) : "—"} className={(summary?.summary?.balance ?? 0) >= 0 ? "border-emerald-500/20" : "border-rose-500/20"} />
+        {/* Detailed visual cards remain below for the transaction context. */}
+        <Card className="hidden py-4 px-5 border-white/[0.08] hover:border-emerald-500/30 transition-all">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Venituri Lună</span>
             <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 flex items-center justify-center shadow-glow-emerald">
@@ -200,7 +214,7 @@ export default function Finance() {
           </p>
         </Card>
 
-        <Card className="py-4 px-5 border-white/[0.08] hover:border-rose-500/30 transition-all">
+        <Card className="hidden py-4 px-5 border-white/[0.08] hover:border-rose-500/30 transition-all">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Cheltuieli Lună</span>
             <div className="w-8 h-8 rounded-xl bg-rose-500/15 text-rose-400 border border-rose-500/25 flex items-center justify-center shadow-glow-rose">
@@ -212,7 +226,7 @@ export default function Finance() {
           </p>
         </Card>
 
-        <Card className={`py-4 px-5 transition-all ${
+        <Card className={`hidden py-4 px-5 transition-all ${
           (summary?.summary?.balance ?? 0) < 0
             ? "border-rose-500/35 bg-rose-500/[0.05] shadow-glow-rose"
             : (summary?.summary?.balance ?? 0) > 0
@@ -273,12 +287,13 @@ export default function Finance() {
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
                 {/* Donut Chart */}
-                <div className="lg:col-span-5 h-56 relative flex items-center justify-center">
+                <div className="relative flex h-64 items-center justify-center sm:h-72 lg:col-span-5">
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
                     <span className="text-[10px] uppercase font-semibold text-text-muted tracking-widest">Total Cheltuit</span>
-                    <span className="text-xl font-black text-white tabular-nums tracking-tight">
-                      {formatCurrency(totalCategoryExpense)}
+                    <span className="max-w-[132px] truncate text-center text-[clamp(0.9rem,4vw,1.25rem)] font-black text-text-primary tabular-nums tracking-tight">
+                      {formatChartAmount(totalCategoryExpense)}
                     </span>
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-text-muted">RON</span>
                   </div>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -297,8 +312,8 @@ export default function Finance() {
                         data={categoriesData}
                         cx="50%"
                         cy="50%"
-                        innerRadius={55}
-                        outerRadius={85}
+                        innerRadius={68}
+                        outerRadius={104}
                         paddingAngle={3}
                         dataKey="value"
                       >
@@ -319,9 +334,11 @@ export default function Finance() {
                     const pct = totalCategoryExpense > 0 ? Math.round((cat.value / totalCategoryExpense) * 100) : 0
                     const color = DONUT_COLORS[idx % DONUT_COLORS.length]
                     return (
-                      <div
+                      <button
                         key={cat.name}
-                        className="flex items-center justify-between p-2 rounded-xl bg-white/[0.03] border border-border/40 text-xs"
+                        type="button"
+                        onClick={() => setSelectedCategory(cat.name)}
+                        className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-border/40 bg-white/[0.03] p-2 text-left text-xs transition-colors hover:border-primary/40 hover:bg-primary/[0.06] active:bg-primary/[0.1]"
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <span
@@ -331,10 +348,10 @@ export default function Finance() {
                           <span className="font-medium text-text-primary capitalize truncate">{cat.name}</span>
                         </div>
                         <div className="flex items-center gap-2 text-text-secondary shrink-0 tabular-nums">
-                          <span className="font-bold text-text-primary">{formatCurrency(cat.value)}</span>
+                          <span className="max-w-[48%] break-words text-right font-bold text-text-primary">{formatCurrency(cat.value)}</span>
                           <span className="text-[10px] text-text-muted">({pct}%)</span>
                         </div>
-                      </div>
+                      </button>
                     )
                   })}
                 </div>
@@ -394,10 +411,7 @@ export default function Finance() {
                           )}
                         </div>
                         <span className="text-xs text-text-muted shrink-0">
-                          {new Date(txn.transaction_date + "T00:00:00").toLocaleDateString("ro-RO", {
-                            day: "numeric",
-                            month: "short",
-                          })}
+                          {formatTransactionDate(txn.transaction_date || txn.tx_date)}
                         </span>
                         <button
                           onClick={() => deleteMut.mutate(txn.id)}
@@ -413,6 +427,9 @@ export default function Finance() {
               </div>
             )}
           </div>
+          {selectedCategory && <div ref={categoryPanelRef}><Card className="p-4"><div className="mb-3 flex items-center justify-between"><div><h3 className="text-sm font-semibold text-text-primary">{selectedCategory}</h3><p className="text-xs text-text-muted">Înregistrări din luna curentă</p></div><button type="button" onClick={() => setSelectedCategory(null)} className="text-xs text-text-muted hover:text-text-primary">Închide</button></div>{categoryLoading ? <Spinner className="py-4" /> : categoryError ? <p className="rounded-xl bg-amber-500/10 p-3 text-xs text-amber-600">Nu am putut încărca detaliile. Repornește Lora pentru a activa endpointul nou.</p> : (categoryTransactions?.length ? categoryTransactions : fallbackCategoryTransactions).length ? <div className="space-y-2">{(categoryTransactions?.length ? categoryTransactions : fallbackCategoryTransactions).map((txn) => <div key={txn.id} className="flex items-center justify-between rounded-xl border border-border px-3 py-2 text-sm"><div className="min-w-0"><p className="truncate text-text-primary">{txn.description || "Cheltuială"}</p><p className="text-xs text-text-muted">{formatTransactionDate(txn.transaction_date || txn.tx_date)}</p></div><span className="ml-3 shrink-0 font-medium tabular-nums text-rose-400">-{formatCurrency(txn.amount)}</span></div>)}</div> : <p className="py-4 text-center text-xs text-text-muted">Nu există înregistrări pentru această categorie.</p>}</Card></div>}
+          <div className="pt-2"><button type="button" onClick={() => setShowBudgets((value) => !value)} className="text-xs text-text-muted transition-colors hover:text-text-primary">{showBudgets ? "Ascunde bugetele" : "Bugete și alerte"}</button></div>
+          {showBudgets && <Card className="p-4"><div className="grid w-full gap-2 sm:grid-cols-[minmax(120px,1fr)_110px_120px_auto]"><Input value={budgetCategory} onChange={(e) => setBudgetCategory(e.target.value)} placeholder="Categorie sau Total" /><Input type="number" min="1" value={budgetAmount} onChange={(e) => setBudgetAmount(e.target.value)} placeholder="RON" /><select value={budgetPeriod} onChange={(e) => setBudgetPeriod(e.target.value as "weekly" | "monthly")} className="rounded-xl border border-border bg-surface px-3 text-sm text-text-primary outline-none"><option value="weekly">Săptămânal</option><option value="monthly">Lunar</option></select><Button disabled={!budgetAmount || budgetMut.isPending} onClick={() => budgetMut.mutate({ category: budgetCategory.trim() || "Total", amount: Number(budgetAmount), period: budgetPeriod })}>Salvează</Button></div>{!!summary?.budgets?.length && <div className="mt-4 grid gap-2 sm:grid-cols-2">{summary.budgets.map((budget) => { const monthlyLimit = Number(budget.monthly_limit || 0); const weeklyLimit = Number(budget.weekly_limit || 0); const monthlyPct = monthlyLimit ? Math.min(100, Number(budget.monthly_spent || 0) / monthlyLimit * 100) : 0; const weeklyPct = weeklyLimit ? Math.min(100, Number(budget.weekly_spent || 0) / weeklyLimit * 100) : 0; return <div key={budget.category} className="rounded-xl border border-border p-3"><div className="flex items-center justify-between text-xs"><span className="font-medium text-text-primary">{budget.category}</span><span className="text-text-muted">{monthlyLimit ? `${formatCurrency(Number(budget.monthly_spent || 0))} / ${formatCurrency(monthlyLimit)}` : "Fără buget lunar"}</span></div>{monthlyLimit > 0 && <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface"><div className={`h-full rounded-full ${monthlyPct >= 100 ? "bg-rose-500" : monthlyPct >= 80 ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${monthlyPct}%` }} /></div>}{weeklyLimit > 0 && <p className="mt-2 text-[11px] text-text-muted">Săptămâna: {formatCurrency(Number(budget.weekly_spent || 0))} / {formatCurrency(weeklyLimit)} ({Math.round(weeklyPct)}%)</p>}</div> })}</div>}</Card>}
         </div>
       )}
 
