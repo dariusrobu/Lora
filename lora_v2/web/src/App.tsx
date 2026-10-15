@@ -38,6 +38,8 @@ export default function App() {
   const [error, setError] = useState("")
   const [busy, setBusy] = useState(false)
   const [month, setMonth] = useState(() => new Date())
+  const [selectedCalendarDay, setSelectedCalendarDay] = useState(() => isoLocalDate(new Date()))
+  const [showFullMonth, setShowFullMonth] = useState(false)
   const [today, setToday] = useState<Today | null>(null)
   const [entries, setEntries] = useState<Entry[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -238,6 +240,15 @@ export default function App() {
     for (const entry of entries) (result[isoLocalDate(new Date(entry.starts_at))] ??= []).push(entry)
     return Object.entries(result).sort(([a], [b]) => a.localeCompare(b))
   }, [entries])
+  const calendarCounts = useMemo(() => Object.fromEntries(grouped.map(([day, items]) => [day, items.length])), [grouped])
+  const visibleCalendarDays = showFullMonth ? grouped : grouped.filter(([day]) => day === selectedCalendarDay)
+  const calendarWeekOffset = (new Date(month.getFullYear(), month.getMonth(), 1).getDay() + 6) % 7
+  function moveMonth(direction: number) {
+    const next = new Date(month.getFullYear(), month.getMonth() + direction, 1)
+    setMonth(next)
+    setSelectedCalendarDay(isoLocalDate(next))
+    setShowFullMonth(false)
+  }
 
   return <div className="app-shell">
     <div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="ambient ambient-three" />
@@ -267,13 +278,15 @@ export default function App() {
           </div>
         </>}
 
-        {tab === "calendar" && <section className="glass section-card"><div className="section-title month-title"><CalendarDays size={19} /><h2>{month.toLocaleDateString("ro-RO", { month: "long", year: "numeric" })}</h2><span className="month-controls"><button aria-label="Luna anterioară" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}><ChevronLeft size={18} /></button><button aria-label="Luna următoare" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}><ChevronRight size={18} /></button></span></div>
-          <div className="month-grid">{Array.from({ length: new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate() }, (_, index) => {
+        {tab === "calendar" && <section className="glass section-card"><div className="section-title month-title"><CalendarDays size={19} /><h2>{month.toLocaleDateString("ro-RO", { month: "long", year: "numeric" })}</h2><span className="month-controls"><button aria-label="Luna anterioară" onClick={() => moveMonth(-1)}><ChevronLeft size={18} /></button><button aria-label="Luna următoare" onClick={() => moveMonth(1)}><ChevronRight size={18} /></button></span></div>
+          <div className="month-grid">{["Lu", "Ma", "Mi", "Jo", "Vi", "Sâ", "Du"].map(day => <span className="month-weekday" key={day}>{day}</span>)}{Array.from({ length: calendarWeekOffset }, (_, index) => <span className="month-blank" key={`blank-${index}`} aria-hidden="true" />)}{Array.from({ length: new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate() }, (_, index) => {
             const date = new Date(month.getFullYear(), month.getMonth(), index + 1)
-            const count = entries.filter(entry => isoLocalDate(new Date(entry.starts_at)) === isoLocalDate(date)).length
-            return <div key={index} className={`month-day ${isoLocalDate(date) === isoLocalDate(new Date()) ? "is-today" : ""}`}><span>{index + 1}</span>{count > 0 && <i aria-label={`${count} elemente`} />}</div>
+            const day = isoLocalDate(date)
+            const count = calendarCounts[day] || 0
+            return <button type="button" key={day} className={`month-day ${day === isoLocalDate(new Date()) ? "is-today" : ""} ${day === selectedCalendarDay && !showFullMonth ? "is-selected" : ""}`} aria-label={`${localDay(`${day}T12:00:00`)}${count ? `, ${count} ${count === 1 ? "element" : "elemente"}` : ""}`} aria-pressed={day === selectedCalendarDay && !showFullMonth} onClick={() => { setSelectedCalendarDay(day); setShowFullMonth(false) }}><span>{index + 1}</span>{count > 0 && <i aria-hidden="true" />}</button>
           })}</div>
-          {grouped.length ? grouped.map(([date, items]) => <div className="day-group" key={date}><h3>{localDay(`${date}T12:00:00`)}</h3>{items.map(item => <EntryRow key={item.id} entry={item} done={item.kind === "reminder" ? () => void act("complete_entry", { entry_id: item.id, expected_version: item.version }) : undefined} edit={() => void openEdit("calendar_entry",item.id)} remove={() => void remove("calendar_entry",item.id,item.version)} />)}</div>) : <Empty>Nu sunt evenimente în această lună.</Empty>}
+          <button type="button" className="text-action month-view-toggle" onClick={() => setShowFullMonth(!showFullMonth)}>{showFullMonth ? "Vezi ziua selectată" : "Vezi toată luna"}</button>
+          {visibleCalendarDays.length ? visibleCalendarDays.map(([date, items]) => <div className="day-group" key={date}><h3>{localDay(`${date}T12:00:00`)}</h3>{items.map(item => <EntryRow key={item.id} entry={item} done={item.kind === "reminder" ? () => void act("complete_entry", { entry_id: item.id, expected_version: item.version }) : undefined} edit={() => void openEdit("calendar_entry",item.id)} remove={() => void remove("calendar_entry",item.id,item.version)} />)}</div>) : <Empty>{showFullMonth ? "Nu sunt evenimente în această lună." : `Nimic planificat pentru ${localDay(`${selectedCalendarDay}T12:00:00`)}.`}</Empty>}
           <div className="inline-actions"><button onClick={() => setForm("event")}><Plus size={16} /> Eveniment</button><button onClick={() => setForm("reminder")}><Plus size={16} /> Reminder</button></div>
         </section>}
 
