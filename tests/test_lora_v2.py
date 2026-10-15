@@ -528,6 +528,43 @@ async def test_voice_correction_uses_the_transcript_for_grounded_proposal(monkey
 
 
 @pytest.mark.asyncio
+async def test_meal_weight_clarification_waits_for_preparation_and_approval():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    settings = _settings(url)
+    owner = uuid.uuid4().int % 1000000000
+    pool = await create_pool(settings)
+    try:
+        await migrate(pool)
+        first = await capture(pool, owner, "test", str(uuid.uuid4()),
+            "Azi am mâncat 200 g piept de pui și 150 g orez.")
+        question = await process_capture(pool, settings, owner, first["id"])
+        assert any("crude" in item.message for item in question)
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT count(*) FROM meals WHERE owner_id=$1", owner) == 0
+            assert await conn.fetchval("SELECT count(*) FROM proposals WHERE owner_id=$1", owner) == 0
+        reply = await capture(pool, owner, "test", str(uuid.uuid4()), "gătite")
+        proposal = await process_capture(pool, settings, owner, reply["id"])
+        assert proposal[0].details["proposal_id"]
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT count(*) FROM meals WHERE owner_id=$1", owner) == 0
+        result = await decide_proposal(pool, settings, owner,
+            uuid.UUID(proposal[0].details["proposal_id"]), True)
+        assert result and result.status == "saved"
+        async with pool.acquire() as conn:
+            items = await conn.fetch(
+                """SELECT i.name,i.grams,i.calories FROM meal_items i JOIN meals m ON m.id=i.meal_id
+                WHERE m.owner_id=$1 ORDER BY i.grams DESC""", owner,
+            )
+        assert len(items) == 2
+        assert [int(item["grams"]) for item in items] == [200, 150]
+        assert all("gătit" in item["name"] and item["calories"] is None for item in items)
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
 async def test_apple_two_way_sync_and_conflict(monkeypatch):
     url = os.getenv("LORA_V2_TEST_DATABASE_URL")
     if not url:

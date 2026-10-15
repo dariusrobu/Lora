@@ -12,6 +12,7 @@ from lora_v2.agent import Interpretation, interpret_capture
 from lora_v2.config import Settings
 from lora_v2.models import ActionResult, Command
 from lora_v2.media import interpret_photo, transcribe_voice
+from lora_v2.meal_dialogue import remember_meal_question, resolve_meal_answer
 from lora_v2.mutations import plan_mutation
 from lora_v2.grounding import grounding_issue
 from lora_v2.rules import extract_common
@@ -64,7 +65,9 @@ async def process_capture(
                     "UPDATE captures SET raw_text=$3 WHERE id=$1 AND owner_id=$2",
                     capture_id, owner_id, content,
                 )
-        if row["content_type"] in {"text", "voice"}:
+        meal_answer = (await resolve_meal_answer(pool, owner_id, content)
+                       if row["content_type"] in {"text", "voice"} else None)
+        if row["content_type"] in {"text", "voice"} and meal_answer is None:
             planned = await plan_mutation(pool, settings, owner_id, capture_id, content)
             if planned is not None:
                 async with pool.acquire() as conn:
@@ -75,7 +78,9 @@ async def process_capture(
                         "needs_input" if any(item.status == "needs_input" for item in planned) else "processed",
                     )
                 return planned
-        if row["content_type"] == "photo" and row["attachment_ref"]:
+        if meal_answer is not None:
+            interpretation = Interpretation(actions=[meal_answer])
+        elif row["content_type"] == "photo" and row["attachment_ref"]:
             interpretation = await interpret_photo(settings, row["attachment_ref"], row["raw_text"])
         else:
             rules, remaining = extract_common(content, datetime.now(ZoneInfo(settings.timezone)), settings.timezone)
@@ -94,6 +99,13 @@ async def process_capture(
     needs_input = False
     for index, candidate in enumerate(interpretation.actions):
         command = candidate.as_command()
+        if (candidate.type == "log_meal" and candidate.missing_information ==
+                "Sunt gramajele cântărite crude sau după gătire?"):
+            await remember_meal_question(pool, owner_id, capture_id, candidate)
+            needs_input = True
+            results.append(ActionResult(status="needs_input", command_type="log_meal",
+                message=candidate.missing_information))
+            continue
         try:
             command.payload()
         except (ValidationError, ValueError) as exc:
