@@ -98,7 +98,17 @@ async def process_capture(
     results: list[ActionResult] = []
     needs_input = False
     for index, candidate in enumerate(interpretation.actions):
+        if row["content_type"] == "photo" and candidate.type != "log_meal":
+            needs_input = True
+            results.append(ActionResult(status="needs_input", command_type=candidate.type,
+                message="Din fotografia aceasta pot propune doar o masă. Spune-mi separat dacă vrei să salvez altceva."))
+            continue
         command = candidate.as_command()
+        if row["content_type"] == "photo" and candidate.type == "log_meal" and candidate.missing_information:
+            needs_input = True
+            results.append(ActionResult(status="needs_input", command_type="log_meal",
+                message=f"{candidate.missing_information} Trimite fotografia din nou cu acest detaliu în descriere."))
+            continue
         if (candidate.type == "log_meal" and candidate.missing_information ==
                 "Sunt gramajele cântărite crude sau după gătire?"):
             await remember_meal_question(pool, owner_id, capture_id, candidate)
@@ -125,9 +135,12 @@ async def process_capture(
                 status="needs_input", command_type=command.type, message=issue,
             ))
             continue
-        if candidate.confidence < 0.85 or candidate.missing_information:
+        if (candidate.confidence < 0.85 or candidate.missing_information or
+                (row["content_type"] == "photo" and candidate.type == "log_meal")):
             needs_input = True
             reason = f"Verifică înainte de salvare: {_preview(command)}"
+            if row["content_type"] == "photo" and candidate.type == "log_meal":
+                reason += "\nEstimare din fotografie: verifică porția și valorile înainte să confirmi."
             if candidate.missing_information:
                 reason += f"\n{candidate.missing_information}"
             async with pool.acquire() as conn:

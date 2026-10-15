@@ -22,7 +22,7 @@ from lora_v2.crud import EditRequest, delete_entity, update_entity
 from lora_v2.db import create_pool, migrate
 from lora_v2.models import Command
 from lora_v2.media import save_photo
-from lora_v2.agent import Candidate, parse_interpretation
+from lora_v2.agent import Candidate, Interpretation, parse_interpretation
 from lora_v2.grounding import grounding_issue
 from lora_v2.apple import _digest, pull_changes, push_pending, resolve_conflict
 from lora_v2.notifications import queue_due_alerts, send_pending_telegram
@@ -560,6 +560,48 @@ async def test_meal_weight_clarification_waits_for_preparation_and_approval():
         assert len(items) == 2
         assert [int(item["grams"]) for item in items] == [200, 150]
         assert all("gătit" in item["name"] and item["calories"] is None for item in items)
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_photo_meal_always_waits_for_review_and_missing_food_blocks_proposal(monkeypatch):
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    settings = _settings(url)
+    owner = uuid.uuid4().int % 1000000000
+    pool = await create_pool(settings)
+    now = datetime.now(ZoneInfo(settings.timezone)).isoformat()
+
+    async def confident_photo(_settings, _reference, _caption):
+        return Interpretation(actions=[Candidate(type="log_meal", eaten_at=now,
+            description="Orez cu pui", items=[{"name": "Orez cu pui", "grams": 300}],
+            estimate_source="photo", confidence=0.99)])
+
+    try:
+        await migrate(pool)
+        monkeypatch.setattr("lora_v2.processor.interpret_photo", confident_photo)
+        photo = await capture(pool, owner, "test", str(uuid.uuid4()), "",
+            content_type="photo", attachment_ref="test-photo")
+        proposal = await process_capture(pool, settings, owner, photo["id"])
+        assert proposal[0].details["proposal_id"]
+        assert "Estimare din fotografie" in proposal[0].message
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT count(*) FROM meals WHERE owner_id=$1", owner) == 0
+
+        async def unclear_photo(_settings, _reference, _caption):
+            result = await confident_photo(_settings, _reference, _caption)
+            result.actions[0].missing_information = "Ce aliment este acesta?"
+            return result
+
+        monkeypatch.setattr("lora_v2.processor.interpret_photo", unclear_photo)
+        unclear = await capture(pool, owner, "test", str(uuid.uuid4()), "",
+            content_type="photo", attachment_ref="test-photo-2")
+        answer = await process_capture(pool, settings, owner, unclear["id"])
+        assert "Ce aliment" in answer[0].message and not answer[0].details.get("proposal_id")
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT count(*) FROM proposals WHERE owner_id=$1", owner) == 1
     finally:
         await pool.close()
 
