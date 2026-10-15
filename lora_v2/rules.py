@@ -38,7 +38,11 @@ def extract_common(text: str, now: datetime, timezone: str) -> tuple[Interpretat
     actions: list[Candidate] = []
     questions: list[str] = []
     remaining: list[str] = []
-    clauses = [part.strip() for part in re.split(r"(?<=[.!?;])\s+|\n+", text) if part.strip()]
+    clauses = [part.strip() for part in re.split(
+        r"(?<=[.!?;])\s+|\n+|\s+(?:și|si|iar)\s+"
+        r"(?=(?:azi|mâine|maine|poimâine|poimaine|luni|marți|marti|miercuri|joi|vineri|sâmbătă|sambata|duminică|duminica|trebuie\s+s[ăa]|amintește-mi|aminteste-mi)\b)",
+        text, flags=re.IGNORECASE,
+    ) if part.strip()]
     for clause in clauses:
         source = clause.casefold()
         handled = False

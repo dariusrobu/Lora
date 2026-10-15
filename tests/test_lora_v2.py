@@ -173,6 +173,19 @@ def test_purchase_task_and_reminder_survive_a_compound_message():
     assert result.actions[2].starts_at == "2026-10-17T10:00:00+03:00"
 
 
+def test_common_actions_can_be_joined_without_punctuation():
+    now = datetime(2026, 10, 15, 16, tzinfo=ZoneInfo("Europe/Bucharest"))
+    result, remaining = extract_common(
+        "Am cumpărat flori de 25 lei și mâine trebuie să trimit emailul la 18 "
+        "iar poimâine amintește-mi să cumpăr apă la 10",
+        now, "Europe/Bucharest",
+    )
+    assert remaining == ""
+    assert [action.type for action in result.actions] == [
+        "log_expense", "create_task", "create_calendar_entry",
+    ]
+
+
 def test_income_shortcut_is_distinct_from_expense():
     now = datetime(2026, 10, 14, 12, tzinfo=ZoneInfo("Europe/Bucharest"))
     result, remaining = extract_common("Azi am primit 100 lei.", now, "Europe/Bucharest")
@@ -1240,6 +1253,33 @@ async def test_compound_capture_saves_clear_facts_and_asks_for_ambiguous_time():
         assert approved and approved.status == "saved"
         async with pool.acquire() as conn:
             assert await conn.fetchval("SELECT count(*) FROM meals WHERE owner_id=$1", owner) == 1
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_compound_purchase_keeps_category_question_without_losing_other_actions():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    settings = _settings(url)
+    owner = uuid.uuid4().int % 1000000000
+    pool = await create_pool(settings)
+    try:
+        await migrate(pool)
+        message = (
+            "Am cumpărat flori de 25 lei la Carrefour. "
+            "Mâine trebuie să trimit email profesorului până la 18. "
+            "Poimâine amintește-mi să cumpăr apă la 10."
+        )
+        item = await capture(pool, owner, "test", str(uuid.uuid4()), message)
+        results = await process_capture(pool, settings, owner, item["id"])
+        assert [result.status for result in results] == ["needs_input", "saved", "saved"]
+        assert "În ce categorie" in results[0].message
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT count(*) FROM expenses WHERE owner_id=$1", owner) == 0
+            assert await conn.fetchval("SELECT count(*) FROM tasks WHERE owner_id=$1", owner) == 1
+            assert await conn.fetchval("SELECT count(*) FROM calendar_entries WHERE owner_id=$1", owner) == 1
     finally:
         await pool.close()
 
