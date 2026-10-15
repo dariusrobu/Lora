@@ -344,6 +344,37 @@ async def test_event_alerts_arrive_at_thirty_minutes_and_start():
 
 
 @pytest.mark.asyncio
+async def test_send_only_worker_alert_has_no_unhandled_callback():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    settings = _settings(url)
+    owner = uuid.uuid4().int % 1000000000
+    pool = await create_pool(settings)
+    sent: list[dict] = []
+
+    class FakeBot:
+        async def send_message(self, **kwargs):
+            sent.append(kwargs)
+
+    try:
+        await migrate(pool)
+        from datetime import timedelta
+        start = datetime.now(ZoneInfo(settings.timezone)) + timedelta(days=1)
+        created = await execute_command(pool, settings, owner, Command(type="create_calendar_entry", data={
+            "kind": "reminder", "title": "Sună administratorul", "starts_at": start.isoformat(),
+            "alert_offsets_minutes": [0],
+        }), str(uuid.uuid4()))
+        assert created.status == "saved"
+        assert await queue_due_alerts(pool, owner, start) == 1
+        assert await send_pending_telegram(pool, FakeBot(), owner, start, interactive=False) == 1
+        assert sent[-1]["text"] == "⏰ Sună administratorul"
+        assert "reply_markup" not in sent[-1]
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
 async def test_partial_message_survives_local_model_outage_and_retries_once(monkeypatch):
     url = os.getenv("LORA_V2_TEST_DATABASE_URL")
     if not url:

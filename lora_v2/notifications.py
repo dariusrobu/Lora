@@ -13,6 +13,7 @@ async def send_pending_telegram(
     bot: Bot,
     owner_id: int,
     now: datetime | None = None,
+    interactive: bool = True,
 ) -> int:
     current = now or datetime.now(timezone.utc)
     delivered = 0
@@ -65,22 +66,25 @@ async def send_pending_telegram(
                     continue
             if row["kind"] == "proposal":
                 proposal_id = payload["proposal_id"]
-                async with pool.acquire() as conn:
-                    source = await conn.fetchval(
-                        "SELECT source FROM proposals WHERE id=$1 AND owner_id=$2",
-                        uuid.UUID(proposal_id), owner_id,
-                    )
-                if source and source.startswith("followup:"):
-                    keyboard = InlineKeyboardMarkup([[
-                        InlineKeyboardButton("Am făcut", callback_data=f"v2:f:{proposal_id}:done"),
-                        InlineKeyboardButton("Mută pe mâine", callback_data=f"v2:f:{proposal_id}:tomorrow"),
-                    ]])
+                if interactive:
+                    async with pool.acquire() as conn:
+                        source = await conn.fetchval(
+                            "SELECT source FROM proposals WHERE id=$1 AND owner_id=$2",
+                            uuid.UUID(proposal_id), owner_id,
+                        )
+                    if source and source.startswith("followup:"):
+                        keyboard = InlineKeyboardMarkup([[
+                            InlineKeyboardButton("Am făcut", callback_data=f"v2:f:{proposal_id}:done"),
+                            InlineKeyboardButton("Mută pe mâine", callback_data=f"v2:f:{proposal_id}:tomorrow"),
+                        ]])
+                    else:
+                        keyboard = InlineKeyboardMarkup([[
+                            InlineKeyboardButton("Da, fă asta", callback_data=f"v2:p:{proposal_id}:yes"),
+                            InlineKeyboardButton("Nu acum", callback_data=f"v2:p:{proposal_id}:no"),
+                        ]])
+                    await bot.send_message(chat_id=owner_id, text=payload["reason"], reply_markup=keyboard)
                 else:
-                    keyboard = InlineKeyboardMarkup([[
-                        InlineKeyboardButton("Da, fă asta", callback_data=f"v2:p:{proposal_id}:yes"),
-                        InlineKeyboardButton("Nu acum", callback_data=f"v2:p:{proposal_id}:no"),
-                    ]])
-                await bot.send_message(chat_id=owner_id, text=payload["reason"], reply_markup=keyboard)
+                    await bot.send_message(chat_id=owner_id, text=payload["reason"] + "\nAlege în Mini App → Azi.")
             elif row["kind"] == "alert" and payload.get("entry_kind") == "reminder":
                 entry_id = payload["entry_id"]
                 version = payload["entry_version"]
@@ -88,12 +92,18 @@ async def send_pending_telegram(
                     InlineKeyboardButton("Gata", callback_data=f"v2:e:{entry_id}:{version}:done"),
                     InlineKeyboardButton("Mâine", callback_data=f"v2:e:{entry_id}:{version}:tomorrow"),
                 ]])
-                await bot.send_message(chat_id=owner_id, text=payload["text"], reply_markup=keyboard)
+                if interactive:
+                    await bot.send_message(chat_id=owner_id, text=payload["text"], reply_markup=keyboard)
+                else:
+                    await bot.send_message(chat_id=owner_id, text=payload["text"])
             elif row["kind"] == "task_alert":
                 keyboard = InlineKeyboardMarkup([[
                     InlineKeyboardButton("Gata", callback_data=f"v2:t:{payload['task_id']}:{payload['task_version']}:done"),
                 ]])
-                await bot.send_message(chat_id=owner_id, text=payload["text"], reply_markup=keyboard)
+                if interactive:
+                    await bot.send_message(chat_id=owner_id, text=payload["text"], reply_markup=keyboard)
+                else:
+                    await bot.send_message(chat_id=owner_id, text=payload["text"])
             else:
                 await bot.send_message(chat_id=owner_id, text=payload["text"])
         except Exception as exc:

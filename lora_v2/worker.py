@@ -29,7 +29,8 @@ async def _queue_receipt(pool: asyncpg.Pool, owner_id: int, capture_id: uuid.UUI
         )
 
 
-async def run_once(pool: asyncpg.Pool, bot: Bot, settings: Settings, refresh_academic: bool = True, sync_apple: bool = False) -> None:
+async def run_once(pool: asyncpg.Pool, bot: Bot, settings: Settings, refresh_academic: bool = True, sync_apple: bool = False,
+                   interactive_notifications: bool = True) -> None:
     owner_id = settings.telegram_user_id
     if refresh_academic:
         await materialize_schedule(pool, settings, owner_id, days=14)
@@ -64,10 +65,11 @@ async def run_once(pool: asyncpg.Pool, bot: Bot, settings: Settings, refresh_aca
                 )
     await generate_proposals(pool, settings, owner_id)
     await queue_due_alerts(pool, owner_id)
-    await send_pending_telegram(pool, bot, owner_id)
+    await send_pending_telegram(pool, bot, owner_id, interactive=interactive_notifications)
 
 
-async def run_forever(pool: asyncpg.Pool, bot: Bot, settings: Settings) -> None:
+async def run_forever(pool: asyncpg.Pool, bot: Bot, settings: Settings,
+                      interactive_notifications: bool = True) -> None:
     last_academic_refresh = None
     last_apple_sync = None
     while True:
@@ -78,7 +80,8 @@ async def run_forever(pool: asyncpg.Pool, bot: Bot, settings: Settings) -> None:
             sync_apple = settings.apple_sync_enabled and (
                 last_apple_sync is None or (now - last_apple_sync).total_seconds() >= 300
             )
-            await run_once(pool, bot, settings, refresh_academic=refresh, sync_apple=sync_apple)
+            await run_once(pool, bot, settings, refresh_academic=refresh, sync_apple=sync_apple,
+                           interactive_notifications=interactive_notifications)
             if refresh:
                 last_academic_refresh = today
             if sync_apple:
