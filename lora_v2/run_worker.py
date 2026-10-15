@@ -16,7 +16,7 @@ async def run() -> None:
     try:
         await migrate(pool)
         async with Bot(settings.telegram_bot_token) as bot:
-            await run_forever(pool, bot, settings, interactive_notifications=False)
+            await run_forever(pool, bot, settings, interactive_notifications=True)
     finally:
         await pool.close()
 

@@ -9,6 +9,7 @@ from telegram.ext import Application, ApplicationHandlerStop, CommandHandler, Co
 from lora_v2.config import Settings
 from lora_v2.db import create_pool, migrate
 from lora_v2.telegram_ingress import handle_owner_message
+from lora_v2.telegram_actions import register_v2_callbacks
 
 logger = logging.getLogger(__name__)
 
@@ -53,4 +54,6 @@ async def install_bridge(application: Application, settings: Settings) -> asyncp
         (filters.TEXT | filters.PHOTO | filters.VOICE) & ~filters.COMMAND & filters.ChatType.PRIVATE,
         bridge_message,
     ), group=-1)
+    application.bot_data["v2_pool"] = pool
+    register_v2_callbacks(application, settings, group=-1, stop_after=True)
     return pool

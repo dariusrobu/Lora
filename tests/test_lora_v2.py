@@ -483,6 +483,28 @@ async def test_legacy_bridge_only_captures_messages_in_opt_in_mode():
         message.text = "Acum folosește botul vechi"
         assert await bridge(update, None) is None
         assert any("v2 este activă" in item for item in replies)
+
+        task = await execute_command(pool, settings, owner, Command(type="create_task", data={
+            "title": "Test buton notificare",
+        }), str(uuid.uuid4()))
+        callback_answers: list[str] = []
+        edited: list[str] = []
+
+        async def answer(text: str = "", **_kwargs) -> None:
+            callback_answers.append(text)
+
+        async def edit_message_text(text: str) -> None:
+            edited.append(text)
+
+        query = SimpleNamespace(data=f"v2:t:{task.entity_id}:1:done", answer=answer,
+                                edit_message_text=edit_message_text)
+        callback_update = SimpleNamespace(callback_query=query, effective_user=SimpleNamespace(id=owner))
+        task_button = app.handlers[-1][6].callback
+        with pytest.raises(ApplicationHandlerStop):
+            await task_button(callback_update, SimpleNamespace(application=app))
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT status FROM tasks WHERE id=$1", uuid.UUID(task.entity_id)) == "done"
+        assert callback_answers and edited
     finally:
         await pool.close()
 
