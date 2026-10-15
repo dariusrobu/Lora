@@ -200,7 +200,7 @@ class Command(StrictModel):
 
 
 class ActionResult(StrictModel):
-    status: Literal["saved", "already_done", "needs_input", "failed"]
+    status: Literal["saved", "already_done", "needs_input", "failed", "deferred"]
     command_type: str
     entity_id: str | None = None
     entity_type: str | None = None

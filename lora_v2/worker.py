@@ -39,7 +39,7 @@ async def run_once(pool: asyncpg.Pool, bot: Bot, settings: Settings, refresh_aca
         await queue_apple_conflicts(pool, owner_id)
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            """SELECT id FROM captures WHERE owner_id=$1 AND (
+            """SELECT id,channel FROM captures WHERE owner_id=$1 AND (
                 status='captured' OR
                 (status='failed' AND processing_started_at < now()-interval '5 minutes') OR
                 (status='processing' AND processing_started_at < now()-interval '2 minutes')
@@ -57,10 +57,11 @@ async def run_once(pool: asyncpg.Pool, bot: Bot, settings: Settings, refresh_aca
             await _queue_receipt(pool, owner_id, row["id"], message, "result")
         except Exception:
             logger.exception("Capture processing failed: %s", row["id"])
-            await _queue_receipt(
-                pool, owner_id, row["id"],
-                "Am păstrat mesajul, dar nu l-am putut procesa încă. Voi reîncerca.", "retry",
-            )
+            if row["channel"] != "llm_retry":
+                await _queue_receipt(
+                    pool, owner_id, row["id"],
+                    "Am păstrat mesajul, dar nu l-am putut procesa încă. Voi reîncerca.", "retry",
+                )
     await generate_proposals(pool, settings, owner_id)
     await queue_due_alerts(pool, owner_id)
     await send_pending_telegram(pool, bot, owner_id)

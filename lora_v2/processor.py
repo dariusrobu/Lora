@@ -95,12 +95,14 @@ async def process_capture(
             WHERE id=$1 AND owner_id=$2 AND (
                 status IN ('captured','failed') OR
                 (status='processing' AND processing_started_at < now()-interval '2 minutes')
-            ) RETURNING raw_text,content_type,attachment_ref""",
+            ) RETURNING raw_text,content_type,attachment_ref,channel,created_at""",
             capture_id, owner_id,
         )
     if row is None:
         return []
     content = row["raw_text"]
+    anchor = row["created_at"].astimezone(ZoneInfo(settings.timezone))
+    model_deferred = False
     try:
         if row["content_type"] == "voice" and row["attachment_ref"]:
             content = await transcribe_voice(settings, row["attachment_ref"])
@@ -131,10 +133,27 @@ async def process_capture(
         elif expense_answer is not None:
             interpretation = Interpretation(actions=[expense_answer])
         elif row["content_type"] == "photo" and row["attachment_ref"]:
-            interpretation = await interpret_photo(settings, row["attachment_ref"], row["raw_text"])
+            interpretation = await interpret_photo(
+                settings, row["attachment_ref"], row["raw_text"], now=anchor,
+            )
         else:
-            rules, remaining = extract_common(content, datetime.now(ZoneInfo(settings.timezone)), settings.timezone)
-            model = await interpret_capture(pool, settings, owner_id, remaining) if remaining else Interpretation()
+            rules, remaining = extract_common(content, anchor, settings.timezone)
+            model = Interpretation()
+            if remaining:
+                try:
+                    model = await interpret_capture(pool, settings, owner_id, remaining, now=anchor)
+                except Exception:
+                    if not rules.actions or row["channel"] == "llm_retry":
+                        raise
+                    async with pool.acquire() as conn:
+                        await conn.execute(
+                            """INSERT INTO captures(id,owner_id,channel,external_id,content_type,
+                            raw_text,status,processing_started_at,error_code,created_at)
+                            VALUES ($1,$2,'llm_retry',$3,'text',$4,'failed',now(),'ModelUnavailable',$5)
+                            ON CONFLICT (owner_id,channel,external_id) DO NOTHING""",
+                            uuid.uuid4(), owner_id, str(capture_id), remaining, row["created_at"],
+                        )
+                    model_deferred = True
             interpretation = Interpretation(actions=rules.actions + model.actions,
                 reply="\n".join(filter(None, [rules.reply, model.reply])) or None)
     except Exception as exc:
@@ -196,7 +215,7 @@ async def process_capture(
             ))
             continue
         issue = grounding_issue(
-            candidate, content, settings, datetime.now(ZoneInfo(settings.timezone))
+            candidate, content, settings, anchor
         )
         if issue:
             needs_input = True
@@ -274,6 +293,9 @@ async def process_capture(
             status="needs_input", command_type="clarification",
             message=interpretation.reply,
         ))
+    if model_deferred:
+        results.append(ActionResult(status="deferred", command_type="interpretation",
+            message="Am procesat părțile clare. Restul mesajului rămâne salvat și îl reîncerc automat când modelul local revine."))
 
     async with pool.acquire() as conn:
         await conn.execute(

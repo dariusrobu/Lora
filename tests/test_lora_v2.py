@@ -311,6 +311,77 @@ async def test_event_alerts_arrive_at_thirty_minutes_and_start():
 
 
 @pytest.mark.asyncio
+async def test_partial_message_survives_local_model_outage_and_retries_once(monkeypatch):
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    owner = uuid.uuid4().int % 1000000000
+    settings = Settings(database_url=url, telegram_bot_token="test", telegram_user_id=owner)
+    pool = await create_pool(settings)
+    sent: list[dict] = []
+
+    class FakeBot:
+        async def send_message(self, **kwargs):
+            sent.append(kwargs)
+
+    async def unavailable(*_args, **_kwargs):
+        raise ConnectionError("Ollama unavailable")
+
+    async def recovered(_pool, _settings, _owner, text, now=None):
+        assert text == "Vreau să notez o idee despre proiect."
+        assert now.date() == original_day
+        return Interpretation(actions=[Candidate(type="create_task", title="Notează ideea despre proiect",
+            confidence=0.95, evidence=text)])
+
+    try:
+        await migrate(pool)
+        from datetime import timedelta
+        local = ZoneInfo(settings.timezone)
+        anchored = datetime.now(local) - timedelta(days=1)
+        original_day = anchored.date()
+        message = "Am plătit azi 15 lei pe Bolt. Vreau să notez o idee despre proiect."
+        parent = await capture(pool, owner, "test", str(uuid.uuid4()), message)
+        async with pool.acquire() as conn:
+            await conn.execute("UPDATE captures SET created_at=$2 WHERE id=$1", parent["id"], anchored)
+        monkeypatch.setattr("lora_v2.processor.interpret_capture", unavailable)
+        first = await process_capture(pool, settings, owner, parent["id"])
+        assert [result.status for result in first] == ["saved", "deferred"]
+        async with pool.acquire() as conn:
+            expense = await conn.fetchrow(
+                "SELECT amount,category,spent_at FROM expenses WHERE owner_id=$1", owner,
+            )
+            child = await conn.fetchrow(
+                "SELECT id,raw_text,status,created_at FROM captures WHERE owner_id=$1 AND channel='llm_retry'", owner,
+            )
+        assert expense["amount"] == 15 and expense["category"] == "transport"
+        assert expense["spent_at"].astimezone(local).date() == original_day
+        assert child["status"] == "failed" and child["created_at"] == anchored
+
+        with pytest.raises(ConnectionError):
+            await process_capture(pool, settings, owner, child["id"])
+        async with pool.acquire() as conn:
+            assert await conn.fetchval(
+                "SELECT count(*) FROM captures WHERE owner_id=$1 AND channel='llm_retry'", owner,
+            ) == 1
+
+        monkeypatch.setattr("lora_v2.processor.interpret_capture", recovered)
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE captures SET processing_started_at=now()-interval '6 minutes' WHERE id=$1",
+                child["id"],
+            )
+        await run_once(pool, FakeBot(), settings, refresh_academic=False)
+        assert any("Task salvat: Notează ideea" in message["text"] for message in sent)
+        assert await process_capture(pool, settings, owner, parent["id"]) == []
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT count(*) FROM expenses WHERE owner_id=$1", owner) == 1
+            assert await conn.fetchval("SELECT count(*) FROM tasks WHERE owner_id=$1", owner) == 1
+            assert await conn.fetchval("SELECT status FROM captures WHERE id=$1", child["id"]) == "processed"
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
 async def test_v2_database_journey():
     url = os.getenv("LORA_V2_TEST_DATABASE_URL")
     if not url:
@@ -969,10 +1040,8 @@ async def test_photo_meal_always_waits_for_review_and_missing_food_blocks_propos
     settings = _settings(url)
     owner = uuid.uuid4().int % 1000000000
     pool = await create_pool(settings)
-    now = datetime.now(ZoneInfo(settings.timezone)).isoformat()
-
-    async def confident_photo(_settings, _reference, _caption):
-        return Interpretation(actions=[Candidate(type="log_meal", eaten_at=now,
+    async def confident_photo(_settings, _reference, _caption, now=None):
+        return Interpretation(actions=[Candidate(type="log_meal", eaten_at=now.isoformat(),
             description="Orez cu pui", items=[{"name": "Orez cu pui", "grams": 300}],
             estimate_source="photo", confidence=0.99)])
 
@@ -987,8 +1056,8 @@ async def test_photo_meal_always_waits_for_review_and_missing_food_blocks_propos
         async with pool.acquire() as conn:
             assert await conn.fetchval("SELECT count(*) FROM meals WHERE owner_id=$1", owner) == 0
 
-        async def unclear_photo(_settings, _reference, _caption):
-            result = await confident_photo(_settings, _reference, _caption)
+        async def unclear_photo(_settings, _reference, _caption, now=None):
+            result = await confident_photo(_settings, _reference, _caption, now=now)
             result.actions[0].missing_information = "Ce aliment este acesta?"
             return result
 

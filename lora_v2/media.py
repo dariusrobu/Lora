@@ -70,13 +70,15 @@ async def transcribe_voice(settings: Settings, reference: str) -> str:
     )
 
 
-async def interpret_photo(settings: Settings, reference: str, caption: str) -> Interpretation:
+async def interpret_photo(
+    settings: Settings, reference: str, caption: str, now: datetime | None = None,
+) -> Interpretation:
     """Estimate food visually; uncertainty is mandatory and the user can edit every value."""
     path = _trusted_path(settings, reference, ".jpg")
     prompt = (
         "Analizează fotografia ca asistent de jurnal alimentar, în română. "
-        f"Ora curentă: {datetime.now(ZoneInfo(settings.timezone)).isoformat()}. "
-        "Dacă este mâncare, întoarce o singură acțiune log_meal cu eaten_at la ora curentă, "
+        f"Ora fotografiei: {(now or datetime.now(ZoneInfo(settings.timezone))).isoformat()}. "
+        "Dacă este mâncare, întoarce o singură acțiune log_meal cu eaten_at la ora fotografiei, "
         "estimate_source='photo', photo_ref setat la referința dată și items cu alimentele observabile. "
         "Estimează gramajul și macro-urile numai dacă le poți aproxima rezonabil; "
         "nu prezenta valorile ca exacte. Dacă porția sau alimentul nu pot fi identificate, "
