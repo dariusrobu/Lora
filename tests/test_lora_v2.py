@@ -153,6 +153,26 @@ def test_common_daily_phrases_are_grounded_without_model_dates():
     assert left == "" and health.actions[0].water_ml_delta == 1000
 
 
+def test_purchase_task_and_reminder_survive_a_compound_message():
+    now = datetime(2026, 10, 15, 16, tzinfo=ZoneInfo("Europe/Bucharest"))
+    result, remaining = extract_common(
+        "Am cumpărat flori de 25 lei la Carrefour. "
+        "Mâine trebuie să trimit email profesorului până la 18. "
+        "Poimâine amintește-mi să cumpăr apă la 10.",
+        now, "Europe/Bucharest",
+    )
+    assert remaining == ""
+    assert [action.type for action in result.actions] == [
+        "log_expense", "create_task", "create_calendar_entry",
+    ]
+    assert result.actions[0].amount == 25
+    assert result.actions[0].category is None
+    assert result.actions[1].title == "trimit email profesorului"
+    assert result.actions[1].due_at == "2026-10-16T18:00:00+03:00"
+    assert result.actions[2].title == "cumpăr apă"
+    assert result.actions[2].starts_at == "2026-10-17T10:00:00+03:00"
+
+
 def test_income_shortcut_is_distinct_from_expense():
     now = datetime(2026, 10, 14, 12, tzinfo=ZoneInfo("Europe/Bucharest"))
     result, remaining = extract_common("Azi am primit 100 lei.", now, "Europe/Bucharest")

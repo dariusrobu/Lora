@@ -86,8 +86,9 @@ def extract_common(text: str, now: datetime, timezone: str) -> tuple[Interpretat
                 hour, minute = int(target.group(1)), int(target.group(2) or 0)
                 if hour < 24 and minute < 60:
                     at = datetime.combine(day.date(), time(hour, minute), ZoneInfo(timezone))
+                    title = re.sub(r"\s+(?:la|ora)\s+\d{1,2}(?::\d{2})?\s*$", "", action.group(1).strip(), flags=re.IGNORECASE)
                     actions.append(Candidate(type="create_calendar_entry", kind="reminder",
-                        title=action.group(1).strip()[:300], starts_at=at.isoformat(),
+                        title=title[:300], starts_at=at.isoformat(),
                         alert_offsets_minutes=[0], confidence=0.99, evidence=clause))
                     handled = True
         if not handled and day and re.search(r"\b(?:trebuie să|trebuie sa|am de)\b", source):
@@ -99,11 +100,12 @@ def extract_common(text: str, now: datetime, timezone: str) -> tuple[Interpretat
                     at = datetime.combine(day.date(), time(hour, minute), ZoneInfo(timezone))
                     title = action.group(1).strip()
                     title = re.sub(r"^la\s+\d{1,2}(?::\d{2})?\s*", "", title, flags=re.IGNORECASE)
+                    title = re.sub(r"\s+p[âa]n[ăa] la\s+\d{1,2}(?::\d{2})?\s*$", "", title, flags=re.IGNORECASE)
                     actions.append(Candidate(type="create_task", title=title[:300],
                         due_at=at.isoformat(), confidence=0.99, evidence=clause))
                     handled = True
         money = re.search(r"\b(\d+(?:[.,]\d{1,2})?)\s*(?:lei|ron)\b", source)
-        if money and re.search(r"\b(?:cheltuit|dat|plătit|platit|costat|cantin[ăa])\b", source):
+        if money and re.search(r"\b(?:cheltuit|dat|plătit|platit|costat|cumpărat|cumparat|cantin[ăa])\b", source):
             amount = float(money.group(1).replace(",", "."))
             if amount > 0:
                 food = bool(re.search(r"\b(?:cantin[ăa]|mâncare|mancare|restaurant|piept de pui|piure)\b", source))
