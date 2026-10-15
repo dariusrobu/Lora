@@ -48,6 +48,9 @@
 .meal-detail-item a { color:#6753be; text-decoration:underline; text-underline-offset:2px; }
 .health-editor { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .health-editor label:last-child { grid-column:1/-1; }
+.capture-result { display:flex; align-items:flex-start; gap:12px; margin-top:14px; padding:12px 14px; border:1px solid #e5def5; border-radius:14px; background:rgba(255,255,255,.58); color:#554d70; font-size:13px; line-height:1.5; }
+.capture-result p { flex:1; min-width:0; margin:0; white-space:pre-line; overflow-wrap:anywhere; }
+.capture-result button { flex:none; border:0; background:transparent; color:#867e9d; padding:1px; display:grid; place-items:center; }
 @media(max-width:520px){.health-editor{grid-template-columns:1fr}}
 @media(max-width:520px){.university-week-days{gap:4px}.university-day{min-height:60px;border-radius:12px}.university-day span{font-size:10px}.university-day strong{font-size:16px}}
 .income-form { display:grid; gap:10px; margin-top:15px; }

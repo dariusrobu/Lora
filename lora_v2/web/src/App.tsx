@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Dumbbell, GraduationCap, HeartPulse, House, Pencil, Plus, Send, Sparkles, Trash2, Wallet, X } from "lucide-react"
-import { api, telegram, type AppleConflict, type AppleConflictDetail, type Entry, type Journal, type Project, type Proposal, type Task, type Today } from "./api"
+import { api, telegram, type AppleConflict, type AppleConflictDetail, type CaptureStatus, type Entry, type Journal, type Project, type Proposal, type Task, type Today } from "./api"
 import UniversityPanel from "./UniversityPanel"
 import IncomePanel from "./IncomePanel"
 import MealPanel from "./MealPanel"
@@ -33,6 +33,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("today")
   const [form, setForm] = useState<FormKind>(null)
   const [captureText, setCaptureText] = useState("")
+  const [captureProgress, setCaptureProgress] = useState<CaptureStatus | null>(null)
   const [status, setStatus] = useState("")
   const [error, setError] = useState("")
   const [busy, setBusy] = useState(false)
@@ -64,6 +65,24 @@ export default function App() {
 
   useEffect(() => { void reload() }, [reload])
   useEffect(() => { if (!telegram?.initData) return; const timer = window.setInterval(() => void reload(), 15000); return () => window.clearInterval(timer) }, [reload])
+  useEffect(() => {
+    const id = captureProgress?.id
+    if (!id || (captureProgress?.receipt && ["processed", "needs_input"].includes(captureProgress.status))) return
+    let active = true
+    const check = async () => {
+      try {
+        const latest = await api.captureStatus(id)
+        if (!active) return
+        setCaptureProgress(current => current?.id === id ? latest : current)
+        if (latest.receipt && ["processed", "needs_input"].includes(latest.status)) await reload()
+      } catch (cause) {
+        if (active) setError(cause instanceof Error ? cause.message : "Nu am putut verifica mesajul.")
+      }
+    }
+    void check()
+    const timer = window.setInterval(() => void check(), 5000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [captureProgress?.id, captureProgress?.status, captureProgress?.receipt, reload])
 
   async function decide(id: string, accept: boolean) {
     setBusy(true); setError("")
@@ -159,9 +178,9 @@ export default function App() {
     if (!captureText.trim()) return
     setBusy(true); setError("")
     try {
-      await api.capture(captureText.trim())
+      const captured = await api.capture(captureText.trim())
       setCaptureText("")
-      setStatus("Am păstrat mesajul. Îți trimit rezultatul în Telegram.")
+      setCaptureProgress({ id: captured.id, status: "captured", receipt: null })
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut păstra mesajul.") }
     finally { setBusy(false) }
   }
@@ -170,9 +189,9 @@ export default function App() {
     if (!file) return
     setBusy(true); setError("")
     try {
-      await api.photo(file, captureText.trim())
+      const captured = await api.photo(file, captureText.trim())
       setCaptureText("")
-      setStatus("Am păstrat fotografia. Îți trimit estimarea în Telegram.")
+      setCaptureProgress({ id: captured.id, status: "captured", receipt: null })
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut păstra fotografia.") }
     finally { setBusy(false) }
   }
@@ -239,6 +258,7 @@ export default function App() {
           <section className="glass capture-panel">
             <div className="section-title"><Sparkles size={18} /><h2>Spune-i Lorei</h2></div>
             <div className="capture-row"><textarea aria-label="Ce vrei să rețină Lora?" placeholder="De exemplu: mâine sun administratorul, azi am cheltuit 15 lei la cantină…" value={captureText} onChange={event => setCaptureText(event.target.value)} rows={2} /><label className="photo-action" aria-label="Adaugă fotografie cu mâncarea"><Camera size={19} /><input type="file" accept="image/*" capture="environment" disabled={busy} onChange={event => { void sendPhoto(event.target.files?.[0]); event.target.value = "" }} /></label><button className="circle-action" aria-label="Trimite către Lora" disabled={busy || !captureText.trim()} onClick={() => void sendCapture()}><Send size={19} /></button></div>
+            {captureProgress && <div className="capture-result" role="status" aria-live="polite"><p>{captureProgress.receipt || (captureProgress.status === "failed" ? "Nu am putut procesa mesajul încă. Reîncerc automat." : captureProgress.status === "processed" || captureProgress.status === "needs_input" ? "Pregătesc răspunsul…" : "Lora procesează mesajul…")}</p><button type="button" aria-label="Închide rezultatul" onClick={() => setCaptureProgress(null)}><X size={16} /></button></div>}
           </section>
           <div className="quick-actions"><button onClick={() => setForm("task")}><Plus size={16} /> Task</button><button onClick={() => setForm("reminder")}><Bell size={16} /> Reminder</button><button onClick={() => setForm("expense")}><Wallet size={16} /> Cheltuială</button></div>
           <div className="two-column">

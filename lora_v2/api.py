@@ -101,9 +101,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "SELECT id,status,error_code,created_at,processed_at FROM captures WHERE id=$1 AND owner_id=$2",
                 capture_id, owner_id,
             )
-        if not row:
-            raise HTTPException(status_code=404, detail="Capture not found")
-        return dict(row)
+            if not row:
+                raise HTTPException(status_code=404, detail="Capture not found")
+            receipt = await conn.fetchval(
+                """SELECT payload->>'text' FROM notification_outbox
+                WHERE owner_id=$1 AND dedupe_key=$2""",
+                owner_id, f"capture_receipt:{capture_id}:result",
+            )
+            if receipt is None:
+                receipt = await conn.fetchval(
+                    """SELECT payload->>'text' FROM notification_outbox
+                    WHERE owner_id=$1 AND dedupe_key=$2""",
+                    owner_id, f"capture_receipt:{capture_id}:retry",
+                )
+        return {**dict(row), "receipt": receipt}
 
     @app.post("/api/v2/actions")
     async def run_action(body: ActionRequest, request: Request, owner_id: int = Depends(auth)):

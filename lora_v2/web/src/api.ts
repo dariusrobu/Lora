@@ -11,6 +11,7 @@ export type Health = { id: string; log_date: string; sleep_hours?: number; sleep
 export type Today = { date: string; entries: Entry[]; tasks: Task[] }
 export type Journal = { expenses: Expense[]; incomes: Income[]; meals: Meal[]; workouts: Workout[]; health: Health[] }
 export type ActionResult = { status: string; message: string; entity_id?: string }
+export type CaptureStatus = { id: string; status: "captured" | "processing" | "needs_input" | "processed" | "failed"; receipt: string | null }
 export type Proposal = { id: string; source: string; reason: string; command: { type: string; data: Record<string, unknown> }; expires_at: string }
 export type AppleConflict = { id: string; entity_type: string; entity_id: string; local_title?: string }
 export type AppleConflictDetail = { local: { title: string; at?: string; status: string; version: number } | null; apple: { title: string; at?: string; completed: boolean } | null; apple_deleted: boolean }
@@ -53,6 +54,7 @@ export const api = {
   academicDelete: (kind: UniversityKind, id: string, expected_version: number) => request<{id: string; version: number}>(`/university/${kind}/${id}?expected_version=${expected_version}`, { method: "DELETE" }),
   academicSemester: (semester_start: string, semester_end: string | null, expected_version: number | null) => request<{version: number}>("/university/semester", { method: "PUT", body: JSON.stringify({ semester_start, semester_end, expected_version }) }),
   capture: (text: string) => request<{ id: string; status: string }>("/captures", { method: "POST", body: JSON.stringify({ external_id: crypto.randomUUID(), text }) }),
+  captureStatus: (id: string) => request<CaptureStatus>(`/captures/${id}`),
   photo: async (file: File, caption = "") => {
     if (!telegram?.initData) throw new Error("Deschide Lora din Telegram pentru a accesa datele.")
     const response = await fetch(`/api/v2/captures/photo?caption=${encodeURIComponent(caption)}`, {

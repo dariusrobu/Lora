@@ -1028,6 +1028,31 @@ async def test_journal_shows_only_complete_meal_totals_with_reference_detail():
 
 
 @pytest.mark.asyncio
+async def test_mini_app_can_read_its_capture_receipt():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    owner = uuid.uuid4().int % 1000000000
+    settings = Settings(database_url=url, telegram_bot_token="test-token", telegram_user_id=owner)
+    app = create_app(settings)
+    async with app.router.lifespan_context(app):
+        item = await capture(app.state.pool, owner, "mini_app", str(uuid.uuid4()), "Mâine sun administratorul")
+        async with app.state.pool.acquire() as conn:
+            await conn.execute(
+                """INSERT INTO notification_outbox(id,owner_id,dedupe_key,channel,kind,payload)
+                VALUES ($1,$2,$3,'telegram','receipt',$4::jsonb)""",
+                uuid.uuid4(), owner, f"capture_receipt:{item['id']}:result",
+                json.dumps({"text": "Am salvat reminderul."}),
+            )
+        auth = {"X-Telegram-Init-Data": _init_data(settings.telegram_bot_token, owner, int(time.time()))}
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(f"/api/v2/captures/{item['id']}", headers=auth)
+            assert response.status_code == 200
+            assert response.json()["receipt"] == "Am salvat reminderul."
+            assert (await client.get(f"/api/v2/captures/{item['id']}")).status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_university_week_api_materializes_and_reconciles_the_visible_schedule():
     url = os.getenv("LORA_V2_TEST_DATABASE_URL")
     if not url:
