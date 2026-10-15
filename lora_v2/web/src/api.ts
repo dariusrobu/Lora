@@ -3,7 +3,9 @@ export type Task = { id: string; title: string; status: string; due_at?: string;
 export type Project = { id: string; name: string; status: string; version: number }
 export type Expense = { id: string; amount: number; currency: string; category: string; merchant?: string; description?: string; spent_at: string; version: number }
 export type Income = { id: string; amount: number; currency: string; category?: string; source?: string; description?: string; received_at: string; version: number }
-export type Meal = { id: string; eaten_at: string; description?: string; estimate_uncertain: boolean; version: number }
+export type Meal = { id: string; eaten_at: string; description?: string; estimate_uncertain: boolean; version: number; calories?: number | null; protein_g?: number | null; carbs_g?: number | null; fat_g?: number | null }
+export type MealItemDetail = { id: string; name: string; grams?: number | null; calories?: number | null; protein_g?: number | null; carbs_g?: number | null; fat_g?: number | null; nutrition_provider?: string | null; nutrition_source_title?: string | null; nutrition_source_url?: string | null }
+export type MealDetail = Meal & { items: MealItemDetail[] }
 export type Workout = { id: string; started_at: string; duration_minutes: number; activity: string; version: number }
 export type Health = { id: string; log_date: string; sleep_hours?: number; sleep_quality?: string; water_ml?: number; weight_kg?: number; cigarettes?: number; notes?: string; version: number }
 export type Today = { date: string; entries: Entry[]; tasks: Task[] }
@@ -64,6 +66,7 @@ export const api = {
     body: JSON.stringify({ idempotency_key: crypto.randomUUID(), command: { type, data } }),
   }),
   entity: (kind: string, id: string) => request<Record<string, unknown>>(`/entities/${kind}/${id}`),
+  meal: (id: string) => request<MealDetail>(`/entities/meal/${id}`),
   edit: (kind: string, id: string, expected_version: number, data: Record<string, unknown>) => request<ActionResult>(`/entities/${kind}/${id}`, {
     method: "PUT", body: JSON.stringify({ expected_version, data }),
   }),

@@ -92,6 +92,10 @@ class MealItem(StrictModel):
     protein_g: Decimal | None = Field(default=None, ge=0)
     carbs_g: Decimal | None = Field(default=None, ge=0)
     fat_g: Decimal | None = Field(default=None, ge=0)
+    nutrition_provider: str | None = Field(default=None, max_length=100)
+    nutrition_source_id: str | None = Field(default=None, max_length=100)
+    nutrition_source_title: str | None = Field(default=None, max_length=200)
+    nutrition_source_url: str | None = Field(default=None, max_length=500)
 
 
 class LogMeal(StrictModel):

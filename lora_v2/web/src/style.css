@@ -38,6 +38,14 @@
 .university-day:focus-visible { outline:3px solid #9b8ce9; outline-offset:2px; }
 .university-selected-date { margin:0 0 7px; color:#625a77; font-size:13px; font-weight:700; text-transform:capitalize; }
 .bottom-nav { background:rgba(255,255,255,.93); }
+.meal-list-item { border-top:1px solid #eeeaf4; }
+.meal-list-item .simple-row { border-top:0; }
+.meal-detail { display:grid; gap:8px; padding:0 0 15px 12px; }
+.meal-detail .helper { margin:0 0 3px; }
+.meal-detail-item { display:flex; flex-direction:column; gap:3px; padding-left:10px; border-left:2px solid #b7a6ec; }
+.meal-detail-item strong { font-size:13px; color:#302c42; }
+.meal-detail-item small { font-size:12px; color:#79728c; line-height:1.4; }
+.meal-detail-item a { color:#6753be; text-decoration:underline; text-underline-offset:2px; }
 .health-editor { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .health-editor label:last-child { grid-column:1/-1; }
 @media(max-width:520px){.health-editor{grid-template-columns:1fr}}

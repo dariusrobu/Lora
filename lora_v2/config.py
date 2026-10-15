@@ -24,6 +24,10 @@ class Settings:
     media_dir: str = "lora_v2/media"
     ollama_vision_model: str = "moondream"
     whisper_model: str = "base"
+    nutrition_enabled: bool = False
+    usda_api_key: str = ""
+    nutrition_cache_path: str = "lora_v2/nutrition_references.sqlite3"
+    nutrition_user_agent: str = "Lora/2.0 (personal nutrition assistant)"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -51,4 +55,8 @@ class Settings:
             media_dir=os.getenv("LORA_V2_MEDIA_DIR", "lora_v2/media"),
             ollama_vision_model=os.getenv("LORA_V2_VISION_MODEL", "moondream"),
             whisper_model=os.getenv("LORA_V2_WHISPER_MODEL", "base"),
+            nutrition_enabled=os.getenv("NUTRITION_CLOUD_ENABLED", "false").lower() == "true",
+            usda_api_key=os.getenv("USDA_FDC_API_KEY") or os.getenv("USDA_FDC_API", ""),
+            nutrition_cache_path=os.getenv("LORA_V2_NUTRITION_CACHE_PATH", "lora_v2/nutrition_references.sqlite3"),
+            nutrition_user_agent=os.getenv("OPENFOODFACTS_USER_AGENT", "Lora/2.0 (personal nutrition assistant)"),
         )

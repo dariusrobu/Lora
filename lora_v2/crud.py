@@ -157,7 +157,7 @@ async def update_entity(
             elif kind == "meal" and isinstance(payload, LogMeal):
                 row = await conn.fetchrow(
                     """UPDATE meals SET eaten_at=$4,description=$5,estimate_source='manual',
-                    estimate_uncertain=false,photo_ref=$6,version=version+1,updated_at=now()
+                    estimate_uncertain=true,photo_ref=$6,version=version+1,updated_at=now()
                     WHERE id=$1 AND owner_id=$2 AND version=$3 AND deleted_at IS NULL
                     RETURNING id,version""",
                     entity_id, owner_id, request.expected_version,
@@ -167,10 +167,12 @@ async def update_entity(
                     await conn.execute("DELETE FROM meal_items WHERE meal_id=$1", entity_id)
                     for item in payload.items:
                         await conn.execute(
-                            """INSERT INTO meal_items(id,meal_id,name,grams,calories,protein_g,carbs_g,fat_g)
-                            VALUES ($1,$2,$3,$4,$5,$6,$7,$8)""",
+                            """INSERT INTO meal_items(id,meal_id,name,grams,calories,protein_g,carbs_g,fat_g,
+                            nutrition_provider,nutrition_source_id,nutrition_source_title,nutrition_source_url)
+                            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)""",
                             uuid.uuid4(), entity_id, item.name, item.grams, item.calories,
-                            item.protein_g, item.carbs_g, item.fat_g,
+                            item.protein_g, item.carbs_g, item.fat_g, item.nutrition_provider,
+                            item.nutrition_source_id, item.nutrition_source_title, item.nutrition_source_url,
                         )
             elif kind == "workout" and isinstance(payload, LogWorkout):
                 row = await conn.fetchrow(

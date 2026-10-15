@@ -188,10 +188,12 @@ async def _apply(
         )
         for item in payload.items:
             await conn.execute(
-                """INSERT INTO meal_items(id,meal_id,name,grams,calories,protein_g,carbs_g,fat_g)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8)""",
+                """INSERT INTO meal_items(id,meal_id,name,grams,calories,protein_g,carbs_g,fat_g,
+                nutrition_provider,nutrition_source_id,nutrition_source_title,nutrition_source_url)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)""",
                 _id(), entity_id, item.name, item.grams, item.calories,
-                item.protein_g, item.carbs_g, item.fat_g,
+                item.protein_g, item.carbs_g, item.fat_g, item.nutrition_provider,
+                item.nutrition_source_id, item.nutrition_source_title, item.nutrition_source_url,
             )
         return ActionResult(status="saved", command_type=command_type, entity_id=str(entity_id), entity_type="meal", message="Masă salvată ca estimare editabilă.")
 

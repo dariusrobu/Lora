@@ -14,6 +14,7 @@ from lora_v2.models import ActionResult, Command
 from lora_v2.media import interpret_photo, transcribe_voice
 from lora_v2.meal_dialogue import remember_meal_question, resolve_meal_answer
 from lora_v2.mutations import plan_mutation
+from lora_v2.nutrition import enrich_meal_candidate
 from lora_v2.grounding import grounding_issue
 from lora_v2.rules import extract_common
 from lora_v2.service import execute_command
@@ -28,7 +29,13 @@ def _preview(command: Command) -> str:
     if command.type == "log_income":
         return f"Venit: {data.get('amount')} {data.get('currency', 'RON')} · {data.get('source') or data.get('description') or ''}"
     if command.type == "log_meal":
-        return f"Masă: {data.get('description') or ', '.join(item.get('name', '') for item in data.get('items', []))} (estimare)"
+        lines = [f"Masă: {data.get('description') or 'estimare'}"]
+        for item in data.get("items", [])[:8]:
+            portion = f"{item['grams']} g" if item.get("grams") is not None else "gramaj necunoscut"
+            nutrition = f"{item['calories']} kcal" if item.get("calories") is not None else "macro lipsă"
+            source = f" · {item['nutrition_provider']}: {item['nutrition_source_title']}" if item.get("nutrition_provider") else ""
+            lines.append(f"• {item.get('name', 'Aliment')}: {portion}, {nutrition}{source}")
+        return "\n".join(lines)
     if command.type == "log_workout":
         return f"Antrenament: {data.get('activity')}, {data.get('duration_minutes')} min"
     if command.type == "log_health":
@@ -103,7 +110,6 @@ async def process_capture(
             results.append(ActionResult(status="needs_input", command_type=candidate.type,
                 message="Din fotografia aceasta pot propune doar o masă. Spune-mi separat dacă vrei să salvez altceva."))
             continue
-        command = candidate.as_command()
         if row["content_type"] == "photo" and candidate.type == "log_meal" and candidate.missing_information:
             needs_input = True
             results.append(ActionResult(status="needs_input", command_type="log_meal",
@@ -116,6 +122,9 @@ async def process_capture(
             results.append(ActionResult(status="needs_input", command_type="log_meal",
                 message=candidate.missing_information))
             continue
+        if candidate.type == "log_meal":
+            candidate = await enrich_meal_candidate(candidate, settings)
+        command = candidate.as_command()
         try:
             command.payload()
         except (ValidationError, ValueError) as exc:
@@ -135,8 +144,7 @@ async def process_capture(
                 status="needs_input", command_type=command.type, message=issue,
             ))
             continue
-        if (candidate.confidence < 0.85 or candidate.missing_information or
-                (row["content_type"] == "photo" and candidate.type == "log_meal")):
+        if candidate.confidence < 0.85 or candidate.missing_information or candidate.type == "log_meal":
             needs_input = True
             reason = f"Verifică înainte de salvare: {_preview(command)}"
             if row["content_type"] == "photo" and candidate.type == "log_meal":

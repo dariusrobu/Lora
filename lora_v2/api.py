@@ -334,7 +334,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 owner_id,
             )
             meals = await conn.fetch(
-                "SELECT id,eaten_at,description,estimate_uncertain,version FROM meals WHERE owner_id=$1 AND deleted_at IS NULL ORDER BY eaten_at DESC LIMIT 100", owner_id
+                """SELECT m.id,m.eaten_at,m.description,m.estimate_uncertain,m.version,
+                CASE WHEN COUNT(i.id)>0 AND COUNT(i.id)=COUNT(i.calories)
+                    AND COUNT(i.id)=COUNT(i.protein_g) AND COUNT(i.id)=COUNT(i.carbs_g)
+                    AND COUNT(i.id)=COUNT(i.fat_g) THEN ROUND(SUM(i.calories),1) END AS calories,
+                CASE WHEN COUNT(i.id)>0 AND COUNT(i.id)=COUNT(i.protein_g)
+                    THEN ROUND(SUM(i.protein_g),1) END AS protein_g,
+                CASE WHEN COUNT(i.id)>0 AND COUNT(i.id)=COUNT(i.carbs_g)
+                    THEN ROUND(SUM(i.carbs_g),1) END AS carbs_g,
+                CASE WHEN COUNT(i.id)>0 AND COUNT(i.id)=COUNT(i.fat_g)
+                    THEN ROUND(SUM(i.fat_g),1) END AS fat_g
+                FROM meals m LEFT JOIN meal_items i ON i.meal_id=m.id
+                WHERE m.owner_id=$1 AND m.deleted_at IS NULL GROUP BY m.id
+                ORDER BY m.eaten_at DESC LIMIT 100""", owner_id
             )
             workouts = await conn.fetch(
                 "SELECT id,started_at,duration_minutes,activity,notes,version FROM workouts WHERE owner_id=$1 AND deleted_at IS NULL ORDER BY started_at DESC LIMIT 100", owner_id
@@ -367,7 +379,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             result = dict(row)
             if kind == "meal":
                 items = await conn.fetch(
-                    "SELECT id,name,grams,calories,protein_g,carbs_g,fat_g FROM meal_items WHERE meal_id=$1 ORDER BY id",
+                    """SELECT id,name,grams,calories,protein_g,carbs_g,fat_g,nutrition_provider,
+                    nutrition_source_id,nutrition_source_title,nutrition_source_url
+                    FROM meal_items WHERE meal_id=$1 ORDER BY id""",
                     entity_id,
                 )
                 result["items"] = [dict(item) for item in items]
