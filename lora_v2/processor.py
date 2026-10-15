@@ -2,6 +2,7 @@
 
 import json
 import uuid
+import unicodedata
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -13,6 +14,7 @@ from lora_v2.config import Settings
 from lora_v2.models import ActionResult, Command
 from lora_v2.media import interpret_photo, transcribe_voice
 from lora_v2.meal_dialogue import remember_meal_question, resolve_meal_answer
+from lora_v2.expense_dialogue import remember_expense_question, resolve_expense_answer
 from lora_v2.mutations import plan_mutation
 from lora_v2.nutrition import enrich_meal_candidate
 from lora_v2.grounding import grounding_issue
@@ -41,6 +43,11 @@ def _preview(command: Command) -> str:
     if command.type == "log_health":
         return f"Sănătate {data.get('log_date')}: {data.get('water_ml_delta') or 0} ml apă, {data.get('weight_kg') or '—'} kg"
     return str(data.get("title") or data.get("name") or command.type)
+
+
+def _category_key(value: str) -> str:
+    normalized = unicodedata.normalize("NFD", value.casefold().strip())
+    return "".join(char for char in normalized if unicodedata.category(char) != "Mn")
 
 
 async def process_capture(
@@ -74,7 +81,9 @@ async def process_capture(
                 )
         meal_answer = (await resolve_meal_answer(pool, owner_id, content)
                        if row["content_type"] in {"text", "voice"} else None)
-        if row["content_type"] in {"text", "voice"} and meal_answer is None:
+        expense_answer = (await resolve_expense_answer(pool, owner_id, content)
+                          if row["content_type"] in {"text", "voice"} and meal_answer is None else None)
+        if row["content_type"] in {"text", "voice"} and meal_answer is None and expense_answer is None:
             planned = await plan_mutation(pool, settings, owner_id, capture_id, content)
             if planned is not None:
                 async with pool.acquire() as conn:
@@ -87,6 +96,8 @@ async def process_capture(
                 return planned
         if meal_answer is not None:
             interpretation = Interpretation(actions=[meal_answer])
+        elif expense_answer is not None:
+            interpretation = Interpretation(actions=[expense_answer])
         elif row["content_type"] == "photo" and row["attachment_ref"]:
             interpretation = await interpret_photo(settings, row["attachment_ref"], row["raw_text"])
         else:
@@ -124,6 +135,23 @@ async def process_capture(
             continue
         if candidate.type == "log_meal":
             candidate = await enrich_meal_candidate(candidate, settings)
+        category_conflict = None
+        learned_category = None
+        if candidate.type == "log_expense":
+            # Only an explicit owner choice may override a remembered rule.
+            candidate.category_override = candidate is expense_answer
+            candidate.expected_merchant_category = None
+        if candidate.type == "log_expense" and candidate.merchant:
+            async with pool.acquire() as conn:
+                learned_category = await conn.fetchval(
+                    "SELECT category FROM expense_category_rules WHERE owner_id=$1 AND merchant_key=$2",
+                    owner_id, candidate.merchant.casefold().strip(),
+                )
+            if (learned_category and candidate.category and
+                    _category_key(learned_category) != _category_key(candidate.category)):
+                category_conflict = learned_category
+                candidate.category_override = True
+                candidate.expected_merchant_category = learned_category
         command = candidate.as_command()
         try:
             command.payload()
@@ -144,9 +172,18 @@ async def process_capture(
                 status="needs_input", command_type=command.type, message=issue,
             ))
             continue
-        if candidate.confidence < 0.85 or candidate.missing_information or candidate.type == "log_meal":
+        if candidate.type == "log_expense" and not candidate.category and not learned_category:
+            await remember_expense_question(pool, owner_id, capture_id, candidate)
             needs_input = True
-            reason = f"Verifică înainte de salvare: {_preview(command)}"
+            results.append(ActionResult(status="needs_input", command_type="log_expense",
+                message=f"În ce categorie pun cheltuiala de {candidate.amount} {candidate.currency or 'RON'}? "
+                        "Poți răspunde «mâncare», «transport» sau «categoria [nume]»."))
+            continue
+        if candidate.confidence < 0.85 or candidate.missing_information or candidate.type == "log_meal" or category_conflict:
+            needs_input = True
+            reason = (f"Pentru {candidate.merchant} ai folosit până acum categoria «{category_conflict}», "
+                      f"dar această cheltuială pare «{candidate.category}». Confirmi categoria nouă?\n{_preview(command)}"
+                      if category_conflict else f"Verifică înainte de salvare: {_preview(command)}")
             if row["content_type"] == "photo" and candidate.type == "log_meal":
                 reason += "\nEstimare din fotografie: verifică porția și valorile înainte să confirmi."
             if candidate.missing_information:

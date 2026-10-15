@@ -27,6 +27,8 @@ class Candidate(BaseModel):
     amount: float | None = None
     currency: str | None = None
     category: str | None = None
+    category_override: bool = False
+    expected_merchant_category: str | None = None
     merchant: str | None = None
     source: str | None = None
     description: str | None = None
@@ -60,7 +62,9 @@ class Candidate(BaseModel):
             },
             "log_expense": {
                 "amount": self.amount, "currency": self.currency or "RON",
-                "category": self.category, "merchant": self.merchant,
+                "category": self.category, "category_override": self.category_override,
+                "expected_merchant_category": self.expected_merchant_category,
+                "merchant": self.merchant,
                 "description": self.description, "spent_at": self.spent_at,
             },
             "log_income": {

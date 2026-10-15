@@ -458,6 +458,103 @@ async def test_conversational_expense_correction_and_delete_wait_for_choice():
 
 
 @pytest.mark.asyncio
+async def test_new_expense_category_conflict_waits_for_owner_choice():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    settings = _settings(url)
+    owner = uuid.uuid4().int % 1000000000
+    pool = await create_pool(settings)
+    try:
+        await migrate(pool)
+        previous = await execute_command(pool, settings, owner, Command(type="log_expense", data={
+            "amount": "50", "category": "cadouri", "category_override": True,
+            "merchant": "Bolt", "spent_at": datetime.now(ZoneInfo(settings.timezone)).isoformat(),
+        }), str(uuid.uuid4()))
+        assert previous.status == "saved"
+
+        incoming = await capture(pool, owner, "test", str(uuid.uuid4()), "Am plătit azi 20 lei pe Bolt.")
+        proposal = await process_capture(pool, settings, owner, incoming["id"])
+        assert len(proposal) == 1 and proposal[0].status == "needs_input"
+        assert "«cadouri»" in proposal[0].message and "«transport»" in proposal[0].message
+        async with pool.acquire() as conn:
+            categories = await conn.fetch(
+                "SELECT category FROM expenses WHERE owner_id=$1 ORDER BY created_at", owner,
+            )
+        assert [row["category"] for row in categories] == ["cadouri"]
+
+        saved = await decide_proposal(pool, settings, owner,
+            uuid.UUID(proposal[0].details["proposal_id"]), True)
+        assert saved and saved.status == "saved"
+        async with pool.acquire() as conn:
+            latest = await conn.fetchval(
+                "SELECT category FROM expenses WHERE owner_id=$1 ORDER BY created_at DESC LIMIT 1", owner,
+            )
+            learned = await conn.fetchval(
+                "SELECT category FROM expense_category_rules WHERE owner_id=$1 AND merchant_key='bolt'", owner,
+            )
+        assert latest == learned == "transport"
+
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE expense_category_rules SET category='cadouri' WHERE owner_id=$1 AND merchant_key='bolt'",
+                owner,
+            )
+        stale_capture = await capture(pool, owner, "test", str(uuid.uuid4()), "Am plătit azi 25 lei pe Bolt.")
+        stale_proposal = await process_capture(pool, settings, owner, stale_capture["id"])
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE expense_category_rules SET category='mâncare' WHERE owner_id=$1 AND merchant_key='bolt'",
+                owner,
+            )
+        stale_result = await decide_proposal(pool, settings, owner,
+            uuid.UUID(stale_proposal[0].details["proposal_id"]), True)
+        assert stale_result and stale_result.status == "needs_input"
+        async with pool.acquire() as conn:
+            assert await conn.fetchval(
+                "SELECT count(*) FROM expenses WHERE owner_id=$1", owner,
+            ) == 2
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_unknown_expense_category_accepts_short_followup_before_proposal():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    settings = _settings(url)
+    owner = uuid.uuid4().int % 1000000000
+    pool = await create_pool(settings)
+    try:
+        await migrate(pool)
+        first = await capture(pool, owner, "test", str(uuid.uuid4()), "Am cheltuit 15 lei la magazin.")
+        question = await process_capture(pool, settings, owner, first["id"])
+        assert question[0].status == "needs_input"
+        assert "În ce categorie" in question[0].message
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT count(*) FROM expenses WHERE owner_id=$1", owner) == 0
+            assert await conn.fetchval("SELECT count(*) FROM proposals WHERE owner_id=$1", owner) == 0
+
+        answer = await capture(pool, owner, "test", str(uuid.uuid4()), "mâncare")
+        proposal = await process_capture(pool, settings, owner, answer["id"])
+        assert proposal[0].details["proposal_id"]
+        assert "mâncare" in proposal[0].message
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT count(*) FROM expenses WHERE owner_id=$1", owner) == 0
+        saved = await decide_proposal(pool, settings, owner,
+            uuid.UUID(proposal[0].details["proposal_id"]), True)
+        assert saved and saved.status == "saved"
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT amount,category FROM expenses WHERE owner_id=$1", owner,
+            )
+        assert row["amount"] == 15 and row["category"] == "mâncare"
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
 async def test_conversational_mutation_clarification_uses_the_next_short_reply():
     url = os.getenv("LORA_V2_TEST_DATABASE_URL")
     if not url:

@@ -61,6 +61,7 @@ class LogExpense(StrictModel):
     currency: str = Field(default="RON", min_length=3, max_length=3)
     category: str | None = None
     category_override: bool = False
+    expected_merchant_category: str | None = None
     merchant: str | None = None
     description: str | None = None
     spent_at: datetime

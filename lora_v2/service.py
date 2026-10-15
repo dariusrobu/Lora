@@ -151,6 +151,10 @@ async def _apply(
                 "SELECT category FROM expense_category_rules WHERE owner_id=$1 AND merchant_key=$2",
                 owner_id, payload.merchant.casefold().strip(),
             )
+            if (payload.expected_merchant_category is not None and
+                    learned != payload.expected_merchant_category):
+                return ActionResult(status="needs_input", command_type=command_type,
+                    message="Categoria memorată pentru comerciant s-a schimbat între timp. Verifică din nou cheltuiala.")
             category = category if payload.category_override and category else learned or category
         if not category:
             return ActionResult(status="needs_input", command_type=command_type, message="În ce categorie pun cheltuiala?")

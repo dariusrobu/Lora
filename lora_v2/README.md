@@ -33,7 +33,7 @@ The University tab opens on a seven-day calendar, with the selected day's classe
 
 Evening follow-ups for unfinished reminders now offer explicit „Am făcut” and „Mută pe mâine” choices in Telegram and the Mini App. Both verify the reminder version before updating it; generated conflict proposals also wait for a choice.
 
-For expenses, a category explicitly chosen in the Mini App overrides an older merchant rule and becomes the new learned category for that merchant. AI-extracted expenses continue to use the learned category when available.
+For expenses, a category explicitly chosen in the Mini App overrides an older merchant rule and becomes the new learned category for that merchant. When a newly extracted expense disagrees with the remembered merchant category, Lora shows both categories and waits for the owner's approval before saving; a changed rule invalidates a stale approval. If no category and no merchant rule is available, Lora keeps the expense for ten minutes, asks for a short category reply, and proposes the completed expense for review. This prevents an incomplete expense proposal that could never be saved.
 
 ## Checks
 
