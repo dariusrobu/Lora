@@ -107,6 +107,7 @@ async def update_entity(
                     """UPDATE calendar_entries SET kind=$4,title=$5,starts_at=$6,ends_at=$7,notes=$8,followup_at=$9,
                     version=version+1,updated_at=now()
                     WHERE id=$1 AND owner_id=$2 AND version=$3 AND status='active'
+                    AND kind IN ('event','reminder')
                     RETURNING id,version""",
                     entity_id, owner_id, request.expected_version, payload.kind,
                     payload.title, payload.starts_at, payload.ends_at, payload.notes, followup_at,
@@ -218,7 +219,7 @@ async def delete_entity(
     statements = {
         "project": "UPDATE projects SET status='archived',version=version+1,updated_at=now() WHERE id=$1 AND owner_id=$2 AND version=$3 AND status!='archived' RETURNING version",
         "task": "UPDATE tasks SET status='cancelled',version=version+1,updated_at=now() WHERE id=$1 AND owner_id=$2 AND version=$3 AND status!='cancelled' RETURNING version",
-        "calendar_entry": "UPDATE calendar_entries SET status='cancelled',version=version+1,updated_at=now() WHERE id=$1 AND owner_id=$2 AND version=$3 AND status!='cancelled' RETURNING version",
+        "calendar_entry": "UPDATE calendar_entries SET status='cancelled',version=version+1,updated_at=now() WHERE id=$1 AND owner_id=$2 AND version=$3 AND status!='cancelled' AND kind IN ('event','reminder') RETURNING version",
         "expense": "UPDATE expenses SET deleted_at=now(),version=version+1,updated_at=now() WHERE id=$1 AND owner_id=$2 AND version=$3 AND deleted_at IS NULL RETURNING version",
         "income": "UPDATE incomes SET deleted_at=now(),version=version+1,updated_at=now() WHERE id=$1 AND owner_id=$2 AND version=$3 AND deleted_at IS NULL RETURNING version",
         "meal": "UPDATE meals SET deleted_at=now(),version=version+1,updated_at=now() WHERE id=$1 AND owner_id=$2 AND version=$3 AND deleted_at IS NULL RETURNING version",

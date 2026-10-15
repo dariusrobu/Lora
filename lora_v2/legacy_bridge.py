@@ -4,7 +4,7 @@ import logging
 
 import asyncpg
 from telegram import Update
-from telegram.ext import Application, ApplicationHandlerStop, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import Application, ApplicationHandlerStop, ContextTypes, MessageHandler, filters
 
 from lora_v2.config import Settings
 from lora_v2.db import create_pool, migrate
@@ -29,6 +29,7 @@ async def install_bridge(application: Application, settings: Settings) -> asyncp
                 or update.effective_chat.type != "private"):
             return
         mode["active"] = (update.message.text or "").split()[0].split("@")[0].lower() == "/v2on"
+        logger.info("V2 Telegram conversation mode: %s", "on" if mode["active"] else "off")
         await update.message.reply_text(
             "Conversația v2 este activă. Scrie /v2off pentru a reveni la Lora veche."
             if mode["active"] else "Ai revenit la conversația Lora veche."
@@ -48,8 +49,10 @@ async def install_bridge(application: Application, settings: Settings) -> asyncp
         if consumed:
             raise ApplicationHandlerStop
 
-    application.add_handler(CommandHandler("v2on", toggle), group=-1)
-    application.add_handler(CommandHandler("v2off", toggle), group=-1)
+    application.add_handler(MessageHandler(
+        filters.TEXT & filters.ChatType.PRIVATE & filters.Regex(r"^/v2(?:on|off)(?:@\w+)?(?:\s|$)"),
+        toggle,
+    ), group=-1)
     application.add_handler(MessageHandler(
         (filters.TEXT | filters.PHOTO | filters.VOICE) & ~filters.COMMAND & filters.ChatType.PRIVATE,
         bridge_message,

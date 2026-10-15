@@ -21,6 +21,8 @@ A short `da` or `nu` in a new Mini App capture now accepts or rejects one captur
 
 The legacy bot can optionally host the v2 Telegram conversation without a second polling process: set `LORA_V2_BRIDGE_ENABLED=true` and restart its LaunchAgent. The owner then sends `/v2on` to route private text, photo, and voice messages into the v2 capture queue, and `/v2off` to return to the legacy conversation. The bridge defaults to off after every restart; legacy commands stay available. The send-only v2 worker continues processing captures. This mode has isolated database tests but requires an owner chat trial before becoming the default.
 
+The opt-in toggle also accepts a plain-text `/v2on` or `/v2off` when Telegram does not attach a bot-command entity. Legacy restarts preserve pending Telegram updates, so a command sent during the restart is processed afterward. Academic occurrences shown in the combined calendar are edited through the University tab; generic event editing/deletion rejects them in the API.
+
 Migrations run automatically on the v2 database at startup. `LORA_V2_APPLE_SYNC_ENABLED` defaults to `false`; when enabled, it uses a dedicated Apple Reminders list named `Lora v2` and the existing iCloud credentials. The Mini App has a conflict review screen and the two-way merge has simulated tests. A temporary task was pushed to the configured iCloud account, edited remotely, pulled back into a temporary v2 database, and removed from Apple. The live background worker, user-facing conflict flow, and device notification delivery still need verification before enabling automatic sync.
 
 ## Data migration

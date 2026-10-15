@@ -589,8 +589,8 @@ async def start_bot():
     # 7. Start Telegram Bot
     # Remove any existing webhook and ensure clean state
     try:
-        await application.bot.delete_webhook(drop_pending_updates=True)
-        print("Webhook deleted (dropped updates).", flush=True)
+        await application.bot.delete_webhook(drop_pending_updates=False)
+        print("Webhook deleted (pending updates preserved).", flush=True)
     except Exception as e:
         print(f"Warning: webhook delete failed: {e}", flush=True)
 
@@ -632,7 +632,7 @@ async def start_bot():
     print("⏳ Waiting 15s for old instances to clear (Anti-Conflict)...", flush=True)
     await asyncio.sleep(15)
 
-    await application.updater.start_polling(drop_pending_updates=True)
+    await application.updater.start_polling(drop_pending_updates=False)
     print("Lora is LIVE via Polling 🚀", flush=True)
 
     try:

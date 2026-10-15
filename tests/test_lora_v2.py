@@ -16,6 +16,7 @@ import pytest
 import httpx
 from fastapi import HTTPException
 from PIL import Image
+from telegram import Bot, Update
 from telegram.ext import ApplicationBuilder, ApplicationHandlerStop
 
 from lora_v2.auth import verify_init_data
@@ -463,9 +464,17 @@ async def test_legacy_bridge_only_captures_messages_in_opt_in_mode():
     update = SimpleNamespace(effective_user=SimpleNamespace(id=owner),
                              effective_chat=SimpleNamespace(type="private"), message=message,
                              update_id=uuid.uuid4().int % 1000000000)
-    toggle = app.handlers[-1][0].callback
-    bridge = app.handlers[-1][2].callback
+    toggle_handler = app.handlers[-1][0]
+    toggle = toggle_handler.callback
+    bridge = app.handlers[-1][1].callback
     try:
+        command_without_entity = Update.de_json({
+            "update_id": 1,
+            "message": {"message_id": 1, "date": int(time.time()), "text": "/v2on",
+                        "chat": {"id": owner, "type": "private"},
+                        "from": {"id": owner, "is_bot": False, "first_name": "Test"}},
+        }, Bot("test-token"))
+        assert toggle_handler.check_update(command_without_entity)
         assert await bridge(update, None) is None
         message.text = "/v2on"
         with pytest.raises(ApplicationHandlerStop):
@@ -499,7 +508,7 @@ async def test_legacy_bridge_only_captures_messages_in_opt_in_mode():
         query = SimpleNamespace(data=f"v2:t:{task.entity_id}:1:done", answer=answer,
                                 edit_message_text=edit_message_text)
         callback_update = SimpleNamespace(callback_query=query, effective_user=SimpleNamespace(id=owner))
-        task_button = app.handlers[-1][6].callback
+        task_button = app.handlers[-1][5].callback
         with pytest.raises(ApplicationHandlerStop):
             await task_button(callback_update, SimpleNamespace(application=app))
         async with pool.acquire() as conn:
@@ -769,6 +778,22 @@ async def test_v2_database_journey():
                 "SELECT count(*) FROM calendar_entries WHERE owner_id=$1 AND kind='academic'", owner
             )
         assert count == 1 and repeat_count == 0 and academic_count == 1
+        async with pool.acquire() as conn:
+            academic = await conn.fetchrow(
+                "SELECT id,version,starts_at FROM calendar_entries WHERE owner_id=$1 AND kind='academic'", owner,
+            )
+        assert academic is not None
+        mistaken_edit = await update_entity(pool, settings, owner, "calendar_entry", academic["id"],
+            EditRequest(expected_version=academic["version"], data={
+                "kind": "event", "title": "Nu schimba orarul",
+                "starts_at": academic["starts_at"].isoformat(),
+            }))
+        mistaken_delete = await delete_entity(pool, owner, "calendar_entry", academic["id"], academic["version"])
+        assert mistaken_edit.status == mistaken_delete.status == "needs_input"
+        async with pool.acquire() as conn:
+            assert await conn.fetchval(
+                "SELECT kind FROM calendar_entries WHERE id=$1 AND status='active'", academic["id"],
+            ) == "academic"
         async with pool.acquire() as conn:
             await conn.execute("UPDATE academic_schedule_rules SET is_active=false WHERE id=$1", rule_id)
         await materialize_schedule(pool, settings, owner, start=monday, days=7)
