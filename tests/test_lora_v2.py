@@ -12,10 +12,12 @@ from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
 import pytest
+import httpx
 from fastapi import HTTPException
 from PIL import Image
 
 from lora_v2.auth import verify_init_data
+from lora_v2.api import create_app
 from lora_v2.academic_calendar import _week_type, materialize_schedule
 from lora_v2.config import Settings
 from lora_v2.crud import EditRequest, delete_entity, update_entity
@@ -562,6 +564,44 @@ async def test_meal_weight_clarification_waits_for_preparation_and_approval():
         assert all("gătit" in item["name"] and item["calories"] is None for item in items)
     finally:
         await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_university_week_api_materializes_and_reconciles_the_visible_schedule():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    from datetime import timedelta
+
+    owner = uuid.uuid4().int % 1000000000
+    settings = Settings(database_url=url, telegram_bot_token="test-token", telegram_user_id=owner)
+    monday = datetime.now(ZoneInfo(settings.timezone)).date()
+    monday -= timedelta(days=monday.weekday())
+    app = create_app(settings)
+    async with app.router.lifespan_context(app):
+        rule_id = uuid.uuid4()
+        async with app.state.pool.acquire() as conn:
+            await conn.execute("INSERT INTO academic_semesters(owner_id,semester_start) VALUES ($1,$2)", owner, monday)
+            await conn.execute(
+                """INSERT INTO academic_schedule_rules(id,owner_id,title,day_of_week,start_time,end_time,
+                week_type,class_type,room) VALUES ($1,$2,'Statistică',0,'10:00','12:00','both','seminar','244')""",
+                rule_id, owner,
+            )
+        auth = {"X-Telegram-Init-Data": _init_data(settings.telegram_bot_token, owner, int(time.time()))}
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            unauthorized = await client.get("/api/v2/university/week", params={"week_start": monday.isoformat()})
+            assert unauthorized.status_code == 401
+            response = await client.get("/api/v2/university/week",
+                params={"week_start": (monday + timedelta(days=2)).isoformat()}, headers=auth)
+            assert response.status_code == 200
+            assert len(response.json()) == 1
+            assert response.json()[0]["title"] == "Statistică · seminar"
+            assert response.json()[0]["notes"] == "244"
+            async with app.state.pool.acquire() as conn:
+                await conn.execute("UPDATE academic_schedule_rules SET is_active=false WHERE id=$1", rule_id)
+            refreshed = await client.get("/api/v2/university/week",
+                params={"week_start": monday.isoformat()}, headers=auth)
+            assert refreshed.status_code == 200 and refreshed.json() == []
 
 
 @pytest.mark.asyncio

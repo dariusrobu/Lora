@@ -27,6 +27,8 @@ Every photo-derived meal requires explicit review before saving, even if the vis
 
 Telegram answers short read-only questions such as „Ce am azi?”, „Ce am mâine?”, „Ce taskuri am?”, „Cât am cheltuit luna asta?” and „Ce am la facultate azi?” directly from v2 data. `/azi`, `/maine`, `/taskuri`, `/cheltuieli`, and `/facultate` are shortcuts for the same views. Text and transcribed voice can propose deletion of the latest item in a named domain or correction of the latest expense category. A short follow-up answer to a missing target or category is retained for ten minutes. The target and version are shown before explicit approval; broader edits and entity selection still need work.
 
+The University tab opens on a seven-day calendar, with the selected day's classes and exams visible immediately. Navigating weeks materializes that week's academic rules in the isolated v2 database, including odd/even weeks and vacations. Academic data editing stays behind the calendar; Obsidian and n8n remain untouched.
+
 Evening follow-ups for unfinished reminders now offer explicit „Am făcut” and „Mută pe mâine” choices in Telegram and the Mini App. Both verify the reminder version before updating it; generated conflict proposals also wait for a choice.
 
 For expenses, a category explicitly chosen in the Mini App overrides an older merchant rule and becomes the new learned category for that merchant. AI-extracted expenses continue to use the learned category when available.

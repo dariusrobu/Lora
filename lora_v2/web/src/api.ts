@@ -1,4 +1,4 @@
-export type Entry = { id: string; kind: "event" | "reminder" | "academic"; title: string; starts_at: string; ends_at?: string; status: string; version: number }
+export type Entry = { id: string; kind: "event" | "reminder" | "academic"; title: string; starts_at: string; ends_at?: string; notes?: string; status: string; version: number }
 export type Task = { id: string; title: string; status: string; due_at?: string; project_id?: string; project_name?: string; version: number }
 export type Project = { id: string; name: string; status: string; version: number }
 export type Expense = { id: string; amount: number; currency: string; category: string; merchant?: string; description?: string; spent_at: string; version: number }
@@ -45,6 +45,7 @@ export const api = {
   appleConflictDetail: (id: string) => request<AppleConflictDetail>(`/apple/conflicts/${id}`),
   resolveAppleConflict: (id: string, choice: "keep_local" | "use_apple") => request<{status: string; message: string}>(`/apple/conflicts/${id}/decision`, { method: "POST", body: JSON.stringify({ choice }) }),
   university: () => request<UniversityData>("/university"),
+  universityWeek: (weekStart: string) => request<Entry[]>(`/university/week?week_start=${encodeURIComponent(weekStart)}`),
   academicCreate: (kind: UniversityKind, data: Record<string, unknown>) => request<{id: string; version: number}>(`/university/${kind}`, { method: "POST", body: JSON.stringify({ data }) }),
   academicEdit: (kind: UniversityKind, id: string, expected_version: number, data: Record<string, unknown>) => request<{id: string; version: number}>(`/university/${kind}/${id}`, { method: "PUT", body: JSON.stringify({ expected_version, data }) }),
   academicDelete: (kind: UniversityKind, id: string, expected_version: number) => request<{id: string; version: number}>(`/university/${kind}/${id}?expected_version=${expected_version}`, { method: "DELETE" }),

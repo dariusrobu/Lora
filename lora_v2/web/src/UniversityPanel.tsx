@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { CalendarDays, GraduationCap, Pencil, Plus, Trash2, X } from "lucide-react"
+import { CalendarDays, ChevronLeft, ChevronRight, GraduationCap, Pencil, Plus, Trash2, X } from "lucide-react"
 import { api, type Entry, type UniversityData, type UniversityKind, type UniversityRecord } from "./api"
 
 type FormState = { kind: UniversityKind; id?: string; version?: number }
@@ -14,6 +14,13 @@ const sections: { kind: UniversityKind; key: keyof Pick<UniversityData, "subject
 const weekdays = ["Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă", "Duminică"]
 const shortDate = (value: string) => new Date(value).toLocaleDateString("ro-RO", { day: "numeric", month: "short", weekday: "short" })
 const shortTime = (value: string) => new Date(value).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })
+const dateKey = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`
+const mondayOf = (value: Date) => {
+  const monday = new Date(value.getFullYear(), value.getMonth(), value.getDate())
+  monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7)
+  return monday
+}
+const shiftDays = (value: Date, count: number) => new Date(value.getFullYear(), value.getMonth(), value.getDate() + count)
 const inputDateTime = (value: unknown) => {
   if (!value) return ""
   const date = new Date(String(value))
@@ -33,6 +40,8 @@ function recordLabel(kind: UniversityKind, item: UniversityRecord, subjects: Uni
 export default function UniversityPanel() {
   const [data, setData] = useState<UniversityData | null>(null)
   const [calendar, setCalendar] = useState<Entry[]>([])
+  const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()))
+  const [selectedDay, setSelectedDay] = useState(() => dateKey(new Date()))
   const [form, setForm] = useState<FormState | null>(null)
   const [fields, setFields] = useState<Record<string, string>>({})
   const [semesterFields, setSemesterFields] = useState({ start: "", end: "" })
@@ -42,15 +51,15 @@ export default function UniversityPanel() {
   const formRef = useRef<HTMLFormElement | null>(null)
 
   const reload = useCallback(async () => {
-    const now = new Date()
-    const later = new Date(now.getTime() + 60 * 86400000)
+    setCalendar([])
     const [university, entries] = await Promise.all([
-      api.university(), api.calendar(now.toISOString(), later.toISOString()),
+      api.university(), api.universityWeek(dateKey(weekStart)),
     ])
     setData(university)
-    setCalendar(entries.filter(entry => entry.kind === "academic"))
+    setCalendar(entries)
     setSemesterFields({ start: university.semester?.semester_start || "", end: university.semester?.semester_end || "" })
-  }, [])
+    setError("")
+  }, [weekStart])
   useEffect(() => { void reload().catch(cause => setError(cause instanceof Error ? cause.message : "Nu pot încărca facultatea.")) }, [reload])
   useEffect(() => { if (form) window.requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })) }, [form])
 
@@ -112,10 +121,28 @@ export default function UniversityPanel() {
   const field = (key: string, label: string, type = "text", required = false) => <label key={key}>{label}<input type={type} required={required} value={fields[key] || ""} onChange={event => setFields({ ...fields, [key]: event.target.value })} /></label>
   const subjectSelect = <label>Materie<select value={fields.subject_id || ""} onChange={event => setFields({ ...fields, subject_id: event.target.value })}><option value="">Fără materie</option>{data?.subjects.filter(item => item.is_active).map(item => <option key={item.id} value={item.id}>{String(item.name)}</option>)}</select></label>
 
+  const weekDays = Array.from({ length: 7 }, (_, index) => shiftDays(weekStart, index))
+  const selectedEntries = calendar.filter(entry => dateKey(new Date(entry.starts_at)) === selectedDay)
+  const selectedDate = new Date(`${selectedDay}T12:00:00`)
+  function moveWeek(weeks: number) {
+    setWeekStart(shiftDays(weekStart, weeks * 7))
+    setSelectedDay(dateKey(shiftDays(selectedDate, weeks * 7)))
+  }
+
   return <div className="university-panel">
     {message && <div className="toast" role="status">{message}<button onClick={() => setMessage("")} aria-label="Închide"><X size={15} /></button></div>}
     {error && <div className="error" role="alert">{error}</div>}
-    <section className="glass section-card"><div className="section-title"><CalendarDays size={19} /><h2>Programul următoarelor 60 de zile</h2></div>{calendar.length ? calendar.map(entry => <div className="agenda-row" key={entry.id}><span className="agenda-time">{shortTime(entry.starts_at)}</span><span className="agenda-line" /><span className="agenda-text"><strong>{entry.title}</strong><small>{shortDate(entry.starts_at)}</small></span></div>) : <p className="empty">Nu există cursuri sau examene programate.</p>}<p className="helper">Materialele și notițele rămân în Obsidian.</p></section>
+    <section className="glass section-card university-calendar"><div className="section-title month-title"><CalendarDays size={19} /><h2>Programul săptămânii</h2><span className="month-controls"><button aria-label="Săptămâna anterioară" onClick={() => moveWeek(-1)}><ChevronLeft size={18} /></button><button aria-label="Săptămâna următoare" onClick={() => moveWeek(1)}><ChevronRight size={18} /></button></span></div>
+      <p className="university-week-label">{weekDays[0].toLocaleDateString("ro-RO", { day: "numeric", month: "short" })} – {weekDays[6].toLocaleDateString("ro-RO", { day: "numeric", month: "short", year: "numeric" })}</p>
+      <div className="university-week-days" aria-label="Zilele săptămânii">{weekDays.map(day => {
+        const key = dateKey(day)
+        const count = calendar.filter(entry => dateKey(new Date(entry.starts_at)) === key).length
+        return <button key={key} type="button" className={`university-day ${key === selectedDay ? "is-selected" : ""} ${key === dateKey(new Date()) ? "is-today" : ""}`} aria-pressed={key === selectedDay} aria-label={`${weekdays[(day.getDay() + 6) % 7]} ${day.toLocaleDateString("ro-RO", { day: "numeric", month: "long" })}, ${count} activități`} onClick={() => setSelectedDay(key)}><span>{weekdays[(day.getDay() + 6) % 7].slice(0, 3)}</span><strong>{day.getDate()}</strong><i aria-hidden="true" className={count ? "has-classes" : ""} /></button>
+      })}</div>
+      <h3 className="university-selected-date">{selectedDate.toLocaleDateString("ro-RO", { weekday: "long", day: "numeric", month: "long" })}</h3>
+      {selectedEntries.length ? selectedEntries.map(entry => <div className="agenda-row" key={entry.id}><span className="agenda-time">{shortTime(entry.starts_at)}</span><span className="agenda-line" /><span className="agenda-text"><strong>{entry.title}</strong><small>{entry.ends_at ? `Până la ${shortTime(entry.ends_at)}` : "Examen"}{entry.notes ? ` · ${entry.notes}` : ""}</small></span></div>) : <p className="empty">Nimic programat pentru ziua aceasta.</p>}
+      <p className="helper">Materialele și notițele rămân în Obsidian.</p>
+    </section>
     <details className="glass section-card university-details"><summary><GraduationCap size={18} /> Date academice</summary><form className="semester-form" onSubmit={event => void saveSemester(event)}><label>Început semestru<input type="date" required value={semesterFields.start} onChange={event => setSemesterFields({ ...semesterFields, start: event.target.value })} /></label><label>Sfârșit semestru<input type="date" value={semesterFields.end} onChange={event => setSemesterFields({ ...semesterFields, end: event.target.value })} /></label><button type="submit" disabled={busy}>Salvează semestrul</button></form></details>
     {sections.map(section => <details className="glass section-card university-details" key={section.kind}><summary><span>{section.title} · {data?.[section.key].length || 0}</span></summary><div className="university-list">{data?.[section.key].map(item => <div className="simple-row" key={item.id}><span><strong>{recordLabel(section.kind, item, data.subjects)}</strong></span><span className="row-actions"><button aria-label={`Editează ${section.title}`} onClick={() => startEdit(section.kind, item)}><Pencil size={15} /></button><button aria-label={`Șterge ${section.title}`} onClick={() => void remove(section.kind, item)}><Trash2 size={15} /></button></span></div>)}</div><button className="text-action" onClick={() => startNew(section.kind)}><Plus size={15} /> Adaugă</button></details>)}
     {form && <form ref={formRef} className="glass inline-form university-form" onSubmit={event => void submit(event)}><div className="section-title"><h2>{form.id ? "Editează" : "Adaugă"} {sections.find(section => section.kind === form.kind)?.title.toLowerCase()}</h2><button className="close-form" type="button" aria-label="Închide formularul" onClick={() => setForm(null)}><X size={17} /></button></div>

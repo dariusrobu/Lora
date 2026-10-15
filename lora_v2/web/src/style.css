@@ -25,9 +25,23 @@
 .semester-form input { width:100%; border:1px solid #ddd8e9; border-radius:10px; padding:9px; background:rgba(255,255,255,.72); }
 .semester-form button { border:0; border-radius:10px; padding:10px 14px; background:#eee9ff; color:#5f4db7; font-weight:700; }
 .university-form { position:sticky; bottom:82px; z-index:3; max-height:70vh; overflow:auto; margin-top:16px; }
+.university-week-label { margin:-7px 0 15px; color:#888199; font-size:12px; font-weight:600; }
+.university-week-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:6px; margin-bottom:18px; }
+.university-day { min-width:0; min-height:69px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; border:1px solid #ece7f5; border-radius:15px; background:rgba(255,255,255,.56); color:#716a84; cursor:pointer; }
+.university-day span { font-size:11px; font-weight:650; }
+.university-day strong { font-size:18px; line-height:1; }
+.university-day i { width:5px; height:5px; border-radius:50%; background:transparent; }
+.university-day i.has-classes { background:#8c73dc; }
+.university-day.is-today { border-color:#baaaf0; }
+.university-day.is-selected { background:rgba(116,95,213,.92); color:white; border-color:transparent; box-shadow:0 7px 15px rgba(116,95,213,.2); }
+.university-day.is-selected i.has-classes { background:white; }
+.university-day:focus-visible { outline:3px solid #9b8ce9; outline-offset:2px; }
+.university-selected-date { margin:0 0 7px; color:#625a77; font-size:13px; font-weight:700; text-transform:capitalize; }
+.bottom-nav { background:rgba(255,255,255,.93); }
 .health-editor { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .health-editor label:last-child { grid-column:1/-1; }
 @media(max-width:520px){.health-editor{grid-template-columns:1fr}}
+@media(max-width:520px){.university-week-days{gap:4px}.university-day{min-height:60px;border-radius:12px}.university-day span{font-size:10px}.university-day strong{font-size:16px}}
 .income-form { display:grid; gap:10px; margin-top:15px; }
 .income-form label { display:grid; gap:5px; color:#625d76; font-size:13px; }
 .income-form input { border:1px solid #ddd8e9; border-radius:10px; padding:10px; background:rgba(255,255,255,.7); }

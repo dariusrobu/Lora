@@ -223,6 +223,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def university(request: Request, owner_id: int = Depends(auth)):
         return await list_academics(request.app.state.pool, owner_id)
 
+    @app.get("/api/v2/university/week")
+    async def university_week(week_start: date, request: Request, owner_id: int = Depends(auth)):
+        monday = week_start - timedelta(days=week_start.weekday())
+        await materialize_schedule(request.app.state.pool, config, owner_id, start=monday, days=7)
+        start = datetime.combine(monday, datetime.min.time(), ZoneInfo(config.timezone))
+        end = start + timedelta(days=7)
+        async with request.app.state.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT id,kind,title,starts_at,ends_at,notes,status,version
+                FROM calendar_entries WHERE owner_id=$1 AND kind='academic' AND status='active'
+                AND starts_at >= $2 AND starts_at < $3 ORDER BY starts_at""",
+                owner_id, start, end,
+            )
+        return [dict(row) for row in rows]
+
     @app.put("/api/v2/university/semester")
     async def university_semester(body: SemesterRequest, request: Request, owner_id: int = Depends(auth)):
         try:
