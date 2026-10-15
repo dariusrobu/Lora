@@ -35,6 +35,7 @@ from lora_v2.academics import delete_academic, list_academics, set_semester, wri
 from lora_v2.proactive import decide_followup, decide_proposal, generate_proposals
 from lora_v2.queries import answer_read_intent, read_intent
 from lora_v2.service import capture, execute_command
+from lora_v2.worker import run_once
 from core.nutrition_sources import FoodReference
 
 
@@ -175,6 +176,138 @@ def test_invalid_local_model_action_does_not_discard_valid_actions():
     assert [item.type for item in result.actions] == ["log_expense"]
     assert "Nu am înțeles" in result.reply
     assert parse_interpretation("{broken").actions == []
+
+
+@pytest.mark.asyncio
+async def test_worker_materializes_academic_conflict_without_opening_mini_app():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    owner = uuid.uuid4().int % 1000000000
+    settings = Settings(database_url=url, telegram_bot_token="test", telegram_user_id=owner)
+    pool = await create_pool(settings)
+    sent: list[dict] = []
+
+    class FakeBot:
+        async def send_message(self, **kwargs):
+            sent.append(kwargs)
+
+    try:
+        await migrate(pool)
+        from datetime import timedelta
+        local = ZoneInfo(settings.timezone)
+        tomorrow = (datetime.now(local) + timedelta(days=1)).date()
+        monday = tomorrow - timedelta(days=tomorrow.weekday())
+        await set_semester(pool, owner, monday, monday + timedelta(days=60), None)
+        await write_academic(pool, owner, "schedule", {
+            "title": "Curs de probă", "day_of_week": tomorrow.weekday(),
+            "start_time": "12:00", "end_time": "14:00", "class_type": "curs",
+        })
+        reminder_at = datetime.combine(tomorrow, datetime.min.time(), local).replace(hour=12, minute=30)
+        reminder = await execute_command(pool, settings, owner, Command(type="create_calendar_entry", data={
+            "kind": "reminder", "title": "Sună administratorul", "starts_at": reminder_at.isoformat(),
+            "alert_offsets_minutes": [0],
+        }), str(uuid.uuid4()))
+        assert reminder.status == "saved"
+
+        await run_once(pool, FakeBot(), settings, refresh_academic=True)
+        async with pool.acquire() as conn:
+            class_row = await conn.fetchrow(
+                """SELECT title,starts_at FROM calendar_entries
+                WHERE owner_id=$1 AND kind='academic' AND status='active' AND starts_at::date=$2""",
+                owner, tomorrow,
+            )
+            conflict = await conn.fetchval(
+                "SELECT id FROM proposals WHERE owner_id=$1 AND source LIKE 'conflict:%'", owner,
+            )
+        assert class_row and "Curs de probă" in class_row["title"]
+        assert conflict
+        assert any("se suprapune cu facultatea" in item["text"] for item in sent)
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_approximate_noon_reminder_proposes_free_time_after_classes():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    settings = _settings(url)
+    owner = uuid.uuid4().int % 1000000000
+    pool = await create_pool(settings)
+    try:
+        await migrate(pool)
+        from datetime import timedelta
+        local = ZoneInfo(settings.timezone)
+        tomorrow = (datetime.now(local) + timedelta(days=1)).date()
+        monday = tomorrow - timedelta(days=tomorrow.weekday())
+        await set_semester(pool, owner, monday, monday + timedelta(days=60), None)
+        for start, end in [("12:00", "14:00"), ("14:00", "16:00")]:
+            await write_academic(pool, owner, "schedule", {
+                "title": "Curs de probă", "day_of_week": tomorrow.weekday(),
+                "start_time": start, "end_time": end, "class_type": "curs",
+            })
+        await materialize_schedule(pool, settings, owner, start=tomorrow, days=1)
+        captured = await capture(pool, owner, "test", str(uuid.uuid4()),
+            "Mâine trebuie să sun la administrator pe la amiază.")
+        proposal = await process_capture(pool, settings, owner, captured["id"])
+        assert len(proposal) == 1 and proposal[0].status == "needs_input"
+        assert "16:15" in proposal[0].message and "după cursuri" in proposal[0].message
+        async with pool.acquire() as conn:
+            assert await conn.fetchval(
+                "SELECT count(*) FROM calendar_entries WHERE owner_id=$1 AND kind='reminder'", owner,
+            ) == 0
+        approved = await decide_proposal(pool, settings, owner,
+            uuid.UUID(proposal[0].details["proposal_id"]), True)
+        assert approved and approved.status == "saved"
+        async with pool.acquire() as conn:
+            reminder_at = await conn.fetchval(
+                "SELECT starts_at FROM calendar_entries WHERE owner_id=$1 AND kind='reminder'", owner,
+            )
+        assert reminder_at.astimezone(local).strftime("%H:%M") == "16:15"
+        assert await generate_proposals(pool, settings, owner) == 0
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_event_alerts_arrive_at_thirty_minutes_and_start():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    settings = _settings(url)
+    owner = uuid.uuid4().int % 1000000000
+    pool = await create_pool(settings)
+    sent: list[dict] = []
+
+    class FakeBot:
+        async def send_message(self, **kwargs):
+            sent.append(kwargs)
+
+    try:
+        await migrate(pool)
+        from datetime import timedelta
+        local = ZoneInfo(settings.timezone)
+        start = datetime.now(local).replace(hour=20, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        created = await execute_command(pool, settings, owner, Command(type="create_calendar_entry", data={
+            "kind": "event", "title": "Meci de fotbal", "starts_at": start.isoformat(),
+            "alert_offsets_minutes": [30, 0],
+        }), str(uuid.uuid4()))
+        assert created.status == "saved"
+
+        assert await queue_due_alerts(pool, owner, start - timedelta(minutes=30)) == 1
+        assert await send_pending_telegram(pool, FakeBot(), owner, start - timedelta(minutes=30)) == 1
+        assert sent[-1]["text"] == "⏰ Peste 30 min: Meci de fotbal"
+        assert await queue_due_alerts(pool, owner, start) == 1
+        assert await send_pending_telegram(pool, FakeBot(), owner, start) == 1
+        assert sent[-1]["text"] == "⏰ Meci de fotbal"
+        async with pool.acquire() as conn:
+            assert await conn.fetchval(
+                "SELECT count(*) FROM alert_occurrences WHERE entry_id=$1 AND status='sent'",
+                uuid.UUID(created.entity_id),
+            ) == 2
+    finally:
+        await pool.close()
 
 
 @pytest.mark.asyncio

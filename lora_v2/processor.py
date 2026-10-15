@@ -3,7 +3,7 @@
 import json
 import uuid
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import asyncpg
@@ -25,7 +25,17 @@ from lora_v2.service import execute_command
 def _preview(command: Command) -> str:
     data = command.data
     if command.type == "create_calendar_entry":
-        return f"{data.get('title')} · {data.get('starts_at')} · alerte {data.get('alert_offsets_minutes', [])} min"
+        starts_at = datetime.fromisoformat(str(data["starts_at"]))
+        offsets = data.get("alert_offsets_minutes", [])
+        alerts = []
+        if 30 in offsets:
+            alerts.append("cu 30 min înainte")
+        if 0 in offsets:
+            alerts.append("la ora stabilită")
+        other_offsets = [value for value in offsets if value not in {0, 30}]
+        alerts.extend(f"cu {value} min înainte" for value in other_offsets)
+        alert_text = f" · alerte {', '.join(alerts)}" if alerts else ""
+        return f"{data.get('title')} · {starts_at:%d.%m.%Y, %H:%M}{alert_text}"
     if command.type == "log_expense":
         return f"{data.get('amount')} {data.get('currency', 'RON')} · {data.get('category')} · {data.get('merchant') or data.get('description') or ''}"
     if command.type == "log_income":
@@ -48,6 +58,28 @@ def _preview(command: Command) -> str:
 def _category_key(value: str) -> str:
     normalized = unicodedata.normalize("NFD", value.casefold().strip())
     return "".join(char for char in normalized if unicodedata.category(char) != "Mn")
+
+
+async def _suggest_after_academic_classes(
+    pool: asyncpg.Pool, owner_id: int, starts_at: datetime,
+) -> tuple[datetime, str] | None:
+    """Find the first 15-minute buffer after overlapping classes on that day."""
+    local_day = starts_at.date()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT title,starts_at,ends_at FROM calendar_entries
+            WHERE owner_id=$1 AND kind='academic' AND status='active'
+            AND ends_at IS NOT NULL AND starts_at::date=$2 ORDER BY starts_at""",
+            owner_id, local_day,
+        )
+    suggestion = starts_at
+    first_conflict = None
+    for row in rows:
+        if row["starts_at"] <= suggestion < row["ends_at"]:
+            if first_conflict is None:
+                first_conflict = row["title"]
+            suggestion = row["ends_at"] + timedelta(minutes=15)
+    return (suggestion.astimezone(starts_at.tzinfo), first_conflict) if first_conflict else None
 
 
 async def process_capture(
@@ -172,6 +204,20 @@ async def process_capture(
                 status="needs_input", command_type=command.type, message=issue,
             ))
             continue
+        if (candidate.type == "create_calendar_entry" and candidate.kind == "reminder"
+                and candidate.starts_at and candidate.confidence < 0.85
+                and "amia" in content.casefold()):
+            start = datetime.fromisoformat(candidate.starts_at).astimezone(ZoneInfo(settings.timezone))
+            suggested = await _suggest_after_academic_classes(pool, owner_id, start)
+            if suggested:
+                alternative, class_title = suggested
+                candidate.starts_at = alternative.isoformat()
+                candidate.missing_information = (
+                    f"La ora propusă ai «{class_title}». Îți propun {alternative:%H:%M}, "
+                    "după cursuri. Confirmi această oră?"
+                )
+                command = candidate.as_command()
+                command.payload()
         if candidate.type == "log_expense" and not candidate.category and not learned_category:
             await remember_expense_question(pool, owner_id, capture_id, candidate)
             needs_input = True

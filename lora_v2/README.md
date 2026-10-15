@@ -31,6 +31,8 @@ Telegram answers short read-only questions such as „Ce am azi?”, „Ce am m�
 
 The University tab opens on a seven-day calendar, with the selected day's classes and exams visible immediately. Navigating weeks materializes that week's academic rules in the isolated v2 database, including odd/even weeks and vacations. Academic data editing stays behind the calendar; Obsidian and n8n remain untouched.
 
+The background worker also materializes the next 14 days of classes at startup and on each new day, without opening the Mini App. When an approximate noon reminder would land during classes, the capture flow proposes the first free slot with a 15-minute buffer after the overlapping classes; it waits for approval before saving. A database/FakeBot journey verifies academic conflict proposals and the two requested event alerts at 30 minutes before and at the start. Real Telegram/device delivery still needs cutover verification.
+
 Evening follow-ups for unfinished reminders now offer explicit „Am făcut” and „Mută pe mâine” choices in Telegram and the Mini App. Both verify the reminder version before updating it; generated conflict proposals also wait for a choice.
 
 For expenses, a category explicitly chosen in the Mini App overrides an older merchant rule and becomes the new learned category for that merchant. When a newly extracted expense disagrees with the remembered merchant category, Lora shows both categories and waits for the owner's approval before saving; a changed rule invalidates a stale approval. If no category and no merchant rule is available, Lora keeps the expense for ten minutes, asks for a short category reply, and proposes the completed expense for review. This prevents an incomplete expense proposal that could never be saved.
