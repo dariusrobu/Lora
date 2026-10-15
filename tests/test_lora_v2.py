@@ -29,7 +29,7 @@ from lora_v2.notifications import queue_due_alerts, send_pending_telegram
 from lora_v2.rules import extract_common
 from lora_v2.processor import process_capture
 from lora_v2.academics import delete_academic, list_academics, set_semester, write_academic
-from lora_v2.proactive import decide_followup, generate_proposals
+from lora_v2.proactive import decide_followup, decide_proposal, generate_proposals
 from lora_v2.queries import answer_read_intent, read_intent
 from lora_v2.service import capture, execute_command
 
@@ -371,6 +371,158 @@ async def test_v2_database_journey():
                 owner,
             )
         assert active_count == 0
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_conversational_expense_correction_and_delete_wait_for_choice():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    settings = _settings(url)
+    owner = uuid.uuid4().int % 1000000000
+    pool = await create_pool(settings)
+    try:
+        await migrate(pool)
+        now = datetime.now(ZoneInfo(settings.timezone))
+        expense = await execute_command(pool, settings, owner, Command(type="log_expense", data={
+            "amount": "15", "category": "altele", "merchant": "Cantina test",
+            "spent_at": now.isoformat(),
+        }), str(uuid.uuid4()))
+        correction = await capture(pool, owner, "test", str(uuid.uuid4()),
+            "Schimbă categoria ultimei cheltuieli în mâncare")
+        results = await process_capture(pool, settings, owner, correction["id"])
+        assert results[0].status == "needs_input"
+        async with pool.acquire() as conn:
+            before = await conn.fetchrow("SELECT category,version FROM expenses WHERE id=$1", uuid.UUID(expense.entity_id))
+        assert before["category"] == "altele" and before["version"] == 1
+        approved = await decide_proposal(pool, settings, owner,
+            uuid.UUID(results[0].details["proposal_id"]), True)
+        assert approved and approved.status == "saved"
+        async with pool.acquire() as conn:
+            after = await conn.fetchrow("SELECT category,version FROM expenses WHERE id=$1", uuid.UUID(expense.entity_id))
+        assert after["category"] == "mâncare" and after["version"] == 2
+
+        removal = await capture(pool, owner, "test", str(uuid.uuid4()), "Șterge ultima cheltuială")
+        proposed = await process_capture(pool, settings, owner, removal["id"])
+        assert proposed[0].status == "needs_input"
+        assert await process_capture(pool, settings, owner, removal["id"]) == []
+        async with pool.acquire() as conn:
+            undeleted = await conn.fetchval("SELECT deleted_at IS NULL FROM expenses WHERE id=$1", uuid.UUID(expense.entity_id))
+        assert undeleted
+        removed = await decide_proposal(pool, settings, owner,
+            uuid.UUID(proposed[0].details["proposal_id"]), True)
+        assert removed and removed.status == "saved"
+        async with pool.acquire() as conn:
+            deleted = await conn.fetchval("SELECT deleted_at IS NOT NULL FROM expenses WHERE id=$1", uuid.UUID(expense.entity_id))
+        assert deleted
+
+        task = await execute_command(pool, settings, owner, Command(type="create_task", data={
+            "title": "Test de șters",
+        }), str(uuid.uuid4()))
+        task_capture = await capture(pool, owner, "test", str(uuid.uuid4()), "Șterge ultimul task")
+        task_plan = await process_capture(pool, settings, owner, task_capture["id"])
+        assert task_plan[0].details["proposal_id"]
+        task_result = await decide_proposal(pool, settings, owner,
+            uuid.UUID(task_plan[0].details["proposal_id"]), True)
+        assert task_result and task_result.status == "saved"
+        async with pool.acquire() as conn:
+            task_status = await conn.fetchval("SELECT status FROM tasks WHERE id=$1", uuid.UUID(task.entity_id))
+        assert task_status == "cancelled"
+
+        reminder = await execute_command(pool, settings, owner, Command(type="create_calendar_entry", data={
+            "kind": "reminder", "title": "Test reminder", "starts_at": now.isoformat(),
+            "alert_offsets_minutes": [0],
+        }), str(uuid.uuid4()))
+        reminder_capture = await capture(pool, owner, "test", str(uuid.uuid4()), "Șterge ultimul reminder")
+        reminder_plan = await process_capture(pool, settings, owner, reminder_capture["id"])
+        reminder_result = await decide_proposal(pool, settings, owner,
+            uuid.UUID(reminder_plan[0].details["proposal_id"]), True)
+        assert reminder_result and reminder_result.status == "saved"
+        async with pool.acquire() as conn:
+            reminder_status = await conn.fetchval(
+                "SELECT status FROM calendar_entries WHERE id=$1", uuid.UUID(reminder.entity_id),
+            )
+            pending_alerts = await conn.fetchval(
+                "SELECT count(*) FROM alert_occurrences WHERE entry_id=$1 AND status='pending'",
+                uuid.UUID(reminder.entity_id),
+            )
+        assert reminder_status == "cancelled" and pending_alerts == 0
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_conversational_mutation_clarification_uses_the_next_short_reply():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    settings = _settings(url)
+    owner = uuid.uuid4().int % 1000000000
+    pool = await create_pool(settings)
+    try:
+        await migrate(pool)
+        expense = await execute_command(pool, settings, owner, Command(type="log_expense", data={
+            "amount": "25", "category": "altele", "merchant": "Cantina test",
+            "spent_at": datetime.now(ZoneInfo(settings.timezone)).isoformat(),
+        }), str(uuid.uuid4()))
+        first = await capture(pool, owner, "test", str(uuid.uuid4()),
+            "Schimbă categoria ultimei cheltuieli")
+        question = await process_capture(pool, settings, owner, first["id"])
+        assert question[0].message == "În ce categorie vrei să pun ultima cheltuială?"
+        reply = await capture(pool, owner, "test", str(uuid.uuid4()), "mâncare")
+        proposal = await process_capture(pool, settings, owner, reply["id"])
+        assert proposal[0].details["proposal_id"]
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT category FROM expenses WHERE id=$1", uuid.UUID(expense.entity_id)) == "altele"
+        result = await decide_proposal(pool, settings, owner,
+            uuid.UUID(proposal[0].details["proposal_id"]), True)
+        assert result and result.status == "saved"
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT category FROM expenses WHERE id=$1", uuid.UUID(expense.entity_id)) == "mâncare"
+
+        first = await capture(pool, owner, "test", str(uuid.uuid4()), "Șterge")
+        question = await process_capture(pool, settings, owner, first["id"])
+        assert "Ce element" in question[0].message
+        reply = await capture(pool, owner, "test", str(uuid.uuid4()), "ultima cheltuială")
+        proposal = await process_capture(pool, settings, owner, reply["id"])
+        assert proposal[0].details["proposal_id"]
+        await decide_proposal(pool, settings, owner,
+            uuid.UUID(proposal[0].details["proposal_id"]), True)
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT deleted_at IS NOT NULL FROM expenses WHERE id=$1", uuid.UUID(expense.entity_id))
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_voice_correction_uses_the_transcript_for_grounded_proposal(monkeypatch):
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    settings = _settings(url)
+    owner = uuid.uuid4().int % 1000000000
+    pool = await create_pool(settings)
+    try:
+        await migrate(pool)
+        expense = await execute_command(pool, settings, owner, Command(type="log_expense", data={
+            "amount": "15", "category": "altele", "spent_at": datetime.now(ZoneInfo(settings.timezone)).isoformat(),
+        }), str(uuid.uuid4()))
+
+        async def fake_transcription(_settings, _path):
+            return "Schimbă categoria ultimei cheltuieli în mâncare"
+
+        monkeypatch.setattr("lora_v2.processor.transcribe_voice", fake_transcription)
+        voice = await capture(pool, owner, "test", str(uuid.uuid4()), "",
+            content_type="voice", attachment_ref="test-voice")
+        proposal = await process_capture(pool, settings, owner, voice["id"])
+        assert proposal[0].details["proposal_id"]
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT raw_text FROM captures WHERE id=$1", voice["id"]) == (
+                "Schimbă categoria ultimei cheltuieli în mâncare"
+            )
+            assert await conn.fetchval("SELECT category FROM expenses WHERE id=$1", uuid.UUID(expense.entity_id)) == "altele"
     finally:
         await pool.close()
 

@@ -120,9 +120,14 @@ async def decide_proposal(
             )
         return None
     command = Command.model_validate(json.loads(row["command"]))
-    result = await execute_command(
-        pool, settings, owner_id, command, idempotency_key=f"proposal:{proposal_id}"
-    )
+    if command.type in {"delete_entity", "update_entity"}:
+        from lora_v2.mutations import apply_mutation_proposal
+
+        result = await apply_mutation_proposal(pool, settings, owner_id, command)
+    else:
+        result = await execute_command(
+            pool, settings, owner_id, command, idempotency_key=f"proposal:{proposal_id}"
+        )
     if result.status in ("saved", "already_done"):
         async with pool.acquire() as conn:
             await conn.execute(

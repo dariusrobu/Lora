@@ -12,6 +12,7 @@ from lora_v2.agent import Interpretation, interpret_capture
 from lora_v2.config import Settings
 from lora_v2.models import ActionResult, Command
 from lora_v2.media import interpret_photo, transcribe_voice
+from lora_v2.mutations import plan_mutation
 from lora_v2.grounding import grounding_issue
 from lora_v2.rules import extract_common
 from lora_v2.service import execute_command
@@ -52,24 +53,32 @@ async def process_capture(
         )
     if row is None:
         return []
+    content = row["raw_text"]
     try:
         if row["content_type"] == "voice" and row["attachment_ref"]:
-            spoken = await transcribe_voice(settings, row["attachment_ref"])
-            if not spoken:
+            content = await transcribe_voice(settings, row["attachment_ref"])
+            if not content:
                 raise ValueError("Empty transcription")
             async with pool.acquire() as conn:
                 await conn.execute(
                     "UPDATE captures SET raw_text=$3 WHERE id=$1 AND owner_id=$2",
-                    capture_id, owner_id, spoken,
+                    capture_id, owner_id, content,
                 )
-            rules, remaining = extract_common(spoken, datetime.now(ZoneInfo(settings.timezone)), settings.timezone)
-            model = await interpret_capture(pool, settings, owner_id, remaining) if remaining else Interpretation()
-            interpretation = Interpretation(actions=rules.actions + model.actions,
-                reply="\n".join(filter(None, [rules.reply, model.reply])) or None)
-        elif row["content_type"] == "photo" and row["attachment_ref"]:
+        if row["content_type"] in {"text", "voice"}:
+            planned = await plan_mutation(pool, settings, owner_id, capture_id, content)
+            if planned is not None:
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        """UPDATE captures SET status=$3,processed_at=now(),processing_started_at=NULL
+                        WHERE id=$1 AND owner_id=$2""",
+                        capture_id, owner_id,
+                        "needs_input" if any(item.status == "needs_input" for item in planned) else "processed",
+                    )
+                return planned
+        if row["content_type"] == "photo" and row["attachment_ref"]:
             interpretation = await interpret_photo(settings, row["attachment_ref"], row["raw_text"])
         else:
-            rules, remaining = extract_common(row["raw_text"], datetime.now(ZoneInfo(settings.timezone)), settings.timezone)
+            rules, remaining = extract_common(content, datetime.now(ZoneInfo(settings.timezone)), settings.timezone)
             model = await interpret_capture(pool, settings, owner_id, remaining) if remaining else Interpretation()
             interpretation = Interpretation(actions=rules.actions + model.actions,
                 reply="\n".join(filter(None, [rules.reply, model.reply])) or None)
@@ -96,7 +105,7 @@ async def process_capture(
             ))
             continue
         issue = grounding_issue(
-            candidate, row["raw_text"], settings, datetime.now(ZoneInfo(settings.timezone))
+            candidate, content, settings, datetime.now(ZoneInfo(settings.timezone))
         )
         if issue:
             needs_input = True

@@ -23,7 +23,7 @@ Clear Mini App forms use validated commands. Natural-language captures are saved
 
 Recent local evaluations found invented command types and missing dates from `qwen2.5:7b`. Parsing now preserves valid actions from a partially invalid JSON reply and asks for clarification about the rest. Grounded Romanian shortcuts handle common tasks with times, reminders, transport expenses, stated food weights, and water in liters. These examples are verified; general conversational accuracy and multi-turn food clarification still need work.
 
-Telegram answers short read-only questions such as „Ce am azi?”, „Ce am mâine?”, „Ce taskuri am?”, „Cât am cheltuit luna asta?” and „Ce am la facultate azi?” directly from v2 data. `/azi`, `/maine`, `/taskuri`, `/cheltuieli`, and `/facultate` are shortcuts for the same views. Natural-language edit/delete and broader questions still need a guarded entity selection flow.
+Telegram answers short read-only questions such as „Ce am azi?”, „Ce am mâine?”, „Ce taskuri am?”, „Cât am cheltuit luna asta?” and „Ce am la facultate azi?” directly from v2 data. `/azi`, `/maine`, `/taskuri`, `/cheltuieli`, and `/facultate` are shortcuts for the same views. Text and transcribed voice can propose deletion of the latest item in a named domain or correction of the latest expense category. A short follow-up answer to a missing target or category is retained for ten minutes. The target and version are shown before explicit approval; broader edits and entity selection still need work.
 
 Evening follow-ups for unfinished reminders now offer explicit „Am făcut” and „Mută pe mâine” choices in Telegram and the Mini App. Both verify the reminder version before updating it; generated conflict proposals also wait for a choice.
 
