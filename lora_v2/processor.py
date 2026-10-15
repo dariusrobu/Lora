@@ -17,6 +17,7 @@ from lora_v2.meal_dialogue import remember_meal_question, resolve_meal_answer
 from lora_v2.expense_dialogue import remember_expense_question, resolve_expense_answer
 from lora_v2.mutations import plan_mutation
 from lora_v2.nutrition import enrich_meal_candidate
+from lora_v2.proposal_dialogue import resolve_proposal_reply
 from lora_v2.grounding import grounding_issue
 from lora_v2.rules import extract_common
 from lora_v2.service import execute_command
@@ -113,6 +114,17 @@ async def process_capture(
                     "UPDATE captures SET raw_text=$3 WHERE id=$1 AND owner_id=$2",
                     capture_id, owner_id, content,
                 )
+        proposal_answer = (await resolve_proposal_reply(pool, settings, owner_id, content, row["created_at"])
+                           if row["content_type"] in {"text", "voice"} else None)
+        if proposal_answer is not None:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    """UPDATE captures SET status=$3,processed_at=now(),processing_started_at=NULL
+                    WHERE id=$1 AND owner_id=$2""",
+                    capture_id, owner_id,
+                    "needs_input" if proposal_answer.status == "needs_input" else "processed",
+                )
+            return [proposal_answer]
         meal_answer = (await resolve_meal_answer(pool, owner_id, content)
                        if row["content_type"] in {"text", "voice"} else None)
         expense_answer = (await resolve_expense_answer(pool, owner_id, content)

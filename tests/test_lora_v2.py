@@ -8,6 +8,7 @@ import time
 import uuid
 import io
 from datetime import datetime
+from types import SimpleNamespace
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
@@ -15,6 +16,7 @@ import pytest
 import httpx
 from fastapi import HTTPException
 from PIL import Image
+from telegram.ext import ApplicationBuilder, ApplicationHandlerStop
 
 from lora_v2.auth import verify_init_data
 from lora_v2.api import create_app
@@ -24,6 +26,7 @@ from lora_v2.crud import EditRequest, delete_entity, update_entity
 from lora_v2.db import create_pool, migrate
 from lora_v2.models import Command
 from lora_v2.media import save_photo
+from lora_v2.legacy_bridge import install_bridge
 from lora_v2.agent import Candidate, Interpretation, parse_interpretation
 from lora_v2.grounding import grounding_issue
 from lora_v2.apple import _digest, pull_changes, push_pending, resolve_conflict
@@ -370,6 +373,116 @@ async def test_send_only_worker_alert_has_no_unhandled_callback():
         assert await send_pending_telegram(pool, FakeBot(), owner, start, interactive=False) == 1
         assert sent[-1]["text"] == "⏰ Sună administratorul"
         assert "reply_markup" not in sent[-1]
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_short_reply_only_decides_one_recent_capture_proposal():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    owner = uuid.uuid4().int % 1000000000
+    settings = Settings(database_url=url, telegram_bot_token="test", telegram_user_id=owner)
+    pool = await create_pool(settings)
+
+    async def propose(title: str) -> uuid.UUID:
+        proposal_id = uuid.uuid4()
+        command = Command(type="create_task", data={"title": title})
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """INSERT INTO proposals(id,owner_id,source,command,reason,expires_at)
+                VALUES ($1,$2,$3,$4::jsonb,$5,now()+interval '1 day')""",
+                proposal_id, owner, f"capture:{uuid.uuid4()}:0",
+                json.dumps(command.model_dump(mode="json")), f"Salvez {title}?",
+            )
+        return proposal_id
+
+    try:
+        await migrate(pool)
+        first = await propose("Task clar")
+        reply = await capture(pool, owner, "mini_app", str(uuid.uuid4()), "da")
+        result = await process_capture(pool, settings, owner, reply["id"])
+        assert result[0].status == "saved"
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT status FROM proposals WHERE id=$1", first) == "accepted"
+            assert await conn.fetchval("SELECT count(*) FROM tasks WHERE owner_id=$1", owner) == 1
+
+        rejected = await propose("Task respins")
+        refusal = await capture(pool, owner, "mini_app", str(uuid.uuid4()), "nu")
+        result = await process_capture(pool, settings, owner, refusal["id"])
+        assert result[0].message == "Nu am salvat propunerea."
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT status FROM proposals WHERE id=$1", rejected) == "rejected"
+            assert await conn.fetchval("SELECT count(*) FROM tasks WHERE owner_id=$1", owner) == 1
+
+        blocked = await propose("Task cu clarificare")
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """INSERT INTO mutation_clarifications(owner_id,original_text,expected,expires_at)
+                VALUES ($1,'corectează','target',now()+interval '10 minutes')""", owner,
+            )
+        unclear = await capture(pool, owner, "mini_app", str(uuid.uuid4()), "da")
+        result = await process_capture(pool, settings, owner, unclear["id"])
+        assert result[0].status == "needs_input"
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT status FROM proposals WHERE id=$1", blocked) == "pending"
+            await conn.execute("DELETE FROM mutation_clarifications WHERE owner_id=$1", owner)
+            await conn.execute("UPDATE proposals SET status='rejected' WHERE id=$1", blocked)
+
+        second = await propose("Task A")
+        third = await propose("Task B")
+        ambiguous = await capture(pool, owner, "mini_app", str(uuid.uuid4()), "nu")
+        result = await process_capture(pool, settings, owner, ambiguous["id"])
+        assert result[0].status == "needs_input"
+        async with pool.acquire() as conn:
+            assert await conn.fetchval(
+                "SELECT count(*) FROM proposals WHERE id=ANY($1::uuid[]) AND status='pending'",
+                [second, third],
+            ) == 2
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_legacy_bridge_only_captures_messages_in_opt_in_mode():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    owner = uuid.uuid4().int % 1000000000
+    settings = Settings(database_url=url, telegram_bot_token="test-token", telegram_user_id=owner)
+    app = ApplicationBuilder().token("test-token").build()
+    pool = await install_bridge(app, settings)
+    replies: list[str] = []
+
+    async def reply_text(text: str) -> None:
+        replies.append(text)
+
+    message = SimpleNamespace(text="Notează că trebuie să plătesc factura", caption=None,
+                              photo=None, voice=None, reply_text=reply_text)
+    update = SimpleNamespace(effective_user=SimpleNamespace(id=owner),
+                             effective_chat=SimpleNamespace(type="private"), message=message,
+                             update_id=uuid.uuid4().int % 1000000000)
+    toggle = app.handlers[-1][0].callback
+    bridge = app.handlers[-1][2].callback
+    try:
+        assert await bridge(update, None) is None
+        message.text = "/v2on"
+        with pytest.raises(ApplicationHandlerStop):
+            await toggle(update, None)
+        message.text = "Notează că trebuie să plătesc factura"
+        with pytest.raises(ApplicationHandlerStop):
+            await bridge(update, None)
+        async with pool.acquire() as conn:
+            assert await conn.fetchval(
+                "SELECT count(*) FROM captures WHERE owner_id=$1 AND channel='telegram'", owner,
+            ) == 1
+        message.text = "/v2off"
+        with pytest.raises(ApplicationHandlerStop):
+            await toggle(update, None)
+        message.text = "Acum folosește botul vechi"
+        assert await bridge(update, None) is None
+        assert any("v2 este activă" in item for item in replies)
     finally:
         await pool.close()
 

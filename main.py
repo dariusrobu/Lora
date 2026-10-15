@@ -308,6 +308,16 @@ async def start_bot():
     # 4. Build the Application
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     application.bot_data["pool"] = pool
+    bridge_pool = None
+    if os.getenv("LORA_V2_BRIDGE_ENABLED", "false").lower() == "true":
+        try:
+            from lora_v2.config import Settings as V2Settings
+            from lora_v2.legacy_bridge import install_bridge
+
+            bridge_pool = await install_bridge(application, V2Settings.from_env())
+            print("✅ Optional v2 conversation bridge ready; activate with /v2on", flush=True)
+        except Exception as bridge_error:
+            print(f"⚠️ V2 conversation bridge unavailable: {type(bridge_error).__name__}", flush=True)
 
     # 4. Initialize Scheduler
     from scheduler.jobs import setup_scheduler
@@ -636,6 +646,8 @@ async def start_bot():
         await application.stop()
         await application.shutdown()
         await runner.cleanup()
+        if bridge_pool is not None:
+            await bridge_pool.close()
         await close_pool()
         if os.path.exists(PID_FILE):
             os.remove(PID_FILE)

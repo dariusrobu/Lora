@@ -11,11 +11,11 @@ from telegram.ext import Application, ApplicationBuilder, CallbackQueryHandler, 
 
 from lora_v2.config import Settings
 from lora_v2.db import create_pool, migrate
-from lora_v2.media import save_photo, save_voice
 from lora_v2.proactive import decide_followup, decide_proposal
 from lora_v2.models import Command
-from lora_v2.queries import answer_read_intent, read_intent
-from lora_v2.service import capture, execute_command
+from lora_v2.queries import answer_read_intent
+from lora_v2.service import execute_command
+from lora_v2.telegram_ingress import handle_owner_message
 from lora_v2.worker import run_forever
 
 logger = logging.getLogger(__name__)
@@ -25,45 +25,7 @@ def create_bot(settings: Settings | None = None) -> Application:
     config = settings or Settings.from_env()
 
     async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        if not update.effective_user or update.effective_user.id != config.telegram_user_id:
-            return
-        if not update.message:
-            return
-        content_type = "text"
-        attachment_ref = None
-        message_text = update.message.text or update.message.caption or ""
-        if update.message.text:
-            intent = read_intent(update.message.text)
-            if intent:
-                answer = await answer_read_intent(
-                    context.application.bot_data["pool"], config, config.telegram_user_id, intent,
-                )
-                await update.message.reply_text(answer)
-                return
-        try:
-            if update.message.photo:
-                photo = update.message.photo[-1]
-                file = await photo.get_file()
-                attachment_ref = save_photo(config, bytes(await file.download_as_bytearray()))
-                content_type = "photo"
-            elif update.message.voice:
-                file = await update.message.voice.get_file()
-                attachment_ref = save_voice(config, bytes(await file.download_as_bytearray()))
-                content_type = "voice"
-            elif not message_text:
-                return
-        except (ValueError, OSError):
-            await update.message.reply_text("Nu pot citi fișierul. Trimite o fotografie sau un mesaj vocal mai mic.")
-            return
-        row = await capture(
-            context.application.bot_data["pool"], config.telegram_user_id,
-            "telegram", str(update.update_id), message_text,
-            content_type=content_type, attachment_ref=attachment_ref,
-        )
-        await update.message.reply_text(
-            "Am păstrat mesajul. Îl procesez acum…" if row["status"] == "captured"
-            else "Mesajul acesta este deja înregistrat."
-        )
+        await handle_owner_message(update, context.application.bot_data["pool"], config)
 
     async def on_proposal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         query = update.callback_query
