@@ -29,6 +29,7 @@ from db.queries.memory import semantic_search_memories, save_memory_fact
 from db.queries.insights import get_insight_data
 
 from core.config import TIMEZONE, TELEGRAM_USER_ID
+from core.reminder_text import normalize_reminder_text
 import logging
 
 logger = logging.getLogger("core.agent")
@@ -49,7 +50,7 @@ def _fast_action_plan(message: str) -> list[dict] | None:
 
 def _fast_reminder_action(message: str) -> dict | None:
     """Parse short Romanian relative reminders before the agent loop."""
-    text = message.casefold().strip()
+    text = normalize_reminder_text(message).casefold().strip()
     urgent = bool(re.search(r"\burgent(?:ă|a)?\b", text))
     match = re.search(
         r"(?:adu[- ]mi aminte|amintește[- ]mi|aminteste[- ]mi)\s+"

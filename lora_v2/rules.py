@@ -5,6 +5,7 @@ from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from lora_v2.agent import Candidate, Interpretation
+from core.reminder_text import normalize_reminder_text
 
 
 WEEKDAYS = {
@@ -34,6 +35,7 @@ def _day(fragment: str, now: datetime) -> datetime | None:
 
 def extract_common(text: str, now: datetime, timezone: str) -> tuple[Interpretation, str]:
     """Return grounded actions, a clarification, and text still needing the LLM."""
+    text = normalize_reminder_text(text)
     local_now = now.astimezone(ZoneInfo(timezone))
     actions: list[Candidate] = []
     questions: list[str] = []
@@ -85,7 +87,7 @@ def extract_common(text: str, now: datetime, timezone: str) -> tuple[Interpretat
                     handled = True
         if not handled and day and re.search(r"\b(?:adu-mi aminte|amintește-mi|aminteste-mi)\b", source):
             target = re.search(r"\b(?:la|ora)\s*(\d{1,2})(?::(\d{2}))?\b", source)
-            action = re.search(r"\b(?:să|sa)\s+([^,.;]+)", clause, re.IGNORECASE)
+            action = re.search(r"\b(?:să|sa)\s+(.+?)[.!]?$", clause, re.IGNORECASE)
             if target and action:
                 hour, minute = int(target.group(1)), int(target.group(2) or 0)
                 if hour < 24 and minute < 60:
