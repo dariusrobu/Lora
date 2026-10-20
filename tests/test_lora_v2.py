@@ -1401,6 +1401,10 @@ async def test_photo_meal_always_waits_for_review_and_missing_food_blocks_propos
 
     try:
         await migrate(pool)
+        async def no_receipt(_settings, _reference, _caption, _now):
+            return None
+
+        monkeypatch.setattr("lora_v2.processor.interpret_receipt_photo", no_receipt)
         monkeypatch.setattr("lora_v2.processor.interpret_photo", confident_photo)
         photo = await capture(pool, owner, "test", str(uuid.uuid4()), "",
             content_type="photo", attachment_ref="test-photo")

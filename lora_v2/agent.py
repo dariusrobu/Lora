@@ -3,7 +3,7 @@
 import asyncio
 import json
 from datetime import datetime, timedelta
-from typing import Literal
+from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 import asyncpg
@@ -15,7 +15,7 @@ from lora_v2.models import Command, MealItem
 
 
 class Candidate(BaseModel):
-    type: Literal["create_project", "create_task", "create_calendar_entry", "log_expense", "log_income", "log_meal", "log_workout", "log_health"]
+    type: Literal["create_project", "create_task", "create_calendar_entry", "log_expense", "log_receipt", "log_income", "log_meal", "log_workout", "log_health"]
     title: str | None = None
     kind: str | None = None
     starts_at: str | None = None
@@ -35,6 +35,9 @@ class Candidate(BaseModel):
     activity: str | None = None
     duration_minutes: int | None = None
     items: list[MealItem] | None = None
+    receipt_items: list[dict[str, Any]] | None = None
+    total_amount: float | None = None
+    receipt_ref: str | None = None
     alert_offsets_minutes: list[int] | None = None
     followup_evening: bool | None = None
     project_id: str | None = None
@@ -66,6 +69,12 @@ class Candidate(BaseModel):
                 "expected_merchant_category": self.expected_merchant_category,
                 "merchant": self.merchant,
                 "description": self.description, "spent_at": self.spent_at,
+            },
+            "log_receipt": {
+                "merchant": self.merchant, "total_amount": self.total_amount,
+                "currency": self.currency or "RON", "spent_at": self.spent_at,
+                "receipt_ref": self.receipt_ref,
+                "items": self.receipt_items or [],
             },
             "log_income": {
                 "amount": self.amount, "currency": self.currency or "RON",

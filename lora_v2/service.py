@@ -15,6 +15,7 @@ from lora_v2.models import (
     CreateProject,
     CreateTask,
     LogExpense,
+    LogReceipt,
     LogIncome,
     LogMeal,
     LogWorkout,
@@ -174,6 +175,35 @@ async def _apply(
                 owner_id, payload.merchant.casefold().strip(), category, entity_id,
             )
         return ActionResult(status="saved", command_type=command_type, entity_id=str(entity_id), entity_type="expense", message=f"Cheltuială salvată: {payload.amount} {payload.currency} · {category}")
+
+    if command_type == "log_receipt" and isinstance(payload, LogReceipt):
+        if any(item.category_uncertain for item in payload.items):
+            return ActionResult(status="needs_input", command_type=command_type,
+                message="Verifică în Mini App categoriile marcate ca neclare înainte de salvare.")
+        expense_ids: list[str] = []
+        for item in payload.items:
+            item_id = _id()
+            await conn.execute(
+                """INSERT INTO expenses(id,owner_id,amount,currency,category,merchant,description,spent_at,receipt_ref)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)""",
+                item_id, owner_id, item.amount, payload.currency, item.category,
+                payload.merchant, item.name, payload.spent_at, payload.receipt_ref,
+            )
+            await conn.execute(
+                """INSERT INTO receipt_product_rules(owner_id,pattern,merchant_key,clean_name,category,frequency)
+                VALUES ($1,$2,$3,$4,$5,1)
+                ON CONFLICT (owner_id,pattern,merchant_key) DO UPDATE SET
+                clean_name=EXCLUDED.clean_name,category=EXCLUDED.category,
+                frequency=receipt_product_rules.frequency+1,updated_at=now()""",
+                owner_id, item.name.casefold().strip(),
+                (payload.merchant or "").casefold().strip(), item.name, item.category,
+            )
+            expense_ids.append(str(item_id))
+        return ActionResult(
+            status="saved", command_type=command_type, entity_id=expense_ids[0],
+            entity_type="receipt", message=f"Bon salvat: {len(expense_ids)} produse, {payload.total_amount} {payload.currency}.",
+            details={"expense_ids": expense_ids, "total_amount": str(payload.total_amount)},
+        )
 
     if command_type == "log_income" and isinstance(payload, LogIncome):
         await conn.execute(

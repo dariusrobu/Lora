@@ -6,6 +6,7 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 from zoneinfo import ZoneInfo
@@ -24,7 +25,7 @@ from lora_v2.apple_events import AppleEventRemote, resolve_event_conflict
 from lora_v2.config import Settings
 from lora_v2.crud import EditRequest, EntityKind, delete_entity, update_entity
 from lora_v2.db import create_pool, migrate
-from lora_v2.models import Command
+from lora_v2.models import Command, ReceiptLine
 from lora_v2.media import save_photo
 from lora_v2.migrate_legacy import PROFILE_FIELDS
 from lora_v2.obsidian import list_schedule_conflicts, resolve_schedule_conflict
@@ -44,6 +45,13 @@ class ActionRequest(BaseModel):
 
 class DecisionRequest(BaseModel):
     accept: bool
+
+
+class ReceiptProposalEdit(BaseModel):
+    expected_version: int = Field(ge=1)
+    merchant: str | None = Field(default=None, max_length=200)
+    total_amount: Decimal = Field(gt=0)
+    items: list[ReceiptLine] = Field(min_length=1, max_length=100)
 
 
 class FollowupDecision(BaseModel):
@@ -515,6 +523,40 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         result = await decide_proposal(request.app.state.pool, config, owner_id, proposal_id, body.accept)
         return result or {"status": "rejected_or_unavailable"}
 
+    @app.put("/api/v2/proposals/{proposal_id}/receipt")
+    async def edit_receipt_proposal(proposal_id: uuid.UUID, body: ReceiptProposalEdit,
+                                    request: Request, owner_id: int = Depends(auth)):
+        async with request.app.state.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    """SELECT command,version FROM proposals WHERE id=$1 AND owner_id=$2
+                    AND status='pending' AND expires_at>now() FOR UPDATE""",
+                    proposal_id, owner_id,
+                )
+                if not row or row["version"] != body.expected_version:
+                    raise HTTPException(status_code=409, detail="Bonul a fost modificat. Reîncarcă propunerea.")
+                previous = Command.model_validate(json.loads(row["command"]))
+                if previous.type != "log_receipt":
+                    raise HTTPException(status_code=422, detail="Aceasta nu este o propunere de bon.")
+                data = dict(previous.data)
+                data.update(merchant=body.merchant, total_amount=str(body.total_amount),
+                            items=[item.model_copy(update={"category_uncertain": False}).model_dump(mode="json")
+                                   for item in body.items])
+                command = Command(type="log_receipt", data=data)
+                try:
+                    command.payload()
+                except ValueError as exc:
+                    raise HTTPException(status_code=422, detail="Totalul trebuie să fie egal cu suma produselor.") from exc
+                reason = "Verifică bonul corectat înainte de salvare:\n" + "\n".join(
+                    f"• {item.name}: {item.amount} RON · {item.category}" for item in body.items
+                ) + f"\nTotal: {body.total_amount} RON"
+                version = await conn.fetchval(
+                    """UPDATE proposals SET command=$3::jsonb,reason=$4,version=version+1
+                    WHERE id=$1 AND owner_id=$2 RETURNING version""",
+                    proposal_id, owner_id, json.dumps(command.model_dump(mode="json")), reason,
+                )
+        return {"id": str(proposal_id), "version": version, "reason": reason}
+
     @app.post("/api/v2/proposals/{proposal_id}/followup")
     async def followup_decision(proposal_id: uuid.UUID, body: FollowupDecision,
                                 request: Request, owner_id: int = Depends(auth)):
@@ -530,7 +572,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         async with request.app.state.pool.acquire() as conn:
             await expire_stale_proposals(conn, owner_id)
             rows = await conn.fetch(
-                """SELECT id,source,reason,command,expires_at FROM proposals
+                """SELECT id,source,reason,command,expires_at,version FROM proposals
                 WHERE owner_id=$1 AND status='pending' AND expires_at > now()
                 ORDER BY created_at DESC LIMIT 20""",
                 owner_id,

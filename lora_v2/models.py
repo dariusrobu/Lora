@@ -72,6 +72,33 @@ class LogExpense(StrictModel):
         return _aware(value)
 
 
+class ReceiptLine(StrictModel):
+    name: str = Field(min_length=2, max_length=300)
+    amount: Decimal = Field(gt=0)
+    category: str = Field(min_length=1, max_length=100)
+    category_uncertain: bool = False
+
+
+class LogReceipt(StrictModel):
+    merchant: str | None = Field(default=None, max_length=200)
+    total_amount: Decimal = Field(gt=0)
+    currency: str = Field(default="RON", min_length=3, max_length=3)
+    spent_at: datetime
+    receipt_ref: str = Field(min_length=1)
+    items: list[ReceiptLine] = Field(min_length=1, max_length=100)
+
+    @field_validator("spent_at")
+    @classmethod
+    def validate_time(cls, value: datetime) -> datetime:
+        return _aware(value)
+
+    @model_validator(mode="after")
+    def validate_total(self) -> "LogReceipt":
+        if abs(sum((item.amount for item in self.items), Decimal("0")) - self.total_amount) > Decimal("0.05"):
+            raise ValueError("Receipt items do not match the printed total")
+        return self
+
+
 class LogIncome(StrictModel):
     amount: Decimal = Field(gt=0)
     currency: str = Field(default="RON", min_length=3, max_length=3)
@@ -188,6 +215,7 @@ COMMAND_MODELS: dict[str, type[StrictModel]] = {
     "create_task": CreateTask,
     "create_calendar_entry": CreateCalendarEntry,
     "log_expense": LogExpense,
+    "log_receipt": LogReceipt,
     "log_income": LogIncome,
     "log_meal": LogMeal,
     "log_workout": LogWorkout,

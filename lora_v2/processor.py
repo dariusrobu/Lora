@@ -18,6 +18,7 @@ from lora_v2.expense_dialogue import remember_expense_question, resolve_expense_
 from lora_v2.expense_categories import canonical_category, category_hint
 from lora_v2.mutations import plan_mutation
 from lora_v2.nutrition import enrich_meal_candidate
+from lora_v2.receipts import apply_product_memory, interpret_receipt_photo
 from lora_v2.proposal_dialogue import resolve_proposal_reply
 from lora_v2.grounding import grounding_issue
 from lora_v2.rules import extract_common
@@ -40,6 +41,10 @@ def _preview(command: Command) -> str:
         return f"{data.get('title')} · {starts_at:%d.%m.%Y, %H:%M}{alert_text}"
     if command.type == "log_expense":
         return f"{data.get('amount')} {data.get('currency', 'RON')} · {data.get('category')} · {data.get('merchant') or data.get('description') or ''}"
+    if command.type == "log_receipt":
+        lines = [f"Bon {data.get('merchant') or 'fără comerciant'} · total {data.get('total_amount')} {data.get('currency', 'RON')}"]
+        lines.extend(f"• {item['name']}: {item['amount']} RON · {item['category']}{' (de verificat)' if item.get('category_uncertain') else ''}" for item in data.get('items', []))
+        return "\n".join(lines)
     if command.type == "log_income":
         return f"Venit: {data.get('amount')} {data.get('currency', 'RON')} · {data.get('source') or data.get('description') or ''}"
     if command.type == "log_meal":
@@ -146,9 +151,13 @@ async def process_capture(
         elif expense_answer is not None:
             interpretation = Interpretation(actions=[expense_answer])
         elif row["content_type"] == "photo" and row["attachment_ref"]:
-            interpretation = await interpret_photo(
-                settings, row["attachment_ref"], row["raw_text"], now=anchor,
+            interpretation = await interpret_receipt_photo(
+                settings, row["attachment_ref"], row["raw_text"], anchor,
             )
+            if interpretation is None:
+                interpretation = await interpret_photo(
+                    settings, row["attachment_ref"], row["raw_text"], now=anchor,
+                )
         else:
             rules, remaining = extract_common(content, anchor, settings.timezone)
             model = Interpretation()
@@ -180,7 +189,12 @@ async def process_capture(
     results: list[ActionResult] = []
     needs_input = False
     for index, candidate in enumerate(interpretation.actions):
-        if row["content_type"] == "photo" and candidate.type != "log_meal":
+        if candidate.type == "log_receipt" and row["content_type"] != "photo":
+            needs_input = True
+            results.append(ActionResult(status="needs_input", command_type="log_receipt",
+                message="Trimite fotografia bonului ca să pot verifica produsele și totalul."))
+            continue
+        if row["content_type"] == "photo" and candidate.type not in {"log_meal", "log_receipt"}:
             needs_input = True
             results.append(ActionResult(status="needs_input", command_type=candidate.type,
                 message="Din fotografia aceasta pot propune doar o masă. Spune-mi separat dacă vrei să salvez altceva."))
@@ -199,6 +213,13 @@ async def process_capture(
             continue
         if candidate.type == "log_meal":
             candidate = await enrich_meal_candidate(candidate, settings)
+        if candidate.type == "log_receipt":
+            receipt_issue = await apply_product_memory(pool, owner_id, candidate)
+            if receipt_issue:
+                needs_input = True
+                results.append(ActionResult(status="needs_input", command_type="log_receipt",
+                    message=receipt_issue))
+                continue
         category_conflict = None
         keyword_conflict = None
         learned_category = None
@@ -267,7 +288,7 @@ async def process_capture(
                         "Poți răspunde «mâncare», «transport» sau «categoria [nume]»."))
             continue
         if (candidate.confidence < 0.85 or candidate.missing_information or
-                candidate.type == "log_meal" or category_conflict or keyword_conflict):
+                candidate.type in {"log_meal", "log_receipt"} or category_conflict or keyword_conflict):
             needs_input = True
             reason = (f"Pentru {candidate.merchant} ai folosit până acum categoria «{category_conflict}», "
                       f"dar această cheltuială pare «{candidate.category}». Confirmi categoria nouă?\n{_preview(command)}"

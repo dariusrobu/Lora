@@ -12,7 +12,8 @@ export type Today = { date: string; entries: Entry[]; tasks: Task[] }
 export type Journal = { expenses: Expense[]; incomes: Income[]; meals: Meal[]; workouts: Workout[]; health: Health[] }
 export type ActionResult = { status: string; message: string; entity_id?: string }
 export type CaptureStatus = { id: string; status: "captured" | "processing" | "needs_input" | "processed" | "failed"; receipt: string | null }
-export type Proposal = { id: string; source: string; reason: string; command: { type: string; data: Record<string, unknown> }; expires_at: string }
+export type Proposal = { id: string; source: string; reason: string; command: { type: string; data: Record<string, unknown> }; expires_at: string; version: number }
+export type ReceiptLineDraft = { name: string; amount: string; category: string; category_uncertain?: boolean }
 export type AppleConflict = { id: string; entity_type: string; entity_id: string; local_title?: string }
 export type AppleConflictDetail = { local: { title: string; at?: string; status: string; version: number } | null; apple: { title: string; at?: string; completed: boolean } | null; apple_deleted: boolean }
 export type ObsidianConflict = { entity_id: string; title: string; relative_path: string; conflict: string; version: number; day_of_week: number; start_time: string; end_time: string; room?: string | null; file_fields: { day_of_week: number; start_time: string; end_time: string; room?: string | null }; file_revision: string }
@@ -50,6 +51,11 @@ export const api = {
   journal: () => request<Journal>("/journal"),
   proposals: () => request<Proposal[]>("/proposals"),
   decide: (id: string, accept: boolean) => request<ActionResult>(`/proposals/${id}/decision`, { method: "POST", body: JSON.stringify({ accept }) }),
+  editReceiptProposal: (id: string, expected_version: number, merchant: string, total_amount: string, items: ReceiptLineDraft[]) =>
+    request<{ id: string; version: number; reason: string }>(`/proposals/${id}/receipt`, {
+      method: "PUT", body: JSON.stringify({ expected_version, merchant: merchant || null, total_amount,
+        items: items.map(item => ({ name: item.name, amount: item.amount, category: item.category })) }),
+    }),
   decideFollowup: (id: string, choice: "done" | "tomorrow") => request<ActionResult>(`/proposals/${id}/followup`, { method: "POST", body: JSON.stringify({ choice }) }),
   appleConflicts: () => request<AppleConflict[]>("/apple/conflicts"),
   appleConflictDetail: (id: string) => request<AppleConflictDetail>(`/apple/conflicts/${id}`),

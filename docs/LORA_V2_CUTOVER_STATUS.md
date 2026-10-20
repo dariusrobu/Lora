@@ -12,14 +12,14 @@ Mini App share `LORA_V2_DATABASE_URL`. The owner confirmed the Mini App displays
 the correct data after cutover.
 
 Services are installed from the tracked `scripts/com.lora.v2.*.plist` files.
-The existing n8n workflow was not edited or activated. Its `/extract-many` bridge
-is now independently available on port 8788, including HTTP 200 from inside the
-n8n container. The existing workflow is inactive; connectivity is not a claim
-that a scheduled Moodle extraction ran.
-On 20 October, the live n8n container was running, and its single existing
-workflow contained a Schedule Trigger and HTTP Request to the Moodle bridge.
-The workflow was `active=false`. The bridge and n8n health endpoints returned
-200. Its inactive state was preserved; no extraction was triggered by this audit.
+On 20 October, the existing n8n Moodle-to-Obsidian workflow was changed only in
+its Schedule Trigger, from an unspecified interval to every six hours, then
+published and activated. Its existing `/extract-many` bridge and credentials
+were preserved. A private workflow backup was saved before the change. The
+bridge and n8n health endpoints returned 200 after restart. An isolated run
+over the five cached courses generated 134 files; its second run generated no
+new files, and existing Moodle index files use bounded generated sections.
+No completed scheduled run has yet been observed after activation.
 
 ## Data and backups
 
@@ -50,8 +50,13 @@ The workflow was `active=false`. The bridge and n8n health endpoints returned
 - Rules for a recognized expense merchant can be added, corrected and removed
   in Mini App under Jurnal → Istoric și preferințe. Applying a corrected rule
   to a later expense is covered by an isolated test. The old receipt product
-  memory (700 rows) and merchant-name aliases (26 rows) remain in snapshots;
-  v2 does not yet parse receipt photos into itemized expenses.
+  memory (700 rows) and merchant-name aliases (26 rows) remain in snapshots.
+  The latest distinct product rules are now active in v2 (49 rules on the live
+  owner). A receipt photo proposes one expense per product, with its own
+  category; the Mini App lets the owner edit products, categories, amounts,
+  merchant and total before one atomic approval. A printed-total mismatch or
+  unsupported product prevents an automatic proposal. No real receipt photo
+  has yet been verified end to end on the live phone.
 - `scripts/backup_local.sh` now invokes a Python backup for both databases; it
   avoids sourcing dotenv as shell code. Dumps are mode 0600 and catalog-checked.
   It does not remove previous backups.
@@ -109,8 +114,8 @@ reminder with no alarm was created, read back and removed successfully.
 `LORA_V2_APPLE_SYNC_ENABLED=true` enables the existing two-way task/reminder
 adapter, with conflict handling. Apple failures cannot stop Telegram delivery.
 
-This proves the CalDAV boundary, **not visibility in Apple's current Reminders
-app on the phone**. Native EventKit is not implemented. Legacy Apple Calendar
+The owner subsequently confirmed that a no-alarm test reminder appeared in
+Apple Reminders on the iPhone. Native EventKit is not implemented. Legacy Apple Calendar
 VEVENT exports/recurrence remain in iCloud but their ongoing reconciliation is
 not yet implemented by the v2 Reminders adapter. Do not describe that separate
 calendar integration as migrated or delete its existing remote records.
@@ -119,8 +124,11 @@ New v2-owned events now sync one way to a dedicated `Lora v2 Calendar` CalDAV
 collection, including start/end and alert offsets. Migrated legacy events and
 academic recurring exports still belong to the old calendar and are excluded
 to avoid duplicate entries. A temporary, alarm-free event in the year 2000 was
-created, read back, and deleted in the dedicated iCloud collection. This proves
-the CalDAV boundary, not phone display or full old-calendar recurrence parity.
+created, read back, and deleted in the dedicated iCloud collection. A second
+no-alarm event for 21 October at 15:30 was confirmed visible on the iPhone
+**after synchronization**, then deleted remotely. Thus phone display works,
+but immediate propagation is not guaranteed and full old-calendar recurrence
+parity remains unverified.
 Remote edits block a v2 overwrite and are listed in Mini App under
 "Evenimente de comparat". The owner can keep the Lora version or import the
 Apple version after reviewing both; a version check prevents accepting an
@@ -129,8 +137,9 @@ unchanged Lora event are now detected on the next five-minute calendar sync.
 
 ## Validation and rollback
 
-50 isolated v2/migration/Obsidian/gateway/history/Apple event tests passed on a
-clean database. A real-source isolated import also passed.
+55 isolated v2/migration/Obsidian/gateway/history/Apple event/receipt tests
+passed on a clean database after the final non-photo receipt guard. A
+real-source isolated import also passed.
 Focused Ruff checks and
 Mini App production build passed. Authenticated live `/today`, `/tasks`,
 `/university`, `/journal` and `/integrations` returned 200 through the gateway.
@@ -140,6 +149,12 @@ the updated Mini App bundle.
 Migration `020_apple_event_conflicts.sql` applied in the live v2 database. After
 restarting the API, worker and integration service, authenticated gateway
 requests returned 200 for `/apple/event-conflicts` and `/daily-history`.
+Receipt migrations `022` and `023` applied to the active v2 database after a
+verified local backup. The expense count remained 74 before and after. After
+restarting the API, worker and bot, all three services were running, the API
+health check returned 200, and authenticated gateway requests returned 200 for
+`/proposals` and `/journal` (74 expenses). The production Mini App bundle built
+successfully. A real receipt photo remains to be checked on the phone.
 
 Rollback requires stopping the v2 bot, worker and integration services **before**
 re-enabling legacy polling. Restore the saved runtime env/gateway configuration.
