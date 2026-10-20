@@ -15,6 +15,7 @@ from lora_v2.models import ActionResult, Command
 from lora_v2.media import interpret_photo, transcribe_voice
 from lora_v2.meal_dialogue import remember_meal_question, resolve_meal_answer
 from lora_v2.expense_dialogue import remember_expense_question, resolve_expense_answer
+from lora_v2.expense_categories import canonical_category, category_hint
 from lora_v2.mutations import plan_mutation
 from lora_v2.nutrition import enrich_meal_candidate
 from lora_v2.proposal_dialogue import resolve_proposal_reply
@@ -199,11 +200,20 @@ async def process_capture(
         if candidate.type == "log_meal":
             candidate = await enrich_meal_candidate(candidate, settings)
         category_conflict = None
+        keyword_conflict = None
         learned_category = None
         if candidate.type == "log_expense":
             # Only an explicit owner choice may override a remembered rule.
             candidate.category_override = candidate is expense_answer
             candidate.expected_merchant_category = None
+            if candidate.category:
+                candidate.category = await canonical_category(pool, owner_id, candidate.category)
+            hint = await category_hint(pool, owner_id, content)
+            if hint and not candidate.category:
+                candidate.category = hint
+            elif (hint and candidate.category and candidate is not expense_answer
+                  and _category_key(hint) != _category_key(candidate.category)):
+                keyword_conflict = hint
         if candidate.type == "log_expense" and candidate.merchant:
             async with pool.acquire() as conn:
                 learned_category = await conn.fetchval(
@@ -256,11 +266,14 @@ async def process_capture(
                 message=f"În ce categorie pun cheltuiala de {candidate.amount} {candidate.currency or 'RON'}? "
                         "Poți răspunde «mâncare», «transport» sau «categoria [nume]»."))
             continue
-        if candidate.confidence < 0.85 or candidate.missing_information or candidate.type == "log_meal" or category_conflict:
+        if (candidate.confidence < 0.85 or candidate.missing_information or
+                candidate.type == "log_meal" or category_conflict or keyword_conflict):
             needs_input = True
             reason = (f"Pentru {candidate.merchant} ai folosit până acum categoria «{category_conflict}», "
                       f"dar această cheltuială pare «{candidate.category}». Confirmi categoria nouă?\n{_preview(command)}"
-                      if category_conflict else f"Verifică înainte de salvare: {_preview(command)}")
+                      if category_conflict else
+                      f"Mesajul sugerează categoria «{keyword_conflict}», dar a fost înțeleasă «{candidate.category}». Verifică înainte de salvare: {_preview(command)}"
+                      if keyword_conflict else f"Verifică înainte de salvare: {_preview(command)}")
             if row["content_type"] == "photo" and candidate.type == "log_meal":
                 reason += "\nEstimare din fotografie: verifică porția și valorile înainte să confirmi."
             if candidate.missing_information:

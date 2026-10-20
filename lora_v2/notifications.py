@@ -8,6 +8,19 @@ import asyncpg
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
 
+async def queue_reply(pool: asyncpg.Pool, owner_id: int, key: str, text: str) -> None:
+    """Persist replies before Telegram delivery; network failures are retried."""
+    # Telegram limits messages to 4096 characters. Stable per-part keys make
+    # replaying an update safe without dropping long read-command responses.
+    for offset in range(0, len(text), 4000):
+        await pool.execute(
+            """INSERT INTO notification_outbox(id,owner_id,dedupe_key,channel,kind,payload)
+            VALUES ($1,$2,$3,'telegram','reply',$4::jsonb) ON CONFLICT DO NOTHING""",
+            uuid.uuid4(), owner_id, 'reply:' + key + ':' + str(offset // 4000),
+            json.dumps({'text': text[offset:offset + 4000]}),
+        )
+
+
 async def send_pending_telegram(
     pool: asyncpg.Pool,
     bot: Bot,
@@ -66,13 +79,20 @@ async def send_pending_telegram(
                     continue
             if row["kind"] == "proposal":
                 proposal_id = payload["proposal_id"]
-                if interactive:
+                async with pool.acquire() as conn:
+                    proposal = await conn.fetchrow(
+                        "SELECT source,status,expires_at FROM proposals WHERE id=$1 AND owner_id=$2",
+                        uuid.UUID(proposal_id), owner_id,
+                    )
+                if not proposal or proposal["status"] != "pending" or proposal["expires_at"] <= current:
                     async with pool.acquire() as conn:
-                        source = await conn.fetchval(
-                            "SELECT source FROM proposals WHERE id=$1 AND owner_id=$2",
-                            uuid.UUID(proposal_id), owner_id,
+                        await conn.execute(
+                            "UPDATE notification_outbox SET status='sent',last_error='superseded',lease_until=NULL WHERE id=$1",
+                            row["id"],
                         )
-                    if source and source.startswith("followup:"):
+                    continue
+                if interactive:
+                    if proposal["source"].startswith("followup:"):
                         keyboard = InlineKeyboardMarkup([[
                             InlineKeyboardButton("Am făcut", callback_data=f"v2:f:{proposal_id}:done"),
                             InlineKeyboardButton("Mută pe mâine", callback_data=f"v2:f:{proposal_id}:tomorrow"),

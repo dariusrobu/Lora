@@ -15,6 +15,12 @@ export type CaptureStatus = { id: string; status: "captured" | "processing" | "n
 export type Proposal = { id: string; source: string; reason: string; command: { type: string; data: Record<string, unknown> }; expires_at: string }
 export type AppleConflict = { id: string; entity_type: string; entity_id: string; local_title?: string }
 export type AppleConflictDetail = { local: { title: string; at?: string; status: string; version: number } | null; apple: { title: string; at?: string; completed: boolean } | null; apple_deleted: boolean }
+export type ObsidianConflict = { entity_id: string; title: string; relative_path: string; conflict: string; version: number; day_of_week: number; start_time: string; end_time: string; room?: string | null; file_fields: { day_of_week: number; start_time: string; end_time: string; room?: string | null }; file_revision: string }
+export type AppleEventConflict = { entity_id: string; local_version: number; title: string; starts_at: string; ends_at?: string | null; notes?: string | null; status: string; apple: { title?: string; starts_at?: string; ends_at?: string; notes?: string; unavailable?: boolean } | null }
+export type Reflection = { id: string; entry_date: string; reflection_text?: string | null; mood?: string | null; tomorrow_focus?: string | null; task_completion?: string | null; skipped: boolean; version: number }
+export type DayPlan = { id: string; plan_date: string; user_input?: string | null; itinerary?: string | null; wake_time?: string | null; version: number }
+export type ExpenseCategory = { id: string; name: string; icon?: string | null; keywords: string[]; is_active: boolean; version: number }
+export type DailyHistory = { reflections: Reflection[]; plans: DayPlan[]; categories: ExpenseCategory[]; preferences: { data: Record<string, unknown>; version: number } | null; nutrition_targets: { calories?: number | null; protein_g?: number | null; carbs_g?: number | null; fat_g?: number | null; version: number } | null }
 export type UniversityKind = "subject" | "schedule" | "attendance" | "grade" | "exam" | "vacation"
 export type UniversityRecord = { id: string; version: number; [key: string]: unknown }
 export type UniversityData = { subjects: UniversityRecord[]; schedules: UniversityRecord[]; attendance: UniversityRecord[]; grades: UniversityRecord[]; exams: UniversityRecord[]; vacations: UniversityRecord[]; semester: { semester_start: string; semester_end?: string; version: number } | null }
@@ -47,6 +53,22 @@ export const api = {
   appleConflicts: () => request<AppleConflict[]>("/apple/conflicts"),
   appleConflictDetail: (id: string) => request<AppleConflictDetail>(`/apple/conflicts/${id}`),
   resolveAppleConflict: (id: string, choice: "keep_local" | "use_apple") => request<{status: string; message: string}>(`/apple/conflicts/${id}/decision`, { method: "POST", body: JSON.stringify({ choice }) }),
+  obsidianConflicts: () => request<ObsidianConflict[]>("/obsidian/conflicts"),
+  appleEventConflicts: () => request<AppleEventConflict[]>("/apple/event-conflicts"),
+  resolveAppleEventConflict: (id: string, expected_version: number, choice: "keep_lora" | "use_apple") => request<{status: string; message: string}>(`/apple/event-conflicts/${id}/decision`, { method: "POST", body: JSON.stringify({ choice, expected_version }) }),
+  resolveObsidianConflict: (id: string, expected_version: number, file_revision: string, choice: "keep_lora" | "use_obsidian") => request<{status: string; message: string}>(`/obsidian/conflicts/${id}/decision`, { method: "POST", body: JSON.stringify({ choice, expected_version, file_revision }) }),
+  dailyHistory: () => request<DailyHistory>("/daily-history"),
+  createReflection: (body: Record<string, unknown>) => request<{id: string; version: number}>("/daily-history/reflections", { method: "POST", body: JSON.stringify(body) }),
+  editReflection: (id: string, body: Record<string, unknown>) => request<{id: string; version: number}>(`/daily-history/reflections/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteReflection: (id: string, version: number) => request<{id: string; version: number}>(`/daily-history/reflections/${id}?expected_version=${version}`, { method: "DELETE" }),
+  createPlan: (body: Record<string, unknown>) => request<{id: string; version: number}>("/daily-history/plans", { method: "POST", body: JSON.stringify(body) }),
+  editPlan: (id: string, body: Record<string, unknown>) => request<{id: string; version: number}>(`/daily-history/plans/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deletePlan: (id: string, version: number) => request<{id: string; version: number}>(`/daily-history/plans/${id}?expected_version=${version}`, { method: "DELETE" }),
+  savePreferences: (data: Record<string, unknown>, expected_version: number | null) => request<{version: number}>("/daily-history/preferences", { method: "PUT", body: JSON.stringify({ data, expected_version }) }),
+  saveNutritionTargets: (body: Record<string, unknown>) => request<{version: number}>("/daily-history/nutrition-targets", { method: "PUT", body: JSON.stringify(body) }),
+  createExpenseCategory: (body: Record<string, unknown>) => request<{id: string; version: number}>("/daily-history/categories", { method: "POST", body: JSON.stringify(body) }),
+  editExpenseCategory: (id: string, body: Record<string, unknown>) => request<{id: string; version: number}>(`/daily-history/categories/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteExpenseCategory: (id: string, version: number) => request<{id: string; version: number}>(`/daily-history/categories/${id}?expected_version=${version}`, { method: "DELETE" }),
   university: () => request<UniversityData>("/university"),
   universityWeek: (weekStart: string) => request<Entry[]>(`/university/week?week_start=${encodeURIComponent(weekStart)}`),
   academicCreate: (kind: UniversityKind, data: Record<string, unknown>) => request<{id: string; version: number}>(`/university/${kind}`, { method: "POST", body: JSON.stringify({ data }) }),

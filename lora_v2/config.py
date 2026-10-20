@@ -21,6 +21,8 @@ class Settings:
     icloud_app_password: str = ""
     apple_reminders_list: str = "Lora v2"
     apple_sync_enabled: bool = False
+    apple_calendar_name: str = "Lora v2 Calendar"
+    apple_events_enabled: bool = False
     media_dir: str = "lora_v2/media"
     ollama_vision_model: str = "moondream"
     whisper_model: str = "base"
@@ -52,6 +54,8 @@ class Settings:
             icloud_app_password=os.getenv("ICLOUD_APP_PASSWORD", ""),
             apple_reminders_list=os.getenv("LORA_V2_APPLE_REMINDERS_LIST", "Lora v2"),
             apple_sync_enabled=os.getenv("LORA_V2_APPLE_SYNC_ENABLED", "false").lower() == "true",
+            apple_calendar_name=os.getenv("LORA_V2_APPLE_CALENDAR_NAME", "Lora v2 Calendar"),
+            apple_events_enabled=os.getenv("LORA_V2_APPLE_EVENTS_ENABLED", "false").lower() == "true",
             media_dir=os.getenv("LORA_V2_MEDIA_DIR", "lora_v2/media"),
             ollama_vision_model=os.getenv("LORA_V2_VISION_MODEL", "moondream"),
             whisper_model=os.getenv("LORA_V2_WHISPER_MODEL", "base"),

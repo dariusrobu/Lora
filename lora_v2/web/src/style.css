@@ -63,3 +63,15 @@
 .income-form { display:grid; gap:10px; margin-top:15px; }
 .income-form label { display:grid; gap:5px; color:#625d76; font-size:13px; }
 .income-form input { border:1px solid #ddd8e9; border-radius:10px; padding:10px; background:rgba(255,255,255,.7); }
+.daily-history>summary,.history-subsection>summary{cursor:pointer;list-style:none;color:#302c42;font-weight:700}
+.daily-history>summary::-webkit-details-marker,.history-subsection>summary::-webkit-details-marker{display:none}
+.daily-history[open]>summary{margin-bottom:20px}
+.daily-history h3{font-size:15px;margin:22px 0 9px;color:#50476d}
+.daily-history .simple-row span:first-child{min-width:0;overflow:hidden}
+.daily-history .simple-row small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:65vw}
+.daily-history .text-action{display:inline-flex;align-items:center;gap:5px;margin:8px 12px 8px 0}
+.history-subsection{margin-top:16px;padding-top:14px;border-top:1px solid #eeeaf4}
+.history-form{display:grid;gap:11px;margin:15px 0;padding:15px;border:1px solid #eeeaf4;border-radius:15px;background:rgba(255,255,255,.48)}
+.history-form label{display:grid;gap:5px;color:#625d76;font-size:13px}
+.history-form input,.history-form textarea{width:100%;min-width:0;border:1px solid #ddd8e9;border-radius:11px;padding:10px;background:rgba(255,255,255,.75);color:#302c42}
+.history-form textarea{min-height:90px;resize:vertical;line-height:1.45}

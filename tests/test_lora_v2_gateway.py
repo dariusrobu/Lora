@@ -47,3 +47,20 @@ async def test_gateway_routes_only_v2_paths(tmp_path: Path) -> None:
             async with client.post("/api/v2/captures/photo", data=photo) as response:
                 assert response.status == 200
                 assert await response.text() == f"v2-photo:{len(photo)}"
+
+
+@pytest.mark.asyncio
+async def test_full_cutover_routes_root_and_rejects_legacy_writes(tmp_path: Path) -> None:
+    async def handler(request: web.Request) -> web.Response:
+        return web.Response(text='v2:' + request.path)
+    app = web.Application()
+    app.router.add_route('*', '/{tail:.*}', handler)
+    async with TestServer(app) as v2:
+        gateway = create_gateway('http://127.0.0.1:1', str(v2.make_url('/')), tmp_path, full_v2=True)
+        async with TestClient(TestServer(gateway)) as client:
+            for path in ('/', '/v2'):
+                response = await client.get(path)
+                assert response.status == 200
+                assert await response.text() == 'v2:/'
+            response = await client.post('/api/tasks', json={'title': 'Must not write legacy'})
+            assert response.status == 410

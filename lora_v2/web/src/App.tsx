@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Dumbbell, GraduationCap, HeartPulse, House, Pencil, Plus, Send, Sparkles, Trash2, Wallet, X } from "lucide-react"
-import { api, telegram, type AppleConflict, type AppleConflictDetail, type CaptureStatus, type Entry, type Journal, type Project, type Proposal, type Task, type Today } from "./api"
+import { Bell, CalendarDays, Check, ChevronLeft, ChevronRight, Dumbbell, GraduationCap, HeartPulse, House, Pencil, Plus, Sparkles, Trash2, Wallet, X } from "lucide-react"
+import { api, telegram, type AppleConflict, type AppleConflictDetail, type AppleEventConflict, type Entry, type Journal, type ObsidianConflict, type Project, type Proposal, type Task, type Today } from "./api"
 import UniversityPanel from "./UniversityPanel"
 import IncomePanel from "./IncomePanel"
 import MealPanel from "./MealPanel"
+import DailyHistoryPanel from "./DailyHistoryPanel"
 
 type Tab = "today" | "calendar" | "projects" | "journal" | "university"
 type FormKind = "task" | "project" | "event" | "reminder" | "expense" | "workout" | "meal" | "health" | null
@@ -32,8 +33,6 @@ function Empty({ children }: { children: string }) { return <p className="empty"
 export default function App() {
   const [tab, setTab] = useState<Tab>("today")
   const [form, setForm] = useState<FormKind>(null)
-  const [captureText, setCaptureText] = useState("")
-  const [captureProgress, setCaptureProgress] = useState<CaptureStatus | null>(null)
   const [status, setStatus] = useState("")
   const [error, setError] = useState("")
   const [busy, setBusy] = useState(false)
@@ -47,6 +46,11 @@ export default function App() {
   const [journal, setJournal] = useState<Journal | null>(null)
   const [proposals, setProposals] = useState<Proposal[]>([])
   const [appleConflicts, setAppleConflicts] = useState<AppleConflict[]>([])
+  const [obsidianConflicts, setObsidianConflicts] = useState<ObsidianConflict[]>([])
+  const [appleEventConflicts, setAppleEventConflicts] = useState<AppleEventConflict[]>([])
+  const [showExpenseHistory, setShowExpenseHistory] = useState(false)
+  const [showWorkoutHistory, setShowWorkoutHistory] = useState(false)
+  const [showHealthHistory, setShowHealthHistory] = useState(false)
   const [openAppleConflict, setOpenAppleConflict] = useState<{ id: string; detail: AppleConflictDetail } | null>(null)
   const [fields, setFields] = useState<Record<string, string>>({})
   const [editing, setEditing] = useState<{ kind: string; id: string; version: number } | null>(null)
@@ -57,34 +61,17 @@ export default function App() {
     if (!telegram?.initData) return
     try {
       const [start, end] = monthBounds(month)
-      const [todayData, calendarData, projectsData, tasksData, journalData, proposalData, conflictData] = await Promise.all([
-        api.today(), api.calendar(start, end), api.projects(), api.tasks(), api.journal(), api.proposals(), api.appleConflicts(),
+      const [todayData, calendarData, projectsData, tasksData, journalData, proposalData, conflictData, obsidianConflictData, eventConflictData] = await Promise.all([
+        api.today(), api.calendar(start, end), api.projects(), api.tasks(), api.journal(), api.proposals(), api.appleConflicts(), api.obsidianConflicts(), api.appleEventConflicts(),
       ])
-      setToday(todayData); setEntries(calendarData); setProjects(projectsData); setTasks(tasksData); setJournal(journalData); setProposals(proposalData); setAppleConflicts(conflictData)
+      setToday(todayData); setEntries(calendarData); setProjects(projectsData); setTasks(tasksData); setJournal(journalData); setProposals(proposalData); setAppleConflicts(conflictData); setObsidianConflicts(obsidianConflictData); setAppleEventConflicts(eventConflictData)
       setError("")
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut încărca datele.") }
   }, [month])
 
   useEffect(() => { void reload() }, [reload])
   useEffect(() => { if (!telegram?.initData) return; const timer = window.setInterval(() => void reload(), 15000); return () => window.clearInterval(timer) }, [reload])
-  useEffect(() => {
-    const id = captureProgress?.id
-    if (!id || (captureProgress?.receipt && ["processed", "needs_input"].includes(captureProgress.status))) return
-    let active = true
-    const check = async () => {
-      try {
-        const latest = await api.captureStatus(id)
-        if (!active) return
-        setCaptureProgress(current => current?.id === id ? latest : current)
-        if (latest.receipt && ["processed", "needs_input"].includes(latest.status)) await reload()
-      } catch (cause) {
-        if (active) setError(cause instanceof Error ? cause.message : "Nu am putut verifica mesajul.")
-      }
-    }
-    void check()
-    const timer = window.setInterval(() => void check(), 5000)
-    return () => { active = false; window.clearInterval(timer) }
-  }, [captureProgress?.id, captureProgress?.status, captureProgress?.receipt, reload])
+
 
   async function decide(id: string, accept: boolean) {
     setBusy(true); setError("")
@@ -119,6 +106,24 @@ export default function App() {
       const result = await api.resolveAppleConflict(id, choice)
       setStatus(result.message); setOpenAppleConflict(null); await reload()
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut rezolva conflictul.") }
+    finally { setBusy(false) }
+  }
+
+  async function resolveObsidian(item: ObsidianConflict, choice: "keep_lora" | "use_obsidian") {
+    setBusy(true); setError("")
+    try {
+      const result = await api.resolveObsidianConflict(item.entity_id, item.version, item.file_revision, choice)
+      setStatus(result.message); await reload()
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut rezolva conflictul de orar.") }
+    finally { setBusy(false) }
+  }
+
+  async function resolveAppleEvent(item: AppleEventConflict, choice: "keep_lora" | "use_apple") {
+    setBusy(true); setError("")
+    try {
+      const result = await api.resolveAppleEventConflict(item.entity_id, item.local_version, choice)
+      setStatus(result.message); await reload()
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut rezolva conflictul din calendar.") }
     finally { setBusy(false) }
   }
 
@@ -173,28 +178,6 @@ export default function App() {
       const result = await api.remove(kind, id, version)
       setStatus(result.message); await reload()
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut șterge.") }
-    finally { setBusy(false) }
-  }
-
-  async function sendCapture() {
-    if (!captureText.trim()) return
-    setBusy(true); setError("")
-    try {
-      const captured = await api.capture(captureText.trim())
-      setCaptureText("")
-      setCaptureProgress({ id: captured.id, status: "captured", receipt: null })
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut păstra mesajul.") }
-    finally { setBusy(false) }
-  }
-
-  async function sendPhoto(file: File | undefined) {
-    if (!file) return
-    setBusy(true); setError("")
-    try {
-      const captured = await api.photo(file, captureText.trim())
-      setCaptureText("")
-      setCaptureProgress({ id: captured.id, status: "captured", receipt: null })
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut păstra fotografia.") }
     finally { setBusy(false) }
   }
 
@@ -264,13 +247,10 @@ export default function App() {
         {error && <div className="error" role="alert">{error} <button onClick={() => void reload()}>Reîncearcă</button></div>}
 
         {tab === "today" && <>
+          {obsidianConflicts.length > 0 && <section className="glass section-card"><div className="section-title"><GraduationCap size={18} /><h2>Orar de verificat</h2></div>{obsidianConflicts.map(item => <div className="proposal-row" key={item.entity_id}><p><strong>{item.title}</strong></p><p>Lora: {(["luni", "marți", "miercuri", "joi", "vineri", "sâmbătă", "duminică"][item.day_of_week] || `ziua ${item.day_of_week}`)}, {item.start_time.slice(0, 5)}–{item.end_time.slice(0, 5)}{item.room ? ` · sala ${item.room}` : ""}</p><p>Obsidian: {(["luni", "marți", "miercuri", "joi", "vineri", "sâmbătă", "duminică"][item.file_fields.day_of_week] || `ziua ${item.file_fields.day_of_week}`)}, {item.file_fields.start_time?.slice(0, 5)}–{item.file_fields.end_time?.slice(0, 5)}{item.file_fields.room ? ` · sala ${item.file_fields.room}` : ""}</p><div className="inline-actions"><button disabled={busy} onClick={() => void resolveObsidian(item, "keep_lora")}>Păstrează Lora</button><button disabled={busy} onClick={() => void resolveObsidian(item, "use_obsidian")}>Preia Obsidian</button></div></div>)}</section>}
+          {appleEventConflicts.length > 0 && <section className="glass section-card"><div className="section-title"><CalendarDays size={18} /><h2>Evenimente de comparat</h2></div>{appleEventConflicts.map(item => <div className="proposal-row" key={item.entity_id}><p><strong>{item.title}</strong></p><p>Lora: {localDay(item.starts_at)} · {hour(item.starts_at)}{item.notes ? ` · ${item.notes}` : ""}</p><p>Apple Calendar: {item.apple?.unavailable ? "Temporar indisponibil" : item.apple ? `${item.apple.title || "Fără titlu"}${item.apple.starts_at ? ` · ${localDay(item.apple.starts_at)} ${hour(item.apple.starts_at)}` : ""}${item.apple.notes ? ` · ${item.apple.notes}` : ""}` : "eveniment șters"}</p><div className="inline-actions"><button disabled={busy || item.apple?.unavailable} onClick={() => void resolveAppleEvent(item, "keep_lora")}>Păstrează Lora</button><button disabled={busy || item.apple?.unavailable} onClick={() => void resolveAppleEvent(item, "use_apple")}>Preia Apple</button></div></div>)}</section>}
           {appleConflicts.length > 0 && <section className="glass section-card"><div className="section-title"><Bell size={18} /><h2>Modificări de comparat</h2></div>{appleConflicts.map(conflict => <div className="proposal-row" key={conflict.id}><p>Apple Reminders și Lora au versiuni diferite pentru „{conflict.local_title || "un element"}”.</p><button className="text-action" disabled={busy} onClick={() => void inspectAppleConflict(conflict.id)}>Compară versiunile</button>{openAppleConflict?.id === conflict.id && <div className="conflict-detail"><p><strong>Lora:</strong> {openAppleConflict.detail.local?.title || "element indisponibil"}{openAppleConflict.detail.local?.at ? ` · ${localDay(openAppleConflict.detail.local.at)} ${hour(openAppleConflict.detail.local.at)}` : ""}</p><p><strong>Apple:</strong> {openAppleConflict.detail.apple_deleted ? "element șters" : `${openAppleConflict.detail.apple?.title || ""}${openAppleConflict.detail.apple?.at ? ` · ${localDay(openAppleConflict.detail.apple.at)} ${hour(openAppleConflict.detail.apple.at)}` : ""}`}</p><div className="inline-actions"><button disabled={busy} onClick={() => void resolveApple(conflict.id, "keep_local")}>Păstrează Lora</button><button disabled={busy} onClick={() => void resolveApple(conflict.id, "use_apple")}>Preia Apple</button></div></div>}</div>)}</section>}
           {proposals.length > 0 && <section className="glass section-card"><div className="section-title"><Sparkles size={18} /><h2>De decis</h2></div>{proposals.map(proposal => <div className="proposal-row" key={proposal.id}><p>{proposal.reason}</p><div className="inline-actions">{proposal.source.startsWith("followup:") ? <><button disabled={busy} onClick={() => void decideFollowup(proposal.id, "done")}>Am făcut</button><button disabled={busy} onClick={() => void decideFollowup(proposal.id, "tomorrow")}>Mută pe mâine</button></> : <><button disabled={busy} onClick={() => void decide(proposal.id, true)}>Da, fă asta</button><button disabled={busy} onClick={() => void decide(proposal.id, false)}>Nu acum</button></>}</div></div>)}</section>}
-          <section className="glass capture-panel">
-            <div className="section-title"><Sparkles size={18} /><h2>Spune-i Lorei</h2></div>
-            <div className="capture-row"><textarea aria-label="Ce vrei să rețină Lora?" placeholder="De exemplu: mâine sun administratorul, azi am cheltuit 15 lei la cantină…" value={captureText} onChange={event => setCaptureText(event.target.value)} rows={2} /><label className="photo-action" aria-label="Adaugă fotografie cu mâncarea"><Camera size={19} /><input type="file" accept="image/*" capture="environment" disabled={busy} onChange={event => { void sendPhoto(event.target.files?.[0]); event.target.value = "" }} /></label><button className="circle-action" aria-label="Trimite către Lora" disabled={busy || !captureText.trim()} onClick={() => void sendCapture()}><Send size={19} /></button></div>
-            {captureProgress && <div className="capture-result" role="status" aria-live="polite"><p>{captureProgress.receipt || (captureProgress.status === "failed" ? "Nu am putut procesa mesajul încă. Reîncerc automat." : captureProgress.status === "processed" || captureProgress.status === "needs_input" ? "Pregătesc răspunsul…" : "Lora procesează mesajul…")}</p><button type="button" aria-label="Închide rezultatul" onClick={() => setCaptureProgress(null)}><X size={16} /></button></div>}
-          </section>
           <div className="quick-actions"><button onClick={() => setForm("task")}><Plus size={16} /> Task</button><button onClick={() => setForm("reminder")}><Bell size={16} /> Reminder</button><button onClick={() => setForm("expense")}><Wallet size={16} /> Cheltuială</button></div>
           <div className="two-column">
             <section className="glass section-card"><div className="section-title"><CalendarDays size={19} /><h2>Ce urmează</h2></div>{!today ? <Empty>Se încarcă programul…</Empty> : today.entries.length ? today.entries.map(item => <EntryRow key={item.id} entry={item} done={item.kind === "reminder" ? () => void act("complete_entry", { entry_id: item.id, expected_version: item.version }) : undefined} edit={() => void openEdit("calendar_entry",item.id)} remove={() => void remove("calendar_entry",item.id,item.version)} />) : <Empty>Ziua este liberă. Adaugă ce contează.</Empty>}</section>
@@ -292,9 +272,10 @@ export default function App() {
 
         {tab === "projects" && <section className="glass section-card"><div className="section-title"><Check size={19} /><h2>Taskuri pe proiecte</h2></div>{projects.map(project => <div className="project-group" key={project.id}><div className="group-head"><h3>{project.name}</h3><button aria-label={`Editează proiectul ${project.name}`} onClick={() => void openEdit("project",project.id)}><Pencil size={14} /></button><button aria-label={`Șterge proiectul ${project.name}`} onClick={() => void remove("project",project.id,project.version)}><Trash2 size={14} /></button></div>{tasks.filter(task => task.project_id === project.id && task.status === "pending").map(task => <TaskRow key={task.id} task={task} done={() => void act("complete_task", { task_id: task.id, expected_version: task.version })} edit={() => void openEdit("task",task.id)} remove={() => void remove("task",task.id,task.version)} />)}</div>)}<div className="project-group"><h3>Fără proiect</h3>{tasks.filter(task => !task.project_id && task.status === "pending").map(task => <TaskRow key={task.id} task={task} done={() => void act("complete_task", { task_id: task.id, expected_version: task.version })} edit={() => void openEdit("task",task.id)} remove={() => void remove("task",task.id,task.version)} />)}</div>{!tasks.length && <Empty>Nu ai încă taskuri.</Empty>}<div className="inline-actions"><button onClick={() => setForm("task")}><Plus size={16} /> Task</button><button onClick={() => setForm("project")}><Plus size={16} /> Proiect</button></div></section>}
 
-        {tab === "journal" && <div className="journal-grid"><section className="glass section-card"><div className="section-title"><Wallet size={19} /><h2>Cheltuieli</h2></div>{journal?.expenses.length ? journal.expenses.slice(0, 8).map(item => <div className="simple-row" key={item.id}><span><strong>{item.merchant || item.description || item.category}</strong><small>{item.category} · {localDay(item.spent_at)}</small></span><b>{item.amount} {item.currency}</b><RowActions edit={() => void openEdit("expense",item.id)} remove={() => void remove("expense",item.id,item.version)} /></div>) : <Empty>Nicio cheltuială încă.</Empty>}<button className="text-action" onClick={() => setForm("expense")}>+ Adaugă cheltuială</button></section><MealPanel meals={journal?.meals || []} onAdd={() => { setFields({}); setEditing(null); setMealItems([blankMealItem()]); setForm("meal") }} onEdit={id => void openEdit("meal", id)} onRemove={(id, version) => void remove("meal", id, version)} /><section className="glass section-card"><div className="section-title"><Dumbbell size={19} /><h2>Antrenamente</h2></div>{journal?.workouts.length ? journal.workouts.slice(0, 8).map(item => <div className="simple-row" key={item.id}><span><strong>{item.activity}</strong><small>{localDay(item.started_at)}</small></span><b>{item.duration_minutes} min</b><RowActions edit={() => void openEdit("workout",item.id)} remove={() => void remove("workout",item.id,item.version)} /></div>) : <Empty>Niciun antrenament încă.</Empty>}<button className="text-action" onClick={() => {setExercises([]);setForm("workout")}}>+ Adaugă antrenament</button></section><section className="glass section-card"><div className="section-title"><HeartPulse size={19} /><h2>Sănătate</h2></div>{journal?.health.length ? journal.health.slice(0, 8).map(item => <div className="simple-row" key={item.id}><span><strong>{item.log_date}</strong><small>{[item.sleep_hours ? `${item.sleep_hours}h somn` : "", item.water_ml ? `${item.water_ml} ml apă` : "", item.weight_kg ? `${item.weight_kg} kg` : ""].filter(Boolean).join(" · ") || item.notes || "Jurnal sănătate"}</small></span><RowActions edit={() => void openEdit("health",item.id)} remove={() => void remove("health",item.id,item.version)} /></div>) : <Empty>Nu ai înregistrări de sănătate.</Empty>}<button className="text-action" onClick={() => {setFields({healthDate:isoLocalDate(new Date())});setEditing(null);setForm("health")}}>+ Adaugă sănătate</button></section></div>}
+        {tab === "journal" && <div className="journal-grid"><section className="glass section-card"><div className="section-title"><Wallet size={19} /><h2>Cheltuieli</h2></div>{journal?.expenses.length ? ( showExpenseHistory ? journal.expenses : journal.expenses.slice(0, 8) ).map(item => <div className="simple-row" key={item.id}><span><strong>{item.merchant || item.description || item.category}</strong><small>{item.category} · {localDay(item.spent_at)}</small></span><b>{item.amount} {item.currency}</b><RowActions edit={() => void openEdit("expense",item.id)} remove={() => void remove("expense",item.id,item.version)} /></div>) : <Empty>Nicio cheltuială încă.</Empty>}{(journal?.expenses.length || 0) > 8 && <button className="text-action" onClick={() => setShowExpenseHistory(!showExpenseHistory)}>{showExpenseHistory ? "Arată mai puține" : `Vezi toate (${journal?.expenses.length})`}</button>}<button className="text-action" onClick={() => setForm("expense")}>+ Adaugă cheltuială</button></section><MealPanel meals={journal?.meals || []} onAdd={() => { setFields({}); setEditing(null); setMealItems([blankMealItem()]); setForm("meal") }} onEdit={id => void openEdit("meal", id)} onRemove={(id, version) => void remove("meal", id, version)} /><section className="glass section-card"><div className="section-title"><Dumbbell size={19} /><h2>Antrenamente</h2></div>{journal?.workouts.length ? ( showWorkoutHistory ? journal.workouts : journal.workouts.slice(0, 8) ).map(item => <div className="simple-row" key={item.id}><span><strong>{item.activity}</strong><small>{localDay(item.started_at)}</small></span><b>{item.duration_minutes} min</b><RowActions edit={() => void openEdit("workout",item.id)} remove={() => void remove("workout",item.id,item.version)} /></div>) : <Empty>Niciun antrenament încă.</Empty>}{(journal?.workouts.length || 0) > 8 && <button className="text-action" onClick={() => setShowWorkoutHistory(!showWorkoutHistory)}>{showWorkoutHistory ? "Arată mai puține" : `Vezi toate (${journal?.workouts.length})`}</button>}<button className="text-action" onClick={() => {setExercises([]);setForm("workout")}}>+ Adaugă antrenament</button></section><section className="glass section-card"><div className="section-title"><HeartPulse size={19} /><h2>Sănătate</h2></div>{journal?.health.length ? ( showHealthHistory ? journal.health : journal.health.slice(0, 8) ).map(item => <div className="simple-row" key={item.id}><span><strong>{item.log_date}</strong><small>{[item.sleep_hours ? `${item.sleep_hours}h somn` : "", item.water_ml ? `${item.water_ml} ml apă` : "", item.weight_kg ? `${item.weight_kg} kg` : ""].filter(Boolean).join(" · ") || item.notes || "Jurnal sănătate"}</small></span><RowActions edit={() => void openEdit("health",item.id)} remove={() => void remove("health",item.id,item.version)} /></div>) : <Empty>Nu ai înregistrări de sănătate.</Empty>}{(journal?.health.length || 0) > 8 && <button className="text-action" onClick={() => setShowHealthHistory(!showHealthHistory)}>{showHealthHistory ? "Arată mai puține" : `Vezi toate (${journal?.health.length})`}</button>}<button className="text-action" onClick={() => {setFields({healthDate:isoLocalDate(new Date())});setEditing(null);setForm("health")}}>+ Adaugă sănătate</button></section></div>}
 
         {tab === "journal" && <IncomePanel />}
+        {tab === "journal" && <DailyHistoryPanel />}
         {tab === "university" && <UniversityPanel />}
 
         {form && <form className="glass inline-form" onSubmit={event => void submitForm(event)}><div className="section-title"><Plus size={18} /><h2>{editing ? "Editează" : ({ task: "Task nou", project: "Proiect nou", event: "Eveniment nou", reminder: "Reminder nou", expense: "Cheltuială nouă", workout: "Antrenament nou", meal: "Masă nouă", health: "Sănătate" } as const)[form]}</h2><button className="close-form" type="button" aria-label="Închide formularul" onClick={() => {setForm(null);setEditing(null)}}><X size={18} /></button></div>

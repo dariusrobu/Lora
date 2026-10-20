@@ -11,6 +11,27 @@ from lora_v2.config import Settings
 from lora_v2.models import Command
 
 
+async def expire_stale_proposals(conn: asyncpg.Connection, owner_id: int) -> int:
+    """Withdraw suggestions whose source reminder changed or disappeared."""
+    result = await conn.execute(
+        """UPDATE proposals p SET status='expired'
+        WHERE p.owner_id=$1 AND p.status='pending' AND (
+            p.expires_at<=now() OR (
+                p.command->>'type' IN ('reschedule_entry','complete_entry')
+                AND NOT EXISTS (
+                    SELECT 1 FROM calendar_entries e
+                    WHERE e.owner_id=p.owner_id
+                      AND e.id::text=p.command->'data'->>'entry_id'
+                      AND e.status='active'
+                      AND e.version::text=p.command->'data'->>'expected_version'
+                )
+            )
+        )""",
+        owner_id,
+    )
+    return int(result.split()[-1])
+
+
 async def _propose(
     conn: asyncpg.Connection,
     owner_id: int,
@@ -49,6 +70,7 @@ async def generate_proposals(
     created = 0
     async with pool.acquire() as conn:
         async with conn.transaction():
+            await expire_stale_proposals(conn, owner_id)
             followups = await conn.fetch(
                 """SELECT id,title,starts_at,version FROM calendar_entries
                 WHERE owner_id=$1 AND status='active' AND followup_at <= $2
@@ -106,6 +128,7 @@ async def decide_proposal(
     from lora_v2.service import execute_command
 
     async with pool.acquire() as conn:
+        await expire_stale_proposals(conn, owner_id)
         row = await conn.fetchrow(
             "SELECT command,status,expires_at FROM proposals WHERE id=$1 AND owner_id=$2",
             proposal_id, owner_id,
@@ -150,6 +173,7 @@ async def decide_followup(
     if choice not in {"done", "tomorrow"}:
         raise ValueError("Unknown follow-up choice")
     async with pool.acquire() as conn:
+        await expire_stale_proposals(conn, owner_id)
         row = await conn.fetchrow(
             "SELECT source,command,status,expires_at FROM proposals WHERE id=$1 AND owner_id=$2",
             proposal_id, owner_id,

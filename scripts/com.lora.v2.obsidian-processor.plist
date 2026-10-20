@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lora.v2.obsidian-processor</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/robu/Lora/.venv/bin/python</string>
+        <string>-m</string>
+        <string>lora_v2.run_obsidian_processor</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/robu/Lora</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/robu/Lora/logs/lora-v2-obsidian-processor.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/robu/Lora/logs/lora-v2-obsidian-processor.stderr.log</string>
+</dict>
+</plist>

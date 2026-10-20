@@ -7,6 +7,7 @@ from lora_v2.config import Settings
 from lora_v2.media import save_photo, save_voice
 from lora_v2.queries import answer_read_intent, read_intent
 from lora_v2.service import capture
+from lora_v2.notifications import queue_reply
 
 
 async def handle_owner_message(
@@ -23,7 +24,7 @@ async def handle_owner_message(
     if message.text:
         intent = read_intent(message.text)
         if intent:
-            await message.reply_text(await answer_read_intent(
+            await queue_reply(pool, settings.telegram_user_id, str(update.update_id), await answer_read_intent(
                 pool, settings, settings.telegram_user_id, intent,
             ))
             return True
@@ -40,13 +41,13 @@ async def handle_owner_message(
         elif not message_text:
             return False
     except (ValueError, OSError):
-        await message.reply_text("Nu pot citi fișierul. Trimite o fotografie sau un mesaj vocal mai mic.")
+        await queue_reply(pool, settings.telegram_user_id, str(update.update_id), "Nu pot citi fișierul. Trimite o fotografie sau un mesaj vocal mai mic.")
         return True
     row = await capture(
         pool, settings.telegram_user_id, "telegram", str(update.update_id),
         message_text, content_type=content_type, attachment_ref=attachment_ref,
     )
-    await message.reply_text(
+    await queue_reply(pool, settings.telegram_user_id, str(update.update_id),
         "Am păstrat mesajul. Îl procesez acum…" if row["status"] == "captured"
         else "Mesajul acesta este deja înregistrat."
     )

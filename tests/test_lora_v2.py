@@ -265,6 +265,50 @@ async def test_worker_materializes_academic_conflict_without_opening_mini_app():
 
 
 @pytest.mark.asyncio
+async def test_deleted_reminder_withdraws_unsent_proposal():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Requires isolated database")
+    owner = uuid.uuid4().int % 1000000000
+    settings = Settings(database_url=url, telegram_bot_token="test", telegram_user_id=owner)
+    pool = await create_pool(settings)
+    try:
+        await migrate(pool)
+        from datetime import timedelta
+        local = ZoneInfo(settings.timezone)
+        tomorrow = (datetime.now(local) + timedelta(days=1)).date()
+        monday = tomorrow - timedelta(days=tomorrow.weekday())
+        await set_semester(pool, owner, monday, monday + timedelta(days=60), None)
+        await write_academic(pool, owner, "schedule", {
+            "title": "Curs", "day_of_week": tomorrow.weekday(),
+            "start_time": "12:00", "end_time": "14:00",
+        })
+        at = datetime.combine(tomorrow, datetime.min.time(), local).replace(hour=12, minute=30)
+        reminder = await execute_command(pool, settings, owner, Command(type="create_calendar_entry", data={
+            "kind": "reminder", "title": "Test temporar", "starts_at": at.isoformat(),
+        }), str(uuid.uuid4()))
+        await materialize_schedule(pool, settings, owner, start=tomorrow, days=1)
+        assert await generate_proposals(pool, settings, owner) == 1
+        proposal_id = await pool.fetchval(
+            "SELECT id FROM proposals WHERE owner_id=$1 AND status='pending'", owner,
+        )
+        deleted = await delete_entity(pool, owner, "calendar_entry", uuid.UUID(reminder.entity_id), 1)
+        assert deleted.status == "saved"
+        assert await generate_proposals(pool, settings, owner) == 0
+        assert await pool.fetchval("SELECT status FROM proposals WHERE id=$1", proposal_id) == "expired"
+        sent = []
+
+        class FakeBot:
+            async def send_message(self, **kwargs):
+                sent.append(kwargs)
+
+        await send_pending_telegram(pool, FakeBot(), owner)
+        assert not any("suprapune" in message["text"] for message in sent)
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
 async def test_approximate_noon_reminder_proposes_free_time_after_classes():
     url = os.getenv("LORA_V2_TEST_DATABASE_URL")
     if not url:

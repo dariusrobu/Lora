@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 from aiohttp import ClientSession, ClientTimeout, web
+from dotenv import load_dotenv
 
 
 HOP_HEADERS = frozenset(
@@ -16,6 +17,7 @@ def create_gateway(
     legacy_url: str = "http://127.0.0.1:8083",
     v2_url: str = "http://127.0.0.1:8092",
     v2_assets: Path | None = None,
+    full_v2: bool = False,
 ) -> web.Application:
     assets = v2_assets or Path(__file__).resolve().parent / "web" / "dist" / "assets"
 
@@ -33,7 +35,9 @@ def create_gateway(
             and "/" not in path[len("/assets/"):]
             and (assets / path[len("/assets/"):]).is_file()
         )
-        use_v2 = is_v2_page or is_v2_api or is_v2_asset
+        if full_v2 and path.startswith("/api/") and not is_v2_api:
+            return web.json_response({"error": "Această rută a fost înlocuită. Redeschide Lora."}, status=410)
+        use_v2 = full_v2 or is_v2_page or is_v2_api or is_v2_asset
         upstream_path = path[3:] or "/" if is_v2_page else path
         target = (v2_url if use_v2 else legacy_url).rstrip("/") + upstream_path
         if request.query_string:
@@ -60,8 +64,9 @@ def create_gateway(
 
 
 def main() -> None:
+    load_dotenv()
     port = int(os.getenv("LORA_V2_GATEWAY_PORT", "8093"))
-    web.run_app(create_gateway(), host="127.0.0.1", port=port)
+    web.run_app(create_gateway(full_v2=os.getenv("LORA_V2_FULL_CUTOVER", "false").lower() == "true"), host="127.0.0.1", port=port)
 
 
 if __name__ == "__main__":

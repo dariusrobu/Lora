@@ -14,8 +14,9 @@ check() {
 }
 
 current="$(check ollama http://127.0.0.1:11434/api/tags)
-$(check api http://127.0.0.1:8090/api/health)
-$(check bot http://127.0.0.1:8083/health)"
+$(check api http://127.0.0.1:8092/health)
+$(check gateway http://127.0.0.1:8093/health)
+$(if launchctl print "gui/$(id -u)/com.lora.v2.bot" 2>/dev/null | /usr/bin/grep -q "state = running"; then print "bot=ok"; else print "bot=down"; fi)"
 previous="$(cat "$STATE_FILE" 2>/dev/null || true)"
 timestamp="$(date '+%Y-%m-%d %H:%M:%S %z')"
 
