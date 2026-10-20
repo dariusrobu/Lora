@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
 import { Pencil, Plus, Trash2 } from "lucide-react"
-import { api, type DailyHistory, type DayPlan, type ExpenseCategory, type Reflection } from "./api"
+import { api, type DailyHistory, type DayPlan, type ExpenseCategory, type MerchantRule, type Reflection } from "./api"
 
-type Editor = { kind: "reflection" | "plan" | "category"; id?: string; version?: number }
+type Editor = { kind: "reflection" | "plan" | "category" | "rule"; id?: string; version?: number }
 type Fields = Record<string, string>
 const today = () => new Date().toLocaleDateString("en-CA")
 
@@ -31,6 +31,11 @@ export default function DailyHistoryPanel() {
     setFields({ name: item?.name || "", icon: item?.icon || "", keywords: item?.keywords.join(", ") || "" })
   }
 
+  function openRule(item?: MerchantRule) {
+    setEditor({ kind: "rule", id: item?.merchant_key, version: item?.version })
+    setFields({ merchant_key: item?.merchant_key || "", category: item?.category || data?.categories.find(category => category.is_active)?.name || "" })
+  }
+
   async function save(event: React.FormEvent) {
     event.preventDefault()
     if (!editor) return
@@ -44,10 +49,14 @@ export default function DailyHistoryPanel() {
         const body = { plan_date: fields.date, user_input: fields.input || null, itinerary: fields.itinerary || null, wake_time: fields.wake || null, expected_version: editor.version }
         if (editor.id) await api.editPlan(editor.id, body)
         else await api.createPlan(body)
-      } else {
+      } else if (editor.kind === "category") {
         const body = { name: fields.name.trim(), icon: fields.icon || null, keywords: fields.keywords.split(",").map(word => word.trim()).filter(Boolean), is_active: true, expected_version: editor.version }
         if (editor.id) await api.editExpenseCategory(editor.id, body)
         else await api.createExpenseCategory(body)
+      } else {
+        const body = { merchant_key: fields.merchant_key.trim(), category: fields.category, expected_version: editor.version }
+        if (editor.id) await api.editMerchantRule(body)
+        else await api.createMerchantRule(body)
       }
       setEditor(null); await load()
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut salva.") }
@@ -60,7 +69,8 @@ export default function DailyHistoryPanel() {
     try {
       if (kind === "reflection") await api.deleteReflection(id, version)
       else if (kind === "plan") await api.deletePlan(id, version)
-      else await api.deleteExpenseCategory(id, version)
+      else if (kind === "category") await api.deleteExpenseCategory(id, version)
+      else await api.deleteMerchantRule(id, version)
       await load()
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut șterge.") }
     finally { setBusy(false) }
@@ -108,12 +118,19 @@ export default function DailyHistoryPanel() {
       {data.categories.filter(item => item.is_active).map(item => <div className="simple-row" key={item.id}><span><strong>{item.icon} {item.name}</strong><small>{item.keywords.join(", ")}</small></span><span className="row-actions"><button aria-label={`Editează ${item.name}`} onClick={() => openCategory(item)}><Pencil size={14} /></button><button aria-label={`Dezactivează ${item.name}`} onClick={() => void remove("category", item.id, item.version)}><Trash2 size={14} /></button></span></div>)}
       <button className="text-action" onClick={() => openCategory()}><Plus size={14} /> Categorie</button>
 
+      <details className="history-subsection"><summary>Reguli pentru comercianți ({data.merchant_rules.length})</summary>
+        <p className="empty">Lora folosește aceste reguli când recunoaște un comerciant într-o cheltuială.</p>
+        {data.merchant_rules.map(item => <div className="simple-row" key={item.merchant_key}><span><strong>{item.merchant_key}</strong><small>{item.category}</small></span><span className="row-actions"><button aria-label={`Editează regula ${item.merchant_key}`} onClick={() => openRule(item)}><Pencil size={14} /></button><button aria-label={`Șterge regula ${item.merchant_key}`} onClick={() => void remove("rule", item.merchant_key, item.version)}><Trash2 size={14} /></button></span></div>)}
+        <button className="text-action" onClick={() => openRule()}><Plus size={14} /> Regulă</button>
+      </details>
+
       {editor && <form className="history-form" onSubmit={event => void save(event)}>
-        <strong>{editor.id ? "Editează" : "Adaugă"} {editor.kind === "reflection" ? "reflecție" : editor.kind === "plan" ? "plan" : "categorie"}</strong>
-        {editor.kind !== "category" && <label>Data<input type="date" required value={fields.date} onChange={event => setFields({ ...fields, date: event.target.value })} /></label>}
+        <strong>{editor.id ? "Editează" : "Adaugă"} {editor.kind === "reflection" ? "reflecție" : editor.kind === "plan" ? "plan" : editor.kind === "rule" ? "regulă" : "categorie"}</strong>
+        {(editor.kind === "reflection" || editor.kind === "plan") && <label>Data<input type="date" required value={fields.date} onChange={event => setFields({ ...fields, date: event.target.value })} /></label>}
         {editor.kind === "reflection" && <><label>Reflecție<textarea value={fields.text} onChange={event => setFields({ ...fields, text: event.target.value })} /></label><label>Stare<input value={fields.mood} onChange={event => setFields({ ...fields, mood: event.target.value })} /></label><label>Mâine contează<input value={fields.focus} onChange={event => setFields({ ...fields, focus: event.target.value })} /></label></>}
         {editor.kind === "plan" && <><label>Ce ai în plan<textarea value={fields.input} onChange={event => setFields({ ...fields, input: event.target.value })} /></label><label>Program<textarea value={fields.itinerary} onChange={event => setFields({ ...fields, itinerary: event.target.value })} /></label><label>Ora trezirii<input type="time" value={fields.wake} onChange={event => setFields({ ...fields, wake: event.target.value })} /></label></>}
         {editor.kind === "category" && <><label>Categorie<input required value={fields.name} onChange={event => setFields({ ...fields, name: event.target.value })} /></label><label>Icon<input value={fields.icon} onChange={event => setFields({ ...fields, icon: event.target.value })} /></label><label>Cuvinte asociate, separate prin virgulă<input value={fields.keywords} onChange={event => setFields({ ...fields, keywords: event.target.value })} /></label></>}
+        {editor.kind === "rule" && <><label>Comerciant<input required readOnly={Boolean(editor.id)} value={fields.merchant_key} onChange={event => setFields({ ...fields, merchant_key: event.target.value })} /></label><label>Categorie<select required value={fields.category} onChange={event => setFields({ ...fields, category: event.target.value })}>{data.categories.filter(item => item.is_active).map(item => <option key={item.id} value={item.name}>{item.name}</option>)}</select></label></>}
         <div className="inline-actions"><button type="submit" disabled={busy}>Salvează</button><button type="button" onClick={() => setEditor(null)}>Anulează</button></div>
       </form>}
 

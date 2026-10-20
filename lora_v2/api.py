@@ -115,6 +115,12 @@ class ExpenseCategoryRequest(BaseModel):
     expected_version: int | None = None
 
 
+class MerchantRuleRequest(BaseModel):
+    merchant_key: str = Field(min_length=1, max_length=120)
+    category: str = Field(min_length=1, max_length=100)
+    expected_version: int | None = None
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     config = settings or Settings.from_env()
 
@@ -156,6 +162,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 """SELECT id,name,icon,keywords,is_active,version FROM expense_categories
                 WHERE owner_id=$1 ORDER BY name""", owner_id,
             )
+            merchant_rules = await conn.fetch(
+                """SELECT merchant_key,category,version FROM expense_category_rules
+                WHERE owner_id=$1 ORDER BY merchant_key LIMIT 200""", owner_id,
+            )
             preferences = await conn.fetchrow(
                 'SELECT data,version FROM personal_preferences WHERE owner_id=$1', owner_id,
             )
@@ -167,6 +177,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             'reflections': [dict(row) for row in reflections],
             'plans': [dict(row) for row in plans],
             'categories': [dict(row) for row in categories],
+            'merchant_rules': [dict(row) for row in merchant_rules],
             'preferences': {'data': json.loads(preferences['data']), 'version': preferences['version']} if preferences else None,
             'nutrition_targets': dict(targets) if targets else None,
         }
@@ -341,6 +352,58 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         if not row:
             raise HTTPException(status_code=409, detail='Categoria a fost modificată între timp.')
+        return dict(row)
+
+    @app.post('/api/v2/daily-history/merchant-rules')
+    async def create_merchant_rule(body: MerchantRuleRequest, request: Request,
+                                   owner_id: int = Depends(auth)):
+        key = body.merchant_key.casefold().strip()
+        category = await request.app.state.pool.fetchval(
+            """SELECT name FROM expense_categories WHERE owner_id=$1 AND is_active=true
+            AND lower(name)=lower($2)""", owner_id, body.category.strip(),
+        )
+        if not key or not category:
+            raise HTTPException(status_code=422, detail='Alege un comerciant și o categorie activă.')
+        try:
+            row = await request.app.state.pool.fetchrow(
+                """INSERT INTO expense_category_rules(owner_id,merchant_key,category)
+                VALUES ($1,$2,$3) RETURNING merchant_key,category,version""",
+                owner_id, key, category,
+            )
+        except asyncpg.UniqueViolationError as exc:
+            raise HTTPException(status_code=409, detail='Există deja o regulă pentru comerciant.') from exc
+        return dict(row)
+
+    @app.put('/api/v2/daily-history/merchant-rules')
+    async def edit_merchant_rule(body: MerchantRuleRequest, request: Request,
+                                 owner_id: int = Depends(auth)):
+        category = await request.app.state.pool.fetchval(
+            """SELECT name FROM expense_categories WHERE owner_id=$1 AND is_active=true
+            AND lower(name)=lower($2)""", owner_id, body.category.strip(),
+        )
+        if not category or body.expected_version is None:
+            raise HTTPException(status_code=422, detail='Alege o categorie activă și versiunea regulii.')
+        row = await request.app.state.pool.fetchrow(
+            """UPDATE expense_category_rules SET category=$4,source_expense_id=NULL,
+            version=version+1,updated_at=now()
+            WHERE owner_id=$1 AND merchant_key=$2 AND version=$3
+            RETURNING merchant_key,category,version""",
+            owner_id, body.merchant_key.casefold().strip(), body.expected_version, category,
+        )
+        if not row:
+            raise HTTPException(status_code=409, detail='Regula a fost modificată între timp.')
+        return dict(row)
+
+    @app.delete('/api/v2/daily-history/merchant-rules')
+    async def delete_merchant_rule(merchant_key: str, expected_version: int, request: Request,
+                                   owner_id: int = Depends(auth)):
+        row = await request.app.state.pool.fetchrow(
+            """DELETE FROM expense_category_rules WHERE owner_id=$1 AND merchant_key=$2
+            AND version=$3 RETURNING merchant_key""",
+            owner_id, merchant_key.casefold().strip(), expected_version,
+        )
+        if not row:
+            raise HTTPException(status_code=409, detail='Regula a fost modificată între timp.')
         return dict(row)
 
     @app.get("/api/v2/obsidian/conflicts")

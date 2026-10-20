@@ -51,8 +51,12 @@ def extract_common(text: str, now: datetime, timezone: str) -> tuple[Interpretat
         day = _day(clause, local_now)
         if any(item.type == "create_calendar_entry" and item.kind == "reminder" for item in actions) and re.search(r"dacă nu|daca nu", source) and re.search(r"poimâine|poimaine", source):
             handled = True
-        if re.search(r"\b(?:meci|fotbal)\b", source) and day:
-            start = re.search(r"\b(?:de la|la ora|începe la|incepe la)\s*(\d{1,2})(?::(\d{2}))?\b", source)
+        match_event = re.search(r"\b(?:meci|fotbal)\b", source)
+        if match_event and day:
+            start = re.search(
+                r"\b(?:de la|la ora|începe la|incepe la|la)\s*(\d{1,2})(?::(\d{2}))?\b",
+                source[match_event.start():],
+            )
             if start:
                 hour, minute = int(start.group(1)), int(start.group(2) or 0)
                 if hour < 24 and minute < 60:

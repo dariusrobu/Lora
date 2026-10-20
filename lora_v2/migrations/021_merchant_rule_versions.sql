@@ -1,0 +1,2 @@
+ALTER TABLE expense_category_rules
+ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1;

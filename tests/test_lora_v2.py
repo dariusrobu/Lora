@@ -129,6 +129,19 @@ def test_compound_daily_message_uses_grounded_shortcuts():
     assert "12:00" in (result.actions[0].missing_information or "")
 
 
+def test_football_at_plain_hour_is_not_lost_or_mistaken_for_early_alert():
+    now = datetime(2026, 10, 14, 12, tzinfo=ZoneInfo('Europe/Bucharest'))
+    result, remaining = extract_common(
+        'Duminică am meci de fotbal la 20, amintește-mi la 19:30 și la 20:00.',
+        now, 'Europe/Bucharest',
+    )
+    assert remaining == ''
+    assert len(result.actions) == 1
+    assert result.actions[0].kind == 'event'
+    assert result.actions[0].starts_at == '2026-10-18T20:00:00+03:00'
+    assert result.actions[0].alert_offsets_minutes == [30, 0]
+
+
 def test_health_shortcuts_extract_water_and_weight():
     now = datetime(2026, 10, 14, 12, tzinfo=ZoneInfo("Europe/Bucharest"))
     result, remaining = extract_common("Azi am băut 500 ml apă și cântăresc 78,5 kg.", now, "Europe/Bucharest")
@@ -260,6 +273,54 @@ async def test_worker_materializes_academic_conflict_without_opening_mini_app():
         assert class_row and "Curs de probă" in class_row["title"]
         assert conflict
         assert any("se suprapune cu facultatea" in item["text"] for item in sent)
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_overdue_task_proposal_waits_for_approval_and_expires_after_completion():
+    url = os.getenv('LORA_V2_TEST_DATABASE_URL')
+    if not url:
+        pytest.skip('Requires isolated database')
+    owner = uuid.uuid4().int % 1000000000
+    settings = Settings(database_url=url, telegram_bot_token='test', telegram_user_id=owner)
+    pool = await create_pool(settings)
+    try:
+        await migrate(pool)
+        from datetime import timedelta
+        now = datetime.now(ZoneInfo(settings.timezone))
+        due = now - timedelta(hours=2)
+        first = await execute_command(pool, settings, owner, Command(type='create_task', data={
+            'title': 'Pregătește proiectul', 'due_at': due.isoformat(),
+        }), str(uuid.uuid4()))
+        assert first.status == 'saved'
+        assert await generate_proposals(pool, settings, owner, now) == 1
+        proposal = await pool.fetchrow(
+            "SELECT id,reason FROM proposals WHERE owner_id=$1 AND source LIKE 'overdue_task:%'",
+            owner,
+        )
+        assert proposal and 'Îl mut mâine' in proposal['reason']
+        assert await pool.fetchval('SELECT version FROM tasks WHERE id=$1', uuid.UUID(first.entity_id)) == 1
+        accepted = await decide_proposal(pool, settings, owner, proposal['id'], True)
+        assert accepted and accepted.status == 'saved'
+        moved = await pool.fetchrow('SELECT due_at,version FROM tasks WHERE id=$1', uuid.UUID(first.entity_id))
+        assert moved['version'] == 2 and moved['due_at'].date() > now.date()
+
+        second = await execute_command(pool, settings, owner, Command(type='create_task', data={
+            'title': 'Trimite documentul', 'due_at': due.isoformat(),
+        }), str(uuid.uuid4()))
+        assert await generate_proposals(pool, settings, owner, now) == 1
+        pending = await pool.fetchval(
+            """SELECT id FROM proposals WHERE owner_id=$1 AND status='pending'
+            AND source LIKE 'overdue_task:%'""", owner,
+        )
+        assert pending
+        completed = await execute_command(pool, settings, owner, Command(type='complete_task', data={
+            'task_id': second.entity_id, 'expected_version': 1,
+        }), str(uuid.uuid4()))
+        assert completed.status == 'saved'
+        assert await decide_proposal(pool, settings, owner, pending, True) is None
+        assert await pool.fetchval('SELECT status FROM proposals WHERE id=$1', pending) == 'expired'
     finally:
         await pool.close()
 

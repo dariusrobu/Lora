@@ -2,7 +2,7 @@
 
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 import asyncpg
@@ -17,13 +17,21 @@ async def expire_stale_proposals(conn: asyncpg.Connection, owner_id: int) -> int
         """UPDATE proposals p SET status='expired'
         WHERE p.owner_id=$1 AND p.status='pending' AND (
             p.expires_at<=now() OR (
-                p.command->>'type' IN ('reschedule_entry','complete_entry')
+            p.command->>'type' IN ('reschedule_entry','complete_entry')
                 AND NOT EXISTS (
                     SELECT 1 FROM calendar_entries e
                     WHERE e.owner_id=p.owner_id
                       AND e.id::text=p.command->'data'->>'entry_id'
                       AND e.status='active'
                       AND e.version::text=p.command->'data'->>'expected_version'
+                )
+            ) OR (
+                p.command->>'type' IN ('reschedule_task','complete_task')
+                AND NOT EXISTS (
+                    SELECT 1 FROM tasks t WHERE t.owner_id=p.owner_id
+                    AND t.id::text=p.command->'data'->>'task_id'
+                    AND t.status='pending'
+                    AND t.version::text=p.command->'data'->>'expected_version'
                 )
             )
         )""",
@@ -89,11 +97,14 @@ async def generate_proposals(
                     created += 1
 
             already = await conn.fetchval(
-                """SELECT count(*) FROM proposals WHERE owner_id=$1 AND source LIKE $2""",
+                """SELECT count(*) FROM proposals WHERE owner_id=$1
+                AND (source LIKE $2 OR source LIKE $3)""",
                 owner_id, f"conflict:{local_day.isoformat()}:%",
+                f"overdue_task:{local_day.isoformat()}:%",
             )
             allowance = max(0, 2 - already)
             if allowance:
+                before_conflicts = created
                 conflicts = await conn.fetch(
                     """SELECT e.id,e.title,e.starts_at,e.version,a.ends_at AS class_ends
                     FROM calendar_entries e JOIN calendar_entries a
@@ -112,6 +123,32 @@ async def generate_proposals(
                     })
                     source = f"conflict:{local_day.isoformat()}:{row['id']}"
                     reason = f"«{row['title']}» se suprapune cu facultatea. Îl mut după curs?"
+                    if await _propose(conn, owner_id, source, reason, command):
+                        created += 1
+                allowance = max(0, allowance - (created - before_conflicts))
+            if allowance:
+                overdue = await conn.fetch(
+                    """SELECT id,title,due_at,version FROM tasks
+                    WHERE owner_id=$1 AND status='pending' AND due_at IS NOT NULL
+                    AND due_at < $2::timestamptz-interval '1 hour'
+                    AND due_at >= $2::timestamptz-interval '36 hours'
+                    ORDER BY due_at LIMIT $3""",
+                    owner_id, current, min(allowance, 1),
+                )
+                for row in overdue:
+                    due_local = row['due_at'].astimezone(ZoneInfo(settings.timezone))
+                    hour = 9 if due_local.hour < 8 else due_local.hour
+                    suggested = datetime.combine(
+                        local_day + timedelta(days=1),
+                        time(hour, due_local.minute), ZoneInfo(settings.timezone),
+                    )
+                    command = Command(type='reschedule_task', data={
+                        'task_id': str(row['id']), 'due_at': suggested.isoformat(),
+                        'expected_version': row['version'],
+                    })
+                    source = f"overdue_task:{local_day.isoformat()}:{row['id']}:v{row['version']}"
+                    reason = (f"Taskul «{row['title']}» a rămas restant. "
+                              f"Îl mut mâine la {suggested:%H:%M}?")
                     if await _propose(conn, owner_id, source, reason, command):
                         created += 1
     return created

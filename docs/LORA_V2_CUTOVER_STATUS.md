@@ -16,6 +16,10 @@ The existing n8n workflow was not edited or activated. Its `/extract-many` bridg
 is now independently available on port 8788, including HTTP 200 from inside the
 n8n container. The existing workflow is inactive; connectivity is not a claim
 that a scheduled Moodle extraction ran.
+On 20 October, the live n8n container was running, and its single existing
+workflow contained a Schedule Trigger and HTTP Request to the Moodle bridge.
+The workflow was `active=false`. The bridge and n8n health endpoints returned
+200. Its inactive state was preserved; no extraction was triggered by this audit.
 
 ## Data and backups
 
@@ -43,6 +47,11 @@ that a scheduled Moodle extraction ran.
   uses active owner categories and asks when a clear keyword contradicts the
   model's category. Other archived legacy tables remain available only in the
   immutable snapshot until they receive a specific v2 consumer/editor.
+- Rules for a recognized expense merchant can be added, corrected and removed
+  in Mini App under Jurnal → Istoric și preferințe. Applying a corrected rule
+  to a later expense is covered by an isolated test. The old receipt product
+  memory (700 rows) and merchant-name aliases (26 rows) remain in snapshots;
+  v2 does not yet parse receipt photos into itemized expenses.
 - `scripts/backup_local.sh` now invokes a Python backup for both databases; it
   avoids sourcing dotenv as shell code. Dumps are mode 0600 and catalog-checked.
   It does not remove previous backups.
@@ -83,6 +92,15 @@ domain folder; existing notes are never deleted by this adapter.
   complete: the owner confirmed `/azi` responds after the repair.
 - Stale proposals are expired when their reminder was edited or removed, and
   pending Telegram proposal messages are suppressed before delivery.
+- A recent overdue task now generates at most one opt-in move proposal per day,
+  under the shared two-proposal daily limit. Completing or editing the task
+  expires its pending proposal. No task date changes before approval.
+- The local launchd health check now monitors the worker, integrations,
+  Obsidian processor, n8n, Moodle bridge and overdue Telegram delivery in
+  addition to the bot, API, gateway and Ollama.
+- The natural phrase "Duminică am meci la 20, amintește-mi la 19:30 și 20:00"
+  is handled without waiting for the LLM and creates one event with both
+  reminder offsets.
 
 ## Apple boundary
 
@@ -107,12 +125,11 @@ Remote edits block a v2 overwrite and are listed in Mini App under
 "Evenimente de comparat". The owner can keep the Lora version or import the
 Apple version after reviewing both; a version check prevents accepting an
 outdated decision. This covers v2-owned events only. Remote-only edits to an
-unchanged Lora event are detected when that event next changes locally, rather
-than continuously monitored.
+unchanged Lora event are now detected on the next five-minute calendar sync.
 
 ## Validation and rollback
 
-48 isolated v2/migration/Obsidian/gateway/history/Apple event tests passed on a
+50 isolated v2/migration/Obsidian/gateway/history/Apple event tests passed on a
 clean database. A real-source isolated import also passed.
 Focused Ruff checks and
 Mini App production build passed. Authenticated live `/today`, `/tasks`,
@@ -129,5 +146,5 @@ re-enabling legacy polling. Restore the saved runtime env/gateway configuration.
 Reconcile any v2 records created after cutover; never restore an old database dump
 blindly over new user data. Keep both notification schedulers from running at once.
 
-The work remains on the `codex/lora-v2-daily-driver` branch until committed
-and published.
+The v2 branch is `codex/lora-v2-daily-driver`; the previous cutover and history
+changes were published as commit `f86bd0d`.

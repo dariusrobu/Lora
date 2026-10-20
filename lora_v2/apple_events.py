@@ -46,7 +46,15 @@ def _event_data(event: caldav.Event) -> dict[str, object]:
     end_prop = component.get('dtend')
     end = end_prop.dt if end_prop else start + timedelta(hours=1)
     if not isinstance(start, datetime) or not isinstance(end, datetime):
-        raise ValueError('All-day Apple event requires manual review')
+        return {
+            'title': str(component.get('summary', '')),
+            'starts_at': str(start), 'ends_at': str(end),
+            'notes': str(component.get('description', '')),
+            'revision': hashlib.sha256(
+                event.data.encode() if isinstance(event.data, str) else event.data
+            ).hexdigest(),
+            'unsupported': True,
+        }
     return {
         'title': str(component.get('summary', '')),
         'starts_at': start,
@@ -93,6 +101,16 @@ class AppleEventRemote:
     def get_revision(self, uid: str) -> str | None:
         snapshot = self.get_snapshot(uid)
         return str(snapshot['revision']) if snapshot else None
+
+    def list_revisions(self) -> dict[str, str]:
+        """Read the dedicated calendar once per reconciliation cycle."""
+        revisions: dict[str, str] = {}
+        for event in self._collection().events():
+            component = Calendar.from_ical(event.data).walk('VEVENT')[0]
+            uid = str(component.get('uid', ''))
+            if uid.startswith('lora-v2-event-'):
+                revisions[uid] = str(_event_data(event)['revision'])
+        return revisions
 
     def upsert(
         self, uid: str, title: str, start: datetime, end: datetime,
@@ -146,16 +164,25 @@ async def sync_events(pool: asyncpg.Pool, settings: Settings, owner_id: int) -> 
     )
     remote = AppleEventRemote(settings)
     counts = {"synced": 0, "conflicts": 0, "errors": 0}
+    try:
+        remote_revisions = await asyncio.to_thread(remote.list_revisions)
+    except Exception:
+        return {"synced": 0, "conflicts": 0, "errors": len(rows) or 1}
     for row in rows:
         if row['status'] == 'cancelled' and not row['apple_uid']:
-            continue
-        if row['apple_uid'] and row['last_synced_version'] == row['version']:
             continue
         uid = row['apple_uid'] or f"lora-v2-event-{row['id']}@lora"
         end = row['ends_at'] or row['starts_at'] + timedelta(hours=1)
         wanted = _revision(row['title'], row['starts_at'], end, row['notes'])
         try:
-            current = await asyncio.to_thread(remote.get_revision, uid)
+            current = remote_revisions.get(uid)
+            if row['apple_uid'] and current == row['apple_revision'] and row['last_synced_version'] == row['version']:
+                await pool.execute(
+                    """UPDATE apple_event_conflicts SET status='resolved'
+                    WHERE owner_id=$1 AND entity_id=$2 AND status='pending'""",
+                    owner_id, row['id'],
+                )
+                continue
             if ((row['apple_uid'] and current != row['apple_revision'])
                     or (not row['apple_uid'] and current is not None and current != wanted)):
                 await pool.execute(
@@ -186,6 +213,7 @@ async def sync_events(pool: asyncpg.Pool, settings: Settings, owner_id: int) -> 
                                   and item['purpose'][7:-1].isdigit()})
                 revision = await asyncio.to_thread(remote.upsert, uid, row['title'],
                                                    row['starts_at'], end, row['notes'], offsets)
+                remote_revisions[uid] = revision
                 await pool.execute(
                     """INSERT INTO apple_event_links(owner_id,entity_id,apple_uid,apple_revision,last_synced_version)
                     VALUES ($1,$2,$3,$4,$5) ON CONFLICT(owner_id,entity_id) DO UPDATE SET

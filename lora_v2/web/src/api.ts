@@ -20,7 +20,8 @@ export type AppleEventConflict = { entity_id: string; local_version: number; tit
 export type Reflection = { id: string; entry_date: string; reflection_text?: string | null; mood?: string | null; tomorrow_focus?: string | null; task_completion?: string | null; skipped: boolean; version: number }
 export type DayPlan = { id: string; plan_date: string; user_input?: string | null; itinerary?: string | null; wake_time?: string | null; version: number }
 export type ExpenseCategory = { id: string; name: string; icon?: string | null; keywords: string[]; is_active: boolean; version: number }
-export type DailyHistory = { reflections: Reflection[]; plans: DayPlan[]; categories: ExpenseCategory[]; preferences: { data: Record<string, unknown>; version: number } | null; nutrition_targets: { calories?: number | null; protein_g?: number | null; carbs_g?: number | null; fat_g?: number | null; version: number } | null }
+export type MerchantRule = { merchant_key: string; category: string; version: number }
+export type DailyHistory = { reflections: Reflection[]; plans: DayPlan[]; categories: ExpenseCategory[]; merchant_rules: MerchantRule[]; preferences: { data: Record<string, unknown>; version: number } | null; nutrition_targets: { calories?: number | null; protein_g?: number | null; carbs_g?: number | null; fat_g?: number | null; version: number } | null }
 export type UniversityKind = "subject" | "schedule" | "attendance" | "grade" | "exam" | "vacation"
 export type UniversityRecord = { id: string; version: number; [key: string]: unknown }
 export type UniversityData = { subjects: UniversityRecord[]; schedules: UniversityRecord[]; attendance: UniversityRecord[]; grades: UniversityRecord[]; exams: UniversityRecord[]; vacations: UniversityRecord[]; semester: { semester_start: string; semester_end?: string; version: number } | null }
@@ -69,6 +70,9 @@ export const api = {
   createExpenseCategory: (body: Record<string, unknown>) => request<{id: string; version: number}>("/daily-history/categories", { method: "POST", body: JSON.stringify(body) }),
   editExpenseCategory: (id: string, body: Record<string, unknown>) => request<{id: string; version: number}>(`/daily-history/categories/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteExpenseCategory: (id: string, version: number) => request<{id: string; version: number}>(`/daily-history/categories/${id}?expected_version=${version}`, { method: "DELETE" }),
+  createMerchantRule: (body: Record<string, unknown>) => request<MerchantRule>("/daily-history/merchant-rules", { method: "POST", body: JSON.stringify(body) }),
+  editMerchantRule: (body: Record<string, unknown>) => request<MerchantRule>("/daily-history/merchant-rules", { method: "PUT", body: JSON.stringify(body) }),
+  deleteMerchantRule: (key: string, version: number) => request<{merchant_key: string}>(`/daily-history/merchant-rules?merchant_key=${encodeURIComponent(key)}&expected_version=${version}`, { method: "DELETE" }),
   university: () => request<UniversityData>("/university"),
   universityWeek: (weekStart: string) => request<Entry[]>(`/university/week?week_start=${encodeURIComponent(weekStart)}`),
   academicCreate: (kind: UniversityKind, data: Record<string, unknown>) => request<{id: string; version: number}>(`/university/${kind}`, { method: "POST", body: JSON.stringify({ data }) }),

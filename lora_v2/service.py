@@ -20,6 +20,7 @@ from lora_v2.models import (
     LogWorkout,
     LogHealth,
     RescheduleEntry,
+    RescheduleTask,
     CompleteEntry,
     CompleteTask,
 )
@@ -168,7 +169,8 @@ async def _apply(
             await conn.execute(
                 """INSERT INTO expense_category_rules(owner_id,merchant_key,category,source_expense_id)
                 VALUES ($1,$2,$3,$4) ON CONFLICT (owner_id,merchant_key) DO UPDATE SET
-                category=EXCLUDED.category,source_expense_id=EXCLUDED.source_expense_id,updated_at=now()""",
+                category=EXCLUDED.category,source_expense_id=EXCLUDED.source_expense_id,
+                version=expense_category_rules.version+1,updated_at=now()""",
                 owner_id, payload.merchant.casefold().strip(), category, entity_id,
             )
         return ActionResult(status="saved", command_type=command_type, entity_id=str(entity_id), entity_type="expense", message=f"Cheltuială salvată: {payload.amount} {payload.currency} · {category}")
@@ -299,6 +301,21 @@ async def _apply(
             return ActionResult(status="needs_input", command_type=command_type, message="Taskul s-a schimbat între timp.")
         await _enqueue_apple(conn, owner_id, "task", payload.task_id, f"upsert:{row['version']}")
         return ActionResult(status="saved", command_type=command_type, entity_id=str(payload.task_id), entity_type="task", message=f"Gata: {row['title']}")
+
+    if command_type == 'reschedule_task' and isinstance(payload, RescheduleTask):
+        row = await conn.fetchrow(
+            """UPDATE tasks SET due_at=$4,version=version+1,updated_at=now()
+            WHERE id=$1 AND owner_id=$2 AND version=$3 AND status='pending'
+            RETURNING title,version""",
+            payload.task_id, owner_id, payload.expected_version, payload.due_at,
+        )
+        if not row:
+            return ActionResult(status='needs_input', command_type=command_type,
+                                message='Taskul s-a schimbat între timp. Verifică data actuală.')
+        await _enqueue_apple(conn, owner_id, 'task', payload.task_id, f"upsert:{row['version']}")
+        return ActionResult(status='saved', command_type=command_type,
+                            entity_id=str(payload.task_id), entity_type='task',
+                            message=f"Am mutat taskul «{row['title']}».")
 
     raise ValueError(f"Unsupported command: {command_type}")
 

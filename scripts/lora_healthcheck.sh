@@ -13,10 +13,25 @@ check() {
   fi
 }
 
+check_service() {
+  local name="$1" label="$2"
+  if launchctl print "gui/$(id -u)/$label" 2>/dev/null | /usr/bin/grep -q "state = running"; then
+    print "$name=ok"
+  else
+    print "$name=down"
+  fi
+}
+
 current="$(check ollama http://127.0.0.1:11434/api/tags)
 $(check api http://127.0.0.1:8092/health)
 $(check gateway http://127.0.0.1:8093/health)
-$(if launchctl print "gui/$(id -u)/com.lora.v2.bot" 2>/dev/null | /usr/bin/grep -q "state = running"; then print "bot=ok"; else print "bot=down"; fi)"
+$(check_service bot com.lora.v2.bot)
+$(check_service worker com.lora.v2.worker)
+$(check_service integrations com.lora.v2.integrations)
+$(check_service obsidian com.lora.v2.obsidian-processor)
+$(check bridge http://127.0.0.1:8788/health)
+$(check n8n http://127.0.0.1:5678/healthz)
+$(cd /Users/robu/Lora && .venv/bin/python -m lora_v2.health)"
 previous="$(cat "$STATE_FILE" 2>/dev/null || true)"
 timestamp="$(date '+%Y-%m-%d %H:%M:%S %z')"
 

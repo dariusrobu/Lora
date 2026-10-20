@@ -6,8 +6,9 @@ import json
 import os
 import time
 import uuid
-from datetime import date, time as clock_time
+from datetime import date, datetime, time as clock_time
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
@@ -17,6 +18,8 @@ from lora_v2.config import Settings
 from lora_v2.db import create_pool, migrate
 from lora_v2.expense_categories import category_hint
 from lora_v2.migrate_legacy import QUERIES, import_legacy
+from lora_v2.models import Command
+from lora_v2.service import execute_command
 
 
 def _auth(token: str, owner: int) -> str:
@@ -78,6 +81,33 @@ async def test_promoted_history_and_category_are_active_and_editable() -> None:
                 category = await client.post('/api/v2/daily-history/categories',
                                              headers=headers, json={'name': 'sport', 'keywords': ['sală']})
                 assert category.status_code == 200
+                rule = await client.post('/api/v2/daily-history/merchant-rules',
+                                         headers=headers, json={
+                                             'merchant_key': 'Cantina X', 'category': 'mâncare',
+                                         })
+                assert rule.status_code == 200 and rule.json()['version'] == 1
+                assert (await client.get('/api/v2/daily-history', headers=headers)).json()['merchant_rules'][0]['merchant_key'] == 'cantina x'
+                expense = await execute_command(pool, settings, owner, Command(type='log_expense', data={
+                    'amount': '15', 'category': 'sport', 'merchant': 'Cantina X',
+                    'spent_at': datetime.now(ZoneInfo(settings.timezone)).isoformat(),
+                }), str(uuid.uuid4()))
+                assert expense.status == 'saved'
+                assert await pool.fetchval('SELECT category FROM expenses WHERE id=$1', uuid.UUID(expense.entity_id)) == 'mâncare'
+                edited_rule = await client.put('/api/v2/daily-history/merchant-rules',
+                                               headers=headers, json={
+                                                   'merchant_key': 'Cantina X', 'category': 'sport',
+                                                   'expected_version': 1,
+                                               })
+                assert edited_rule.status_code == 200 and edited_rule.json()['version'] == 2
+                assert (await client.put('/api/v2/daily-history/merchant-rules',
+                                         headers=headers, json={
+                                             'merchant_key': 'Cantina X', 'category': 'mâncare',
+                                             'expected_version': 1,
+                                         })).status_code == 409
+                assert (await client.delete('/api/v2/daily-history/merchant-rules',
+                                            headers=headers, params={
+                                                'merchant_key': 'Cantina X', 'expected_version': 2,
+                                            })).status_code == 200
                 deactivated = await client.delete(
                     f"/api/v2/daily-history/categories/{category.json()['id']}?expected_version=1",
                     headers=headers,

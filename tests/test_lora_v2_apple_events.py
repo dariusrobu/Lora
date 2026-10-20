@@ -34,6 +34,9 @@ async def test_v2_event_sync_does_not_overwrite_remote_edit(monkeypatch: pytest.
         def get_revision(self, uid: str) -> str | None:
             return revisions.get(uid)
 
+        def list_revisions(self) -> dict[str, str]:
+            return dict(revisions)
+
         def get_snapshot(self, uid: str) -> dict[str, object] | None:
             if uid not in revisions:
                 return None
@@ -63,6 +66,19 @@ async def test_v2_event_sync_does_not_overwrite_remote_edit(monkeypatch: pytest.
         assert received_offsets == [[0, 30]]
         assert (await apple_events.sync_events(pool, settings, owner))['synced'] == 0
         uid = next(iter(revisions))
+        original_revision = revisions[uid]
+        revisions[uid] = 'remote-only-change'
+        assert (await apple_events.sync_events(pool, settings, owner))['conflicts'] == 1
+        assert await pool.fetchval(
+            'SELECT status FROM apple_event_conflicts WHERE owner_id=$1 AND entity_id=$2',
+            owner, entity_id,
+        ) == 'pending'
+        revisions[uid] = original_revision
+        assert (await apple_events.sync_events(pool, settings, owner))['conflicts'] == 0
+        assert await pool.fetchval(
+            'SELECT status FROM apple_event_conflicts WHERE owner_id=$1 AND entity_id=$2',
+            owner, entity_id,
+        ) == 'resolved'
         edited = await update_entity(pool, settings, owner, 'calendar_entry', entity_id,
                                      EditRequest(expected_version=1, data={
                                          'kind': 'event', 'title': 'Fotbal cu prietenii',

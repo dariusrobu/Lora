@@ -162,6 +162,17 @@ class RescheduleEntry(StrictModel):
         return _aware(value)
 
 
+class RescheduleTask(StrictModel):
+    task_id: UUID
+    due_at: datetime
+    expected_version: int
+
+    @field_validator('due_at')
+    @classmethod
+    def validate_time(cls, value: datetime) -> datetime:
+        return _aware(value)
+
+
 class CompleteEntry(StrictModel):
     entry_id: UUID
     expected_version: int
@@ -182,6 +193,7 @@ COMMAND_MODELS: dict[str, type[StrictModel]] = {
     "log_workout": LogWorkout,
     "log_health": LogHealth,
     "reschedule_entry": RescheduleEntry,
+    "reschedule_task": RescheduleTask,
     "complete_entry": CompleteEntry,
     "complete_task": CompleteTask,
 }

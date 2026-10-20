@@ -142,7 +142,8 @@ async def update_entity(
                         """INSERT INTO expense_category_rules(owner_id,merchant_key,category,source_expense_id)
                         VALUES ($1,$2,$3,$4)
                         ON CONFLICT (owner_id,merchant_key) DO UPDATE
-                        SET category=EXCLUDED.category,source_expense_id=EXCLUDED.source_expense_id,updated_at=now()""",
+                        SET category=EXCLUDED.category,source_expense_id=EXCLUDED.source_expense_id,
+                        version=expense_category_rules.version+1,updated_at=now()""",
                         owner_id, payload.merchant.casefold().strip(), payload.category, entity_id,
                     )
             elif kind == "income" and isinstance(payload, LogIncome):
