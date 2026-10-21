@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Bell, CalendarDays, Check, ChevronLeft, ChevronRight, Dumbbell, GraduationCap, HeartPulse, House, Pencil, Plus, Sparkles, Trash2, Wallet, X } from "lucide-react"
-import { api, telegram, type AppleConflict, type AppleConflictDetail, type AppleEventConflict, type Entry, type Journal, type ObsidianConflict, type Project, type Proposal, type Task, type Today } from "./api"
+import { api, telegram, type AppleConflict, type AppleConflictDetail, type AppleEventConflict, type Entry, type Journal, type Project, type Proposal, type Task, type Today } from "./api"
 import UniversityPanel from "./UniversityPanel"
 import IncomePanel from "./IncomePanel"
 import MealPanel from "./MealPanel"
@@ -47,7 +47,6 @@ export default function App() {
   const [journal, setJournal] = useState<Journal | null>(null)
   const [proposals, setProposals] = useState<Proposal[]>([])
   const [appleConflicts, setAppleConflicts] = useState<AppleConflict[]>([])
-  const [obsidianConflicts, setObsidianConflicts] = useState<ObsidianConflict[]>([])
   const [appleEventConflicts, setAppleEventConflicts] = useState<AppleEventConflict[]>([])
   const [showExpenseHistory, setShowExpenseHistory] = useState(false)
   const [showWorkoutHistory, setShowWorkoutHistory] = useState(false)
@@ -62,10 +61,10 @@ export default function App() {
     if (!telegram?.initData) return
     try {
       const [start, end] = monthBounds(month)
-      const [todayData, calendarData, projectsData, tasksData, journalData, proposalData, conflictData, obsidianConflictData, eventConflictData] = await Promise.all([
-        api.today(), api.calendar(start, end), api.projects(), api.tasks(), api.journal(), api.proposals(), api.appleConflicts(), api.obsidianConflicts(), api.appleEventConflicts(),
+      const [todayData, calendarData, projectsData, tasksData, journalData, proposalData, conflictData, eventConflictData] = await Promise.all([
+        api.today(), api.calendar(start, end), api.projects(), api.tasks(), api.journal(), api.proposals(), api.appleConflicts(), api.appleEventConflicts(),
       ])
-      setToday(todayData); setEntries(calendarData); setProjects(projectsData); setTasks(tasksData); setJournal(journalData); setProposals(proposalData); setAppleConflicts(conflictData); setObsidianConflicts(obsidianConflictData); setAppleEventConflicts(eventConflictData)
+      setToday(todayData); setEntries(calendarData); setProjects(projectsData); setTasks(tasksData); setJournal(journalData); setProposals(proposalData); setAppleConflicts(conflictData); setAppleEventConflicts(eventConflictData)
       setError("")
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut încărca datele.") }
   }, [month])
@@ -107,15 +106,6 @@ export default function App() {
       const result = await api.resolveAppleConflict(id, choice)
       setStatus(result.message); setOpenAppleConflict(null); await reload()
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut rezolva conflictul.") }
-    finally { setBusy(false) }
-  }
-
-  async function resolveObsidian(item: ObsidianConflict, choice: "keep_lora" | "use_obsidian") {
-    setBusy(true); setError("")
-    try {
-      const result = await api.resolveObsidianConflict(item.entity_id, item.version, item.file_revision, choice)
-      setStatus(result.message); await reload()
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut rezolva conflictul de orar.") }
     finally { setBusy(false) }
   }
 
@@ -248,7 +238,6 @@ export default function App() {
         {error && <div className="error" role="alert">{error} <button onClick={() => void reload()}>Reîncearcă</button></div>}
 
         {tab === "today" && <>
-          {obsidianConflicts.length > 0 && <section className="glass section-card"><div className="section-title"><GraduationCap size={18} /><h2>Orar de verificat</h2></div>{obsidianConflicts.map(item => <div className="proposal-row" key={item.entity_id}><p><strong>{item.title}</strong></p><p>Lora: {(["luni", "marți", "miercuri", "joi", "vineri", "sâmbătă", "duminică"][item.day_of_week] || `ziua ${item.day_of_week}`)}, {item.start_time.slice(0, 5)}–{item.end_time.slice(0, 5)}{item.room ? ` · sala ${item.room}` : ""}</p><p>Obsidian: {(["luni", "marți", "miercuri", "joi", "vineri", "sâmbătă", "duminică"][item.file_fields.day_of_week] || `ziua ${item.file_fields.day_of_week}`)}, {item.file_fields.start_time?.slice(0, 5)}–{item.file_fields.end_time?.slice(0, 5)}{item.file_fields.room ? ` · sala ${item.file_fields.room}` : ""}</p><div className="inline-actions"><button disabled={busy} onClick={() => void resolveObsidian(item, "keep_lora")}>Păstrează Lora</button><button disabled={busy} onClick={() => void resolveObsidian(item, "use_obsidian")}>Preia Obsidian</button></div></div>)}</section>}
           {appleEventConflicts.length > 0 && <section className="glass section-card"><div className="section-title"><CalendarDays size={18} /><h2>Evenimente de comparat</h2></div>{appleEventConflicts.map(item => <div className="proposal-row" key={item.entity_id}><p><strong>{item.title}</strong></p><p>Lora: {localDay(item.starts_at)} · {hour(item.starts_at)}{item.notes ? ` · ${item.notes}` : ""}</p><p>Apple Calendar: {item.apple?.unavailable ? "Temporar indisponibil" : item.apple ? `${item.apple.title || "Fără titlu"}${item.apple.starts_at ? ` · ${localDay(item.apple.starts_at)} ${hour(item.apple.starts_at)}` : ""}${item.apple.notes ? ` · ${item.apple.notes}` : ""}` : "eveniment șters"}</p><div className="inline-actions"><button disabled={busy || item.apple?.unavailable} onClick={() => void resolveAppleEvent(item, "keep_lora")}>Păstrează Lora</button><button disabled={busy || item.apple?.unavailable} onClick={() => void resolveAppleEvent(item, "use_apple")}>Preia Apple</button></div></div>)}</section>}
           {appleConflicts.length > 0 && <section className="glass section-card"><div className="section-title"><Bell size={18} /><h2>Modificări de comparat</h2></div>{appleConflicts.map(conflict => <div className="proposal-row" key={conflict.id}><p>Apple Reminders și Lora au versiuni diferite pentru „{conflict.local_title || "un element"}”.</p><button className="text-action" disabled={busy} onClick={() => void inspectAppleConflict(conflict.id)}>Compară versiunile</button>{openAppleConflict?.id === conflict.id && <div className="conflict-detail"><p><strong>Lora:</strong> {openAppleConflict.detail.local?.title || "element indisponibil"}{openAppleConflict.detail.local?.at ? ` · ${localDay(openAppleConflict.detail.local.at)} ${hour(openAppleConflict.detail.local.at)}` : ""}</p><p><strong>Apple:</strong> {openAppleConflict.detail.apple_deleted ? "element șters" : `${openAppleConflict.detail.apple?.title || ""}${openAppleConflict.detail.apple?.at ? ` · ${localDay(openAppleConflict.detail.apple.at)} ${hour(openAppleConflict.detail.apple.at)}` : ""}`}</p><div className="inline-actions"><button disabled={busy} onClick={() => void resolveApple(conflict.id, "keep_local")}>Păstrează Lora</button><button disabled={busy} onClick={() => void resolveApple(conflict.id, "use_apple")}>Preia Apple</button></div></div>}</div>)}</section>}
           {proposals.length > 0 && <section className="glass section-card"><div className="section-title"><Sparkles size={18} /><h2>De decis</h2></div>{proposals.map(proposal => proposal.command.type === "log_receipt" ? <ReceiptReview key={`${proposal.id}:${proposal.version}`} proposal={proposal} busy={busy} onChanged={reload} onDecision={accept => void decide(proposal.id, accept)} /> : <div className="proposal-row" key={proposal.id}><p>{proposal.reason}</p><div className="inline-actions">{proposal.source.startsWith("followup:") ? <><button disabled={busy} onClick={() => void decideFollowup(proposal.id, "done")}>Am făcut</button><button disabled={busy} onClick={() => void decideFollowup(proposal.id, "tomorrow")}>Mută pe mâine</button></> : <><button disabled={busy} onClick={() => void decide(proposal.id, true)}>Da, fă asta</button><button disabled={busy} onClick={() => void decide(proposal.id, false)}>Nu acum</button></>}</div></div>)}</section>}

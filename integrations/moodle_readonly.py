@@ -361,7 +361,7 @@ async def extract_course(
         try:
             page = browser.pages[0] if browser.pages else await browser.new_page()
             await page.goto(course_url, wait_until="domcontentloaded")
-            if "/login/" in page.url and headed:
+            if "/login/" in page.url or await page.locator('input[name="password"]').count():
                 login_user = username or os.getenv("MOODLE_USERNAME")
                 login_password = password or os.getenv("MOODLE_PASSWORD")
                 if login_user and login_password:
@@ -372,20 +372,21 @@ async def extract_course(
                     await page.locator('input[name="username"]').fill(login_user)
                     await page.locator('input[name="password"]').fill(login_password)
                     await page.locator('button[type="submit"], input[type="submit"]').first.click()
-                else:
+                elif headed:
                     print(
                         "Moodle cere autentificare în profilul Playwright. "
                         "Finalizează login-ul în fereastra Firefox; extractorul așteaptă "
                         "apoi și continuă automat.",
                         flush=True,
                     )
+                else:
+                    raise RuntimeError("Sesiunea Moodle a expirat; lipsesc credentialele pentru autentificare headless.")
                 await page.wait_for_function(
-                    "!window.location.pathname.includes('/login/')",
-                    timeout=300_000,
+                    "!document.querySelector('input[name=password]')",
+                    timeout=30_000,
                 )
-                if "/course/" not in page.url:
-                    await page.goto(course_url, wait_until="domcontentloaded")
-            if "/login/" in page.url:
+                await page.goto(course_url, wait_until="domcontentloaded")
+            if "/login/" in page.url or await page.locator('input[name="password"]').count():
                 raise RuntimeError("Sesiunea Moodle a expirat. Autentifică-te în Firefox.")
             course_html = await page.content()
             result = parse_course_html(course_html, page.url)

@@ -29,11 +29,30 @@ async def delivery_status() -> str:
         await conn.close()
 
 
+async def moodle_status() -> str:
+    """A running n8n container is insufficient if course extraction stopped."""
+    settings = Settings.from_env()
+    conn = await asyncpg.connect(settings.database_url, timeout=5)
+    try:
+        row = await conn.fetchrow(
+            """SELECT count(*) AS courses,
+            bool_and(last_synced_at >= now()-interval '12 hours') AS fresh
+            FROM moodle_course_sync WHERE owner_id=$1""",
+            settings.telegram_user_id,
+        )
+        return "ok" if row["courses"] and row["fresh"] else "stale"
+    finally:
+        await conn.close()
+
+
 def main() -> None:
     try:
-        print(f'delivery={asyncio.run(delivery_status())}')
+        async def check() -> tuple[str, str]:
+            return await delivery_status(), await moodle_status()
+        delivery, moodle = asyncio.run(check())
+        print(f'delivery={delivery}\nmoodle_sync={moodle}')
     except Exception:
-        print('delivery=down')
+        print('delivery=down\nmoodle_sync=down')
 
 
 if __name__ == '__main__':

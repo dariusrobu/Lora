@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { CalendarDays, ChevronLeft, ChevronRight, GraduationCap, Pencil, Plus, Trash2, X } from "lucide-react"
-import { api, type Entry, type UniversityData, type UniversityKind, type UniversityRecord } from "./api"
+import { CalendarDays, ChevronLeft, ChevronRight, FileText, GraduationCap, Megaphone, MessageCircle, Pencil, Plus, Trash2, X } from "lucide-react"
+import { api, type Entry, type MoodleLibrary, type UniversityData, type UniversityKind, type UniversityRecord } from "./api"
 
 type FormState = { kind: UniversityKind; id?: string; version?: number }
 const sections: { kind: UniversityKind; key: keyof Pick<UniversityData, "subjects" | "schedules" | "attendance" | "grades" | "exams" | "vacations">; title: string }[] = [
@@ -40,6 +40,7 @@ function recordLabel(kind: UniversityKind, item: UniversityRecord, subjects: Uni
 export default function UniversityPanel() {
   const [data, setData] = useState<UniversityData | null>(null)
   const [calendar, setCalendar] = useState<Entry[]>([])
+  const [moodle, setMoodle] = useState<MoodleLibrary | null>(null)
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()))
   const [selectedDay, setSelectedDay] = useState(() => dateKey(new Date()))
   const [form, setForm] = useState<FormState | null>(null)
@@ -52,11 +53,12 @@ export default function UniversityPanel() {
 
   const reload = useCallback(async () => {
     setCalendar([])
-    const [university, entries] = await Promise.all([
-      api.university(), api.universityWeek(dateKey(weekStart)),
+    const [university, entries, library] = await Promise.all([
+      api.university(), api.universityWeek(dateKey(weekStart)), api.moodle(),
     ])
     setData(university)
     setCalendar(entries)
+    setMoodle(library)
     setSemesterFields({ start: university.semester?.semester_start || "", end: university.semester?.semester_end || "" })
     setError("")
   }, [weekStart])
@@ -118,6 +120,13 @@ export default function UniversityPanel() {
     finally { setBusy(false) }
   }
 
+  async function updatePost(id: string, change: { is_read?: boolean; archived?: boolean }) {
+    setBusy(true); setError("")
+    try { await api.updateMoodlePost(id, change); await reload() }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut modifica mesajul.") }
+    finally { setBusy(false) }
+  }
+
   const field = (key: string, label: string, type = "text", required = false) => <label key={key}>{label}<input type={type} required={required} value={fields[key] || ""} onChange={event => setFields({ ...fields, [key]: event.target.value })} /></label>
   const subjectSelect = <label>Materie<select value={fields.subject_id || ""} onChange={event => setFields({ ...fields, subject_id: event.target.value })}><option value="">Fără materie</option>{data?.subjects.filter(item => item.is_active).map(item => <option key={item.id} value={item.id}>{String(item.name)}</option>)}</select></label>
 
@@ -141,8 +150,18 @@ export default function UniversityPanel() {
       })}</div>
       <h3 className="university-selected-date">{selectedDate.toLocaleDateString("ro-RO", { weekday: "long", day: "numeric", month: "long" })}</h3>
       {selectedEntries.length ? selectedEntries.map(entry => <div className="agenda-row" key={entry.id}><span className="agenda-time">{shortTime(entry.starts_at)}</span><span className="agenda-line" /><span className="agenda-text"><strong>{entry.title}</strong><small>{entry.ends_at ? `Până la ${shortTime(entry.ends_at)}` : "Examen"}{entry.notes ? ` · ${entry.notes}` : ""}</small></span></div>) : <p className="empty">Nimic programat pentru ziua aceasta.</p>}
-      <p className="helper">Materialele și notițele rămân în Obsidian.</p>
     </section>
+    <section className="glass section-card moodle-news"><div className="section-title"><Megaphone size={19} /><h2>Noutăți Moodle</h2>{moodle?.posts.some(post => !post.is_read) && <span className="moodle-count">{moodle.posts.filter(post => !post.is_read).length} noi</span>}</div>
+      {moodle?.posts.length ? moodle.posts.map(post => <details key={post.id} className={`moodle-post ${post.is_read ? "" : "is-unread"}`}>
+        <summary><span className="moodle-kind">{post.kind === "announcement" ? <Megaphone size={15} /> : <MessageCircle size={15} />}</span><span><strong>{post.title}</strong><small>{post.course_title} · {post.kind === "announcement" ? "Anunț" : "Forum"}</small></span></summary>
+        <div className="moodle-post-body"><p>{post.body}</p><a href={post.discussion_url} target="_blank" rel="noopener noreferrer">Deschide în Moodle</a><div className="inline-actions">{!post.is_read && <button type="button" disabled={busy} onClick={() => void updatePost(post.id, { is_read: true })}>Marchează citit</button>}<button type="button" disabled={busy} onClick={() => void updatePost(post.id, { archived: true })}>Arhivează</button></div></div>
+      </details>) : <p className="empty">Nu există încă mesaje extrase din Moodle.</p>}
+    </section>
+    <details className="glass section-card university-details moodle-files"><summary><FileText size={18} /> Materiale în iCloud Drive · {moodle?.materials.length || 0}</summary>
+      <p className="helper">În aplicația Fișiere de pe iPad sau Mac: iCloud Drive → Lora → Facultate.</p>
+      {moodle?.courses.map(course => <details className="moodle-course" key={course.course_url}><summary>{course.folder_name} · {course.material_count} fișiere</summary><div className="university-list">{moodle.materials.filter(file => file.course_url === course.course_url).map(file => <div className="simple-row" key={file.id}><span><strong>{file.filename}</strong><small>{file.section_title} · {file.relative_path}</small></span></div>)}</div></details>)}
+      {!moodle?.courses.length && <p className="empty">Materialele vor apărea aici după sincronizarea Moodle.</p>}
+    </details>
     <details className="glass section-card university-details"><summary><GraduationCap size={18} /> Date academice</summary><form className="semester-form" onSubmit={event => void saveSemester(event)}><label>Început semestru<input type="date" required value={semesterFields.start} onChange={event => setSemesterFields({ ...semesterFields, start: event.target.value })} /></label><label>Sfârșit semestru<input type="date" value={semesterFields.end} onChange={event => setSemesterFields({ ...semesterFields, end: event.target.value })} /></label><button type="submit" disabled={busy}>Salvează semestrul</button></form></details>
     {sections.map(section => <details className="glass section-card university-details" key={section.kind}><summary><span>{section.title} · {data?.[section.key].length || 0}</span></summary><div className="university-list">{data?.[section.key].map(item => <div className="simple-row" key={item.id}><span><strong>{recordLabel(section.kind, item, data.subjects)}</strong></span><span className="row-actions"><button aria-label={`Editează ${section.title}`} onClick={() => startEdit(section.kind, item)}><Pencil size={15} /></button><button aria-label={`Șterge ${section.title}`} onClick={() => void remove(section.kind, item)}><Trash2 size={15} /></button></span></div>)}</div><button className="text-action" onClick={() => startNew(section.kind)}><Plus size={15} /> Adaugă</button></details>)}
     {form && <form ref={formRef} className="glass inline-form university-form" onSubmit={event => void submit(event)}><div className="section-title"><h2>{form.id ? "Editează" : "Adaugă"} {sections.find(section => section.kind === form.kind)?.title.toLowerCase()}</h2><button className="close-form" type="button" aria-label="Închide formularul" onClick={() => setForm(null)}><X size={17} /></button></div>

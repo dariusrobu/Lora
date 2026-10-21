@@ -1,6 +1,11 @@
 # Lora v2 — isolated rebuild
 
-This is a separate application and database. The legacy bot, dashboard, Obsidian files, and n8n workflows are untouched. Do not run both Telegram polling bots with the same token at the same time.
+This is the active Telegram bot and Mini App on this Mac. Its university tab
+shows Moodle discussions from the v2 database and lists material files stored
+in iCloud Drive under `Lora/Facultate`. n8n calls the local read-only Moodle
+bridge every six hours. Obsidian sync services are disabled; the old vault is
+retained as a recovery copy. Do not run both Telegram polling bots with the
+same token at the same time.
 
 ## Local setup
 
@@ -45,7 +50,7 @@ When `NUTRITION_CLOUD_ENABLED=true` and the existing USDA key is configured, v2 
 
 Telegram answers short read-only questions such as „Ce am azi?”, „Ce am mâine?”, „Ce taskuri am?”, „Cât am cheltuit luna asta?” and „Ce am la facultate azi?” directly from v2 data. `/azi`, `/maine`, `/taskuri`, `/cheltuieli`, and `/facultate` are shortcuts for the same views. Text and transcribed voice can propose deletion of the latest item in a named domain or correction of the latest expense category. A short follow-up answer to a missing target or category is retained for ten minutes. The target and version are shown before explicit approval; broader edits and entity selection still need work.
 
-The University tab opens on a seven-day calendar, with the selected day's classes and exams visible immediately. Navigating weeks materializes that week's academic rules in the isolated v2 database, including odd/even weeks and vacations. Academic data editing stays behind the calendar; Obsidian and n8n remain untouched.
+The University tab opens on a seven-day calendar, with the selected day's classes and exams visible immediately. Navigating weeks materializes that week's academic rules in the isolated v2 database, including odd/even weeks and vacations. Academic data editing stays behind the calendar; Moodle news and the iCloud Drive material list follow it.
 
 The background worker also materializes the next 14 days of classes at startup and on each new day, without opening the Mini App. When an approximate noon reminder would land during classes, the capture flow proposes the first free slot with a 15-minute buffer after the overlapping classes; it waits for approval before saving. A database/FakeBot journey verifies academic conflict proposals and the two requested event alerts at 30 minutes before and at the start. Real Telegram/device delivery still needs cutover verification.
 

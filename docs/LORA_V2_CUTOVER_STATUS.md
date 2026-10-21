@@ -1,5 +1,28 @@
 # Lora v2 cutover — 20 October 2026
 
+## 21 October: Moodle and iCloud Drive transition
+
+The active Moodle bridge now uses headless Chromium and writes downloaded
+attachments to `iCloud Drive/Lora/Facultate/<materie>/`, with each file verified
+by SHA-256. Moodle remains read-only. The existing n8n workflow is still active
+every six hours and calls the same local bridge. A complete live bridge run
+discovered seven courses, and an immediate repeat import produced no duplicate
+files, posts or notifications. The live v2 database has 203 material records,
+covering 198 distinct verified files in iCloud Drive, and 55 forum discussions.
+Preexisting discussions were baselined as read, without retrospective alerts.
+Subsequent new or changed discussions queue durable Telegram notifications and
+appear under Facultate → Noutăți Moodle; new files appear under Materiale in
+iCloud Drive. The owner has not yet confirmed file visibility on the iPad.
+
+The two v2 Obsidian LaunchAgents (`integrations` and `obsidian-processor`) are
+disabled and stopped. n8n's Obsidian mount was removed; its own persistent data
+volume and the six-hour workflow survived container recreation. The old vault
+was **not deleted** and remains a recovery copy while non-Moodle notes are
+reviewed. A scheduled n8n run after the Chromium change has not yet completed;
+the complete live extraction was invoked directly through the same bridge.
+The n8n CLI cannot manually run this Schedule Trigger without a start node.
+The health monitor now checks freshness of each imported Moodle course.
+
 ## Live runtime
 
 Telegram now runs `lora_v2.bot`, with a separate `lora_v2.run_worker` for capture

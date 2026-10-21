@@ -8,15 +8,19 @@ import json
 import os
 import re
 import shutil
+import asyncio
 from pathlib import Path
 from datetime import datetime
-from typing import Any
+from typing import Any, AsyncIterator
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 from integrations.moodle_readonly import extract_course
+from lora_v2.config import Settings
+from lora_v2.db import create_pool, migrate
+from lora_v2.moodle_library import ingest_course
 
 load_dotenv(Path(__file__).resolve().parents[1] / "n8n/.env.bridge")
 
@@ -383,6 +387,16 @@ def _save_to_vault(course: dict[str, Any], *, changed: bool = True) -> str:
 
 
 app = FastAPI(title="Lora Moodle Read-only Bridge", docs_url=None, redoc_url=None)
+_extraction_lock = asyncio.Lock()
+
+
+async def _exclusive_extraction() -> AsyncIterator[None]:
+    async with _extraction_lock:
+        yield
+
+
+def _automation_profile() -> Path:
+    return Path(os.getenv("MOODLE_CHROMIUM_PROFILE", ".moodle-chromium-profile"))
 
 
 def _authorized(token: str | None) -> bool:
@@ -399,6 +413,7 @@ async def health() -> dict[str, str]:
 async def extract(
     request: MoodleExtractRequest,
     x_lora_bridge_token: str | None = Header(default=None),
+    _exclusive: None = Depends(_exclusive_extraction),
 ) -> dict[str, Any]:
     if not _authorized(x_lora_bridge_token):
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -406,15 +421,21 @@ async def extract(
     output_path = Path(os.getenv("MOODLE_BRIDGE_OUTPUT", "scratch/moodle/latest.json"))
     course = await extract_course(
         request.course_url,
-        Path(os.getenv("MOODLE_BROWSER_PROFILE", ".moodle-firefox-profile-2")),
+        _automation_profile(),
         output_path,
-        headed=True,
-        browser_name="firefox",
+        headed=False,
+        browser_name="chromium",
         username=request.username,
         password=request.password,
         downloads_dir=output_path.parent / "files" / "single",
     )
-    course["saved_file"] = _save_to_vault(course)
+    settings = Settings.from_env()
+    pool = await create_pool(settings)
+    try:
+        await migrate(pool)
+        course["lora_library"] = await ingest_course(pool, settings.telegram_user_id, course)
+    finally:
+        await pool.close()
     return course
 
 
@@ -422,6 +443,7 @@ async def extract(
 async def extract_many(
     request: MoodleExtractManyRequest,
     x_lora_bridge_token: str | None = Header(default=None),
+    _exclusive: None = Depends(_exclusive_extraction),
 ) -> dict[str, Any]:
     """Extract several enrolled courses without performing any Moodle write."""
     if not _authorized(x_lora_bridge_token):
@@ -440,7 +462,7 @@ async def extract_many(
     ):
         raise HTTPException(status_code=422, detail="Invalid course URL")
 
-    profile = Path(os.getenv("MOODLE_BROWSER_PROFILE", ".moodle-firefox-profile-2"))
+    profile = _automation_profile()
     output_dir = Path(os.getenv("MOODLE_BRIDGE_OUTPUT_DIR", "scratch/moodle"))
     results: list[dict[str, Any]] = []
     for index, course_url in enumerate(course_urls, start=1):
@@ -449,8 +471,8 @@ async def extract_many(
                 course_url,
                 profile,
                 output_dir / f"course-{index}.json",
-                headed=True,
-                browser_name="firefox",
+                headed=False,
+                browser_name="chromium",
                 username=request.username,
                 password=request.password,
                 downloads_dir=output_dir / "files" / str(index),
@@ -464,13 +486,21 @@ async def extract_many(
     saved: list[str] = []
     sync: list[dict[str, Any]] = []
     next_state: dict[str, str] = {}
-    for course in results:
-        key = str(course.get("source_url") or course.get("course_id") or course.get("course"))
-        fingerprint = _course_fingerprint(course)
-        changed = state.get(key) != fingerprint
-        saved.append(_save_to_vault(course, changed=changed))
-        next_state[key] = fingerprint
-        sync.append({"course": course.get("course"), "status": "updated" if changed else "unchanged", "new_or_changed": changed})
+    settings = Settings.from_env()
+    pool = await create_pool(settings)
+    try:
+        await migrate(pool)
+        for course in results:
+            key = str(course.get("source_url") or course.get("course_id") or course.get("course"))
+            fingerprint = _course_fingerprint(course)
+            changed = state.get(key) != fingerprint
+            imported = await ingest_course(pool, settings.telegram_user_id, course)
+            saved.append(f"iCloud Drive/Lora/Facultate/{imported['folder']}")
+            next_state[key] = fingerprint
+            sync.append({"course": course.get("course"), "status": "updated" if changed else "unchanged",
+                         "new_or_changed": changed, **imported})
+    finally:
+        await pool.close()
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(json.dumps(next_state, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"courses": results, "saved_files": saved, "sync": sync, "count": len(results)}
@@ -480,17 +510,20 @@ async def _discover_course_urls(dashboard_url: str, username: str, password: str
     """Discover enrolled course links from the authenticated dashboard."""
     from playwright.async_api import async_playwright
 
-    profile = Path(os.getenv("MOODLE_BROWSER_PROFILE", ".moodle-firefox-profile-2"))
+    profile = _automation_profile()
     async with async_playwright() as playwright:
-        browser = await playwright.firefox.launch_persistent_context(str(profile), headless=False)
+        browser = await playwright.chromium.launch_persistent_context(str(profile), headless=True)
         try:
             page = browser.pages[0] if browser.pages else await browser.new_page()
             await page.goto(dashboard_url, wait_until="domcontentloaded")
-            if "/login/" in page.url:
+            if "/login/" in page.url or await page.locator('input[name="password"]').count():
                 await page.locator('input[name="username"]').fill(username)
                 await page.locator('input[name="password"]').fill(password)
                 await page.locator('button[type="submit"], input[type="submit"]').first.click()
-                await page.wait_for_function("!window.location.pathname.includes('/login/')", timeout=300_000)
+                await page.wait_for_function("!document.querySelector('input[name=password]')", timeout=30_000)
+                await page.goto(dashboard_url, wait_until="domcontentloaded")
+            if "/login/" in page.url or await page.locator('input[name="password"]').count():
+                raise RuntimeError("Autentificarea Moodle nu a reușit")
             links = await page.locator('a[href*="/moodle/course/view.php?id="]').evaluate_all(
                 "els => els.map(e => e.href)"
             )

@@ -78,6 +78,11 @@ class AcademicWriteRequest(BaseModel):
     expected_version: int | None = None
 
 
+class MoodlePostUpdate(BaseModel):
+    is_read: bool | None = None
+    archived: bool | None = None
+
+
 class SemesterRequest(BaseModel):
     semester_start: date
     semester_end: date | None = None
@@ -661,6 +666,42 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/v2/university")
     async def university(request: Request, owner_id: int = Depends(auth)):
         return await list_academics(request.app.state.pool, owner_id)
+
+    @app.get("/api/v2/moodle")
+    async def moodle_library(request: Request, owner_id: int = Depends(auth)):
+        async with request.app.state.pool.acquire() as conn:
+            courses = await conn.fetch(
+                """SELECT course_url,course_title,folder_name,material_count,last_synced_at
+                FROM moodle_course_sync WHERE owner_id=$1 ORDER BY course_title""", owner_id,
+            )
+            materials = await conn.fetch(
+                """SELECT id,course_url,title,section_title,filename,relative_path,sha256
+                FROM moodle_materials WHERE owner_id=$1 ORDER BY course_url,section_title,filename""", owner_id,
+            )
+            posts = await conn.fetch(
+                """SELECT id,course_url,course_title,forum_title,kind,discussion_url,title,
+                body,is_read,first_seen_at,updated_at FROM moodle_posts
+                WHERE owner_id=$1 AND archived_at IS NULL ORDER BY updated_at DESC LIMIT 200""", owner_id,
+            )
+        return {"courses": [dict(row) for row in courses],
+                "materials": [dict(row) for row in materials],
+                "posts": [dict(row) for row in posts]}
+
+    @app.put("/api/v2/moodle/posts/{post_id}")
+    async def update_moodle_post(post_id: uuid.UUID, body: MoodlePostUpdate,
+                                 request: Request, owner_id: int = Depends(auth)):
+        if body.is_read is None and body.archived is None:
+            raise HTTPException(status_code=422, detail="Alege o modificare.")
+        result = await request.app.state.pool.fetchrow(
+            """UPDATE moodle_posts SET is_read=COALESCE($3,is_read),
+            archived_at=CASE WHEN $4::boolean IS NULL THEN archived_at
+            WHEN $4 THEN now() ELSE NULL END WHERE id=$1 AND owner_id=$2
+            RETURNING id,is_read,archived_at""",
+            post_id, owner_id, body.is_read, body.archived,
+        )
+        if result is None:
+            raise HTTPException(status_code=404, detail="Mesajul nu mai este disponibil.")
+        return dict(result)
 
     @app.get("/api/v2/university/week")
     async def university_week(week_start: date, request: Request, owner_id: int = Depends(auth)):

@@ -27,8 +27,6 @@ $(check api http://127.0.0.1:8092/health)
 $(check gateway http://127.0.0.1:8093/health)
 $(check_service bot com.lora.v2.bot)
 $(check_service worker com.lora.v2.worker)
-$(check_service integrations com.lora.v2.integrations)
-$(check_service obsidian com.lora.v2.obsidian-processor)
 $(check bridge http://127.0.0.1:8788/health)
 $(check n8n http://127.0.0.1:5678/healthz)
 $(cd /Users/robu/Lora && .venv/bin/python -m lora_v2.health)"

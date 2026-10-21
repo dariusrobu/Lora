@@ -26,6 +26,8 @@ export type DailyHistory = { reflections: Reflection[]; plans: DayPlan[]; catego
 export type UniversityKind = "subject" | "schedule" | "attendance" | "grade" | "exam" | "vacation"
 export type UniversityRecord = { id: string; version: number; [key: string]: unknown }
 export type UniversityData = { subjects: UniversityRecord[]; schedules: UniversityRecord[]; attendance: UniversityRecord[]; grades: UniversityRecord[]; exams: UniversityRecord[]; vacations: UniversityRecord[]; semester: { semester_start: string; semester_end?: string; version: number } | null }
+export type MoodlePost = { id: string; course_url: string; course_title: string; forum_title: string; kind: "announcement" | "forum"; discussion_url: string; title: string; body: string; is_read: boolean; first_seen_at: string; updated_at: string }
+export type MoodleLibrary = { courses: { course_url: string; course_title: string; folder_name: string; material_count: number; last_synced_at: string }[]; materials: { id: string; course_url: string; title: string; section_title: string; filename: string; relative_path: string; sha256: string }[]; posts: MoodlePost[] }
 
 type TelegramWindow = Window & { Telegram?: { WebApp?: { initData?: string; ready?: () => void; expand?: () => void } } }
 export const telegram = (window as TelegramWindow).Telegram?.WebApp
@@ -80,6 +82,8 @@ export const api = {
   editMerchantRule: (body: Record<string, unknown>) => request<MerchantRule>("/daily-history/merchant-rules", { method: "PUT", body: JSON.stringify(body) }),
   deleteMerchantRule: (key: string, version: number) => request<{merchant_key: string}>(`/daily-history/merchant-rules?merchant_key=${encodeURIComponent(key)}&expected_version=${version}`, { method: "DELETE" }),
   university: () => request<UniversityData>("/university"),
+  moodle: () => request<MoodleLibrary>("/moodle"),
+  updateMoodlePost: (id: string, change: { is_read?: boolean; archived?: boolean }) => request<{ id: string; is_read: boolean }>(`/moodle/posts/${id}`, { method: "PUT", body: JSON.stringify(change) }),
   universityWeek: (weekStart: string) => request<Entry[]>(`/university/week?week_start=${encodeURIComponent(weekStart)}`),
   academicCreate: (kind: UniversityKind, data: Record<string, unknown>) => request<{id: string; version: number}>(`/university/${kind}`, { method: "POST", body: JSON.stringify({ data }) }),
   academicEdit: (kind: UniversityKind, id: string, expected_version: number, data: Record<string, unknown>) => request<{id: string; version: number}>(`/university/${kind}/${id}`, { method: "PUT", body: JSON.stringify({ expected_version, data }) }),
