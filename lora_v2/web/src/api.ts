@@ -30,8 +30,21 @@ export type MoodlePost = { id: string; course_url: string; course_title: string;
 export type MoodleLibrary = { courses: { course_url: string; course_title: string; folder_name: string; material_count: number; last_synced_at: string }[]; materials: { id: string; course_url: string; title: string; section_title: string; filename: string; relative_path: string; sha256: string }[]; posts: MoodlePost[] }
 export type UniversityNote = { id: string; subject_id: string | null; subject_name: string | null; title: string; body: string; version: number; created_at: string; updated_at: string }
 
-type TelegramWindow = Window & { Telegram?: { WebApp?: { initData?: string; ready?: () => void; expand?: () => void } } }
+type TelegramWindow = Window & { Telegram?: { WebApp?: { initData?: string; ready?: () => void; expand?: () => void; close?: () => void } } }
 export const telegram = (window as TelegramWindow).Telegram?.WebApp
+
+export class SessionExpiredError extends Error {
+  constructor() { super("Sesiunea Telegram a expirat.") }
+}
+
+async function responseError(response: Response): Promise<Error> {
+  const body = await response.json().catch(() => ({}))
+  if (response.status === 401 && body.detail === "Telegram session expired") {
+    window.dispatchEvent(new Event("lora:session-expired"))
+    return new SessionExpiredError()
+  }
+  return new Error(body.detail || `Cererea a eșuat (${response.status})`)
+}
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!telegram?.initData) throw new Error("Deschide Lora din Telegram pentru a accesa datele.")
@@ -39,10 +52,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...options,
     headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": telegram.initData, ...options.headers },
   })
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}))
-    throw new Error(body.detail || `Cererea a eșuat (${response.status})`)
-  }
+  if (!response.ok) throw await responseError(response)
   return response.json() as Promise<T>
 }
 
@@ -101,7 +111,7 @@ export const api = {
     const response = await fetch(`/api/v2/captures/photo?caption=${encodeURIComponent(caption)}`, {
       method: "POST", headers: { "X-Telegram-Init-Data": telegram.initData }, body: file,
     })
-    if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.detail || "Nu am putut trimite fotografia.") }
+    if (!response.ok) throw await responseError(response)
     return response.json() as Promise<{ id: string; status: string }>
   },
   action: (type: string, data: Record<string, unknown>) => request<ActionResult>("/actions", {

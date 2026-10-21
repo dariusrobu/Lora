@@ -36,6 +36,7 @@ export default function App() {
   const [form, setForm] = useState<FormKind>(null)
   const [status, setStatus] = useState("")
   const [error, setError] = useState("")
+  const [sessionExpired, setSessionExpired] = useState(false)
   const [busy, setBusy] = useState(false)
   const [month, setMonth] = useState(() => new Date())
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(() => isoLocalDate(new Date()))
@@ -69,8 +70,13 @@ export default function App() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut încărca datele.") }
   }, [month])
 
-  useEffect(() => { void reload() }, [reload])
-  useEffect(() => { if (!telegram?.initData) return; const timer = window.setInterval(() => void reload(), 15000); return () => window.clearInterval(timer) }, [reload])
+  useEffect(() => {
+    const expire = () => setSessionExpired(true)
+    window.addEventListener("lora:session-expired", expire)
+    return () => window.removeEventListener("lora:session-expired", expire)
+  }, [])
+  useEffect(() => { if (!sessionExpired) void reload() }, [reload, sessionExpired])
+  useEffect(() => { if (!telegram?.initData || sessionExpired) return; const timer = window.setInterval(() => void reload(), 15000); return () => window.clearInterval(timer) }, [reload, sessionExpired])
 
 
   async function decide(id: string, accept: boolean) {
@@ -227,7 +233,7 @@ export default function App() {
   return <div className="app-shell">
     <div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="ambient ambient-three" />
     <main className="app-content">
-      {!telegram?.initData ? <section className="glass notice"><h1>Lora</h1><p>Deschide Mini App din conversația Telegram cu Lora.</p></section> : <>
+      {!telegram?.initData ? <section className="glass notice"><h1>Lora</h1><p>Deschide Mini App din conversația Telegram cu Lora.</p></section> : sessionExpired ? <section className="glass notice session-notice" role="alert"><h1>Redeschide Lora</h1><p>Informațiile primite de la Telegram nu mai sunt valabile. Închide Mini App și deschide-o din nou din meniul chatului Lora.</p><button className="primary" type="button" onClick={() => telegram?.close?.()}>Închide Mini App</button></section> : <>
         <header className="page-heading">
           <span className="eyebrow">LORA · {tab === "today" ? "ZIUA TA" : tabs.find(item => item.id === tab)?.label.toUpperCase()}</span>
           <h1>{tab === "today" ? "Azi" : tabs.find(item => item.id === tab)?.label}</h1>
@@ -282,7 +288,7 @@ export default function App() {
         </form>}
       </>}
     </main>
-    {telegram?.initData && <nav className="bottom-nav" aria-label="Navigație principală">{tabs.map(({ id, label, icon: Icon }) => <button key={id} className={tab === id ? "active" : ""} aria-current={tab === id ? "page" : undefined} onClick={() => { setTab(id); setForm(null) }}><Icon size={20} strokeWidth={1.8} /><span>{label}</span></button>)}</nav>}
+    {telegram?.initData && !sessionExpired && <nav className="bottom-nav" aria-label="Navigație principală">{tabs.map(({ id, label, icon: Icon }) => <button key={id} className={tab === id ? "active" : ""} aria-current={tab === id ? "page" : undefined} onClick={() => { setTab(id); setForm(null) }}><Icon size={20} strokeWidth={1.8} /><span>{label}</span></button>)}</nav>}
   </div>
 }
 
