@@ -6,8 +6,9 @@ Lora v2 now creates a persisted daily brief from owner-scoped calendar,
 academic, task and routine reads. Telegram accepts natural requests such as
 “Organizează-mi ziua de mâine”; Mini App → Azi shows the latest brief and buttons
 for today or tomorrow. The worker schedules one morning brief and one evening
-brief using the saved morning/evening preferences (or the day's wake time plus
-30 minutes), with 08:00/20:00 defaults. The evening brief includes open
+brief using the saved morning/evening preferences. If no morning preference is
+saved, it uses the day's wake time plus 30 minutes, with 08:00/20:00 defaults.
+The evening brief includes open
 reminders from today. Every suggested change is a separate, version-checked
 proposal; the agent never executes a suggestion before approval. A short
 “după ultimul curs” answer may revise one recent, unambiguous reminder proposal.

@@ -87,12 +87,15 @@ def _local_time(value: str | None, fallback: time) -> time:
 def brief_due_at(mode: Literal["morning", "evening"], day: date,
                  routine: dict[str, str | None], timezone_name: str) -> datetime:
     zone = ZoneInfo(timezone_name)
+    field = "morning_time" if mode == "morning" else "eod_time"
+    fallback = time(8) if mode == "morning" else time(20)
+    configured = routine.get(field)
+    if configured:
+        return datetime.combine(day, _local_time(configured, fallback), zone)
     if mode == "morning" and routine.get("wake_time"):
         wake = _local_time(routine["wake_time"], time(7, 30))
         return datetime.combine(day, wake, zone) + timedelta(minutes=30)
-    field = "morning_time" if mode == "morning" else "eod_time"
-    fallback = time(8) if mode == "morning" else time(20)
-    return datetime.combine(day, _local_time(routine.get(field), fallback), zone)
+    return datetime.combine(day, fallback, zone)
 
 
 async def _choose_tools(settings: Settings, request_text: str) -> tuple[list[ToolName], bool]:

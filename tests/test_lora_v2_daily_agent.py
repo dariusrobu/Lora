@@ -40,9 +40,10 @@ def test_planning_phrases_and_routine_times() -> None:
     assert planning_date("Planifică ziua de azi", now) == date(2026, 10, 21)
     assert planning_date("Pune-mi un reminder mâine", now) is None
     routine = {"wake_time": "07:15:00", "morning_time": "09:00", "eod_time": "21:30"}
-    assert brief_due_at("morning", now.date(), routine, "Europe/Bucharest").time() == time(7, 45)
+    assert brief_due_at("morning", now.date(), routine, "Europe/Bucharest").time() == time(9)
     assert brief_due_at("evening", now.date(), routine, "Europe/Bucharest").time() == time(21, 30)
     assert brief_due_at("morning", now.date(), {}, "Europe/Bucharest").time() == time(8)
+    assert brief_due_at("morning", now.date(), {"wake_time": "07:15:00"}, "Europe/Bucharest").time() == time(7, 45)
 
 
 @pytest.mark.asyncio
