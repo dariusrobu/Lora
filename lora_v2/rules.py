@@ -65,7 +65,24 @@ def extract_common(text: str, now: datetime, timezone: str) -> tuple[Interpretat
                         title="Meci de fotbal", starts_at=at.isoformat(),
                         alert_offsets_minutes=[30, 0], confidence=0.99, evidence=clause))
                     handled = True
-        if re.search(r"\b(?:sun|sunat|să sun|sa sun)\b", source) and day:
+        if (not handled and day and re.search(r"\breminder\b", source)
+                and re.search(r"\b(?:adaug[aă]|pune|seteaz[aă]|setez|f[aă])\b", source)
+                and not re.search(r"\bnu\s+(?:mai\s+)?(?:adaug[aă]|pune|seteaz[aă]|setez|f[aă])\b", source)):
+            target = re.search(r"\b(?:la(?:\s+ora)?|ora)\s*(\d{1,2})(?::(\d{2}))?\b", source)
+            action = re.search(r"\b(?:să|sa)\s+(.+?)[.!?]*$", clause, re.IGNORECASE)
+            if target and action:
+                hour, minute = int(target.group(1)), int(target.group(2) or 0)
+                if hour < 24 and minute < 60:
+                    at = datetime.combine(day.date(), time(hour, minute), ZoneInfo(timezone))
+                    if at <= local_now:
+                        questions.append(f"Ora {at:%H:%M} de azi a trecut. Când să îți amintesc?")
+                    else:
+                        title = "Să " + action.group(1).strip().rstrip(".!?")
+                        actions.append(Candidate(type="create_calendar_entry", kind="reminder",
+                            title=title[:300], starts_at=at.isoformat(),
+                            alert_offsets_minutes=[0], confidence=0.99, evidence=clause))
+                    handled = True
+        if not handled and re.search(r"\b(?:sun|sunat|să sun|sa sun)\b", source) and day:
             target = re.search(r"\b(?:la|de la|ora)\s*(\d{1,2})(?::(\d{2}))?\b", source)
             if "amia" in source and not target:
                 subject = re.search(r"\b(?:sun|sunat)\s+(?:la\s+)?([^,.;]+)", clause, re.IGNORECASE)

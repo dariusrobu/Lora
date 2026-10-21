@@ -34,7 +34,7 @@ from lora_v2.apple import _digest, pull_changes, push_pending, resolve_conflict
 from lora_v2.notifications import queue_due_alerts, send_pending_telegram
 from lora_v2.nutrition import enrich_meal_candidate
 from lora_v2.rules import extract_common
-from lora_v2.processor import process_capture
+from lora_v2.processor import _invalid_candidate_message, process_capture
 from lora_v2.academics import delete_academic, list_academics, set_semester, write_academic
 from lora_v2.proactive import decide_followup, decide_proposal, generate_proposals
 from lora_v2.queries import answer_read_intent, read_intent
@@ -105,6 +105,42 @@ def test_ai_dates_and_amounts_must_match_message():
     assert grounding_issue(football, "Duminică am meci de la 20", _settings(), now)
     expense = Candidate(type="log_expense", amount=50, confidence=1)
     assert grounding_issue(expense, "Am dat 15 lei la cantină", _settings(), now)
+
+
+def test_explicit_reminder_at_known_time_is_not_a_task_or_model_guess():
+    zone = ZoneInfo("Europe/Bucharest")
+    message = "adauga un reminder azi la 19 sa curat mixer cafea"
+    result, remaining = extract_common(message, datetime(2026, 10, 21, 17, 54, tzinfo=zone),
+                                       "Europe/Bucharest")
+    assert remaining == ""
+    assert len(result.actions) == 1
+    reminder = result.actions[0]
+    assert reminder.type == "create_calendar_entry" and reminder.kind == "reminder"
+    assert reminder.starts_at == "2026-10-21T19:00:00+03:00"
+    assert reminder.alert_offsets_minutes == [0]
+    assert "curat mixer cafea" in (reminder.title or "")
+    reminder.as_command().payload()
+
+    late, remaining = extract_common(message, datetime(2026, 10, 21, 19, 8, tzinfo=zone),
+                                     "Europe/Bucharest")
+    assert not late.actions and remaining == ""
+    assert late.reply and "a trecut" in late.reply
+
+    call, remaining = extract_common(
+        "Adaugă un reminder mâine la 19 să sun administratorul",
+        datetime(2026, 10, 21, 17, 54, tzinfo=zone), "Europe/Bucharest",
+    )
+    assert remaining == ""
+    assert len(call.actions) == 1
+    assert call.actions[0].type == "create_calendar_entry"
+    assert call.actions[0].kind == "reminder"
+
+
+def test_reminder_validation_error_uses_a_real_question_not_command_name():
+    candidate = Candidate(type="create_calendar_entry", kind="reminder", title="Să curăț mixerul")
+    message = _invalid_candidate_message(candidate)
+    assert "data și ora" in message
+    assert "create_calendar_entry" not in message
 
 
 def test_compound_daily_message_uses_grounded_shortcuts():

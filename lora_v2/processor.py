@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 import asyncpg
 from pydantic import ValidationError
 
-from lora_v2.agent import Interpretation, interpret_capture
+from lora_v2.agent import Candidate, Interpretation, interpret_capture
 from lora_v2.daily_agent import create_brief, planning_date, resolve_agent_followup
 from lora_v2.config import Settings
 from lora_v2.models import ActionResult, Command
@@ -66,6 +66,16 @@ def _preview(command: Command) -> str:
 def _category_key(value: str) -> str:
     normalized = unicodedata.normalize("NFD", value.casefold().strip())
     return "".join(char for char in normalized if unicodedata.category(char) != "Mn")
+
+
+def _invalid_candidate_message(candidate: Candidate) -> str:
+    if candidate.type == "create_calendar_entry":
+        if not candidate.title:
+            return "Ce vrei să îți amintesc? Repetă cererea cu lucrul de făcut, ziua și ora."
+        if candidate.kind not in {"event", "reminder"}:
+            return "Vrei un reminder sau un eveniment? Repetă cererea cu ziua și ora."
+        return "Nu am putut citi data și ora. Repetă cererea cu ziua și ora exactă."
+    return "Nu am putut salva cererea. Repet-o cu detaliile necesare."
 
 
 async def _suggest_after_academic_classes(
@@ -277,7 +287,7 @@ async def process_capture(
             needs_input = True
             results.append(ActionResult(
                 status="needs_input", command_type=command.type,
-                message=candidate.missing_information or f"Lipsesc date pentru {command.type}.",
+                message=candidate.missing_information or _invalid_candidate_message(candidate),
                 details={"validation_error": type(exc).__name__},
             ))
             continue
