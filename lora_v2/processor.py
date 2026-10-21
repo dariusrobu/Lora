@@ -10,6 +10,7 @@ import asyncpg
 from pydantic import ValidationError
 
 from lora_v2.agent import Interpretation, interpret_capture
+from lora_v2.daily_agent import create_brief, planning_date, resolve_agent_followup
 from lora_v2.config import Settings
 from lora_v2.models import ActionResult, Command
 from lora_v2.media import interpret_photo, transcribe_voice
@@ -131,6 +132,29 @@ async def process_capture(
                     "needs_input" if proposal_answer.status == "needs_input" else "processed",
                 )
             return [proposal_answer]
+        agent_answer = (await resolve_agent_followup(pool, settings, owner_id, content)
+                        if row["content_type"] in {"text", "voice"} else None)
+        if agent_answer is not None:
+            await pool.execute(
+                """UPDATE captures SET status='needs_input',processed_at=now(),processing_started_at=NULL
+                WHERE id=$1 AND owner_id=$2""", capture_id, owner_id,
+            )
+            return [agent_answer]
+        target_day = (planning_date(content, anchor)
+                      if row["content_type"] in {"text", "voice"} else None)
+        if target_day is not None:
+            brief = await create_brief(
+                pool, settings, owner_id, target_day, "on_demand",
+                f"capture:{capture_id}", request_text=content, now=anchor,
+            )
+            if brief["status"] != "ready":
+                raise RuntimeError("Daily plan is still processing")
+            await pool.execute(
+                """UPDATE captures SET status='processed',processed_at=now(),processing_started_at=NULL
+                WHERE id=$1 AND owner_id=$2""", capture_id, owner_id,
+            )
+            return [ActionResult(status="saved", command_type="daily_plan",
+                                 message=brief["summary"], details={"brief_id": str(brief["id"])})]
         meal_answer = (await resolve_meal_answer(pool, owner_id, content)
                        if row["content_type"] in {"text", "voice"} else None)
         expense_answer = (await resolve_expense_answer(pool, owner_id, content)

@@ -13,6 +13,7 @@ export type Journal = { expenses: Expense[]; incomes: Income[]; meals: Meal[]; w
 export type ActionResult = { status: string; message: string; entity_id?: string }
 export type CaptureStatus = { id: string; status: "captured" | "processing" | "needs_input" | "processed" | "failed"; receipt: string | null }
 export type Proposal = { id: string; source: string; reason: string; command: { type: string; data: Record<string, unknown> }; expires_at: string; version: number }
+export type AgentBrief = { id: string; target_date: string; mode: "morning" | "evening" | "on_demand"; status: string; summary: string | null; context: { free_slots?: string[]; proposal_ids?: string[] }; created_at?: string }
 export type ReceiptLineDraft = { name: string; amount: string; category: string; category_uncertain?: boolean }
 export type AppleConflict = { id: string; entity_type: string; entity_id: string; local_title?: string }
 export type AppleConflictDetail = { local: { title: string; at?: string; status: string; version: number } | null; apple: { title: string; at?: string; completed: boolean } | null; apple_deleted: boolean }
@@ -64,6 +65,8 @@ export const api = {
   tasks: () => request<Task[]>("/tasks"),
   journal: () => request<Journal>("/journal"),
   proposals: () => request<Proposal[]>("/proposals"),
+  agentBriefs: () => request<AgentBrief[]>("/agent/briefs"),
+  createAgentBrief: (target_date: string) => request<AgentBrief>("/agent/briefs", { method: "POST", body: JSON.stringify({ target_date }) }),
   decide: (id: string, accept: boolean) => request<ActionResult>(`/proposals/${id}/decision`, { method: "POST", body: JSON.stringify({ accept }) }),
   editReceiptProposal: (id: string, expected_version: number, merchant: string, total_amount: string, items: ReceiptLineDraft[]) =>
     request<{ id: string; version: number; reason: string }>(`/proposals/${id}/receipt`, {

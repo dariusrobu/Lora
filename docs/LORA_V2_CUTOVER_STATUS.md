@@ -1,5 +1,26 @@
 # Lora v2 cutover — 20 October 2026
 
+## 21 October: bounded daily agent
+
+Lora v2 now creates a persisted daily brief from owner-scoped calendar,
+academic, task and routine reads. Telegram accepts natural requests such as
+“Organizează-mi ziua de mâine”; Mini App → Azi shows the latest brief and buttons
+for today or tomorrow. The worker schedules one morning brief and one evening
+brief using the saved morning/evening preferences (or the day's wake time plus
+30 minutes), with 08:00/20:00 defaults. The evening brief includes open
+reminders from today. Every suggested change is a separate, version-checked
+proposal; the agent never executes a suggestion before approval. A short
+“după ultimul curs” answer may revise one recent, unambiguous reminder proposal.
+Ollama is local and bounded; saved data still produces a deterministic summary
+if it is unavailable.
+
+Migration `027` was applied after verified legacy and v2 backups. The isolated
+v2 suite passed 49 tests, Ruff passed, and the Mini App production build passed.
+The authenticated local gateway created and read an on-demand brief from live
+data without creating a proposal. API and worker were restarted and healthy.
+A scheduled brief has not yet reached its delivery time, so real Telegram
+delivery of the new morning/evening message remains unobserved.
+
 ## 21 October: Moodle and iCloud Drive transition
 
 The initial news import was too broad: it treated every Moodle forum discussion

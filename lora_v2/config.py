@@ -17,6 +17,7 @@ class Settings:
     ollama_model: str = "qwen2.5:7b"
     timezone: str = "Europe/Bucharest"
     followup_hour: int = 20
+    daily_agent_enabled: bool = True
     icloud_username: str = ""
     icloud_app_password: str = ""
     apple_reminders_list: str = "Lora v2"
@@ -50,6 +51,7 @@ class Settings:
             ollama_model=os.getenv("LORA_V2_OLLAMA_MODEL", "qwen2.5:7b"),
             timezone=os.getenv("TIMEZONE", "Europe/Bucharest"),
             followup_hour=int(os.getenv("LORA_V2_FOLLOWUP_HOUR", "20")),
+            daily_agent_enabled=os.getenv("LORA_V2_DAILY_AGENT_ENABLED", "true").lower() == "true",
             icloud_username=os.getenv("ICLOUD_USERNAME", ""),
             icloud_app_password=os.getenv("ICLOUD_APP_PASSWORD", ""),
             apple_reminders_list=os.getenv("LORA_V2_APPLE_REMINDERS_LIST", "Lora v2"),

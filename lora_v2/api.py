@@ -25,6 +25,7 @@ from lora_v2.apple_events import AppleEventRemote, resolve_event_conflict
 from lora_v2.config import Settings
 from lora_v2.crud import EditRequest, EntityKind, delete_entity, update_entity
 from lora_v2.db import create_pool, migrate
+from lora_v2.daily_agent import create_brief
 from lora_v2.models import Command, ReceiptLine
 from lora_v2.moodle_library import _author_key, _author_name
 from lora_v2.media import save_photo
@@ -46,6 +47,10 @@ class ActionRequest(BaseModel):
 
 class DecisionRequest(BaseModel):
     accept: bool
+
+
+class AgentBriefRequest(BaseModel):
+    target_date: date
 
 
 class ReceiptProposalEdit(BaseModel):
@@ -597,6 +602,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 owner_id,
             )
         return [dict(row) for row in rows]
+
+    @app.get("/api/v2/agent/briefs")
+    async def agent_briefs(request: Request, owner_id: int = Depends(auth)):
+        since = datetime.now(ZoneInfo(config.timezone)).date() - timedelta(days=1)
+        rows = await request.app.state.pool.fetch(
+            """SELECT id,target_date,mode,status,summary,context,created_at FROM agent_briefs
+            WHERE owner_id=$1 AND target_date >= $2
+            ORDER BY created_at DESC LIMIT 12""", owner_id, since,
+        )
+        return [{**dict(row), "context": json.loads(row["context"])
+                 if isinstance(row["context"], str) else row["context"]} for row in rows]
+
+    @app.post("/api/v2/agent/briefs")
+    async def create_agent_brief(body: AgentBriefRequest, request: Request,
+                                 owner_id: int = Depends(auth)):
+        today = datetime.now(ZoneInfo(config.timezone)).date()
+        if body.target_date < today or body.target_date > today + timedelta(days=1):
+            raise HTTPException(status_code=422, detail="Poți planifica azi sau mâine.")
+        brief = await create_brief(request.app.state.pool, config, owner_id, body.target_date,
+                                   "on_demand", f"mini_app:{uuid.uuid4()}",
+                                   request_text=f"Organizează-mi ziua de {body.target_date}")
+        return {key: brief[key] for key in ("id", "target_date", "mode", "status", "summary", "context")}
 
     @app.get("/api/v2/apple/conflicts")
     async def apple_conflicts(request: Request, owner_id: int = Depends(auth)):

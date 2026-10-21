@@ -12,6 +12,7 @@ import asyncpg
 from telegram import Bot
 
 from lora_v2.config import Settings
+from lora_v2.daily_agent import generate_due_briefs
 from lora_v2.academic_calendar import materialize_schedule
 from lora_v2.apple import pull_changes, push_pending
 from lora_v2.apple_events import sync_events
@@ -141,6 +142,7 @@ async def run_forever(pool: asyncpg.Pool, bot: Bot, settings: Settings,
 async def _capture_loop(pool: asyncpg.Pool, bot: Bot, settings: Settings, interactive_notifications: bool) -> None:
     last_academic_refresh = None
     last_apple_sync = None
+    last_agent_check = None
     while True:
         try:
             today = datetime.now(ZoneInfo(settings.timezone)).date()
@@ -155,6 +157,10 @@ async def _capture_loop(pool: asyncpg.Pool, bot: Bot, settings: Settings, intera
                 last_academic_refresh = today
             if sync_apple:
                 last_apple_sync = now
+            if (settings.daily_agent_enabled and
+                    (last_agent_check is None or (now - last_agent_check).total_seconds() >= 60)):
+                await generate_due_briefs(pool, settings, settings.telegram_user_id, now=now)
+                last_agent_check = now
         except asyncio.CancelledError:
             raise
         except Exception:

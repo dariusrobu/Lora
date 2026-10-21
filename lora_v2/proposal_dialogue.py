@@ -41,7 +41,13 @@ async def resolve_proposal_reply(
         )
     if not rows:
         return None
-    if len(rows) > 1 or not rows[0]["source"].startswith("capture:"):
+    agent_focus = None
+    if len(rows) == 1 and rows[0]["source"].startswith("agent:"):
+        agent_focus = await pool.fetchval(
+            """SELECT 1 FROM agent_dialogue_focus WHERE owner_id=$1 AND proposal_id=$2
+            AND expires_at>now()""", owner_id, rows[0]["id"],
+        )
+    if len(rows) > 1 or not (rows[0]["source"].startswith("capture:") or agent_focus):
         return ActionResult(
             status="needs_input", command_type="proposal_decision",
             message="Nu pot lega acest răspuns de o singură propunere din conversație. Alege în Mini App → Azi.",
