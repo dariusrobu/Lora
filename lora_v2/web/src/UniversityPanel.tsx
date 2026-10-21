@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { CalendarDays, ChevronLeft, ChevronRight, FileText, GraduationCap, Megaphone, MessageCircle, Pencil, Plus, Trash2, X } from "lucide-react"
 import { api, type Entry, type MoodleLibrary, type UniversityData, type UniversityKind, type UniversityRecord } from "./api"
+import UniversityNotes from "./UniversityNotes"
 
 type FormState = { kind: UniversityKind; id?: string; version?: number }
 const sections: { kind: UniversityKind; key: keyof Pick<UniversityData, "subjects" | "schedules" | "attendance" | "grades" | "exams" | "vacations">; title: string }[] = [
@@ -162,6 +163,7 @@ export default function UniversityPanel() {
       {moodle?.courses.map(course => <details className="moodle-course" key={course.course_url}><summary>{course.folder_name} · {course.material_count} fișiere</summary><div className="university-list">{moodle.materials.filter(file => file.course_url === course.course_url).map(file => <div className="simple-row" key={file.id}><span><strong>{file.filename}</strong><small>{file.section_title} · {file.relative_path}</small></span></div>)}</div></details>)}
       {!moodle?.courses.length && <p className="empty">Materialele vor apărea aici după sincronizarea Moodle.</p>}
     </details>
+    <UniversityNotes subjects={data?.subjects || []} />
     <details className="glass section-card university-details"><summary><GraduationCap size={18} /> Date academice</summary><form className="semester-form" onSubmit={event => void saveSemester(event)}><label>Început semestru<input type="date" required value={semesterFields.start} onChange={event => setSemesterFields({ ...semesterFields, start: event.target.value })} /></label><label>Sfârșit semestru<input type="date" value={semesterFields.end} onChange={event => setSemesterFields({ ...semesterFields, end: event.target.value })} /></label><button type="submit" disabled={busy}>Salvează semestrul</button></form></details>
     {sections.map(section => <details className="glass section-card university-details" key={section.kind}><summary><span>{section.title} · {data?.[section.key].length || 0}</span></summary><div className="university-list">{data?.[section.key].map(item => <div className="simple-row" key={item.id}><span><strong>{recordLabel(section.kind, item, data.subjects)}</strong></span><span className="row-actions"><button aria-label={`Editează ${section.title}`} onClick={() => startEdit(section.kind, item)}><Pencil size={15} /></button><button aria-label={`Șterge ${section.title}`} onClick={() => void remove(section.kind, item)}><Trash2 size={15} /></button></span></div>)}</div><button className="text-action" onClick={() => startNew(section.kind)}><Plus size={15} /> Adaugă</button></details>)}
     {form && <form ref={formRef} className="glass inline-form university-form" onSubmit={event => void submit(event)}><div className="section-title"><h2>{form.id ? "Editează" : "Adaugă"} {sections.find(section => section.kind === form.kind)?.title.toLowerCase()}</h2><button className="close-form" type="button" aria-label="Închide formularul" onClick={() => setForm(null)}><X size={17} /></button></div>

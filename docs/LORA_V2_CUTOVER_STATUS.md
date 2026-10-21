@@ -12,7 +12,8 @@ covering 198 distinct verified files in iCloud Drive, and 55 forum discussions.
 Preexisting discussions were baselined as read, without retrospective alerts.
 Subsequent new or changed discussions queue durable Telegram notifications and
 appear under Facultate → Noutăți Moodle; new files appear under Materiale in
-iCloud Drive. The owner has not yet confirmed file visibility on the iPad.
+iCloud Drive. The owner confirmed that the seven subjects and files are visible
+in iPad Files → iCloud Drive → Lora → Facultate.
 
 The two v2 Obsidian LaunchAgents (`integrations` and `obsidian-processor`) are
 disabled and stopped. n8n's Obsidian mount was removed; its own persistent data
@@ -22,6 +23,13 @@ reviewed. A scheduled n8n run after the Chromium change has not yet completed;
 the complete live extraction was invoked directly through the same bridge.
 The n8n CLI cannot manually run this Schedule Trigger without a start node.
 The health monitor now checks freshness of each imported Moodle course.
+
+Mini App now also has a private university notes editor with create, edit,
+delete, subject association and concurrent-edit protection. Migration `025`
+was applied after a verified backup; the authenticated live notes endpoint
+returned 200 with zero notes. The old Markdown vault remains untouched while
+the owner chooses which notes should be imported. The notes editor does not
+yet render Markdown formatting or link directly to iCloud files.
 
 ## Live runtime
 

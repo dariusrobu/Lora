@@ -36,7 +36,7 @@ Migrations run automatically on the v2 database at startup. `LORA_V2_APPLE_SYNC_
 
 ## Current safety boundary
 
-Clear Mini App forms use validated commands. Natural-language captures are saved before model processing, and proactive changes require the owner's choice. Common Romanian captures have deterministic extraction with validation. The local LLM is **not yet reliable on arbitrary long compound messages**; wrong dates, mismatched amounts, and invalid commands are rejected or sent for clarification. No production cutover has been performed.
+Clear Mini App forms use validated commands. Natural-language captures are saved before model processing, and proactive changes require the owner's choice. Common Romanian captures have deterministic extraction with validation. The local LLM is **not yet reliable on arbitrary long compound messages**; wrong dates, mismatched amounts, and invalid commands are rejected or sent for clarification. The v2 Telegram and Mini App cutover is active; see `docs/LORA_V2_CUTOVER_STATUS.md` for live verification and remaining limits.
 
 The Mini App now displays the last submitted message's processing result or clarification in place while the worker also sends its receipt to Telegram. It polls the owner-scoped capture endpoint until the worker has produced a result; direct forms remain available during an Ollama outage.
 
@@ -50,7 +50,7 @@ When `NUTRITION_CLOUD_ENABLED=true` and the existing USDA key is configured, v2 
 
 Telegram answers short read-only questions such as „Ce am azi?”, „Ce am mâine?”, „Ce taskuri am?”, „Cât am cheltuit luna asta?” and „Ce am la facultate azi?” directly from v2 data. `/azi`, `/maine`, `/taskuri`, `/cheltuieli`, and `/facultate` are shortcuts for the same views. Text and transcribed voice can propose deletion of the latest item in a named domain or correction of the latest expense category. A short follow-up answer to a missing target or category is retained for ten minutes. The target and version are shown before explicit approval; broader edits and entity selection still need work.
 
-The University tab opens on a seven-day calendar, with the selected day's classes and exams visible immediately. Navigating weeks materializes that week's academic rules in the isolated v2 database, including odd/even weeks and vacations. Academic data editing stays behind the calendar; Moodle news and the iCloud Drive material list follow it.
+The University tab opens on a seven-day calendar, with the selected day's classes and exams visible immediately. Navigating weeks materializes that week's academic rules in the isolated v2 database, including odd/even weeks and vacations. Academic data editing stays behind the calendar; Moodle news, the iCloud Drive material list and editable university notes follow it. The old Markdown vault remains a recovery copy until the owner selects which notes to import.
 
 The background worker also materializes the next 14 days of classes at startup and on each new day, without opening the Mini App. When an approximate noon reminder would land during classes, the capture flow proposes the first free slot with a 15-minute buffer after the overlapping classes; it waits for approval before saving. A database/FakeBot journey verifies academic conflict proposals and the two requested event alerts at 30 minutes before and at the start. Real Telegram/device delivery still needs cutover verification.
 

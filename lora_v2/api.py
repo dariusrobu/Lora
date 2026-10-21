@@ -83,6 +83,13 @@ class MoodlePostUpdate(BaseModel):
     archived: bool | None = None
 
 
+class UniversityNoteWrite(BaseModel):
+    title: str = Field(min_length=1, max_length=240)
+    body: str = Field(default="", max_length=200000)
+    subject_id: uuid.UUID | None = None
+    expected_version: int | None = Field(default=None, ge=1)
+
+
 class SemesterRequest(BaseModel):
     semester_start: date
     semester_end: date | None = None
@@ -702,6 +709,65 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if result is None:
             raise HTTPException(status_code=404, detail="Mesajul nu mai este disponibil.")
         return dict(result)
+
+    @app.get("/api/v2/university/notes")
+    async def university_notes(request: Request, owner_id: int = Depends(auth)):
+        rows = await request.app.state.pool.fetch(
+            """SELECT n.id,n.subject_id,s.name AS subject_name,n.title,n.body,n.version,
+            n.created_at,n.updated_at FROM university_notes n
+            LEFT JOIN academic_subjects s ON s.id=n.subject_id AND s.owner_id=n.owner_id
+            WHERE n.owner_id=$1 AND n.deleted_at IS NULL ORDER BY n.updated_at DESC LIMIT 500""",
+            owner_id,
+        )
+        return [dict(row) for row in rows]
+
+    async def valid_note_subject(pool: asyncpg.Pool, owner_id: int, subject_id: uuid.UUID | None) -> None:
+        if subject_id and not await pool.fetchval(
+            "SELECT 1 FROM academic_subjects WHERE id=$1 AND owner_id=$2", subject_id, owner_id,
+        ):
+            raise HTTPException(status_code=422, detail="Materia nu este disponibilă.")
+
+    @app.post("/api/v2/university/notes", status_code=201)
+    async def create_university_note(body: UniversityNoteWrite, request: Request,
+                                     owner_id: int = Depends(auth)):
+        if not body.title.strip():
+            raise HTTPException(status_code=422, detail="Titlul este obligatoriu.")
+        await valid_note_subject(request.app.state.pool, owner_id, body.subject_id)
+        row = await request.app.state.pool.fetchrow(
+            """INSERT INTO university_notes(id,owner_id,subject_id,title,body)
+            VALUES ($1,$2,$3,$4,$5) RETURNING id,version""",
+            uuid.uuid4(), owner_id, body.subject_id, body.title.strip(), body.body,
+        )
+        return dict(row)
+
+    @app.put("/api/v2/university/notes/{note_id}")
+    async def update_university_note(note_id: uuid.UUID, body: UniversityNoteWrite,
+                                     request: Request, owner_id: int = Depends(auth)):
+        if not body.title.strip() or body.expected_version is None:
+            raise HTTPException(status_code=422, detail="Titlul și versiunea sunt obligatorii.")
+        await valid_note_subject(request.app.state.pool, owner_id, body.subject_id)
+        row = await request.app.state.pool.fetchrow(
+            """UPDATE university_notes SET subject_id=$4,title=$5,body=$6,
+            version=version+1,updated_at=now() WHERE id=$1 AND owner_id=$2
+            AND version=$3 AND deleted_at IS NULL RETURNING id,version""",
+            note_id, owner_id, body.expected_version, body.subject_id, body.title.strip(), body.body,
+        )
+        if row is None:
+            raise HTTPException(status_code=409, detail="Notița a fost modificată. Reîncarcă pagina.")
+        return dict(row)
+
+    @app.delete("/api/v2/university/notes/{note_id}")
+    async def delete_university_note(note_id: uuid.UUID, expected_version: int,
+                                     request: Request, owner_id: int = Depends(auth)):
+        row = await request.app.state.pool.fetchrow(
+            """UPDATE university_notes SET deleted_at=now(),version=version+1,
+            updated_at=now() WHERE id=$1 AND owner_id=$2 AND version=$3 AND deleted_at IS NULL
+            RETURNING id,version""",
+            note_id, owner_id, expected_version,
+        )
+        if row is None:
+            raise HTTPException(status_code=409, detail="Notița a fost modificată. Reîncarcă pagina.")
+        return dict(row)
 
     @app.get("/api/v2/university/week")
     async def university_week(week_start: date, request: Request, owner_id: int = Depends(auth)):
