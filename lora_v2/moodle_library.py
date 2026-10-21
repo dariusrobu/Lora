@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shutil
+import unicodedata
 import uuid
 from pathlib import Path
 from typing import Any
@@ -82,6 +83,25 @@ def _is_announcement(forum_title: str) -> bool:
     return any(word in title for word in ("anunț", "anunt", "announcement", "news"))
 
 
+def _words(value: str) -> list[str]:
+    ascii_text = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode().casefold()
+    return re.findall(r"[a-z0-9]+", ascii_text)
+
+
+def _is_relevant_post(post: dict[str, str], professor: str | None) -> bool:
+    """Show designated announcements or forum discussions started by a known teacher."""
+    if post["kind"] == "announcement":
+        return True
+    if not professor:
+        return False
+    author = re.search(r"^\*\*Autor:\*\*\s*(.+)$", post["body"], flags=re.MULTILINE)
+    if not author:
+        return False
+    author_words = set(_words(author.group(1)))
+    professor_words = set(_words(professor)) - {"prof", "profesor", "curs", "seminar"}
+    return any(len(word) >= 3 and word in author_words for word in professor_words)
+
+
 def _discussion_posts(course: dict[str, Any]) -> list[dict[str, str]]:
     posts: list[dict[str, str]] = []
     for section in course.get("sections", []):
@@ -137,6 +157,14 @@ async def ingest_course(pool: asyncpg.Pool, owner_id: int, course: dict[str, Any
     notifications = 0
     async with pool.acquire() as conn:
         async with conn.transaction():
+            subject_rows = await conn.fetch(
+                "SELECT name,professor FROM academic_subjects WHERE owner_id=$1 AND is_active=true",
+                owner_id,
+            )
+            course_words = _words(title)
+            subject = next((row for row in subject_rows
+                            if course_words[:len(_words(row["name"]))] == _words(row["name"])), None)
+            professor = subject["professor"] if subject else None
             previous_course = await conn.fetchval(
                 "SELECT 1 FROM moodle_course_sync WHERE owner_id=$1 AND course_url=$2 FOR UPDATE",
                 owner_id, course_url,
@@ -154,6 +182,19 @@ async def ingest_course(pool: asyncpg.Pool, owner_id: int, course: dict[str, Any
                 )
             for post in posts:
                 source = post["discussion_url"]
+                if not _is_relevant_post(post, professor):
+                    excluded_id = await conn.fetchval(
+                        """UPDATE moodle_posts SET archived_at=COALESCE(archived_at,now())
+                        WHERE owner_id=$1 AND discussion_url=$2 RETURNING id""", owner_id, source,
+                    )
+                    if excluded_id:
+                        await conn.execute(
+                            """UPDATE notification_outbox SET status='sent',last_error='filtered_student_post',
+                            lease_until=NULL WHERE owner_id=$1 AND kind='moodle_post'
+                            AND status IN ('pending','leased') AND dedupe_key LIKE $2""",
+                            owner_id, f"moodle:{excluded_id}:%",
+                        )
+                    continue
                 fingerprint = hashlib.sha256(post["body"].encode()).hexdigest()
                 existing = await conn.fetchrow(
                     "SELECT id,content_hash FROM moodle_posts WHERE owner_id=$1 AND discussion_url=$2 FOR UPDATE",
