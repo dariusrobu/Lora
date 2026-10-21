@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { CalendarDays, ChevronLeft, ChevronRight, FileText, GraduationCap, Megaphone, MessageCircle, Pencil, Plus, Trash2, X } from "lucide-react"
-import { api, type Entry, type MoodleLibrary, type UniversityData, type UniversityKind, type UniversityRecord } from "./api"
+import { api, type Entry, type MoodleAuthor, type MoodleLibrary, type UniversityData, type UniversityKind, type UniversityRecord } from "./api"
 import UniversityNotes from "./UniversityNotes"
 
 type FormState = { kind: UniversityKind; id?: string; version?: number }
@@ -42,6 +42,8 @@ export default function UniversityPanel() {
   const [data, setData] = useState<UniversityData | null>(null)
   const [calendar, setCalendar] = useState<Entry[]>([])
   const [moodle, setMoodle] = useState<MoodleLibrary | null>(null)
+  const [moodleAuthors, setMoodleAuthors] = useState<MoodleAuthor[]>([])
+  const [authorSearch, setAuthorSearch] = useState("")
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()))
   const [selectedDay, setSelectedDay] = useState(() => dateKey(new Date()))
   const [form, setForm] = useState<FormState | null>(null)
@@ -54,12 +56,13 @@ export default function UniversityPanel() {
 
   const reload = useCallback(async () => {
     setCalendar([])
-    const [university, entries, library] = await Promise.all([
-      api.university(), api.universityWeek(dateKey(weekStart)), api.moodle(),
+    const [university, entries, library, authors] = await Promise.all([
+      api.university(), api.universityWeek(dateKey(weekStart)), api.moodle(), api.moodleAuthors(),
     ])
     setData(university)
     setCalendar(entries)
     setMoodle(library)
+    setMoodleAuthors(authors)
     setSemesterFields({ start: university.semester?.semester_start || "", end: university.semester?.semester_end || "" })
     setError("")
   }, [weekStart])
@@ -128,6 +131,16 @@ export default function UniversityPanel() {
     finally { setBusy(false) }
   }
 
+  async function chooseAuthor(author: MoodleAuthor) {
+    setBusy(true); setError("")
+    try {
+      await api.chooseMoodleAuthor(author.course_url, author.author_name, !author.followed)
+      setMessage(author.followed ? "Nu vei mai primi noutăți noi de la acest autor." : "Vei primi noutăți noi de la acest autor.")
+      await reload()
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut schimba autorul urmărit.") }
+    finally { setBusy(false) }
+  }
+
   const field = (key: string, label: string, type = "text", required = false) => <label key={key}>{label}<input type={type} required={required} value={fields[key] || ""} onChange={event => setFields({ ...fields, [key]: event.target.value })} /></label>
   const subjectSelect = <label>Materie<select value={fields.subject_id || ""} onChange={event => setFields({ ...fields, subject_id: event.target.value })}><option value="">Fără materie</option>{data?.subjects.filter(item => item.is_active).map(item => <option key={item.id} value={item.id}>{String(item.name)}</option>)}</select></label>
 
@@ -157,6 +170,10 @@ export default function UniversityPanel() {
         <summary><span className="moodle-kind">{post.kind === "announcement" ? <Megaphone size={15} /> : <MessageCircle size={15} />}</span><span><strong>{post.title}</strong><small>{post.course_title} · {post.kind === "announcement" ? "Anunț" : "Forum"}</small></span></summary>
         <div className="moodle-post-body"><p>{post.body}</p><a href={post.discussion_url} target="_blank" rel="noopener noreferrer">Deschide în Moodle</a><div className="inline-actions">{!post.is_read && <button type="button" disabled={busy} onClick={() => void updatePost(post.id, { is_read: true })}>Marchează citit</button>}<button type="button" disabled={busy} onClick={() => void updatePost(post.id, { archived: true })}>Arhivează</button></div></div>
       </details>) : <p className="empty">Nu există încă mesaje extrase din Moodle.</p>}
+      <details className="moodle-author-picker"><summary>Urmărește un profesor care lipsește din Lora</summary><p className="helper">Caută autorul mesajului din Moodle și urmărește-l o singură dată. Predările celorlalți rămân ascunse.</p>
+        <label>Caută autor sau materie<input type="search" value={authorSearch} onChange={event => setAuthorSearch(event.target.value)} placeholder="Nume profesor…" /></label>
+        <div className="moodle-author-list">{moodleAuthors.filter(author => `${author.author_name} ${author.course_title}`.toLocaleLowerCase("ro-RO").includes(authorSearch.toLocaleLowerCase("ro-RO"))).slice(0, 30).map(author => <div className="simple-row" key={`${author.course_url}:${author.author_name}`}><span><strong>{author.author_name}</strong><small>{author.course_title} · {author.post_count} {author.post_count === 1 ? "mesaj" : "mesaje"}{author.visible && !author.followed ? " · apare deja" : ""}</small></span><button type="button" disabled={busy} onClick={() => void chooseAuthor(author)}>{author.followed ? "Nu mai urmări" : "Urmărește"}</button></div>)}</div>
+      </details>
     </section>
     <details className="glass section-card university-details moodle-files"><summary><FileText size={18} /> Materiale în iCloud Drive · {moodle?.materials.length || 0}</summary>
       <p className="helper">În aplicația Fișiere de pe iPad sau Mac: iCloud Drive → Lora → Facultate.</p>

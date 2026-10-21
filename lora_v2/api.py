@@ -26,6 +26,7 @@ from lora_v2.config import Settings
 from lora_v2.crud import EditRequest, EntityKind, delete_entity, update_entity
 from lora_v2.db import create_pool, migrate
 from lora_v2.models import Command, ReceiptLine
+from lora_v2.moodle_library import _author_key, _author_name
 from lora_v2.media import save_photo
 from lora_v2.migrate_legacy import PROFILE_FIELDS
 from lora_v2.obsidian import list_schedule_conflicts, resolve_schedule_conflict
@@ -81,6 +82,12 @@ class AcademicWriteRequest(BaseModel):
 class MoodlePostUpdate(BaseModel):
     is_read: bool | None = None
     archived: bool | None = None
+
+
+class MoodleAuthorChoice(BaseModel):
+    course_url: str = Field(min_length=1, max_length=300)
+    author_name: str = Field(min_length=1, max_length=160)
+    follow: bool
 
 
 class UniversityNoteWrite(BaseModel):
@@ -709,6 +716,67 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if result is None:
             raise HTTPException(status_code=404, detail="Mesajul nu mai este disponibil.")
         return dict(result)
+
+    @app.get("/api/v2/moodle/authors")
+    async def moodle_authors(request: Request, owner_id: int = Depends(auth)):
+        async with request.app.state.pool.acquire() as conn:
+            posts = await conn.fetch(
+                """SELECT course_url,course_title,body,archived_at FROM moodle_posts
+                WHERE owner_id=$1 AND kind='forum' ORDER BY course_title LIMIT 2000""", owner_id,
+            )
+            trusted = await conn.fetch(
+                "SELECT course_url,author_key FROM moodle_trusted_authors WHERE owner_id=$1", owner_id,
+            )
+        trusted_keys = {(row["course_url"], row["author_key"]) for row in trusted}
+        authors: dict[tuple[str, str], dict[str, object]] = {}
+        for post in posts:
+            name = _author_name(post["body"])
+            if not name:
+                continue
+            key = (post["course_url"], _author_key(name))
+            if not key[1]:
+                continue
+            if key not in authors:
+                authors[key] = {"course_url": post["course_url"], "course_title": post["course_title"],
+                                "author_name": name, "post_count": 0, "followed": key in trusted_keys,
+                                "visible": False}
+            authors[key]["post_count"] = int(authors[key]["post_count"]) + 1
+            authors[key]["visible"] = bool(authors[key]["visible"]) or post["archived_at"] is None
+        return sorted(authors.values(), key=lambda row: (str(row["course_title"]), str(row["author_name"])))
+
+    @app.put("/api/v2/moodle/authors")
+    async def choose_moodle_author(body: MoodleAuthorChoice, request: Request,
+                                   owner_id: int = Depends(auth)):
+        author_key = _author_key(body.author_name)
+        if not author_key:
+            raise HTTPException(status_code=422, detail="Autor invalid.")
+        async with request.app.state.pool.acquire() as conn:
+            async with conn.transaction():
+                posts = await conn.fetch(
+                    """SELECT id,body FROM moodle_posts WHERE owner_id=$1 AND course_url=$2
+                    AND kind='forum'""", owner_id, body.course_url,
+                )
+                matching_ids = [row["id"] for row in posts
+                                if _author_key(_author_name(row["body"]) or "") == author_key]
+                if not matching_ids:
+                    raise HTTPException(status_code=404, detail="Autorul nu a fost găsit în acest curs.")
+                if body.follow:
+                    await conn.execute(
+                        """INSERT INTO moodle_trusted_authors(owner_id,course_url,author_key,author_name)
+                        VALUES ($1,$2,$3,$4) ON CONFLICT (owner_id,course_url,author_key)
+                        DO UPDATE SET author_name=EXCLUDED.author_name""",
+                        owner_id, body.course_url, author_key, body.author_name.strip(),
+                    )
+                    await conn.execute(
+                        """UPDATE moodle_posts SET archived_at=NULL,is_read=true,filtered_out=false
+                        WHERE owner_id=$1 AND id=ANY($2::uuid[])""", owner_id, matching_ids,
+                    )
+                else:
+                    await conn.execute(
+                        """DELETE FROM moodle_trusted_authors WHERE owner_id=$1 AND course_url=$2
+                        AND author_key=$3""", owner_id, body.course_url, author_key,
+                    )
+        return {"followed": body.follow, "author_name": body.author_name.strip()}
 
     @app.get("/api/v2/university/notes")
     async def university_notes(request: Request, owner_id: int = Depends(auth)):

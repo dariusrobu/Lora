@@ -175,6 +175,15 @@ def parse_course_html(html: str, page_url: str) -> dict[str, Any]:
     document = lxml_html.fromstring(html)
     title_nodes = document.xpath("//h1 | //*[@class='page-header-headings']//h1")
     course_title = _clean(title_nodes[0].text_content()) if title_nodes else ""
+    teaching_staff: list[str] = []
+    for paragraph in document.xpath("//p"):
+        text = _clean(paragraph.text_content())
+        match = re.match(
+            r"^(?:responsabil(?:ul)? disciplinei|responsabil disciplină|titular(?:ul)? (?:de )?(?:curs|seminar|disciplină)|cadru didactic)\s*:\s*(.+)$",
+            text, flags=re.IGNORECASE,
+        )
+        if match and len(match.group(1)) <= 160:
+            teaching_staff.append(match.group(1))
     course_id = ""
     match = re.search(r"[?&]id=(\d+)", page_url)
     if match:
@@ -293,6 +302,7 @@ def parse_course_html(html: str, page_url: str) -> dict[str, Any]:
     return {
         "source": "moodle",
         "course": course_title,
+        "teaching_staff": list(dict.fromkeys(teaching_staff)),
         "course_id": course_id,
         "source_url": page_url,
         "extracted_at": datetime.now(timezone.utc).isoformat(),

@@ -4,13 +4,16 @@
 
 The initial news import was too broad: it treated every Moodle forum discussion
 as a personal update, including classmates' Marketing case studies and attendance
-posts. The news importer now accepts designated announcement forums and general
-forum discussions started by a teacher listed for that subject in Lora. The
-live classification retained two teacher messages and archived 53 student
-submissions without deleting them; an authenticated gateway read returned two
-news items and all 203 material records. The Moodle bridge was restarted so
-future n8n syncs use the corrected filter. A teacher missing from Lora's subject
-record can be omitted from a general forum until that record is corrected.
+posts. The news importer accepts designated announcement forums and general
+forum discussions started by a teacher listed for that subject in Lora or named
+as teaching staff on the Moodle course page. The Mini App also lets the owner
+follow an otherwise unknown forum author once under Facultate → Noutăți Moodle;
+future posts by that author in that course generate notifications, while old
+filtered posts become visible as read without retrospective alerts. Other
+authors stay hidden. The initial live classification retained two teacher
+messages and archived 53 student submissions without deleting them; an
+authenticated gateway read returned two news items and all 203 material records.
+The Moodle bridge was restarted so future n8n syncs use the corrected filter.
 
 The active Moodle bridge now uses headless Chromium and writes downloaded
 attachments to `iCloud Drive/Lora/Facultate/<materie>/`, with each file verified

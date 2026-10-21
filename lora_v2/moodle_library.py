@@ -88,17 +88,32 @@ def _words(value: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", ascii_text)
 
 
-def _is_relevant_post(post: dict[str, str], professor: str | None) -> bool:
+def _author_name(body: str) -> str | None:
+    match = re.search(r"^\*\*Autor:\*\*\s*(.+)$", body, flags=re.MULTILINE)
+    return match.group(1).strip() if match else None
+
+
+def _author_key(author_name: str) -> str:
+    return " ".join(_words(author_name))
+
+
+def _is_relevant_post(post: dict[str, str], professor: str | None,
+                      trusted_authors: set[str] | None = None) -> bool:
     """Show designated announcements or forum discussions started by a known teacher."""
     if post["kind"] == "announcement":
         return True
-    if not professor:
-        return False
-    author = re.search(r"^\*\*Autor:\*\*\s*(.+)$", post["body"], flags=re.MULTILINE)
+    author = _author_name(post["body"])
     if not author:
         return False
-    author_words = set(_words(author.group(1)))
-    professor_words = set(_words(professor)) - {"prof", "profesor", "curs", "seminar"}
+    if _author_key(author) in (trusted_authors or set()):
+        return True
+    if not professor:
+        return False
+    author_words = set(_words(author))
+    professor_words = set(_words(professor)) - {
+        "prof", "profesor", "curs", "seminar", "conf", "univ", "doctor", "lector", "lect",
+        "asist", "asistent", "disciplina", "responsabil", "cadru", "didactic",
+    }
     return any(len(word) >= 3 and word in author_words for word in professor_words)
 
 
@@ -164,7 +179,19 @@ async def ingest_course(pool: asyncpg.Pool, owner_id: int, course: dict[str, Any
             course_words = _words(title)
             subject = next((row for row in subject_rows
                             if course_words[:len(_words(row["name"]))] == _words(row["name"])), None)
-            professor = subject["professor"] if subject else None
+            listed_professor = subject["professor"] if subject else None
+            course_staff = course.get("teaching_staff") or []
+            if not isinstance(course_staff, list):
+                course_staff = []
+            professor = " / ".join(
+                part for part in [listed_professor, *course_staff] if isinstance(part, str) and part
+            )
+            trusted_authors = {
+                row["author_key"] for row in await conn.fetch(
+                    "SELECT author_key FROM moodle_trusted_authors WHERE owner_id=$1 AND course_url=$2",
+                    owner_id, course_url,
+                )
+            }
             previous_course = await conn.fetchval(
                 "SELECT 1 FROM moodle_course_sync WHERE owner_id=$1 AND course_url=$2 FOR UPDATE",
                 owner_id, course_url,
@@ -182,31 +209,46 @@ async def ingest_course(pool: asyncpg.Pool, owner_id: int, course: dict[str, Any
                 )
             for post in posts:
                 source = post["discussion_url"]
-                if not _is_relevant_post(post, professor):
+                if not _is_relevant_post(post, professor, trusted_authors):
+                    proposed_id = uuid.uuid5(uuid.NAMESPACE_URL, f"{owner_id}:{source}")
+                    fingerprint = hashlib.sha256(post["body"].encode()).hexdigest()
                     excluded_id = await conn.fetchval(
-                        """UPDATE moodle_posts SET archived_at=COALESCE(archived_at,now())
-                        WHERE owner_id=$1 AND discussion_url=$2 RETURNING id""", owner_id, source,
+                        """INSERT INTO moodle_posts(id,owner_id,course_url,course_title,forum_title,
+                        kind,discussion_url,title,body,content_hash,is_read,archived_at,filtered_out)
+                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,now(),true)
+                        ON CONFLICT (owner_id,discussion_url) DO UPDATE SET
+                        course_title=EXCLUDED.course_title,forum_title=EXCLUDED.forum_title,
+                        title=EXCLUDED.title,body=EXCLUDED.body,content_hash=EXCLUDED.content_hash,
+                        archived_at=COALESCE(moodle_posts.archived_at,now()),filtered_out=true RETURNING id""",
+                        proposed_id, owner_id, course_url, title, post["forum_title"],
+                        post["kind"], source, post["title"], post["body"], fingerprint,
                     )
-                    if excluded_id:
-                        await conn.execute(
-                            """UPDATE notification_outbox SET status='sent',last_error='filtered_student_post',
-                            lease_until=NULL WHERE owner_id=$1 AND kind='moodle_post'
-                            AND status IN ('pending','leased') AND dedupe_key LIKE $2""",
-                            owner_id, f"moodle:{excluded_id}:%",
-                        )
+                    await conn.execute(
+                        """UPDATE notification_outbox SET status='sent',last_error='filtered_student_post',
+                        lease_until=NULL WHERE owner_id=$1 AND kind='moodle_post'
+                        AND status IN ('pending','leased') AND dedupe_key LIKE $2""",
+                        owner_id, f"moodle:{excluded_id}:%",
+                    )
                     continue
                 fingerprint = hashlib.sha256(post["body"].encode()).hexdigest()
                 existing = await conn.fetchrow(
-                    "SELECT id,content_hash FROM moodle_posts WHERE owner_id=$1 AND discussion_url=$2 FOR UPDATE",
+                    "SELECT id,content_hash,archived_at,filtered_out FROM moodle_posts WHERE owner_id=$1 AND discussion_url=$2 FOR UPDATE",
                     owner_id, source,
                 )
                 if existing and existing["content_hash"] == fingerprint:
+                    if existing["filtered_out"]:
+                        await conn.execute(
+                            """UPDATE moodle_posts SET archived_at=NULL,is_read=true,filtered_out=false
+                            WHERE id=$1 AND owner_id=$2""",
+                            existing["id"], owner_id,
+                        )
                     continue
                 post_id = existing["id"] if existing else uuid.uuid5(uuid.NAMESPACE_URL, f"{owner_id}:{source}")
                 if existing:
                     await conn.execute(
                         """UPDATE moodle_posts SET course_title=$3,forum_title=$4,kind=$5,title=$6,
-                        body=$7,content_hash=$8,is_read=false,archived_at=NULL,updated_at=now()
+                        body=$7,content_hash=$8,is_read=false,archived_at=NULL,
+                        filtered_out=false,updated_at=now()
                         WHERE id=$1 AND owner_id=$2""",
                         post_id, owner_id, title, post["forum_title"], post["kind"],
                         post["title"], post["body"], fingerprint,

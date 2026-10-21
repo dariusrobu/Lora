@@ -20,6 +20,15 @@ def test_parser_excludes_assessments() -> None:
     assert titles == ["Curs 1"]
 
 
+def test_course_page_identifies_teachers_without_lora_subject_record() -> None:
+    html = """<h1>Analiză financiară</h1><div class="course-content"><ul>
+    <li class="section"><h3 class="sectionname">General</h3>
+    <p>Responsabil disciplină: Conf. univ. dr. Fănuța POP</p></li>
+    </ul></div>"""
+    result = parse_course_html(html, "https://econ.elearning.ubbcluj.ro/moodle/course/view.php?id=9738")
+    assert result["teaching_staff"] == ["Conf. univ. dr. Fănuța POP"]
+
+
 def test_parse_forum_html_extracts_posts() -> None:
     html = """
     <article class="forum-post"><h3>Profesor</h3><div>Material nou pentru seminar.</div></article>
