@@ -16,7 +16,8 @@ from urllib.parse import urlencode
 from lora_v2.api import create_app
 from lora_v2.config import Settings
 from lora_v2.daily_agent import (
-    brief_due_at, create_brief, generate_due_briefs, planning_date, resolve_agent_followup,
+    _morning_summary, _weather_note, brief_due_at, create_brief, generate_due_briefs, planning_date,
+    resolve_agent_followup,
 )
 from lora_v2.db import create_pool, migrate
 from lora_v2.notifications import send_pending_telegram
@@ -44,6 +45,89 @@ def test_planning_phrases_and_routine_times() -> None:
     assert brief_due_at("evening", now.date(), routine, "Europe/Bucharest").time() == time(21, 30)
     assert brief_due_at("morning", now.date(), {}, "Europe/Bucharest").time() == time(8)
     assert brief_due_at("morning", now.date(), {"wake_time": "07:15:00"}, "Europe/Bucharest").time() == time(7, 45)
+
+
+def test_morning_brief_is_short_but_keeps_every_class_and_actionable_context() -> None:
+    zone = ZoneInfo("Europe/Bucharest")
+    day = date(2026, 10, 22)
+    def entry(kind: str, title: str, hour: int, end: int | None = None) -> dict:
+        return {"kind": kind, "title": title,
+                "starts_at": datetime(2026, 10, 22, hour, tzinfo=zone).isoformat(),
+                "ends_at": datetime(2026, 10, 22, end, tzinfo=zone).isoformat() if end else None,
+                "notes": "244" if kind == "academic" else None}
+
+    context = {
+        "agenda": [entry("academic", f"Curs {index}", 8 + index, 9 + index)
+                   for index in range(7)] +
+                  [entry("reminder", "Sună administratorul", 12),
+                   entry("event", "Fotbal", 20, 22)],
+        "tasks": [{"title": "Trimite proiectul",
+                   "due_at": datetime(2026, 10, 21, 18, tzinfo=zone).isoformat()}],
+        "routine": {"itinerary": "Facultate, apoi pregătesc proiectul"},
+        "free_slots": ["16:00–18:00"],
+        "unconfirmed_yesterday": ["Ia dosarul"],
+        "weather_note": "Se anunță ploaie; verifică vremea înainte să pleci.",
+    }
+    result = _morning_summary(context, day, zone, selected_count=1)
+    assert all(f"Curs {index}" in result for index in range(7))
+    assert "sala 244" in result
+    assert "Trimite proiectul (restant)" in result
+    assert "Sună administratorul» se suprapune" in result
+    assert "Reminder de ieri nemarcat gata: Ia dosarul" in result
+    assert "Sport planificat: Fotbal la 20:00" in result
+    assert "Se anunță ploaie" in result
+    assert "Am o propunere concretă" in result
+    assert "motiva" not in result.casefold()
+
+
+def test_morning_brief_does_not_invent_weather_finance_or_priorities() -> None:
+    zone = ZoneInfo("Europe/Bucharest")
+    result = _morning_summary({"agenda": [], "tasks": [], "routine": {},
+                               "free_slots": [], "unconfirmed_yesterday": []},
+                              date(2026, 10, 22), zone, selected_count=0)
+    assert "Nu ai termene sau activități înregistrate azi" in result
+    assert "Pregătire" not in result
+    assert "Finanțe" not in result
+    assert "propunere" not in result
+
+
+@pytest.mark.asyncio
+async def test_weather_appears_only_when_forecast_changes_preparation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from lora_v2 import daily_agent
+
+    zone = ZoneInfo("Europe/Bucharest")
+    day = date(2026, 10, 22)
+    condition = 800
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {"list": [{"dt": int(datetime(2026, 10, 22, 12, tzinfo=zone).timestamp()),
+                              "weather": [{"id": condition}], "main": {"temp": 18}}]}
+
+    class FakeClient:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        async def __aenter__(self) -> "FakeClient":
+            return self
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+        async def get(self, _url: str, **_kwargs: object) -> FakeResponse:
+            return FakeResponse()
+
+    monkeypatch.setattr(daily_agent.httpx, "AsyncClient", FakeClient)
+    settings = Settings(database_url="test", telegram_bot_token="test", telegram_user_id=1,
+                        openweather_api_key="test")
+    assert await _weather_note(settings, {"city_name": "Cluj-Napoca"}, day, zone) is None
+    condition = 501
+    assert "ploaie" in (await _weather_note(settings, {"city_name": "Cluj-Napoca"}, day, zone) or "")
 
 
 @pytest.mark.asyncio
@@ -92,7 +176,7 @@ async def test_agent_plan_reads_data_and_waits_for_each_approval(monkeypatch: py
             "SELECT id,command FROM proposals WHERE owner_id=$1 AND source LIKE 'agent:%'",
             owner,
         )
-        assert len(proposals) == 2
+        assert len(proposals) == 1
         assert await pool.fetchval("SELECT starts_at FROM calendar_entries WHERE id=$1", reminder_id) == datetime(
             2026, 10, 22, 13, tzinfo=zone,
         )

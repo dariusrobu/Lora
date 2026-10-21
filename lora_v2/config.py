@@ -31,6 +31,7 @@ class Settings:
     usda_api_key: str = ""
     nutrition_cache_path: str = "lora_v2/nutrition_references.sqlite3"
     nutrition_user_agent: str = "Lora/2.0 (personal nutrition assistant)"
+    openweather_api_key: str = ""
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -65,4 +66,5 @@ class Settings:
             usda_api_key=os.getenv("USDA_FDC_API_KEY") or os.getenv("USDA_FDC_API", ""),
             nutrition_cache_path=os.getenv("LORA_V2_NUTRITION_CACHE_PATH", "lora_v2/nutrition_references.sqlite3"),
             nutrition_user_agent=os.getenv("OPENFOODFACTS_USER_AGENT", "Lora/2.0 (personal nutrition assistant)"),
+            openweather_api_key=os.getenv("OPENWEATHER_API_KEY", ""),
         )

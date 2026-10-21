@@ -2,6 +2,15 @@
 
 ## 21 October: bounded daily agent
 
+The 07:00 morning brief now leads with up to three due or overdue tasks (or the
+next recorded commitment), includes the saved day plan and full recorded
+academic/event/reminder agenda, and flags verified class/reminder conflicts and
+reminders from yesterday that remain unmarked. It mentions scheduled sport and
+only actionable weather when a configured forecast is available. V2 has no
+budget limits, so it does not claim budget alerts. At most one fresh morning
+proposal is sent separately for approval. Empty motivational, memory and finance
+sections are omitted; the old automatic voice podcast is not part of v2.
+
 Lora v2 now creates a persisted daily brief from owner-scoped calendar,
 academic, task and routine reads. Telegram accepts natural requests such as
 “Organizează-mi ziua de mâine”; Mini App → Azi shows the latest brief and buttons

@@ -11,6 +11,7 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 import asyncpg
+import httpx
 from ollama import AsyncClient
 from pydantic import BaseModel, Field
 
@@ -44,7 +45,7 @@ def planning_date(text: str, now: datetime) -> date | None:
 
 async def _agenda(pool: asyncpg.Pool, owner_id: int, start: datetime, end: datetime) -> list[dict[str, Any]]:
     rows = await pool.fetch(
-        """SELECT id,kind,title,starts_at,ends_at,version FROM calendar_entries
+        """SELECT id,kind,title,starts_at,ends_at,notes,version FROM calendar_entries
         WHERE owner_id=$1 AND status='active' AND starts_at<$3
         AND COALESCE(ends_at,starts_at+interval '15 minutes')>$2
         ORDER BY starts_at LIMIT 80""", owner_id, start, end,
@@ -68,13 +69,17 @@ async def _routine(pool: asyncpg.Pool, owner_id: int, day: date) -> dict[str, st
     row = await pool.fetchrow("SELECT data FROM personal_preferences WHERE owner_id=$1", owner_id)
     raw = row["data"] if row else {}
     profile = json.loads(raw) if isinstance(raw, str) else raw
-    day_wake = await pool.fetchval(
-        """SELECT wake_time FROM day_plans_v2 WHERE owner_id=$1 AND plan_date=$2
+    plan = await pool.fetchrow(
+        """SELECT wake_time,itinerary FROM day_plans_v2 WHERE owner_id=$1 AND plan_date=$2
         AND deleted_at IS NULL""", owner_id, day,
     )
-    return {"wake_time": str(day_wake) if day_wake else None,
+    return {"wake_time": str(plan["wake_time"]) if plan and plan["wake_time"] else None,
+            "itinerary": str(plan["itinerary"]) if plan and plan["itinerary"] else None,
             "morning_time": str(profile.get("morning_time")) if profile.get("morning_time") else None,
-            "eod_time": str(profile.get("eod_time")) if profile.get("eod_time") else None}
+            "eod_time": str(profile.get("eod_time")) if profile.get("eod_time") else None,
+            "city_name": str(profile.get("city_name")) if profile.get("city_name") else None,
+            "latitude": str(profile.get("latitude")) if profile.get("latitude") is not None else None,
+            "longitude": str(profile.get("longitude")) if profile.get("longitude") is not None else None}
 
 
 def _local_time(value: str | None, fallback: time) -> time:
@@ -129,6 +134,59 @@ async def _unfinished_today(pool: asyncpg.Pool, owner_id: int, current: datetime
     )
     return [{"id": str(row["id"]), "title": row["title"],
              "starts_at": row["starts_at"].isoformat()} for row in rows]
+
+
+async def _unconfirmed_yesterday(pool: asyncpg.Pool, owner_id: int,
+                                 day: date, zone: ZoneInfo) -> list[str]:
+    start = datetime.combine(day - timedelta(days=1), time.min, zone)
+    end = datetime.combine(day, time.min, zone)
+    rows = await pool.fetch(
+        """SELECT title FROM calendar_entries WHERE owner_id=$1 AND kind='reminder'
+        AND status='active' AND starts_at >= $2 AND starts_at < $3
+        ORDER BY starts_at LIMIT 3""", owner_id, start, end,
+    )
+    return [str(row["title"]) for row in rows]
+
+
+async def _weather_note(settings: Settings, routine: dict[str, str | None],
+                        day: date, zone: ZoneInfo) -> str | None:
+    """Show only actionable forecast conditions; unavailable weather stays absent."""
+    if not settings.openweather_api_key:
+        return None
+    params: dict[str, str | int | float] = {
+        "appid": settings.openweather_api_key, "units": "metric", "cnt": 16,
+    }
+    if routine.get("latitude") and routine.get("longitude"):
+        try:
+            params["lat"] = float(routine["latitude"] or "")
+            params["lon"] = float(routine["longitude"] or "")
+        except ValueError:
+            return None
+    elif routine.get("city_name"):
+        params["q"] = routine["city_name"] or ""
+    else:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.get("https://api.openweathermap.org/data/2.5/forecast", params=params)
+            response.raise_for_status()
+        forecast = [item for item in response.json().get("list", [])
+                    if datetime.fromtimestamp(item["dt"], zone).date() == day]
+        if not forecast:
+            return None
+        condition_ids = [int(weather["id"]) for item in forecast
+                         for weather in item.get("weather", []) if "id" in weather]
+        if any(200 <= condition < 700 for condition in condition_ids):
+            return "Se anunță ploaie sau ninsoare; verifică vremea înainte să pleci."
+        temperatures = [float(item["main"]["temp"]) for item in forecast if "temp" in item.get("main", {})]
+        if temperatures and min(temperatures) < 0:
+            return "Sunt prognozate temperaturi sub 0°C; pregătește haine potrivite."
+        if temperatures and max(temperatures) >= 32:
+            return "Se anunță peste 32°C; ia apă când pleci."
+        return None
+    except (httpx.HTTPError, KeyError, TypeError, ValueError, OverflowError) as exc:
+        logger.info("Morning weather unavailable: %s", type(exc).__name__)
+        return None
 
 
 def _free_slots(entries: list[dict[str, Any]], day: date, zone: ZoneInfo) -> list[str]:
@@ -217,6 +275,8 @@ async def _choose_priorities(settings: Settings, context: dict[str, Any],
 
 def _summary(context: dict[str, Any], day: date, mode: Mode, zone: ZoneInfo,
              selected_count: int) -> str:
+    if mode == "morning":
+        return _morning_summary(context, day, zone, selected_count)
     heading = ("Bună dimineața" if mode == "morning" else
                "Încheiem ziua · mâine" if mode == "evening" else "Planul zilei")
     lines = [f"{heading} · {day:%d.%m}"]
@@ -249,6 +309,77 @@ def _summary(context: dict[str, Any], day: date, mode: Mode, zone: ZoneInfo,
         lines.append("Nu văd nimic urgent de schimbat.")
     if context.get("model_fallback"):
         lines.append("Ollama nu a răspuns complet; rezumatul și sugestiile de mai sus sunt calculate din datele salvate.")
+    return "\n".join(lines)
+
+
+def _morning_summary(context: dict[str, Any], day: date, zone: ZoneInfo,
+                     selected_count: int) -> str:
+    """A short, factual plan followed by the complete recorded daily agenda."""
+    agenda = context["agenda"]
+    tasks = context["tasks"]
+    lines = [f"☀️ Bună dimineața · {day:%d.%m}", "", "Planul zilei"]
+    due_tasks = [task for task in tasks if task["due_at"] and
+                 datetime.fromisoformat(task["due_at"]).astimezone(zone).date() <= day]
+    priorities = due_tasks[:3]
+    for index, task in enumerate(priorities, 1):
+        due_day = datetime.fromisoformat(task["due_at"]).astimezone(zone).date()
+        label = "restant" if due_day < day else "termen azi"
+        lines.append(f"{index}. {task['title']} ({label})")
+    if not priorities:
+        next_item = next((entry for entry in agenda if entry["kind"] != "academic"),
+                         agenda[0] if agenda else None)
+        if next_item:
+            start = datetime.fromisoformat(next_item["starts_at"]).astimezone(zone)
+            lines.append(f"1. {next_item['title']} la {start:%H:%M}")
+        else:
+            lines.append("Nu ai termene sau activități înregistrate azi.")
+
+    itinerary = (context.get("routine") or {}).get("itinerary")
+    if itinerary:
+        lines.append(f"Plan salvat: {itinerary.strip()}")
+    if context.get("free_slots") and due_tasks:
+        lines.append("Timp liber orientativ: " + ", ".join(context["free_slots"]) + ".")
+
+    lines.extend(["", "Programul de azi"])
+    if not agenda:
+        lines.append("Nu ai nimic în calendar.")
+    for entry in agenda:
+        start = datetime.fromisoformat(entry["starts_at"]).astimezone(zone)
+        end = (datetime.fromisoformat(entry["ends_at"]).astimezone(zone)
+               if entry["ends_at"] else None)
+        hours = f"{start:%H:%M}–{end:%H:%M}" if end else f"{start:%H:%M}"
+        kind = {"academic": "Facultate", "reminder": "Reminder", "event": "Eveniment"}[entry["kind"]]
+        room = f", sala {entry['notes']}" if entry["kind"] == "academic" and entry.get("notes") else ""
+        lines.append(f"• {hours} · {kind}: {entry['title']}{room}")
+
+    attention: list[str] = []
+    classes = [entry for entry in agenda if entry["kind"] == "academic" and entry["ends_at"]]
+    for reminder in (entry for entry in agenda if entry["kind"] == "reminder"):
+        start = datetime.fromisoformat(reminder["starts_at"])
+        if any(datetime.fromisoformat(lesson["starts_at"]) <= start
+               < datetime.fromisoformat(lesson["ends_at"]) for lesson in classes):
+            attention.append(f"«{reminder['title']}» se suprapune cu facultatea.")
+    overdue = sum(datetime.fromisoformat(task["due_at"]).astimezone(zone).date() < day
+                  for task in due_tasks)
+    if overdue:
+        attention.append(f"{overdue} task{'uri' if overdue != 1 else ''} cu termen depășit.")
+    for title in context.get("unconfirmed_yesterday", [])[:2]:
+        attention.append(f"Reminder de ieri nemarcat gata: {title}.")
+    if attention:
+        lines.extend(["", "De urmărit", *(f"• {item}" for item in attention[:4])])
+
+    preparation: list[str] = []
+    sport_terms = ("sală", "sala", "antrenament", "fotbal", "alerg", "sport")
+    for entry in agenda:
+        if entry["kind"] == "event" and any(term in entry["title"].casefold() for term in sport_terms):
+            start = datetime.fromisoformat(entry["starts_at"]).astimezone(zone)
+            preparation.append(f"Sport planificat: {entry['title']} la {start:%H:%M}.")
+    if context.get("weather_note"):
+        preparation.append(context["weather_note"])
+    if preparation:
+        lines.extend(["", "Pregătire", *(f"• {item}" for item in preparation[:3])])
+    if selected_count:
+        lines.extend(["", "Am o propunere concretă. O primești separat și alegi dacă o aplic."])
     return "\n".join(lines)
 
 
@@ -296,6 +427,13 @@ async def create_brief(pool: asyncpg.Pool, settings: Settings, owner_id: int,
         context.setdefault("agenda", [])
         context.setdefault("tasks", [])
         context["free_slots"] = _free_slots(context["agenda"], target_date, zone)
+        if mode == "morning":
+            context["unconfirmed_yesterday"] = await _unconfirmed_yesterday(
+                pool, owner_id, target_date, zone,
+            )
+            context["weather_note"] = await _weather_note(
+                settings, context.get("routine") or {}, target_date, zone,
+            )
         if mode == "evening":
             context["unfinished_today"] = await _unfinished_today(pool, owner_id, current, zone)
             tool_events.append({"tool": "unfinished_today", "rows": len(context["unfinished_today"])})
@@ -320,22 +458,17 @@ async def create_brief(pool: asyncpg.Pool, settings: Settings, owner_id: int,
         chosen, priority_fallback = await _choose_priorities(settings, context, candidates)
         if not chosen and candidates:
             chosen = [item[0] for item in candidates[:3]]
+        if mode == "morning":
+            chosen = chosen[:1]
         context["model_fallback"] = priority_fallback
         selected_by_id = {key: (command, reason) for key, command, reason in candidates}
-        summary = _summary(context, target_date, mode, zone, len(chosen))
         proposal_ids: list[str] = []
+        proposal_notifications: list[tuple[uuid.UUID, str]] = []
         inserted_keys: list[str] = []
         async with pool.acquire() as conn:
             async with conn.transaction():
                 if mode == "on_demand":
                     await conn.execute("DELETE FROM agent_dialogue_focus WHERE owner_id=$1", owner_id)
-                if mode != "on_demand":
-                    await conn.execute(
-                        """INSERT INTO notification_outbox(id,owner_id,dedupe_key,channel,kind,payload)
-                        VALUES ($1,$2,$3,'telegram','agent_brief',$4::jsonb) ON CONFLICT DO NOTHING""",
-                        uuid.uuid4(), owner_id, f"agent_brief:{mode}:{target_date}",
-                        json.dumps({"text": summary}, ensure_ascii=False),
-                    )
                 for key in chosen:
                     command, reason = selected_by_id[key]
                     command.payload()
@@ -350,12 +483,23 @@ async def create_brief(pool: asyncpg.Pool, settings: Settings, owner_id: int,
                     if inserted:
                         proposal_ids.append(str(inserted))
                         inserted_keys.append(key)
+                        proposal_notifications.append((inserted, reason))
+                summary = _summary(context, target_date, mode, zone, len(proposal_ids))
+                if mode != "on_demand":
+                    for index, offset in enumerate(range(0, len(summary), 4000)):
                         await conn.execute(
                             """INSERT INTO notification_outbox(id,owner_id,dedupe_key,channel,kind,payload)
-                            VALUES ($1,$2,$3,'telegram','proposal',$4::jsonb) ON CONFLICT DO NOTHING""",
-                            uuid.uuid4(), owner_id, f"proposal:{inserted}",
-                            json.dumps({"proposal_id": str(inserted), "reason": reason}, ensure_ascii=False),
+                            VALUES ($1,$2,$3,'telegram','agent_brief',$4::jsonb) ON CONFLICT DO NOTHING""",
+                            uuid.uuid4(), owner_id, f"agent_brief:{mode}:{target_date}:{index}",
+                            json.dumps({"text": summary[offset:offset + 4000]}, ensure_ascii=False),
                         )
+                for proposal_id, reason in proposal_notifications:
+                    await conn.execute(
+                        """INSERT INTO notification_outbox(id,owner_id,dedupe_key,channel,kind,payload)
+                        VALUES ($1,$2,$3,'telegram','proposal',$4::jsonb) ON CONFLICT DO NOTHING""",
+                        uuid.uuid4(), owner_id, f"proposal:{proposal_id}",
+                        json.dumps({"proposal_id": str(proposal_id), "reason": reason}, ensure_ascii=False),
+                    )
                 context["proposal_ids"] = proposal_ids
                 if mode == "on_demand" and len(proposal_ids) == 1:
                     focused_command = selected_by_id[inserted_keys[0]][0]
