@@ -2,12 +2,15 @@
 
 import asyncio
 import json
+import re
+import unicodedata
 from datetime import datetime, timedelta
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 import asyncpg
-from ollama import AsyncClient
+import httpx
+from ollama import AsyncClient, ResponseError
 from pydantic import BaseModel, Field, ValidationError
 
 from lora_v2.config import Settings
@@ -60,7 +63,8 @@ class Candidate(BaseModel):
             "create_task": {"title": self.title, "due_at": self.due_at, "project_id": self.project_id},
             "create_calendar_entry": {
                 "kind": self.kind, "title": self.title, "starts_at": self.starts_at,
-                "ends_at": self.ends_at, "alert_offsets_minutes": self.alert_offsets_minutes or [],
+                "ends_at": self.ends_at,
+                "alert_offsets_minutes": self.alert_offsets_minutes or ([0] if self.kind == "reminder" else []),
                 "followup_evening": bool(self.followup_evening),
             },
             "log_expense": {
@@ -134,6 +138,94 @@ def parse_interpretation(raw: str) -> Interpretation:
     return Interpretation(actions=valid, reply=reply)
 
 
+def _explicit_calendar_kind(text: str) -> str | None:
+    """Infer only a calendar kind named unambiguously by the owner."""
+    plain = "".join(char for char in unicodedata.normalize("NFD", text.casefold())
+                    if unicodedata.category(char) != "Mn")
+    reminder = bool(re.search(
+        r"\breminder(?:ul|e|ele)?\b|\baminteste-mi\b|\b(?:adu(?:-mi)?|aduc[iea])\s+aminte\b",
+        plain,
+    ))
+    event = bool(re.search(r"\beveniment(?:ul|e|ele)?\b|\bevent(?:ul|s)?\b", plain))
+    if reminder == event:
+        return None
+    return "reminder" if reminder else "event"
+
+
+def _command_is_valid(candidate: Candidate) -> bool:
+    try:
+        candidate.as_command().payload()
+    except (ValidationError, ValueError):
+        return False
+    return True
+
+
+async def _repair_interpretation(
+    interpretation: Interpretation, text: str, client: AsyncClient, model: str,
+) -> Interpretation:
+    """Make one bounded correction request; never execute or silently add actions."""
+    actions = list(interpretation.actions)
+    for index, candidate in enumerate(actions):
+        source = (candidate.evidence if candidate.evidence and
+                  candidate.evidence.casefold() in text.casefold() else text)
+        explicit_kind = _explicit_calendar_kind(source)
+        if candidate.type == "create_calendar_entry" and candidate.kind is None and explicit_kind:
+            actions[index] = candidate.model_copy(update={
+                "kind": explicit_kind, "confidence": min(candidate.confidence, 0.84),
+            })
+
+    invalid_indices = [index for index, candidate in enumerate(actions) if not _command_is_valid(candidate)]
+    if not invalid_indices:
+        return interpretation.model_copy(update={"actions": actions})
+
+    request = {
+        "message": text,
+        "actions": [actions[index].model_dump(mode="json", exclude_none=True) for index in invalid_indices],
+    }
+    try:
+        response = await asyncio.wait_for(
+            client.chat(
+                model=model,
+                messages=[
+                    {"role": "system", "content": (
+                        "Corectează numai câmpurile lipsă din acțiunile JSON. Păstrează ordinea, "
+                        "type și toate valorile deja prezente. Nu inventa date, ore sau sume. "
+                        "Dacă utilizatorul nu a spus explicit reminder sau eveniment, nu completa kind. "
+                        "Returnează doar JSON cu cheia actions și același număr de elemente."
+                    )},
+                    {"role": "user", "content": json.dumps(request, ensure_ascii=False)},
+                ],
+                format="json",
+                options={"temperature": 0, "num_predict": 1200},
+            ),
+            timeout=25,
+        )
+        corrected = json.loads(response["message"]["content"])
+        proposed = corrected.get("actions") if isinstance(corrected, dict) else None
+        if not isinstance(proposed, list) or len(proposed) != len(invalid_indices):
+            return interpretation.model_copy(update={"actions": actions})
+        for index, item in zip(invalid_indices, proposed, strict=True):
+            if not isinstance(item, dict) or item.get("type") != actions[index].type:
+                continue
+            original = actions[index].model_dump(mode="json")
+            source = (actions[index].evidence if actions[index].evidence and
+                      actions[index].evidence.casefold() in text.casefold() else text)
+            explicit_kind = _explicit_calendar_kind(source)
+            for field, value in item.items():
+                if field in original and original[field] is None and value is not None:
+                    if field == "kind" and value != explicit_kind:
+                        continue
+                    original[field] = value
+            original["confidence"] = min(actions[index].confidence, 0.84)
+            candidate = Candidate.model_validate(original)
+            if _command_is_valid(candidate):
+                actions[index] = candidate
+    except (TimeoutError, OSError, httpx.HTTPError, ResponseError,
+            ValueError, KeyError, TypeError, ValidationError):
+        pass
+    return interpretation.model_copy(update={"actions": actions})
+
+
 async def _schedule_context(pool: asyncpg.Pool, owner_id: int, now: datetime) -> str:
     end = now + timedelta(days=7)
     async with pool.acquire() as conn:
@@ -175,7 +267,7 @@ async def interpret_capture(
     prompt = f"""Ești interpretul local al asistentei Lora. Ora curentă: {local_now.isoformat()}.
 Extrage TOATE acțiunile distincte cerute explicit de utilizator, fără să inventezi că au fost deja salvate.
 Comenzi permise: create_project, create_task, create_calendar_entry, log_expense, log_income, log_meal, log_workout, log_health.
-Fiecare acțiune este un obiect plat din schema JSON; lasă câmpurile nefolosite null. Pentru calendar: kind, title, starts_at, alert_offsets_minutes; pentru cheltuieli: amount, currency, category, spent_at; pentru antrenament: starts_at, duration_minutes, activity.
+Fiecare acțiune este un obiect plat din schema JSON; lasă câmpurile nefolosite null. Pentru calendar: kind (OBLIGATORIU: "reminder" sau "event"), title, starts_at, alert_offsets_minutes; pentru cheltuieli: amount, currency, category, spent_at; pentru antrenament: starts_at, duration_minutes, activity.
 Adaugă evidence cu fragmentul EXACT din mesaj care justifică acea acțiune; nu folosi un rezumat inventat.
 Nu repeta aceeași intenție sub altă formulare. "Dacă nu reușesc poimâine" este un follow-up, nu un al doilea reminder acum.
 Datele trebuie să includă offsetul Europe/Bucharest. "Duminică" înseamnă următoarea duminică față de ora curentă.
@@ -201,4 +293,5 @@ Pentru fiecare acțiune include type, câmpurile necesare și confidence. Dacă 
         ),
         timeout=120,
     )
-    return parse_interpretation(response["message"]["content"])
+    interpretation = parse_interpretation(response["message"]["content"])
+    return await _repair_interpretation(interpretation, text, client, settings.ollama_model)

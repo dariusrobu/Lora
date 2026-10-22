@@ -28,7 +28,7 @@ from lora_v2.db import create_pool, migrate
 from lora_v2.models import Command
 from lora_v2.media import save_photo
 from lora_v2.legacy_bridge import install_bridge
-from lora_v2.agent import Candidate, Interpretation, parse_interpretation
+from lora_v2.agent import Candidate, Interpretation, _explicit_calendar_kind, _repair_interpretation, parse_interpretation
 from lora_v2.grounding import grounding_issue
 from lora_v2.apple import _digest, pull_changes, push_pending, resolve_conflict
 from lora_v2.notifications import queue_due_alerts, send_pending_telegram
@@ -141,6 +141,101 @@ def test_reminder_validation_error_uses_a_real_question_not_command_name():
     message = _invalid_candidate_message(candidate)
     assert "data și ora" in message
     assert "create_calendar_entry" not in message
+
+
+def test_natural_reminder_phrasing_is_explicit_but_a_mixed_request_is_not():
+    assert _explicit_calendar_kind("Vreau să îmi aduci aminte mâine la 14") == "reminder"
+    assert _explicit_calendar_kind("Amintește-mi la 19 să iau geanta") == "reminder"
+    assert _explicit_calendar_kind("Pune un eveniment duminică") == "event"
+    assert _explicit_calendar_kind("Pune un reminder și un eveniment") is None
+
+
+@pytest.mark.asyncio
+async def test_explicit_reminder_repairs_missing_kind_without_another_model_call():
+    class NeverCall:
+        async def chat(self, **kwargs):
+            raise AssertionError("No model retry needed")
+
+    original = Interpretation(actions=[Candidate(
+        type="create_calendar_entry", title="Să curăț mixerul de cafea",
+        starts_at="2026-10-21T19:00:00+03:00", confidence=0.94,
+    )])
+    fixed = await _repair_interpretation(
+        original, "Adaugă un reminder azi la 19 să curăț mixerul de cafea",
+        NeverCall(), "qwen2.5:7b",
+    )
+    assert fixed.actions[0].kind == "reminder"
+    assert fixed.actions[0].type == "create_calendar_entry"
+    assert fixed.actions[0].confidence < 0.85
+    assert fixed.actions[0].as_command().payload().alert_offsets_minutes == [0]
+
+
+@pytest.mark.asyncio
+async def test_compound_message_uses_each_actions_own_evidence_for_kind():
+    class NeverCall:
+        async def chat(self, **kwargs):
+            raise AssertionError("Both kinds were explicit")
+
+    original = Interpretation(actions=[
+        Candidate(type="create_calendar_entry", title="Sună", starts_at="2026-10-23T14:00:00+03:00",
+                  evidence="reminder mâine la 14 să sun", confidence=0.9),
+        Candidate(type="create_calendar_entry", title="Meci", starts_at="2026-10-25T20:00:00+02:00",
+                  evidence="eveniment duminică la 20", confidence=0.9),
+    ])
+    fixed = await _repair_interpretation(
+        original, "Pune reminder mâine la 14 să sun; am eveniment duminică la 20",
+        NeverCall(), "qwen2.5:7b",
+    )
+    assert [action.kind for action in fixed.actions] == ["reminder", "event"]
+
+
+@pytest.mark.asyncio
+async def test_model_repair_preserves_valid_siblings_and_requires_approval():
+    class FakeClient:
+        calls = 0
+
+        async def chat(self, **kwargs):
+            self.calls += 1
+            return {"message": {"content": json.dumps({"actions": [{
+                "type": "create_calendar_entry", "starts_at": "2026-10-23T14:00:00+03:00",
+                "title": "Schimbat", "confidence": 1,
+            }]})}}
+
+    client = FakeClient()
+    original = Interpretation(actions=[
+        Candidate(type="create_task", title="Cumpără filtre", confidence=0.96),
+        Candidate(type="create_calendar_entry", kind="reminder", title="Sună administratorul",
+                  confidence=0.96),
+    ])
+    fixed = await _repair_interpretation(
+        original, "Cumpără filtre și pune reminder mâine la 14 să sun administratorul",
+        client, "qwen2.5:7b",
+    )
+    assert client.calls == 1
+    assert fixed.actions[0] == original.actions[0]
+    assert fixed.actions[1].title == "Sună administratorul"
+    assert fixed.actions[1].starts_at == "2026-10-23T14:00:00+03:00"
+    assert fixed.actions[1].confidence < 0.85
+    fixed.actions[1].as_command().payload()
+
+
+@pytest.mark.asyncio
+async def test_model_cannot_invent_calendar_kind_or_extra_actions_during_repair():
+    class FakeClient:
+        async def chat(self, **kwargs):
+            return {"message": {"content": json.dumps({"actions": [
+                {"type": "create_calendar_entry", "kind": "reminder",
+                 "starts_at": "2026-10-23T14:00:00+03:00"},
+                {"type": "create_task", "title": "Inventat"},
+            ]})}}
+
+    original = Interpretation(actions=[Candidate(
+        type="create_calendar_entry", title="Sună administratorul", confidence=0.7,
+    )])
+    fixed = await _repair_interpretation(
+        original, "Sună administratorul mâine la 14", FakeClient(), "qwen2.5:7b",
+    )
+    assert fixed.actions == original.actions
 
 
 def test_compound_daily_message_uses_grounded_shortcuts():
