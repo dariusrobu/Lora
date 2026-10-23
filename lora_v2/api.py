@@ -26,6 +26,7 @@ from lora_v2.config import Settings
 from lora_v2.crud import EditRequest, EntityKind, delete_entity, update_entity
 from lora_v2.db import create_pool, migrate
 from lora_v2.daily_agent import create_brief
+from lora_v2.finance_balance import clear_balance, read_balance, set_balance
 from lora_v2.models import Command, ReceiptLine
 from lora_v2.moodle_library import _author_key, _author_name
 from lora_v2.media import save_photo
@@ -137,6 +138,11 @@ class NutritionTargetsRequest(BaseModel):
     carbs_g: int | None = Field(default=None, ge=0)
     fat_g: int | None = Field(default=None, ge=0)
     expected_version: int | None = None
+
+
+class FinanceBalanceRequest(BaseModel):
+    amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    expected_version: int | None = Field(default=None, ge=1)
 
 
 class ExpenseCategoryRequest(BaseModel):
@@ -1000,6 +1006,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"expenses": [dict(row) for row in expenses], "incomes": [dict(row) for row in incomes],
                 "meals": [dict(row) for row in meals],
                 "workouts": [dict(row) for row in workouts], "health": [dict(row) for row in health]}
+
+    @app.get("/api/v2/finance/balance")
+    async def finance_balance(request: Request, owner_id: int = Depends(auth)):
+        return await read_balance(request.app.state.pool, owner_id)
+
+    @app.put("/api/v2/finance/balance")
+    async def update_finance_balance(body: FinanceBalanceRequest, request: Request,
+                                     owner_id: int = Depends(auth)):
+        try:
+            return await set_balance(request.app.state.pool, owner_id,
+                                     body.amount, body.expected_version)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.delete("/api/v2/finance/balance")
+    async def delete_finance_balance(expected_version: int, request: Request,
+                                     owner_id: int = Depends(auth)):
+        try:
+            await clear_balance(request.app.state.pool, owner_id, expected_version)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return {"status": "cleared"}
 
     @app.get("/api/v2/entities/{kind}/{entity_id}")
     async def get_entity(kind: EntityKind, entity_id: uuid.UUID, request: Request, owner_id: int = Depends(auth)):

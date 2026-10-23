@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 import asyncpg
 
 from lora_v2.config import Settings
+from lora_v2.finance_balance import read_balance
 
 
 def _plain(value: str) -> str:
@@ -26,6 +27,8 @@ def read_intent(text: str) -> str | None:
         return "tasks"
     if cleaned in {"cheltuieli", "cat am cheltuit luna asta", "ce am cheltuit luna asta"}:
         return "expenses"
+    if cleaned in {"sold", "ce sold am", "cat mai am", "cati bani mai am", "ce sold am acum"}:
+        return "balance"
     if cleaned in {"facultate", "ce am la facultate azi", "orarul de azi", "ce cursuri am azi"}:
         return "university"
     return None
@@ -37,6 +40,13 @@ async def answer_read_intent(
 ) -> str:
     local_now = now or datetime.now(ZoneInfo(settings.timezone))
     local_now = local_now.astimezone(ZoneInfo(settings.timezone))
+    if intent == "balance":
+        balance = await read_balance(pool, owner_id)
+        if balance["balance"] is None:
+            return "Nu știu încă soldul actual. Setează suma pe care o ai acum în Mini App → Jurnal → Sold."
+        return (f"Sold estimat: {balance['balance']:.2f} RON. "
+                "Pornește de la suma introdusă de tine și tranzacțiile salvate după aceea.")
+    balance = await read_balance(pool, owner_id) if intent == "expenses" else None
     day = local_now.date() + timedelta(days=1 if intent == "tomorrow" else 0)
     start = datetime.combine(day, datetime.min.time(), ZoneInfo(settings.timezone))
     end = start + timedelta(days=1)
@@ -98,13 +108,15 @@ async def answer_read_intent(
             month_start = start.replace(day=1)
             rows = await conn.fetch(
                 """SELECT category,SUM(amount) AS amount,currency FROM expenses
-                WHERE owner_id=$1 AND spent_at >= $2 AND spent_at < $3
+                WHERE owner_id=$1 AND deleted_at IS NULL AND spent_at >= $2 AND spent_at < $3
                 GROUP BY category,currency ORDER BY amount DESC""",
                 owner_id, month_start, local_now,
             )
+            balance_line = (f"Sold estimat: {balance['balance']:.2f} RON.\n"
+                            if balance and balance["balance"] is not None else "")
             if not rows:
-                return "Nu ai cheltuieli înregistrate luna aceasta."
-            return "Cheltuieli luna aceasta:\n" + "\n".join(
+                return balance_line + "Nu ai cheltuieli înregistrate luna aceasta."
+            return balance_line + "Cheltuieli luna aceasta:\n" + "\n".join(
                 f"• {row['category']}: {row['amount']} {row['currency']}" for row in rows
             )
     raise ValueError(f"Unknown read intent: {intent}")

@@ -10,6 +10,7 @@ export type Workout = { id: string; started_at: string; duration_minutes: number
 export type Health = { id: string; log_date: string; sleep_hours?: number; sleep_quality?: string; water_ml?: number; weight_kg?: number; cigarettes?: number; notes?: string; version: number }
 export type Today = { date: string; entries: Entry[]; tasks: Task[] }
 export type Journal = { expenses: Expense[]; incomes: Income[]; meals: Meal[]; workouts: Workout[]; health: Health[] }
+export type FinanceBalance = { currency: "RON"; balance: number | null; baseline: number | null; as_of: string | null; version: number | null }
 export type ActionResult = { status: string; message: string; entity_id?: string }
 export type CaptureStatus = { id: string; status: "captured" | "processing" | "needs_input" | "processed" | "failed"; receipt: string | null }
 export type Proposal = { id: string; source: string; reason: string; command: { type: string; data: Record<string, unknown> }; expires_at: string; version: number }
@@ -64,6 +65,11 @@ export const api = {
   projects: () => request<Project[]>("/projects"),
   tasks: () => request<Task[]>("/tasks"),
   journal: () => request<Journal>("/journal"),
+  financeBalance: () => request<FinanceBalance>("/finance/balance"),
+  setFinanceBalance: (amount: string, expected_version: number | null) => request<FinanceBalance>("/finance/balance", {
+    method: "PUT", body: JSON.stringify({ amount, expected_version }),
+  }),
+  clearFinanceBalance: (expected_version: number) => request<{status: string}>(`/finance/balance?expected_version=${expected_version}`, { method: "DELETE" }),
   proposals: () => request<Proposal[]>("/proposals"),
   agentBriefs: () => request<AgentBrief[]>("/agent/briefs"),
   createAgentBrief: (target_date: string) => request<AgentBrief>("/agent/briefs", { method: "POST", body: JSON.stringify({ target_date }) }),

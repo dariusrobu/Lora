@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Bell, CalendarDays, Check, ChevronLeft, ChevronRight, Dumbbell, GraduationCap, HeartPulse, House, Pencil, Plus, Sparkles, Trash2, Wallet, X } from "lucide-react"
-import { api, telegram, type AgentBrief, type AppleConflict, type AppleConflictDetail, type AppleEventConflict, type Entry, type Journal, type Project, type Proposal, type Task, type Today } from "./api"
+import { api, telegram, type AgentBrief, type AppleConflict, type AppleConflictDetail, type AppleEventConflict, type Entry, type FinanceBalance, type Journal, type Project, type Proposal, type Task, type Today } from "./api"
 import UniversityPanel from "./UniversityPanel"
 import IncomePanel from "./IncomePanel"
+import FinanceBalancePanel from "./FinanceBalancePanel"
 import MealPanel from "./MealPanel"
 import DailyHistoryPanel from "./DailyHistoryPanel"
 import ReceiptReview from "./ReceiptReview"
@@ -46,6 +47,7 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [journal, setJournal] = useState<Journal | null>(null)
+  const [financeBalance, setFinanceBalance] = useState<FinanceBalance | null>(null)
   const [proposals, setProposals] = useState<Proposal[]>([])
   const [agentBriefs, setAgentBriefs] = useState<AgentBrief[]>([])
   const [appleConflicts, setAppleConflicts] = useState<AppleConflict[]>([])
@@ -63,10 +65,10 @@ export default function App() {
     if (!telegram?.initData) return
     try {
       const [start, end] = monthBounds(month)
-      const [todayData, calendarData, projectsData, tasksData, journalData, proposalData, briefData, conflictData, eventConflictData] = await Promise.all([
-        api.today(), api.calendar(start, end), api.projects(), api.tasks(), api.journal(), api.proposals(), api.agentBriefs(), api.appleConflicts(), api.appleEventConflicts(),
+      const [todayData, calendarData, projectsData, tasksData, journalData, balanceData, proposalData, briefData, conflictData, eventConflictData] = await Promise.all([
+        api.today(), api.calendar(start, end), api.projects(), api.tasks(), api.journal(), api.financeBalance(), api.proposals(), api.agentBriefs(), api.appleConflicts(), api.appleEventConflicts(),
       ])
-      setToday(todayData); setEntries(calendarData); setProjects(projectsData); setTasks(tasksData); setJournal(journalData); setProposals(proposalData); setAgentBriefs(briefData); setAppleConflicts(conflictData); setAppleEventConflicts(eventConflictData)
+      setToday(todayData); setEntries(calendarData); setProjects(projectsData); setTasks(tasksData); setJournal(journalData); setFinanceBalance(balanceData); setProposals(proposalData); setAgentBriefs(briefData); setAppleConflicts(conflictData); setAppleEventConflicts(eventConflictData)
       setError("")
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut încărca datele.") }
   }, [month])
@@ -284,9 +286,10 @@ export default function App() {
 
         {tab === "projects" && <section className="glass section-card"><div className="section-title"><Check size={19} /><h2>Taskuri pe proiecte</h2></div>{projects.map(project => <div className="project-group" key={project.id}><div className="group-head"><h3>{project.name}</h3><button aria-label={`Editează proiectul ${project.name}`} onClick={() => void openEdit("project",project.id)}><Pencil size={14} /></button><button aria-label={`Șterge proiectul ${project.name}`} onClick={() => void remove("project",project.id,project.version)}><Trash2 size={14} /></button></div>{tasks.filter(task => task.project_id === project.id && task.status === "pending").map(task => <TaskRow key={task.id} task={task} done={() => void act("complete_task", { task_id: task.id, expected_version: task.version })} edit={() => void openEdit("task",task.id)} remove={() => void remove("task",task.id,task.version)} />)}</div>)}<div className="project-group"><h3>Fără proiect</h3>{tasks.filter(task => !task.project_id && task.status === "pending").map(task => <TaskRow key={task.id} task={task} done={() => void act("complete_task", { task_id: task.id, expected_version: task.version })} edit={() => void openEdit("task",task.id)} remove={() => void remove("task",task.id,task.version)} />)}</div>{!tasks.length && <Empty>Nu ai încă taskuri.</Empty>}<div className="inline-actions"><button onClick={() => setForm("task")}><Plus size={16} /> Task</button><button onClick={() => setForm("project")}><Plus size={16} /> Proiect</button></div></section>}
 
+        {tab === "journal" && <FinanceBalancePanel balance={financeBalance} onChange={reload} />}
         {tab === "journal" && <div className="journal-grid"><section className="glass section-card"><div className="section-title"><Wallet size={19} /><h2>Cheltuieli</h2></div>{journal?.expenses.length ? ( showExpenseHistory ? journal.expenses : journal.expenses.slice(0, 8) ).map(item => <div className="simple-row" key={item.id}><span><strong>{item.merchant || item.description || item.category}</strong><small>{item.category} · {localDay(item.spent_at)}</small></span><b>{item.amount} {item.currency}</b><RowActions edit={() => void openEdit("expense",item.id)} remove={() => void remove("expense",item.id,item.version)} /></div>) : <Empty>Nicio cheltuială încă.</Empty>}{(journal?.expenses.length || 0) > 8 && <button className="text-action" onClick={() => setShowExpenseHistory(!showExpenseHistory)}>{showExpenseHistory ? "Arată mai puține" : `Vezi toate (${journal?.expenses.length})`}</button>}<button className="text-action" onClick={() => setForm("expense")}>+ Adaugă cheltuială</button></section><MealPanel meals={journal?.meals || []} onAdd={() => { setFields({}); setEditing(null); setMealItems([blankMealItem()]); setForm("meal") }} onEdit={id => void openEdit("meal", id)} onRemove={(id, version) => void remove("meal", id, version)} /><section className="glass section-card"><div className="section-title"><Dumbbell size={19} /><h2>Antrenamente</h2></div>{journal?.workouts.length ? ( showWorkoutHistory ? journal.workouts : journal.workouts.slice(0, 8) ).map(item => <div className="simple-row" key={item.id}><span><strong>{item.activity}</strong><small>{localDay(item.started_at)}</small></span><b>{item.duration_minutes} min</b><RowActions edit={() => void openEdit("workout",item.id)} remove={() => void remove("workout",item.id,item.version)} /></div>) : <Empty>Niciun antrenament încă.</Empty>}{(journal?.workouts.length || 0) > 8 && <button className="text-action" onClick={() => setShowWorkoutHistory(!showWorkoutHistory)}>{showWorkoutHistory ? "Arată mai puține" : `Vezi toate (${journal?.workouts.length})`}</button>}<button className="text-action" onClick={() => {setExercises([]);setForm("workout")}}>+ Adaugă antrenament</button></section><section className="glass section-card"><div className="section-title"><HeartPulse size={19} /><h2>Sănătate</h2></div>{journal?.health.length ? ( showHealthHistory ? journal.health : journal.health.slice(0, 8) ).map(item => <div className="simple-row" key={item.id}><span><strong>{item.log_date}</strong><small>{[item.sleep_hours ? `${item.sleep_hours}h somn` : "", item.water_ml ? `${item.water_ml} ml apă` : "", item.weight_kg ? `${item.weight_kg} kg` : ""].filter(Boolean).join(" · ") || item.notes || "Jurnal sănătate"}</small></span><RowActions edit={() => void openEdit("health",item.id)} remove={() => void remove("health",item.id,item.version)} /></div>) : <Empty>Nu ai înregistrări de sănătate.</Empty>}{(journal?.health.length || 0) > 8 && <button className="text-action" onClick={() => setShowHealthHistory(!showHealthHistory)}>{showHealthHistory ? "Arată mai puține" : `Vezi toate (${journal?.health.length})`}</button>}<button className="text-action" onClick={() => {setFields({healthDate:isoLocalDate(new Date())});setEditing(null);setForm("health")}}>+ Adaugă sănătate</button></section></div>}
 
-        {tab === "journal" && <IncomePanel />}
+        {tab === "journal" && <IncomePanel onChange={reload} />}
         {tab === "journal" && <DailyHistoryPanel />}
         {tab === "university" && <UniversityPanel />}
 

@@ -345,8 +345,56 @@ def test_read_questions_do_not_intercept_writes():
     assert read_intent("Ce am azi?") == "today"
     assert read_intent("Ce trebuie să fac?") == "tasks"
     assert read_intent("Cât am cheltuit luna asta?") == "expenses"
+    assert read_intent("Ce sold am acum?") == "balance"
+    assert read_intent("Câți bani mai am?") == "balance"
     assert read_intent("Adu-mi aminte mâine să sun") is None
     assert read_intent("Azi am cheltuit 15 lei") is None
+
+
+@pytest.mark.asyncio
+async def test_finance_balance_uses_verified_start_and_only_later_transactions():
+    url = os.getenv("LORA_V2_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set LORA_V2_TEST_DATABASE_URL to an isolated test database")
+    from datetime import timedelta, timezone
+
+    owner = uuid.uuid4().int % 1000000000
+    settings = Settings(database_url=url, telegram_bot_token="test-token", telegram_user_id=owner)
+    app = create_app(settings)
+    headers = {"X-Telegram-Init-Data": _init_data(settings.telegram_bot_token, owner, int(time.time()))}
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            empty = await client.get("/api/v2/finance/balance", headers=headers)
+            assert empty.status_code == 200 and empty.json()["balance"] is None
+
+            before = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+            await execute_command(app.state.pool, settings, owner, Command(type="log_expense", data={
+                "amount": "25", "currency": "RON", "category": "mâncare", "spent_at": before,
+            }), str(uuid.uuid4()))
+            start = await client.put("/api/v2/finance/balance", headers=headers,
+                                     json={"amount": "200.00", "expected_version": None})
+            assert start.status_code == 200 and start.json()["balance"] == 200
+
+            after = datetime.now(timezone.utc).isoformat()
+            expense = await execute_command(app.state.pool, settings, owner, Command(type="log_expense", data={
+                "amount": "15", "currency": "RON", "category": "mâncare", "spent_at": after,
+            }), str(uuid.uuid4()))
+            await execute_command(app.state.pool, settings, owner, Command(type="log_income", data={
+                "amount": "50", "currency": "RON", "received_at": after,
+            }), str(uuid.uuid4()))
+            current = await client.get("/api/v2/finance/balance", headers=headers)
+            assert current.json()["balance"] == 235
+
+            await delete_entity(app.state.pool, owner, "expense", uuid.UUID(expense.entity_id), 1)
+            restored = await client.get("/api/v2/finance/balance", headers=headers)
+            assert restored.json()["balance"] == 250
+
+            stale = await client.put("/api/v2/finance/balance", headers=headers,
+                                     json={"amount": "300.00", "expected_version": None})
+            assert stale.status_code == 409
+            corrected = await client.put("/api/v2/finance/balance", headers=headers,
+                                         json={"amount": "300.00", "expected_version": 1})
+            assert corrected.status_code == 200 and corrected.json()["balance"] == 300
 
 
 def test_invalid_local_model_action_does_not_discard_valid_actions():

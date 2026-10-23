@@ -30,7 +30,7 @@ def create_bot(settings: Settings | None = None) -> Application:
         command = (update.message.text or "").split()[0].split("@")[0].lower()
         intent = {
             "/azi": "today", "/maine": "tomorrow", "/taskuri": "tasks",
-            "/cheltuieli": "expenses", "/facultate": "university",
+            "/cheltuieli": "expenses", "/sold": "balance", "/facultate": "university",
         }.get(command)
         if intent:
             pool = context.application.bot_data["pool"]
@@ -47,6 +47,7 @@ def create_bot(settings: Settings | None = None) -> Application:
         await application.bot.set_my_commands([
             BotCommand("azi", "Programul de azi"), BotCommand("maine", "Programul de mâine"),
             BotCommand("taskuri", "Taskurile mele"), BotCommand("cheltuieli", "Cheltuielile mele"),
+            BotCommand("sold", "Soldul estimat"),
             BotCommand("facultate", "Programul facultății"), BotCommand("help", "Cum folosesc Lora"),
         ])
         mini_app_url = os.getenv("LORA_V2_MINI_APP_URL", "")
@@ -73,7 +74,7 @@ def create_bot(settings: Settings | None = None) -> Application:
             await queue_reply(context.application.bot_data["pool"], config.telegram_user_id, str(update.update_id),
                 "Lora v2 este activă. Scrie natural ce vrei să notez sau trimite o fotografie ori un mesaj vocal. "
                 "Calendarul și datele sunt în butonul Lora.\n"
-                "Comenzi: /azi, /maine, /taskuri, /cheltuieli, /facultate."
+                "Comenzi: /azi, /maine, /taskuri, /cheltuieli, /sold, /facultate."
             )
 
     async def old_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -90,7 +91,7 @@ def create_bot(settings: Settings | None = None) -> Application:
     app.add_error_handler(on_error)
     register_v2_callbacks(app, config)
     app.add_handler(CallbackQueryHandler(old_button))
-    for name in ("azi", "maine", "taskuri", "cheltuieli", "facultate"):
+    for name in ("azi", "maine", "taskuri", "cheltuieli", "sold", "facultate"):
         app.add_handler(CommandHandler(name, on_read_command))
     app.add_handler(MessageHandler(filters.COMMAND & filters.ChatType.PRIVATE, help_command))
     app.add_handler(MessageHandler((filters.TEXT | filters.PHOTO | filters.VOICE) & ~filters.COMMAND & filters.ChatType.PRIVATE, on_message))

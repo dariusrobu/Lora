@@ -7,7 +7,7 @@ const localInput = (value: string) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`
 }
 
-export default function IncomePanel() {
+export default function IncomePanel({ onChange }: { onChange: () => Promise<void> }) {
   const [incomes, setIncomes] = useState<Income[]>([])
   const [form, setForm] = useState<{ id?: string; version?: number } | null>(null)
   const [fields, setFields] = useState({ amount: "", category: "", source: "", description: "", at: "" })
@@ -26,7 +26,7 @@ export default function IncomePanel() {
     try {
       if (form?.id && form.version) await api.edit("income", form.id, form.version, data)
       else await api.action("log_income", data)
-      setForm(null); await reload()
+      setForm(null); await Promise.all([reload(), onChange()])
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut salva venitul.") }
     finally { setBusy(false) }
   }
@@ -34,7 +34,7 @@ export default function IncomePanel() {
   async function remove(item: Income) {
     if (!window.confirm("Ștergi acest venit?")) return
     setBusy(true); setError("")
-    try { await api.remove("income", item.id, item.version); await reload() }
+    try { await api.remove("income", item.id, item.version); await Promise.all([reload(), onChange()]) }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut șterge venitul.") }
     finally { setBusy(false) }
   }
