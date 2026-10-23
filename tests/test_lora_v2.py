@@ -31,13 +31,14 @@ from lora_v2.legacy_bridge import install_bridge
 from lora_v2.agent import Candidate, Interpretation, _explicit_calendar_kind, _repair_interpretation, parse_interpretation
 from lora_v2.grounding import grounding_issue
 from lora_v2.apple import _digest, pull_changes, push_pending, resolve_conflict
-from lora_v2.notifications import queue_due_alerts, send_pending_telegram
+from lora_v2.notifications import queue_due_alerts, queue_reply, send_pending_telegram
 from lora_v2.nutrition import enrich_meal_candidate
 from lora_v2.rules import extract_common
 from lora_v2.processor import _invalid_candidate_message, process_capture
 from lora_v2.academics import delete_academic, list_academics, set_semester, write_academic
 from lora_v2.proactive import decide_followup, decide_proposal, generate_proposals
 from lora_v2.queries import answer_read_intent, read_intent
+from lora_v2.telegram_navigation import COMMAND_INTENTS, MENU_COMMANDS, navigation_keyboard
 from lora_v2.service import capture, execute_command
 from lora_v2.worker import run_once
 from core.nutrition_sources import FoodReference
@@ -347,8 +348,44 @@ def test_read_questions_do_not_intercept_writes():
     assert read_intent("Cât am cheltuit luna asta?") == "expenses"
     assert read_intent("Ce sold am acum?") == "balance"
     assert read_intent("Câți bani mai am?") == "balance"
+    assert read_intent("Ce remindere am?") == "reminders"
+    assert read_intent("Ce am săptămâna asta?") == "calendar"
+    assert read_intent("Noutăți facultate") == "news"
+    assert read_intent("Situația banilor") == "money"
+    assert read_intent("Antrenamente") == "workout"
     assert read_intent("Adu-mi aminte mâine să sun") is None
     assert read_intent("Azi am cheltuit 15 lei") is None
+
+
+def test_daily_driver_menu_and_navigation_keep_existing_shortcuts():
+    assert [command for command, _ in MENU_COMMANDS] == [
+        "azi", "calendar", "taskuri", "remindere", "facultate", "noutati", "bani", "antrenament",
+    ]
+    assert {"maine", "sold", "cheltuieli"}.issubset(COMMAND_INTENTS)
+    keyboard = navigation_keyboard("money", "https://example.com/v2")
+    assert keyboard is not None
+    assert [button.callback_data for button in keyboard.inline_keyboard[0]] == [
+        "v2:n:balance", "v2:n:expenses",
+    ]
+    assert keyboard.inline_keyboard[1][0].web_app.url == "https://example.com/v2"
+    assert navigation_keyboard("unknown") is None
+
+
+@pytest.mark.asyncio
+async def test_read_reply_keeps_navigation_only_on_first_telegram_message():
+    class FakePool:
+        def __init__(self) -> None:
+            self.payloads: list[dict[str, object]] = []
+
+        async def execute(self, _query: str, *_args: object) -> None:
+            self.payloads.append(json.loads(str(_args[-1])))
+
+    pool = FakePool()
+    await queue_reply(pool, 123, "update-1", "x" * 4100,
+                      navigation="calendar", mini_app_url="https://example.com/v2")
+    assert len(pool.payloads) == 2
+    assert pool.payloads[0]["navigation"] == "calendar"
+    assert pool.payloads[1]["navigation"] is None
 
 
 @pytest.mark.asyncio

@@ -1,5 +1,7 @@
 """Shared Telegram message capture for the v2 bot and the legacy polling bridge."""
 
+import os
+
 import asyncpg
 from telegram import Update
 
@@ -26,7 +28,7 @@ async def handle_owner_message(
         if intent:
             await queue_reply(pool, settings.telegram_user_id, str(update.update_id), await answer_read_intent(
                 pool, settings, settings.telegram_user_id, intent,
-            ))
+            ), navigation=intent, mini_app_url=os.getenv("LORA_V2_MINI_APP_URL", ""))
             return True
     try:
         if message.photo:

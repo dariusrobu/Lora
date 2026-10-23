@@ -7,8 +7,13 @@ from datetime import datetime, timedelta, timezone
 import asyncpg
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
+from lora_v2.telegram_navigation import navigation_keyboard
 
-async def queue_reply(pool: asyncpg.Pool, owner_id: int, key: str, text: str) -> None:
+
+async def queue_reply(
+    pool: asyncpg.Pool, owner_id: int, key: str, text: str,
+    navigation: str | None = None, mini_app_url: str = "",
+) -> None:
     """Persist replies before Telegram delivery; network failures are retried."""
     # Telegram limits messages to 4096 characters. Stable per-part keys make
     # replaying an update safe without dropping long read-command responses.
@@ -17,7 +22,9 @@ async def queue_reply(pool: asyncpg.Pool, owner_id: int, key: str, text: str) ->
             """INSERT INTO notification_outbox(id,owner_id,dedupe_key,channel,kind,payload)
             VALUES ($1,$2,$3,'telegram','reply',$4::jsonb) ON CONFLICT DO NOTHING""",
             uuid.uuid4(), owner_id, 'reply:' + key + ':' + str(offset // 4000),
-            json.dumps({'text': text[offset:offset + 4000]}),
+            json.dumps({'text': text[offset:offset + 4000],
+                        'navigation': navigation if offset == 0 else None,
+                        'mini_app_url': mini_app_url if offset == 0 else ''}),
         )
 
 
@@ -125,7 +132,12 @@ async def send_pending_telegram(
                 else:
                     await bot.send_message(chat_id=owner_id, text=payload["text"])
             else:
-                await bot.send_message(chat_id=owner_id, text=payload["text"])
+                await bot.send_message(
+                    chat_id=owner_id, text=payload["text"],
+                    reply_markup=navigation_keyboard(
+                        payload.get("navigation") or "", payload.get("mini_app_url") or "",
+                    ),
+                )
         except Exception as exc:
             delay = min(300, 2 ** min(row["attempts"], 8))
             async with pool.acquire() as conn:

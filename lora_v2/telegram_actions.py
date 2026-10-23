@@ -1,5 +1,6 @@
 """Shared v2 Telegram callback actions for standalone and legacy polling."""
 
+import os
 import uuid
 from datetime import timedelta
 
@@ -9,12 +10,32 @@ from telegram.ext import Application, ApplicationHandlerStop, CallbackQueryHandl
 from lora_v2.config import Settings
 from lora_v2.models import Command
 from lora_v2.proactive import decide_followup, decide_proposal
+from lora_v2.queries import answer_read_intent
 from lora_v2.service import execute_command
+from lora_v2.telegram_navigation import READ_INTENTS, navigation_keyboard
 
 
 def register_v2_callbacks(
     app: Application, config: Settings, group: int = 0, stop_after: bool = False,
 ) -> None:
+    async def on_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        query = update.callback_query
+        if not query or not update.effective_user or update.effective_user.id != config.telegram_user_id:
+            return
+        intent = (query.data or "").removeprefix("v2:n:")
+        if intent not in READ_INTENTS:
+            await query.answer("Acțiune invalidă", show_alert=True)
+            return
+        await query.answer()
+        answer = await answer_read_intent(
+            context.application.bot_data["v2_pool"], config, config.telegram_user_id, intent,
+        )
+        if len(answer) > 3900:
+            answer = answer[:3850].rsplit("\n", 1)[0] + "\n… Restul este în Mini App."
+        await query.edit_message_text(
+            answer, reply_markup=navigation_keyboard(intent, os.getenv("LORA_V2_MINI_APP_URL", "")),
+        )
+
     async def on_proposal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         query = update.callback_query
         if not query or not update.effective_user or update.effective_user.id != config.telegram_user_id:
@@ -133,3 +154,4 @@ def register_v2_callbacks(
     app.add_handler(CallbackQueryHandler(wrap(on_followup), pattern=r"^v2:f:"), group=group)
     app.add_handler(CallbackQueryHandler(wrap(on_alert_action), pattern=r"^v2:e:"), group=group)
     app.add_handler(CallbackQueryHandler(wrap(on_task_action), pattern=r"^v2:t:"), group=group)
+    app.add_handler(CallbackQueryHandler(wrap(on_navigation), pattern=r"^v2:n:"), group=group)

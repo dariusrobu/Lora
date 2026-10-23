@@ -12,6 +12,7 @@ from lora_v2.db import create_pool, migrate
 from lora_v2.queries import answer_read_intent
 from lora_v2.telegram_ingress import handle_owner_message
 from lora_v2.telegram_actions import register_v2_callbacks
+from lora_v2.telegram_navigation import COMMAND_INTENTS, MENU_COMMANDS
 from lora_v2.worker import run_forever
 from lora_v2.notifications import queue_reply
 
@@ -28,14 +29,12 @@ def create_bot(settings: Settings | None = None) -> Application:
         if not update.message or not update.effective_user or update.effective_user.id != config.telegram_user_id:
             return
         command = (update.message.text or "").split()[0].split("@")[0].lower()
-        intent = {
-            "/azi": "today", "/maine": "tomorrow", "/taskuri": "tasks",
-            "/cheltuieli": "expenses", "/sold": "balance", "/facultate": "university",
-        }.get(command)
+        intent = COMMAND_INTENTS.get(command.removeprefix("/"))
         if intent:
             pool = context.application.bot_data["pool"]
             await queue_reply(pool, config.telegram_user_id, str(update.update_id),
-                              await answer_read_intent(pool, config, config.telegram_user_id, intent))
+                              await answer_read_intent(pool, config, config.telegram_user_id, intent),
+                              navigation=intent, mini_app_url=os.getenv("LORA_V2_MINI_APP_URL", ""))
 
     async def post_init(application: Application) -> None:
         pool = await create_pool(config)
@@ -45,10 +44,7 @@ def create_bot(settings: Settings | None = None) -> Application:
         if os.getenv("LORA_V2_BOT_WORKER_ENABLED", "true").lower() == "true":
             application.bot_data["worker"] = asyncio.create_task(run_forever(pool, application.bot, config))
         await application.bot.set_my_commands([
-            BotCommand("azi", "Programul de azi"), BotCommand("maine", "Programul de mâine"),
-            BotCommand("taskuri", "Taskurile mele"), BotCommand("cheltuieli", "Cheltuielile mele"),
-            BotCommand("sold", "Soldul estimat"),
-            BotCommand("facultate", "Programul facultății"), BotCommand("help", "Cum folosesc Lora"),
+            BotCommand(command, description) for command, description in MENU_COMMANDS
         ])
         mini_app_url = os.getenv("LORA_V2_MINI_APP_URL", "")
         if mini_app_url:
@@ -74,7 +70,8 @@ def create_bot(settings: Settings | None = None) -> Application:
             await queue_reply(context.application.bot_data["pool"], config.telegram_user_id, str(update.update_id),
                 "Lora v2 este activă. Scrie natural ce vrei să notez sau trimite o fotografie ori un mesaj vocal. "
                 "Calendarul și datele sunt în butonul Lora.\n"
-                "Comenzi: /azi, /maine, /taskuri, /cheltuieli, /sold, /facultate."
+                "Comenzi: /azi, /calendar, /taskuri, /remindere, /facultate, "
+                "/noutati, /bani, /antrenament. /maine, /sold și /cheltuieli rămân disponibile."
             )
 
     async def old_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -91,7 +88,7 @@ def create_bot(settings: Settings | None = None) -> Application:
     app.add_error_handler(on_error)
     register_v2_callbacks(app, config)
     app.add_handler(CallbackQueryHandler(old_button))
-    for name in ("azi", "maine", "taskuri", "cheltuieli", "sold", "facultate"):
+    for name in COMMAND_INTENTS:
         app.add_handler(CommandHandler(name, on_read_command))
     app.add_handler(MessageHandler(filters.COMMAND & filters.ChatType.PRIVATE, help_command))
     app.add_handler(MessageHandler((filters.TEXT | filters.PHOTO | filters.VOICE) & ~filters.COMMAND & filters.ChatType.PRIVATE, on_message))
