@@ -13,19 +13,53 @@ from lora_v2.telegram_navigation import READ_INTENTS
 
 
 _ADD_PROMPTS = {
-    "today": ("Adaugă", "Scrie-mi ce vrei să notez pentru azi, cu ora dacă trebuie să te anunț."),
-    "tomorrow": ("Adaugă", "Scrie-mi ce vrei să notez pentru mâine, cu ora dacă trebuie să te anunț."),
-    "calendar": ("Eveniment nou", "Scrie evenimentul, data și ora. De exemplu: duminică la 20 am fotbal, amintește-mi la 19:30."),
-    "tasks": ("Task nou", "Scrie ce ai de făcut și, dacă vrei, proiectul și termenul."),
-    "reminders": ("Reminder nou", "Scrie-mi exact ce să-ți amintesc și când. De exemplu: amintește-mi mâine la 13:30 să iau geanta."),
-    "university": ("Notează pentru facultate", "Scrie materia și ce vrei să notez: task, examen, notă sau prezență."),
-    "news": ("Întreabă despre noutăți", "Spune-mi ce anunț sau materie cauți; poți deschide și noutatea din listă."),
-    "money": ("Cheltuială nouă", "Scrie suma, locul și ce ai cumpărat. Dacă nu este clară categoria, te întreb înainte de salvare."),
-    "income": ("Venit nou", "Scrie suma, sursa și data venitului. De exemplu: azi am primit 200 lei de la client."),
-    "balance": ("Cheltuială nouă", "Scrie suma, locul și ce ai cumpărat."),
-    "expenses": ("Cheltuială nouă", "Scrie suma, locul și ce ai cumpărat."),
-    "workout": ("Antrenament nou", "Scrie ce ai antrenat, durata și exercițiile dacă le știi. Exemplu: azi am făcut piept 45 min."),
+    "today": ("➕ Notează ceva pentru azi", "Scrie-mi ce vrei să notez pentru azi, cu ora dacă trebuie să te anunț."),
+    "today_task": ("➕ Task pentru azi", "Scrie ce task vrei să adaug pentru azi. Exemplu: azi trebuie să termin tema la economie."),
+    "today_reminder": ("➕ Reminder pentru azi", "Scrie ce să-ți amintesc azi și la ce oră. Exemplu: amintește-mi azi la 19:30 să iau geanta."),
+    "today_event": ("➕ Eveniment pentru azi", "Scrie ce eveniment ai azi și la ce oră. Exemplu: azi la 20:00 am meci de fotbal."),
+    "tomorrow": ("➕ Notează ceva pentru mâine", "Scrie-mi ce vrei să notez pentru mâine, cu ora dacă trebuie să te anunț."),
+    "tomorrow_task": ("➕ Task pentru mâine", "Scrie ce task vrei să adaug pentru mâine. Exemplu: mâine trebuie să predau tema."),
+    "tomorrow_reminder": ("➕ Reminder pentru mâine", "Scrie ce să-ți amintesc mâine și la ce oră. Exemplu: amintește-mi mâine la 13:30 să sun administratorul."),
+    "tomorrow_event": ("➕ Eveniment pentru mâine", "Scrie ce eveniment ai mâine și la ce oră. Exemplu: mâine la 20:00 am meci de fotbal."),
+    "calendar": ("➕ Adaugă eveniment", "Scrie evenimentul, data și ora. De exemplu: duminică la 20 am fotbal, amintește-mi la 19:30."),
+    "tasks": ("➕ Adaugă task", "Scrie ce ai de făcut și, dacă vrei, proiectul și termenul."),
+    "reminders": ("➕ Adaugă reminder", "Scrie-mi exact ce să-ți amintesc și când. De exemplu: amintește-mi mâine la 13:30 să iau geanta."),
+    "university": ("➕ Notează ceva pentru facultate", "Scrie materia și ce vrei să notez: task, examen, notă sau prezență."),
+    "news": ("💬 Întreabă despre noutăți", "Spune-mi ce anunț sau materie cauți; poți deschide și noutatea din listă."),
+    "money": ("➕ Adaugă cheltuială", "Scrie suma, locul și ce ai cumpărat. Dacă nu este clară categoria, te întreb înainte de salvare."),
+    "income": ("➕ Adaugă venit", "Scrie suma, sursa și data venitului. De exemplu: azi am primit 200 lei de la client."),
+    "balance": ("➕ Adaugă cheltuială", "Scrie suma, locul și ce ai cumpărat."),
+    "expenses": ("➕ Adaugă cheltuială", "Scrie suma, locul și ce ai cumpărat."),
+    "workout": ("➕ Adaugă antrenament", "Scrie ce ai antrenat, durata și exercițiile dacă le știi. Exemplu: azi am făcut piept 45 min."),
 }
+
+_MENU_INTROS = {
+    "today": "Azi", "tomorrow": "Mâine", "calendar": "Calendar",
+    "tasks": "Taskuri", "reminders": "Remindere", "university": "Facultate",
+    "news": "Noutăți", "money": "Bani", "balance": "Bani",
+    "expenses": "Cheltuieli", "workout": "Antrenamente",
+}
+
+
+def _picker_label(row: asyncpg.Record, settings: Settings, intent: str) -> str:
+    kind = row["item_kind"]
+    subtype = row.get("entry_kind")
+    prefix = {
+        "t": "✅ Task", "n": "📣 Noutate", "x": "💸 Cheltuială", "w": "🏋️ Antrenament",
+    }.get(kind, {"event": "📅 Eveniment", "reminder": "⏰ Reminder",
+                 "academic": "🎓 Facultate"}.get(subtype, "📅 Calendar"))
+    at = row.get("item_at")
+    if at:
+        local = at.astimezone(ZoneInfo(settings.timezone))
+        when = local.strftime("%d.%m %H:%M")
+        if kind == "e" and intent in {"today", "tomorrow"}:
+            when = local.strftime("%H:%M")
+        prefix += f" · {when}"
+    if kind == "x" and row.get("amount") is not None:
+        prefix += f" · {row['amount']} {row.get('currency') or 'RON'}"
+    title = str(row["title"])
+    remaining = max(10, 60 - len(prefix))
+    return f"{prefix} · {title[:remaining]}{'…' if len(title) > remaining else ''}"
 
 
 def add_prompt(intent: str) -> str | None:
@@ -49,12 +83,13 @@ async def action_menu(
             day_start = datetime.combine(day, datetime.min.time(), ZoneInfo(settings.timezone))
             day_end = day_start + timedelta(days=1)
             tasks = await conn.fetch(
-                """SELECT id,title,version,'t' AS item_kind FROM tasks
+                """SELECT id,title,version,'t' AS item_kind,due_at AS item_at FROM tasks
                 WHERE owner_id=$1 AND status='pending' AND (due_at < $2 OR due_at IS NULL)
                 ORDER BY due_at NULLS LAST,created_at LIMIT 4""", owner_id, day_end,
             )
             entries = await conn.fetch(
-                """SELECT id,title,version,'e' AS item_kind FROM calendar_entries
+                """SELECT id,title,version,'e' AS item_kind,kind AS entry_kind,
+                starts_at AS item_at FROM calendar_entries
                 WHERE owner_id=$1 AND status='active' AND kind IN ('event','reminder')
                 AND starts_at >= $2 AND starts_at < $3 ORDER BY starts_at LIMIT 4""",
                 owner_id, day_start, day_end,
@@ -62,13 +97,14 @@ async def action_menu(
             rows = [*entries, *tasks]
         elif intent == "tasks":
             rows = await conn.fetch(
-                """SELECT id,title,version,'t' AS item_kind FROM tasks
+                """SELECT id,title,version,'t' AS item_kind,due_at AS item_at FROM tasks
                 WHERE owner_id=$1 AND status='pending'
                 ORDER BY due_at NULLS LAST,created_at LIMIT 9 OFFSET $2""", owner_id, offset,
             )
         elif intent == "reminders":
             rows = await conn.fetch(
-                """SELECT id,title,version,'e' AS item_kind FROM calendar_entries
+                """SELECT id,title,version,'e' AS item_kind,kind AS entry_kind,
+                starts_at AS item_at FROM calendar_entries
                 WHERE owner_id=$1 AND status='active' AND kind='reminder'
                 ORDER BY starts_at LIMIT 9 OFFSET $2""", owner_id, offset,
             )
@@ -76,7 +112,8 @@ async def action_menu(
             range_start = (datetime.combine(now.date(), datetime.min.time(), ZoneInfo(settings.timezone))
                            if intent == "university" else now)
             rows = await conn.fetch(
-                """SELECT id,title,version,'e' AS item_kind FROM calendar_entries
+                """SELECT id,title,version,'e' AS item_kind,kind AS entry_kind,
+                starts_at AS item_at FROM calendar_entries
                 WHERE owner_id=$1 AND status='active' AND starts_at >= $2 AND starts_at < $3
                 AND ($4::boolean=false OR kind='academic')
                 ORDER BY starts_at LIMIT 9 OFFSET $5""", owner_id, range_start, end,
@@ -91,40 +128,48 @@ async def action_menu(
         elif intent in {"money", "balance", "expenses"}:
             rows = await conn.fetch(
                 """SELECT id,COALESCE(description,merchant,category,'Cheltuială') AS title,
-                version,'x' AS item_kind FROM expenses
+                version,'x' AS item_kind,amount,currency,spent_at AS item_at FROM expenses
                 WHERE owner_id=$1 AND deleted_at IS NULL ORDER BY spent_at DESC LIMIT 9 OFFSET $2""",
                 owner_id, offset,
             )
         elif intent == "workout":
             rows = await conn.fetch(
-                """SELECT id,activity AS title,version,'w' AS item_kind FROM workouts
+                """SELECT id,activity AS title,version,'w' AS item_kind,
+                started_at AS item_at FROM workouts
                 WHERE owner_id=$1 AND deleted_at IS NULL ORDER BY started_at DESC LIMIT 9 OFFSET $2""",
                 owner_id, offset,
             )
     has_more = len(rows) > 8
     buttons: list[list[InlineKeyboardButton]] = []
     for row in rows[:8]:
-        title = str(row["title"])
         buttons.append([InlineKeyboardButton(
-            title[:52] + ("…" if len(title) > 52 else ""),
+            _picker_label(row, settings, intent),
             callback_data=f"v2:i:{row['item_kind']}:{row['id']}",
         )])
     paging: list[InlineKeyboardButton] = []
     if page > 0:
-        paging.append(InlineKeyboardButton("◀ Înapoi", callback_data=f"v2:a:{intent}:{page - 1}"))
+        paging.append(InlineKeyboardButton("◀ Pagina anterioară", callback_data=f"v2:a:{intent}:{page - 1}"))
     if has_more:
-        paging.append(InlineKeyboardButton("Mai multe ▶", callback_data=f"v2:a:{intent}:{page + 1}"))
+        paging.append(InlineKeyboardButton("Pagina următoare ▶", callback_data=f"v2:a:{intent}:{page + 1}"))
     if paging:
         buttons.append(paging)
     if intent in {"money", "balance", "expenses"}:
         buttons.append([
-            InlineKeyboardButton("Cheltuială nouă", callback_data="v2:new:money"),
-            InlineKeyboardButton("Venit nou", callback_data="v2:new:income"),
+            InlineKeyboardButton("➕ Cheltuială", callback_data="v2:new:money"),
+            InlineKeyboardButton("➕ Venit", callback_data="v2:new:income"),
         ])
+    elif intent in {"today", "tomorrow"}:
+        for item_type in ("task", "reminder", "event"):
+            key = f"{intent}_{item_type}"
+            buttons.append([InlineKeyboardButton(_ADD_PROMPTS[key][0], callback_data=f"v2:new:{key}")])
     else:
         buttons.append([InlineKeyboardButton(_ADD_PROMPTS[intent][0], callback_data=f"v2:new:{intent}")])
-    buttons.append([InlineKeyboardButton("Înapoi", callback_data=f"v2:n:{intent}")])
-    heading = f"Alege un element · pagina {page + 1}:" if rows else "Nu am elemente de afișat aici."
+    buttons.append([InlineKeyboardButton("↩ Înapoi la rezumat", callback_data=f"v2:n:{intent}")])
+    page_label = f" · pagina {page + 1}" if page > 0 or has_more else ""
+    heading = (f"{_MENU_INTROS[intent]}{page_label}\n\nAlege un element pentru detalii și opțiuni. "
+               "Nu se modifică nimic până alegi o acțiune.")
+    if not rows:
+        heading += "\n\nNu ai elemente în această listă."
     return heading, InlineKeyboardMarkup(buttons)
 
 
@@ -139,14 +184,15 @@ async def item_detail(
             )
             if not row:
                 return None
-            text = f"Task: {row['title']}"
+            text = f"✅ Task\n{row['title']}"
             if row["due_at"]:
                 text += f"\nTermen: {row['due_at'].astimezone(ZoneInfo(settings.timezone)):%d.%m %H:%M}"
             if row["notes"]:
-                text += f"\n{row['notes']}"
+                text += f"\n\n{row['notes']}"
+            text += "\n\nAlege ce vrei să faci cu acest task:"
             buttons = [[
-                InlineKeyboardButton("Gata", callback_data=f"v2:t:{item_id}:{row['version']}:done"),
-                InlineKeyboardButton("Mâine 09:00", callback_data=f"v2:q:t:{item_id}:{row['version']}:tomorrow"),
+                InlineKeyboardButton("✅ Marchează ca făcut", callback_data=f"v2:t:{item_id}:{row['version']}:done"),
+                InlineKeyboardButton("📅 Mută pe mâine la 09:00", callback_data=f"v2:q:t:{item_id}:{row['version']}:tomorrow"),
             ]]
         elif kind == "e":
             row = await conn.fetchrow(
@@ -155,22 +201,30 @@ async def item_detail(
             )
             if not row:
                 return None
-            text = f"{row['kind'].capitalize()}: {row['title']}\n{row['starts_at'].astimezone(ZoneInfo(settings.timezone)):%d.%m %H:%M}"
+            label = {"event": "📅 Eveniment", "reminder": "⏰ Reminder",
+                     "academic": "🎓 Facultate"}.get(row["kind"], "📅 Calendar")
+            text = f"{label}\n{row['title']}\n{row['starts_at'].astimezone(ZoneInfo(settings.timezone)):%d.%m %H:%M}"
             if row["notes"]:
-                text += f"\n{row['notes']}"
+                text += f"\n\n{row['notes']}"
             buttons = []
             if row["kind"] == "reminder":
+                text += "\n\nAlege ce vrei să faci cu acest reminder:"
                 buttons.append([
-                    InlineKeyboardButton("Gata", callback_data=f"v2:e:{item_id}:{row['version']}:done"),
-                    InlineKeyboardButton("+1 oră", callback_data=f"v2:q:e:{item_id}:{row['version']}:hour"),
-                    InlineKeyboardButton("Mâine", callback_data=f"v2:e:{item_id}:{row['version']}:tomorrow"),
+                    InlineKeyboardButton("✅ Am făcut", callback_data=f"v2:e:{item_id}:{row['version']}:done"),
+                    InlineKeyboardButton("⏰ Peste o oră", callback_data=f"v2:q:e:{item_id}:{row['version']}:hour"),
+                ])
+                buttons.append([
+                    InlineKeyboardButton("📅 Mută pe mâine", callback_data=f"v2:e:{item_id}:{row['version']}:tomorrow"),
                 ])
             elif (row["kind"] == "academic" and row["legacy_source"] == "academic_rule"
                   and row["starts_at"] <= datetime.now(ZoneInfo(settings.timezone))):
+                text += "\n\nAi participat la acest curs?"
                 buttons.append([
-                    InlineKeyboardButton("Am fost", callback_data=f"v2:q:a:{item_id}:{row['version']}:yes"),
-                    InlineKeyboardButton("Am lipsit", callback_data=f"v2:q:a:{item_id}:{row['version']}:no"),
+                    InlineKeyboardButton("✅ Am fost", callback_data=f"v2:q:a:{item_id}:{row['version']}:yes"),
+                    InlineKeyboardButton("❌ Am lipsit", callback_data=f"v2:q:a:{item_id}:{row['version']}:no"),
                 ])
+            elif row["kind"] == "event":
+                text += "\n\nPentru modificare, deschide Mini App → Calendar."
         elif kind == "n":
             row = await conn.fetchrow(
                 """SELECT title,course_title,body,discussion_url,content_hash FROM moodle_posts
@@ -178,10 +232,10 @@ async def item_detail(
             )
             if not row:
                 return None
-            text = f"{row['course_title']} · {row['title']}\n\n{row['body'][:3000]}"
+            text = f"📣 Noutate · {row['course_title']}\n{row['title']}\n\n{row['body'][:3000]}"
             buttons = [[
-                InlineKeyboardButton("Citit", callback_data=f"v2:q:n:{item_id}:{row['content_hash'][:8]}:read"),
-                InlineKeyboardButton("Arhivează", callback_data=f"v2:q:n:{item_id}:{row['content_hash'][:8]}:archive"),
+                InlineKeyboardButton("✅ Marchează citit", callback_data=f"v2:q:n:{item_id}:{row['content_hash'][:8]}:read"),
+                InlineKeyboardButton("🗂 Arhivează", callback_data=f"v2:q:n:{item_id}:{row['content_hash'][:8]}:archive"),
             ]]
             if row["discussion_url"].startswith("https://"):
                 buttons.append([InlineKeyboardButton("Deschide forumul", url=row["discussion_url"])])
@@ -192,12 +246,12 @@ async def item_detail(
             )
             if not row:
                 return None
-            text = (f"Cheltuială: {row['amount']} {row['currency']} · {row['category']}\n"
+            text = (f"💸 Cheltuială\n{row['amount']} {row['currency']} · {row['category']}\n"
                     f"{row['description'] or row['merchant'] or ''}\n"
                     f"{row['spent_at'].astimezone(ZoneInfo(settings.timezone)):%d.%m %H:%M}\n"
                     "Pentru alte editări sau ștergere, deschide Mini App → Jurnal.")
             buttons = [[InlineKeyboardButton(
-                "Schimbă categoria", callback_data=f"v2:c:{item_id}:{row['version']}",
+                "🏷 Schimbă categoria", callback_data=f"v2:c:{item_id}:{row['version']}",
             )]]
         elif kind == "w":
             row = await conn.fetchrow(
@@ -206,7 +260,7 @@ async def item_detail(
             )
             if not row:
                 return None
-            text = (f"Antrenament: {row['activity']} · {row['duration_minutes']} min\n"
+            text = (f"🏋️ Antrenament\n{row['activity']} · {row['duration_minutes']} min\n"
                     f"{row['started_at'].astimezone(ZoneInfo(settings.timezone)):%d.%m %H:%M}")
             if row["notes"]:
                 text += f"\n{row['notes']}"
@@ -214,7 +268,7 @@ async def item_detail(
         else:
             return None
     parent = {"t": "tasks", "e": "calendar", "n": "news", "x": "money", "w": "workout"}[kind]
-    buttons.append([InlineKeyboardButton("Înapoi la listă", callback_data=f"v2:a:{parent}")])
+    buttons.append([InlineKeyboardButton("↩ Înapoi la listă", callback_data=f"v2:a:{parent}")])
     return text[:3900], InlineKeyboardMarkup(buttons)
 
 
