@@ -15,6 +15,7 @@ from lora_v2.telegram_actions import register_v2_callbacks
 from lora_v2.telegram_navigation import COMMAND_INTENTS, MENU_COMMANDS
 from lora_v2.worker import run_forever
 from lora_v2.notifications import queue_reply
+from lora_v2.telegram_read_format import format_read_summary
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +33,10 @@ def create_bot(settings: Settings | None = None) -> Application:
         intent = COMMAND_INTENTS.get(command.removeprefix("/"))
         if intent:
             pool = context.application.bot_data["pool"]
+            plain = await answer_read_intent(pool, config, config.telegram_user_id, intent)
             await queue_reply(pool, config.telegram_user_id, str(update.update_id),
-                              await answer_read_intent(pool, config, config.telegram_user_id, intent),
-                              navigation=intent, mini_app_url=os.getenv("LORA_V2_MINI_APP_URL", ""))
+                              format_read_summary(intent, plain), navigation=intent,
+                              mini_app_url=os.getenv("LORA_V2_MINI_APP_URL", ""), parse_mode="HTML")
 
     async def post_init(application: Application) -> None:
         pool = await create_pool(config)

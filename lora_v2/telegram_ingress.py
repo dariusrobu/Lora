@@ -10,6 +10,7 @@ from lora_v2.media import save_photo, save_voice
 from lora_v2.queries import answer_read_intent, read_intent
 from lora_v2.service import capture
 from lora_v2.notifications import queue_reply
+from lora_v2.telegram_read_format import format_read_summary
 
 
 async def handle_owner_message(
@@ -26,9 +27,10 @@ async def handle_owner_message(
     if message.text:
         intent = read_intent(message.text)
         if intent:
-            await queue_reply(pool, settings.telegram_user_id, str(update.update_id), await answer_read_intent(
-                pool, settings, settings.telegram_user_id, intent,
-            ), navigation=intent, mini_app_url=os.getenv("LORA_V2_MINI_APP_URL", ""))
+            plain = await answer_read_intent(pool, settings, settings.telegram_user_id, intent)
+            await queue_reply(pool, settings.telegram_user_id, str(update.update_id),
+                              format_read_summary(intent, plain), navigation=intent,
+                              mini_app_url=os.getenv("LORA_V2_MINI_APP_URL", ""), parse_mode="HTML")
             return True
     try:
         if message.photo:

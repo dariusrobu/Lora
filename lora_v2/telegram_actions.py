@@ -12,6 +12,7 @@ from lora_v2.config import Settings
 from lora_v2.models import Command
 from lora_v2.proactive import decide_followup, decide_proposal
 from lora_v2.queries import answer_read_intent
+from lora_v2.telegram_read_format import format_read_summary
 from lora_v2.service import execute_command
 from lora_v2.telegram_navigation import READ_INTENTS, navigation_keyboard
 from lora_v2.telegram_quick_actions import (
@@ -32,13 +33,13 @@ def register_v2_callbacks(
             await query.answer("Acțiune invalidă", show_alert=True)
             return
         await query.answer()
-        answer = await answer_read_intent(
+        plain = await answer_read_intent(
             context.application.bot_data["v2_pool"], config, config.telegram_user_id, intent,
         )
-        if len(answer) > 3900:
-            answer = answer[:3850].rsplit("\n", 1)[0] + "\n… Restul este în Mini App."
+        answer = format_read_summary(intent, plain)
         await query.edit_message_text(
             answer, reply_markup=navigation_keyboard(intent, os.getenv("LORA_V2_MINI_APP_URL", "")),
+            parse_mode="HTML",
         )
 
     async def on_action_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

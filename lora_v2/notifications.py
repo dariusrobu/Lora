@@ -12,11 +12,13 @@ from lora_v2.telegram_navigation import navigation_keyboard
 
 async def queue_reply(
     pool: asyncpg.Pool, owner_id: int, key: str, text: str,
-    navigation: str | None = None, mini_app_url: str = "",
+    navigation: str | None = None, mini_app_url: str = "", parse_mode: str | None = None,
 ) -> None:
     """Persist replies before Telegram delivery; network failures are retried."""
     # Telegram limits messages to 4096 characters. Stable per-part keys make
     # replaying an update safe without dropping long read-command responses.
+    if parse_mode and len(text) > 4000:
+        raise ValueError("Formatted Telegram replies must fit in one message")
     for offset in range(0, len(text), 4000):
         await pool.execute(
             """INSERT INTO notification_outbox(id,owner_id,dedupe_key,channel,kind,payload)
@@ -24,7 +26,8 @@ async def queue_reply(
             uuid.uuid4(), owner_id, 'reply:' + key + ':' + str(offset // 4000),
             json.dumps({'text': text[offset:offset + 4000],
                         'navigation': navigation if offset == 0 else None,
-                        'mini_app_url': mini_app_url if offset == 0 else ''}),
+                        'mini_app_url': mini_app_url if offset == 0 else '',
+                        'parse_mode': parse_mode}),
         )
 
 
@@ -132,12 +135,13 @@ async def send_pending_telegram(
                 else:
                     await bot.send_message(chat_id=owner_id, text=payload["text"])
             else:
-                await bot.send_message(
-                    chat_id=owner_id, text=payload["text"],
-                    reply_markup=navigation_keyboard(
-                        payload.get("navigation") or "", payload.get("mini_app_url") or "",
-                    ),
-                )
+                kwargs = {"chat_id": owner_id, "text": payload["text"],
+                          "reply_markup": navigation_keyboard(
+                              payload.get("navigation") or "", payload.get("mini_app_url") or "",
+                          )}
+                if payload.get("parse_mode"):
+                    kwargs["parse_mode"] = payload["parse_mode"]
+                await bot.send_message(**kwargs)
         except Exception as exc:
             delay = min(300, 2 ** min(row["attempts"], 8))
             async with pool.acquire() as conn:
