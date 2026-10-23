@@ -39,6 +39,7 @@ from lora_v2.academics import delete_academic, list_academics, set_semester, wri
 from lora_v2.proactive import decide_followup, decide_proposal, generate_proposals
 from lora_v2.queries import answer_read_intent, read_intent
 from lora_v2.telegram_navigation import COMMAND_INTENTS, MENU_COMMANDS, navigation_keyboard
+from lora_v2.telegram_quick_actions import action_menu, add_prompt, item_detail
 from lora_v2.service import capture, execute_command
 from lora_v2.worker import run_once
 from core.nutrition_sources import FoodReference
@@ -367,8 +368,48 @@ def test_daily_driver_menu_and_navigation_keep_existing_shortcuts():
     assert [button.callback_data for button in keyboard.inline_keyboard[0]] == [
         "v2:n:balance", "v2:n:expenses",
     ]
-    assert keyboard.inline_keyboard[1][0].web_app.url == "https://example.com/v2"
+    assert keyboard.inline_keyboard[1][0].callback_data == "v2:a:money"
+    assert keyboard.inline_keyboard[2][0].web_app.url == "https://example.com/v2"
     assert navigation_keyboard("unknown") is None
+
+
+@pytest.mark.asyncio
+async def test_telegram_action_picker_keeps_item_actions_owner_scoped_and_compact():
+    reminder_id = uuid.uuid4()
+
+    class FakeConnection:
+        async def fetch(self, query: str, *_args: object) -> list[dict[str, object]]:
+            assert "owner_id=$1" in query
+            return [{"id": reminder_id, "title": "Ia geanta", "version": 3, "item_kind": "e"}]
+
+        async def fetchrow(self, query: str, *_args: object) -> dict[str, object]:
+            assert "owner_id=$2" in query
+            return {"title": "Ia geanta", "notes": None,
+                    "starts_at": datetime.now(ZoneInfo("Europe/Bucharest")),
+                    "kind": "reminder", "legacy_source": None, "version": 3}
+
+    class FakeAcquire:
+        async def __aenter__(self) -> FakeConnection:
+            return FakeConnection()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    class FakePool:
+        def acquire(self) -> FakeAcquire:
+            return FakeAcquire()
+
+    pool = FakePool()
+    _, keyboard = await action_menu(pool, _settings(), 123, "reminders")
+    assert keyboard.inline_keyboard[0][0].callback_data == f"v2:i:e:{reminder_id}"
+    detail = await item_detail(pool, _settings(), 123, "e", reminder_id)
+    assert detail is not None
+    callbacks = [button.callback_data for row in detail[1].inline_keyboard
+                 for button in row if button.callback_data]
+    assert f"v2:e:{reminder_id}:3:done" in callbacks
+    assert f"v2:q:e:{reminder_id}:3:hour" in callbacks
+    assert all(len(value.encode()) <= 64 for value in callbacks)
+    assert "amintește-mi" in add_prompt("reminders")
 
 
 @pytest.mark.asyncio

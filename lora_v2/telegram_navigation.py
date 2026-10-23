@@ -1,4 +1,4 @@
-"""Small read-only navigation keyboards for Telegram summaries."""
+"""Compact navigation and action entry points for Telegram summaries."""
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
@@ -40,6 +40,15 @@ _LINKS = {
     "workout": (("Azi", "today"),),
 }
 
+_ACTION_LABELS = {
+    "today": "Acțiuni pentru azi", "tomorrow": "Acțiuni pentru mâine",
+    "calendar": "Alege din calendar", "tasks": "Acțiuni taskuri",
+    "reminders": "Acțiuni remindere", "university": "Acțiuni facultate",
+    "news": "Acțiuni noutăți", "money": "Acțiuni bani",
+    "balance": "Acțiuni bani", "expenses": "Acțiuni bani",
+    "workout": "Acțiuni antrenament",
+}
+
 
 def navigation_keyboard(intent: str, mini_app_url: str = "") -> InlineKeyboardMarkup | None:
     if intent not in READ_INTENTS:
@@ -47,6 +56,7 @@ def navigation_keyboard(intent: str, mini_app_url: str = "") -> InlineKeyboardMa
     buttons = [InlineKeyboardButton(label, callback_data=f"v2:n:{target}")
                for label, target in _LINKS.get(intent, ())]
     rows = [buttons] if buttons else []
+    rows.append([InlineKeyboardButton(_ACTION_LABELS[intent], callback_data=f"v2:a:{intent}")])
     if mini_app_url:
         rows.append([InlineKeyboardButton("Deschide Lora", web_app=WebAppInfo(url=mini_app_url))])
     return InlineKeyboardMarkup(rows) if rows else None
